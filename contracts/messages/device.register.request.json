@@ -1,0 +1,33 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "device.register.request",
+  "message_id": "msg-01J0AA00000000000000000001",
+  "idempotency_key": "esp32-s3-01:boot-a1b2c3:000001",
+  "correlation_id": null,
+  "sender": {
+    "kind": "device",
+    "id": "esp32-s3-01"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300100123,
+  "payload": {
+    "device_uid": "esp32-s3-01",
+    "device_type": "esp32_s3_service",
+    "firmware_version": "0.1.0",
+    "boot_id": "boot-a1b2c3",
+    "capabilities": {
+      "display": false,
+      "keyboard": false,
+      "touch": false,
+      "storage_profile": "ephemeral",
+      "audio_io": false,
+      "transports": [
+        "usb_serial",
+        "wifi"
+      ]
+    }
+  }
+}

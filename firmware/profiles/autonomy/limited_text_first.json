@@ -1,0 +1,27 @@
+{
+  "autonomy_profile_id": "limited_text_first",
+  "autonomy_class": "constrained_client",
+  "requires_persistent_storage": "conditional",
+  "offline_behavior": {
+    "chat_send": "short_queue_if_enabled",
+    "chat_history": "last_known_window_only",
+    "blog_read": "last_fetched_items_only",
+    "support_flow": "ticket_read_after_reconnect",
+    "admin_actions": "not_applicable"
+  },
+  "sync_profile": {
+    "queue_mode": "text_event_queue_small",
+    "pull_mode": "incremental_from_cursor",
+    "transport_expectation": "wifi_primary"
+  },
+  "allowed_when_server_unreachable": [
+    "compose_text_draft",
+    "queue_short_text_event",
+    "read_cached_items"
+  ],
+  "not_promised": [
+    "full_media_sync_without_storage",
+    "deep_offline_blog_archive",
+    "server_replacement_behavior"
+  ]
+}

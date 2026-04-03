@@ -1,0 +1,29 @@
+{
+  "profile_id": "m5stamp_s3",
+  "device_display_name": "M5Stamp S3",
+  "firmware_path": "devices/m5stamp",
+  "category": "internal_service",
+  "primary_role": "lightweight_telemetry_and_signal_node",
+  "preferred_stack": ["esp-idf", "platformio"],
+  "transports": {
+    "internal": ["usb_serial", "wifi"],
+    "external": []
+  },
+  "capabilities": {
+    "chat": false,
+    "blog": false,
+    "admin_panel": false,
+    "rfid_management": false,
+    "telemetry": true,
+    "heartbeat": true,
+    "alert_signal": true
+  },
+  "autonomy_profile": "non_autonomous",
+  "supports_guest_login": false,
+  "constraints": [
+    "no_main_server_role",
+    "no_long_i2c_external_lines",
+    "small_memory_budget"
+  ],
+  "status": "mvp_v0_08_02"
+}

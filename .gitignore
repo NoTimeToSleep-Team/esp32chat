@@ -1,0 +1,66 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.python-version
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+*.egg-info/
+pip-wheel-metadata/
+
+# Logs and local runtime files
+*.log
+*.pid
+
+# Databases and local data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+server/data/
+
+# JavaScript
+node_modules/
+
+# Firmware build outputs
+.pio/
+.pioenvs/
+piolibdeps/
+*.bin
+*.elf
+*.hex
+*.map
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key

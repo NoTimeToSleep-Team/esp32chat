@@ -1,0 +1,22 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "sync.ack",
+  "message_id": "msg-01J0AA00000000000000000013",
+  "idempotency_key": null,
+  "correlation_id": "msg-01J0AA00000000000000000012",
+  "sender": {
+    "kind": "device",
+    "id": "m5stickc-02"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300500460,
+  "payload": {
+    "applied_cursor": "cur-000001222",
+    "received_event_ids": [
+      "evt-000902"
+    ]
+  }
+}

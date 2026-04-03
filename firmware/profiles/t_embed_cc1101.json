@@ -1,0 +1,30 @@
+{
+  "profile_id": "t_embed_cc1101",
+  "device_display_name": "T-Embed CC1101",
+  "firmware_path": "devices/t_embed_cc1101",
+  "category": "client_handheld",
+  "primary_role": "text_client_with_templates_and_local_buffer",
+  "preferred_stack": ["esp-idf", "platformio"],
+  "transports": {
+    "internal": [],
+    "external": ["wifi", "esp_now", "ble"]
+  },
+  "capabilities": {
+    "chat": true,
+    "blog": true,
+    "admin_panel": false,
+    "rfid_management": false,
+    "device_action_sequence_login": true,
+    "message_templates": true,
+    "local_buffer": true,
+    "media_files": "conditional_on_real_storage"
+  },
+  "autonomy_profile": "limited_buffered",
+  "supports_guest_login": false,
+  "constraints": [
+    "text_first_default",
+    "no_heavy_streams_over_constrained_transport",
+    "no_main_server_role"
+  ],
+  "status": "mvp_v0_13_02"
+}

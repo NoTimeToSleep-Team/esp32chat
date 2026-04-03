@@ -1,0 +1,22 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "auth.login.request",
+  "message_id": "msg-01J0AA00000000000000000004",
+  "idempotency_key": "m5cardputer-ext-01:boot-k9l8m7:000014",
+  "correlation_id": null,
+  "sender": {
+    "kind": "device",
+    "id": "m5cardputer-ext-01"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300200123,
+  "payload": {
+    "login": "user_1575",
+    "password": "<runtime-secret>",
+    "device_fingerprint": "fp-cf7d2a8f",
+    "client_mode": "device"
+  }
+}

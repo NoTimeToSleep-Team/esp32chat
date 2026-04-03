@@ -1,0 +1,29 @@
+{
+  "profile_id": "m5tab",
+  "device_display_name": "M5Tab",
+  "firmware_path": "devices/m5tab",
+  "category": "local_admin_panel",
+  "primary_role": "admin_hmi_panel",
+  "preferred_stack": ["esp-idf", "platformio"],
+  "transports": {
+    "internal": ["wifi", "usb_serial"],
+    "external": ["wifi"]
+  },
+  "capabilities": {
+    "chat": false,
+    "blog": false,
+    "admin_panel": true,
+    "rfid_management": true,
+    "user_moderation": true,
+    "mode_switch_with_hold": true,
+    "ops_controls": true
+  },
+  "autonomy_profile": "control_panel_only",
+  "supports_guest_login": false,
+  "constraints": [
+    "not_a_video_terminal_for_pi",
+    "no_main_server_role",
+    "uses_structured_data_only"
+  ],
+  "status": "mvp_v0_09_03"
+}

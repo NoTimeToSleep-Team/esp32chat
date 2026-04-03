@@ -1,0 +1,237 @@
+:root {
+  --bg-1: #f1ece5;
+  --bg-2: #dce6ef;
+  --card: #fffefb;
+  --ink: #1e2429;
+  --muted: #5f6970;
+  --line: #d7dce2;
+  --accent: #1b6173;
+  --danger: #983a3a;
+  --warn: #a1632f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: linear-gradient(145deg, var(--bg-1), var(--bg-2));
+}
+
+.admin-shell {
+  width: min(1260px, 96vw);
+  margin: 0 auto;
+  padding: 22px 0 34px;
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(20, 31, 36, 0.08);
+  padding: 13px;
+}
+
+.hero h1 {
+  margin: 0;
+}
+
+.hero p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.session {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 180px auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.session label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+
+.status-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+}
+
+.status-note.ok {
+  color: #2f7640;
+}
+
+.status-note.error {
+  color: var(--danger);
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fff;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) 1fr;
+  gap: 12px;
+}
+
+.users-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.users-head h2 {
+  margin: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.user-btn {
+  width: 100%;
+  text-align: left;
+  background: #f7fafc;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.user-btn strong,
+.user-btn small {
+  display: block;
+}
+
+.user-btn small {
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.user-btn.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.controls h2 {
+  margin: 0;
+}
+
+.controls header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.details {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.details div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fbfdfd;
+}
+
+.details span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.details strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.actions {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.actions label {
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.row.danger button {
+  background: var(--danger);
+}
+
+#tempBlockBtn {
+  background: var(--warn);
+}
+
+.empty-note {
+  text-align: center;
+  color: var(--muted);
+  padding: 16px;
+}
+
+@media (max-width: 980px) {
+  .session {
+    grid-template-columns: 1fr;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .details {
+    grid-template-columns: 1fr;
+  }
+}

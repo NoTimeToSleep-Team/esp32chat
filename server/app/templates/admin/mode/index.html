@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Mode | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/admin/mode/mode.css" />
+</head>
+<body>
+  <div class="mode-shell">
+    <header class="hero card">
+      <h1>Admin: Mode Toggle</h1>
+      <p>Управление open/closed режимом с подтверждением удержанием</p>
+    </header>
+
+    <section class="session card">
+      <label for="sessionToken">Admin session token</label>
+      <input id="sessionToken" type="password" placeholder="Вставьте admin token" autocomplete="off" />
+      <button id="loadModeStateBtn" type="button">Загрузить state</button>
+      <a class="link-btn" href="/admin/content/panel">Открыть content panel</a>
+      <p id="statusNote" class="status-note">Ожидание загрузки...</p>
+    </section>
+
+    <section class="card mode-panel">
+      <h2>Текущий режим</h2>
+      <p id="currentMode">-</p>
+      <h3>Безопасная последовательность</h3>
+      <ol id="safeSequence" class="sequence"></ol>
+
+      <div class="controls">
+        <label for="targetMode">Целевой режим</label>
+        <select id="targetMode">
+          <option value="open">open</option>
+          <option value="closed">closed</option>
+        </select>
+
+        <label for="holdSeconds">Hold seconds</label>
+        <input id="holdSeconds" type="number" min="1" max="30" value="5" />
+
+        <button id="applyModeBtn" type="button" disabled>Применить режим</button>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="/static/admin/mode/mode.js"></script>
+</body>
+</html>

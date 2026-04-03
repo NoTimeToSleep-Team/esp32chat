@@ -1,0 +1,27 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "auth.login.response",
+  "message_id": "msg-01J0AA00000000000000000005",
+  "idempotency_key": null,
+  "correlation_id": "msg-01J0AA00000000000000000004",
+  "sender": {
+    "kind": "server",
+    "id": "main"
+  },
+  "target": {
+    "kind": "device",
+    "id": "m5cardputer-ext-01"
+  },
+  "sent_at_ms": 1775300200184,
+  "payload": {
+    "status": "ok",
+    "user_id": "usr-1001",
+    "role": "user",
+    "mode": "open",
+    "session": {
+      "token": "sess-user-usr-1001-example",
+      "expires_at_ms": 1775303800184
+    },
+    "server_time_ms": 1775300200184
+  }
+}

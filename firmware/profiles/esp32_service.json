@@ -1,0 +1,29 @@
+{
+  "profile_id": "esp32_service",
+  "device_display_name": "ESP32-S3 USB-OTG",
+  "firmware_path": "devices/esp32_service",
+  "category": "internal_service",
+  "primary_role": "watchdog_telemetry_and_safe_shutdown_controller",
+  "preferred_stack": ["esp-idf", "platformio"],
+  "transports": {
+    "internal": ["usb_serial", "wifi"],
+    "external": ["wifi"]
+  },
+  "capabilities": {
+    "chat": false,
+    "blog": false,
+    "admin_panel": false,
+    "rfid_management": false,
+    "telemetry": true,
+    "safe_shutdown_control": true,
+    "local_edge_profile": true
+  },
+  "autonomy_profile": "service_assist_only",
+  "supports_guest_login": false,
+  "constraints": [
+    "not_a_main_server",
+    "no_unbounded_log_storage",
+    "no_heavy_media_processing"
+  ],
+  "status": "mvp_v0_08_01"
+}

@@ -1,0 +1,28 @@
+{
+  "profile_id": "m5cardputer_console",
+  "device_display_name": "M5Cardputer (Built-in Console)",
+  "firmware_path": "devices/m5cardputer_console",
+  "category": "service_console",
+  "primary_role": "internal_text_console",
+  "preferred_stack": ["esp-idf", "platformio"],
+  "transports": {
+    "internal": ["wifi", "usb_serial"],
+    "external": []
+  },
+  "capabilities": {
+    "chat": true,
+    "blog": true,
+    "admin_panel": false,
+    "rfid_management": false,
+    "device_action_sequence_login": true,
+    "media_files": "conditional_on_real_storage"
+  },
+  "autonomy_profile": "limited_text_first",
+  "supports_guest_login": false,
+  "constraints": [
+    "text_first_ux",
+    "no_unconfirmed_media_promises",
+    "no_main_server_role"
+  ],
+  "status": "mvp_v0_10_03"
+}

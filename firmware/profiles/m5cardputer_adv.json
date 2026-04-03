@@ -1,0 +1,28 @@
+{
+  "profile_id": "m5cardputer_adv",
+  "device_display_name": "M5Cardputer Adv",
+  "firmware_path": "devices/m5cardputer_client",
+  "category": "client_handheld",
+  "primary_role": "shared_client_profile_with_optional_hardware_overrides",
+  "preferred_stack": ["esp-idf", "platformio"],
+  "transports": {
+    "internal": [],
+    "external": ["wifi"]
+  },
+  "capabilities": {
+    "chat": true,
+    "blog": true,
+    "admin_panel": false,
+    "rfid_management": false,
+    "device_action_sequence_login": true,
+    "media_files": "conditional_on_real_storage"
+  },
+  "autonomy_profile": "limited_text_first",
+  "supports_guest_login": false,
+  "constraints": [
+    "shares_codebase_with_m5cardputer_client_until_hardware_delta_is_proven",
+    "no_guest_mode",
+    "no_main_server_role"
+  ],
+  "status": "mvp_v0_11_02"
+}

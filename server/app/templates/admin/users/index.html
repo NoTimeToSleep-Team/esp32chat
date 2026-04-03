@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Users | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/admin/users/users.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <header class="hero card">
+      <h1>Admin: Users Control</h1>
+      <p>Блокировки, баны, device blacklist и удаление аккаунтов</p>
+    </header>
+
+    <section class="session card">
+      <label for="sessionToken">Admin session token</label>
+      <input id="sessionToken" type="password" placeholder="Вставьте admin token" autocomplete="off" />
+      <select id="statusFilter">
+        <option value="">all statuses</option>
+        <option value="active">active</option>
+        <option value="blocked">blocked</option>
+        <option value="banned">banned</option>
+      </select>
+      <button id="loadUsersBtn" type="button">Загрузить пользователей</button>
+      <p id="statusNote" class="status-note">Ожидание загрузки...</p>
+    </section>
+
+    <div class="content-grid">
+      <aside class="users-list card">
+        <div class="users-head">
+          <h2>Пользователи</h2>
+          <button id="refreshBtn" type="button">Обновить</button>
+        </div>
+        <ul id="userList" class="list" aria-live="polite"></ul>
+      </aside>
+
+      <main class="controls card">
+        <header>
+          <h2 id="selectedUserTitle">Выберите пользователя</h2>
+          <p id="selectedUserMeta">Детали и действия появятся после выбора</p>
+        </header>
+
+        <section class="details">
+          <div><span>Role</span><strong id="detailRole">-</strong></div>
+          <div><span>Status</span><strong id="detailStatus">-</strong></div>
+          <div><span>Phone</span><strong id="detailPhone">-</strong></div>
+          <div><span>Device</span><strong id="detailDevice">-</strong></div>
+          <div><span>Blocked until</span><strong id="detailBlockedUntil">-</strong></div>
+          <div><span>Block reason</span><strong id="detailReason">-</strong></div>
+          <div><span>Device blacklisted</span><strong id="detailBlacklisted">-</strong></div>
+        </section>
+
+        <section class="actions">
+          <label for="actionReason">Причина (для ban/block/blacklist)</label>
+          <textarea id="actionReason" rows="3" maxlength="2048" placeholder="Причина действия"></textarea>
+
+          <label for="temporaryMinutes">Длительность temporary block (минуты)</label>
+          <input id="temporaryMinutes" type="number" min="1" max="10080" value="60" />
+
+          <div class="row">
+            <button id="banBtn" type="button" disabled>Ban</button>
+            <button id="unbanBtn" type="button" disabled>Unban/Restore</button>
+            <button id="tempBlockBtn" type="button" disabled>Temporary Block</button>
+          </div>
+
+          <div class="row">
+            <button id="blacklistDeviceBtn" type="button" disabled>Blacklist Device</button>
+            <button id="unblacklistDeviceBtn" type="button" disabled>Unblacklist Device</button>
+          </div>
+
+          <div class="row danger">
+            <button id="deleteUserBtn" type="button" disabled>Delete User</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <template id="userItemTemplate">
+    <li>
+      <button type="button" class="user-btn">
+        <strong class="user-login"></strong>
+        <small class="user-meta"></small>
+      </button>
+    </li>
+  </template>
+
+  <script type="module" src="/static/admin/users/users.js"></script>
+</body>
+</html>

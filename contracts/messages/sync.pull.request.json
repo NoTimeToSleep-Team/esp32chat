@@ -1,0 +1,24 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "sync.pull.request",
+  "message_id": "msg-01J0AA00000000000000000011",
+  "idempotency_key": null,
+  "correlation_id": null,
+  "sender": {
+    "kind": "device",
+    "id": "m5stickc-02"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300500310,
+  "payload": {
+    "since_cursor": "cur-000001221",
+    "limit": 100,
+    "channels": [
+      "chat-general",
+      "blog-feed"
+    ]
+  }
+}

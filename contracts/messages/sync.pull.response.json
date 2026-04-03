@@ -1,0 +1,35 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "sync.pull.response",
+  "message_id": "msg-01J0AA00000000000000000012",
+  "idempotency_key": null,
+  "correlation_id": "msg-01J0AA00000000000000000011",
+  "sender": {
+    "kind": "server",
+    "id": "main"
+  },
+  "target": {
+    "kind": "device",
+    "id": "m5stickc-02"
+  },
+  "sent_at_ms": 1775300500404,
+  "payload": {
+    "status": "ok",
+    "events": [
+      {
+        "event_id": "evt-000902",
+        "event_type": "chat.message",
+        "event_ts_ms": 1775300500340,
+        "payload": {
+          "chat_id": "chat-general",
+          "message_id": "msg-chat-009913",
+          "author_user_id": "usr-2002",
+          "text": "Welcome back"
+        }
+      }
+    ],
+    "next_cursor": "cur-000001222",
+    "has_more": false,
+    "server_time_ms": 1775300500404
+  }
+}
