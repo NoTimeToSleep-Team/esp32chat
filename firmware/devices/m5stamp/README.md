@@ -4,6 +4,9 @@ Internal helper firmware target for M5Stamp S3 devices.
 
 Implemented as MVP in `v0.08.02`.
 
+Native Arduino runtime is available in `m5stamp_s3.ino`.
+Preset defaults live in `../../arduino/presets/m5stamp_s3_preset.h`.
+
 ## Scope
 
 - heartbeat envelope generation with status transitions (`ok`/`degraded`/`hold_state`);
@@ -32,3 +35,6 @@ Run from project root:
 ```bash
 python -m firmware.devices.m5stamp.verify_mvp
 ```
+
+Python modules in this directory remain as host-side simulation and verification harnesses.
+Profile metadata lists harness files under `host_harness_entries`.

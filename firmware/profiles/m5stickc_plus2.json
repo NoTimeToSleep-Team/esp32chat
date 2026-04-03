@@ -2,9 +2,15 @@
   "profile_id": "m5stickc_plus2",
   "device_display_name": "M5StickC Plus 2",
   "firmware_path": "devices/m5stickc_plus2",
+  "native_runtime_entry": "devices/m5stickc_plus2/m5stickc_plus2.ino",
+  "native_preset_entry": "arduino/presets/m5stickc_plus2_preset.h",
+  "host_harness_entries": [
+    "devices/m5stickc_plus2/verify_mvp.py",
+    "devices/m5stickc_plus2/ui/verify_flow.py"
+  ],
   "category": "client_handheld",
   "primary_role": "compact_text_client",
-  "preferred_stack": ["esp-idf", "platformio"],
+  "preferred_stack": ["arduino-ide", "platformio", "esp-idf"],
   "transports": {
     "internal": [],
     "external": ["wifi"]

@@ -2,9 +2,15 @@
   "profile_id": "m5cardputer_adv",
   "device_display_name": "M5Cardputer Adv",
   "firmware_path": "devices/m5cardputer_client",
+  "native_runtime_entry": "devices/m5cardputer_client/m5cardputer_adv.ino",
+  "native_preset_entry": "arduino/presets/m5cardputer_adv_preset.h",
+  "host_harness_entries": [
+    "devices/m5cardputer_client/verify_alignment.py",
+    "devices/m5cardputer_client/ui/verify_flow.py"
+  ],
   "category": "client_handheld",
   "primary_role": "shared_client_profile_with_optional_hardware_overrides",
-  "preferred_stack": ["esp-idf", "platformio"],
+  "preferred_stack": ["arduino-ide", "platformio", "esp-idf"],
   "transports": {
     "internal": [],
     "external": ["wifi"]

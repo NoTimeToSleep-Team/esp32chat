@@ -16,16 +16,26 @@ This directory contains firmware workspace artifacts for internal service nodes 
 - M5StickC Plus 2 compact shell/login + client MVP is implemented under `devices/m5stickc_plus2/`.
 - T-Embed CC1101 shell/login + text-first client MVP is implemented under `devices/t_embed_cc1101/`.
 - Flipper Zero shell/capability-detection + limited client MVP is implemented under `devices/flipper_zero/`.
+- Native Arduino `.ino` runtime entrypoints are now present for all ESP32/M5 targets under `devices/*/*.ino`.
+- Native Flipper `.fap` C runtime entrypoint is now present under `devices/flipper_zero/fap/`.
+- Native client/admin write actions are opt-in via compile-time macros (disabled by default).
+- Device-specific Arduino preset headers are tracked under `arduino/presets/*_preset.h`.
+- Profile metadata now explicitly tracks `host_harness_entries` for Python-side verification files.
+- Runtime/harness mapping is documented in `docs/native-runtime-map.md`.
+- Python harness policy is documented in `docs/python-harness-policy.md`.
 - Device registration/telemetry e2e baseline is verified via `devices/esp32_service/verify_registration_e2e.py`.
 - Chat web+device e2e parity is verified via `integration/verify_chat_e2e.py`.
 - Blog/support/admin ops e2e is verified via `integration/verify_ops_e2e.py`.
 - Autonomy/sync profile definitions are tracked under `profiles/autonomy/`.
 - Device capability profiles are defined under `profiles/`.
+- Python modules under `devices/` remain host-side simulation and verification harnesses.
+- Native profile-to-runtime mapping can be checked via `arduino/verify_native_layout.py`.
 - Build and toolchain guidance is documented in `docs/build.md`.
 
 ## Workspace Layout
 
 - `common/` - shared protocol, transport, queue, and platform modules.
+- `arduino/` - shared Arduino C++ runtime helpers.
 - `profiles/` - normalized device profile JSON files.
 - `devices/` - per-device implementation roots.
 - `integration/` - cross-device/server integration verifiers.

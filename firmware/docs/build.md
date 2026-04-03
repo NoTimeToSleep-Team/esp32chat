@@ -8,13 +8,43 @@ This document defines baseline build workflow for the firmware workspace introdu
 - Keep build commands explicit and reproducible.
 - Avoid claiming executable firmware before implementation substages.
 
-At `v0.07.01`, this workspace contains structure and profiles, not runnable firmware binaries.
+Workspace now includes native runtime entrypoints:
+
+- Arduino sketches (`*.ino`) for ESP32/M5 targets;
+- Flipper external app source (`.c` + `.fam`) for `.fap` build;
+- Python modules are kept for host-side simulation and verification.
+
+Reference docs:
+
+- `docs/native-runtime-map.md`
+- `docs/python-harness-policy.md`
 
 ## Directory Entry Points
 
 - Shared modules: `firmware/common/`
 - Device targets: `firmware/devices/`
 - Device profiles: `firmware/profiles/`
+
+## Software Sweep Runner
+
+Run the ordered software verification sweep (contracts, device verifiers, integrations, profiles, native layout):
+
+```bash
+python docs/tools/run_software_verification_sweep.py
+```
+
+Optional compile walk:
+
+```bash
+python docs/tools/run_software_verification_sweep.py --with-compileall
+```
+
+Target specific groups when doing focused checks:
+
+```bash
+python docs/tools/run_software_verification_sweep.py --group contracts
+python docs/tools/run_software_verification_sweep.py --group profiles --group native
+```
 
 ## Toolchain Baseline
 
@@ -30,9 +60,67 @@ Install references:
 - ESP-IDF docs: official install instructions per host OS.
 - PlatformIO core: `pip install platformio`.
 
+### Arduino IDE Runtime (ESP32/M5)
+
+Open and build these sketches in Arduino IDE:
+
+- `firmware/devices/esp32_service/esp32_service.ino`
+- `firmware/devices/m5stamp/m5stamp_s3.ino`
+- `firmware/devices/atom_s3/atom_s3.ino`
+- `firmware/devices/m5tab/m5tab.ino`
+- `firmware/devices/m5cardputer_console/m5cardputer_console.ino`
+- `firmware/devices/m5cardputer_client/m5cardputer_client.ino`
+- `firmware/devices/m5cardputer_client/m5cardputer_adv.ino`
+- `firmware/devices/m5stickc_plus2/m5stickc_plus2.ino`
+- `firmware/devices/t_embed_cc1101/t_embed_cc1101.ino`
+
+Shared Arduino helper:
+
+- `firmware/arduino/common/local_chat_runtime.h`
+- `firmware/arduino/presets/runtime_profiles.h`
+- `firmware/arduino/presets/*_preset.h` (device-specific defaults)
+
+Each sketch exposes configurable macros:
+
+- `LC_WIFI_SSID`
+- `LC_WIFI_PASSWORD`
+- `LC_SERVER_BASE_URL`
+- `LC_OPS_SESSION_TOKEN` (service-node sketches)
+- `LC_LOGIN` / `LC_PASSWORD` (client/admin sketches)
+
+Optional write-action macros (disabled by default):
+
+- `LC_CHAT_SEND_ENABLED`
+- `LC_SUPPORT_CREATE_ENABLED`
+- `LC_ADMIN_REPLY_ENABLED`
+- `LC_ADMIN_RESOLVE_ENABLED`
+- `LC_ADMIN_BLOG_PUBLISH_ENABLED`
+
+Optional targeting macros:
+
+- `LC_PREFERRED_CHAT_ID`
+- `LC_ADMIN_TICKET_ID`
+
 ### Flipper Zero
 
 Use official Flipper SDK/FBT workflow for app firmware build.
+
+Native Flipper app source:
+
+- `firmware/devices/flipper_zero/fap/application.fam`
+- `firmware/devices/flipper_zero/fap/local_chat_flipper.c`
+- `firmware/devices/flipper_zero/fap/local_chat_api.h`
+- `firmware/devices/flipper_zero/fap/local_chat_api.c`
+
+Build example from Flipper firmware environment:
+
+```bash
+./fbt fap_local_chat_flipper
+```
+
+Optional Flipper compile flag:
+
+- `LOCAL_CHAT_WIFI_DEVBOARD_AVAILABLE=1`
 
 ## Planned Target Mapping
 
@@ -109,6 +197,21 @@ Validate that every device profile references an existing autonomy definition:
 ```bash
 python firmware/profiles/autonomy/verify_profiles.py
 ```
+
+## Native Runtime Layout Validation (Local)
+
+Validate that every firmware profile maps to an existing native runtime entrypoint:
+
+```bash
+python firmware/arduino/verify_native_layout.py
+```
+
+The checker validates:
+
+- `native_runtime_entry` exists for each profile;
+- `native_preset_entry` exists for Arduino profiles;
+- Flipper `native_manifest_entry` and entrypoint linkage are consistent.
+- `host_harness_entries` exist and point to Python harness files.
 
 ## M5Stamp S3 MVP Verification (Local)
 

@@ -4,6 +4,9 @@ Internal status and alert firmware target for Atom S3.
 
 Implemented as MVP in `v0.08.03`.
 
+Native Arduino runtime is available in `atom_s3.ino`.
+Preset defaults live in `../../arduino/presets/atom_s3_preset.h`.
+
 ## Scope
 
 - status panel state (`ok`/`degraded`/`hold_state`) with compact pattern mapping;
@@ -32,3 +35,6 @@ Run from project root:
 ```bash
 python -m firmware.devices.atom_s3.verify_mvp
 ```
+
+Python modules in this directory remain as host-side simulation and verification harnesses.
+Profile metadata lists harness files under `host_harness_entries`.

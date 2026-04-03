@@ -24,7 +24,7 @@ Prioritized backlog after RC1 software baseline.
 
 - Initialize git repository and establish branch/release conventions.
 - Define changelog and release-note policy for subsequent RCs.
-- Add repeatable CI workflow for software verification sweep.
+- Add repeatable CI workflow for software verification sweep. (`done`: `.github/workflows/software-verification.yml`)
 
 ## Tracking Notes
 

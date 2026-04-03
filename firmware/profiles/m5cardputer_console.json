@@ -2,9 +2,17 @@
   "profile_id": "m5cardputer_console",
   "device_display_name": "M5Cardputer (Built-in Console)",
   "firmware_path": "devices/m5cardputer_console",
+  "native_runtime_entry": "devices/m5cardputer_console/m5cardputer_console.ino",
+  "native_preset_entry": "arduino/presets/m5cardputer_console_preset.h",
+  "host_harness_entries": [
+    "devices/m5cardputer_console/verify_mvp.py",
+    "devices/m5cardputer_console/chat/verify_flow.py",
+    "devices/m5cardputer_console/blog/verify_flow.py",
+    "devices/m5cardputer_console/service_actions/verify_flow.py"
+  ],
   "category": "service_console",
   "primary_role": "internal_text_console",
-  "preferred_stack": ["esp-idf", "platformio"],
+  "preferred_stack": ["arduino-ide", "platformio", "esp-idf"],
   "transports": {
     "internal": ["wifi", "usb_serial"],
     "external": []

@@ -2,9 +2,14 @@
   "profile_id": "m5stamp_s3",
   "device_display_name": "M5Stamp S3",
   "firmware_path": "devices/m5stamp",
+  "native_runtime_entry": "devices/m5stamp/m5stamp_s3.ino",
+  "native_preset_entry": "arduino/presets/m5stamp_s3_preset.h",
+  "host_harness_entries": [
+    "devices/m5stamp/verify_mvp.py"
+  ],
   "category": "internal_service",
   "primary_role": "lightweight_telemetry_and_signal_node",
-  "preferred_stack": ["esp-idf", "platformio"],
+  "preferred_stack": ["arduino-ide", "platformio", "esp-idf"],
   "transports": {
     "internal": ["usb_serial", "wifi"],
     "external": []

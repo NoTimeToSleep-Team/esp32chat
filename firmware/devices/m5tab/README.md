@@ -4,6 +4,13 @@ Administrative HMI firmware target for local panel workflows.
 
 Implemented shell/info MVP in `v0.09.01`, admin-users flow in `v0.09.02`, and admin-ops flow in `v0.09.03`.
 
+Native Arduino runtime is available in `m5tab.ino`.
+Preset defaults live in `../../arduino/presets/m5tab_preset.h`.
+
+Admin write actions in native runtime are opt-in via macros (`LC_ADMIN_REPLY_ENABLED`, `LC_ADMIN_RESOLVE_ENABLED`, `LC_ADMIN_BLOG_PUBLISH_ENABLED`).
+Default `m5tab.ino` uses `client_kind=web` for admin-auth parity with server role constraints.
+`LC_ADMIN_TICKET_ID` can be used to pin target ticket for reply/status actions.
+
 ## Scope
 
 - shell connection state (`disconnected/connecting/connected/degraded`);
@@ -37,3 +44,6 @@ python -m firmware.devices.m5tab.verify_mvp
 python -m firmware.devices.m5tab.screens.admin_users.verify_flow
 python -m firmware.devices.m5tab.screens.admin_ops.verify_flow
 ```
+
+Python modules in this directory remain as host-side simulation and verification harnesses.
+Profile metadata lists harness files under `host_harness_entries`.

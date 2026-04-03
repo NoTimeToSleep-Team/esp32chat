@@ -2,9 +2,15 @@
   "profile_id": "t_embed_cc1101",
   "device_display_name": "T-Embed CC1101",
   "firmware_path": "devices/t_embed_cc1101",
+  "native_runtime_entry": "devices/t_embed_cc1101/t_embed_cc1101.ino",
+  "native_preset_entry": "arduino/presets/t_embed_cc1101_preset.h",
+  "host_harness_entries": [
+    "devices/t_embed_cc1101/verify_mvp.py",
+    "devices/t_embed_cc1101/ui/verify_flow.py"
+  ],
   "category": "client_handheld",
   "primary_role": "text_client_with_templates_and_local_buffer",
-  "preferred_stack": ["esp-idf", "platformio"],
+  "preferred_stack": ["arduino-ide", "platformio", "esp-idf"],
   "transports": {
     "internal": [],
     "external": ["wifi", "esp_now", "ble"]

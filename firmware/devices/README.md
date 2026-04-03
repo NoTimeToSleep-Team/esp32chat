@@ -16,3 +16,15 @@ Current status:
 - `t_embed_cc1101/` has shell/login + text-first client MVP implemented up to `v0.13.02`.
 - `flipper_zero/` has shell/capability-detection + limited client MVP implemented up to `v0.14.02`.
 - other targets remain staged placeholders for later substages.
+
+Native runtime entrypoints:
+
+- ESP32/M5 families use Arduino sketches (`*.ino`) in each device directory.
+- ESP32/M5 device defaults are centralized in `firmware/arduino/presets/*_preset.h`.
+- Flipper uses `.fap` C runtime files under `flipper_zero/fap/`.
+- Python files remain local simulation and verification harnesses.
+
+See also:
+
+- `firmware/docs/native-runtime-map.md`
+- `firmware/docs/python-harness-policy.md`

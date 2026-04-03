@@ -2,9 +2,15 @@
   "profile_id": "esp32_service",
   "device_display_name": "ESP32-S3 USB-OTG",
   "firmware_path": "devices/esp32_service",
+  "native_runtime_entry": "devices/esp32_service/esp32_service.ino",
+  "native_preset_entry": "arduino/presets/esp32_service_preset.h",
+  "host_harness_entries": [
+    "devices/esp32_service/verify_mvp.py",
+    "devices/esp32_service/verify_registration_e2e.py"
+  ],
   "category": "internal_service",
   "primary_role": "watchdog_telemetry_and_safe_shutdown_controller",
-  "preferred_stack": ["esp-idf", "platformio"],
+  "preferred_stack": ["arduino-ide", "platformio", "esp-idf"],
   "transports": {
     "internal": ["usb_serial", "wifi"],
     "external": ["wifi"]

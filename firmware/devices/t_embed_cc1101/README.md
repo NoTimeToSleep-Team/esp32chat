@@ -6,6 +6,12 @@ Shell/login MVP implemented in `v0.13.01`.
 
 Client MVP implemented in `v0.13.02`.
 
+Native Arduino runtime is available in `t_embed_cc1101.ino`.
+Preset defaults live in `../../arduino/presets/t_embed_cc1101_preset.h`.
+
+Native write actions are opt-in via macros (`LC_CHAT_SEND_ENABLED`, `LC_SUPPORT_CREATE_ENABLED`).
+`LC_PREFERRED_CHAT_ID` can be used to pin chat send target in constrained deployments.
+
 ## Scope
 
 - secure login flow with `client_kind=device`;
@@ -33,3 +39,6 @@ Run from project root:
 python -m firmware.devices.t_embed_cc1101.verify_mvp
 python -m firmware.devices.t_embed_cc1101.ui.verify_flow
 ```
+
+Python modules in this directory remain as host-side simulation and verification harnesses.
+Profile metadata lists harness files under `host_harness_entries`.

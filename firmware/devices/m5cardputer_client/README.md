@@ -6,6 +6,12 @@ External handheld firmware target for M5Cardputer/M5Cardputer Adv profiles.
 
 `v0.11.02` implements external handheld client MVP flow.
 
+Native Arduino runtimes are available in `m5cardputer_client.ino` and `m5cardputer_adv.ino`.
+Preset defaults live in `../../arduino/presets/m5cardputer_client_preset.h` and `../../arduino/presets/m5cardputer_adv_preset.h`.
+
+Native write actions are opt-in via macros (`LC_CHAT_SEND_ENABLED`, `LC_SUPPORT_CREATE_ENABLED`).
+`LC_PREFERRED_CHAT_ID` can be used to pin chat send target in constrained deployments.
+
 ## Scope
 
 - split built-in console (`m5cardputer_console`) and external handheld target;
@@ -30,3 +36,6 @@ Run from project root:
 python -m firmware.devices.m5cardputer_client.verify_alignment
 python -m firmware.devices.m5cardputer_client.ui.verify_flow
 ```
+
+Python modules in this directory remain as host-side simulation and verification harnesses.
+Profile metadata lists harness files under `host_harness_entries`.

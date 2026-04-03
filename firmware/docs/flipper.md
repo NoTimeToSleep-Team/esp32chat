@@ -22,6 +22,15 @@ This document captures realistic runtime boundaries for Flipper Zero integration
 - chat text send/read and blog read;
 - no file/photo upload assumptions.
 
+Native Flipper `.fap` runtime source is now tracked under:
+
+- `firmware/devices/flipper_zero/fap/application.fam`
+- `firmware/devices/flipper_zero/fap/local_chat_flipper.c`
+
+Optional compile-time flag for runtime capability path:
+
+- `LOCAL_CHAT_WIFI_DEVBOARD_AVAILABLE=1`
+
 ## Mode Rules
 
 - `limited_local` mode:

@@ -7,6 +7,7 @@ This report captures the executed software verification sweep based on `docs/ver
 - Overall status: `pass` (software checks executed in current environment).
 - Scope: steps 1-4 from verification plan.
 - Hardware queue (step 5) remains pending by design.
+- One-command automation sweep executed and passed.
 
 ## Executed Commands
 
@@ -66,11 +67,12 @@ Observed:
 - chat parity verifier reported `PROTOCOL_MESSAGE_TYPE chat.message.event` and matching parity text;
 - ops e2e verifier reported final support status `resolved` with blog + support flow assertions satisfied.
 
-### Step 4 - Profile and Autonomy Consistency
+### Step 4 - Profile, Autonomy, and Native Runtime Consistency
 
 ```bash
 python -c "import json, pathlib; [json.loads(p.read_text(encoding='utf-8')) for p in pathlib.Path('firmware/profiles').glob('*.json')]; print('profiles_ok')"
 python firmware/profiles/autonomy/verify_profiles.py
+python firmware/arduino/verify_native_layout.py
 ```
 
 Observed:
@@ -78,6 +80,21 @@ Observed:
 - `profiles_ok`
 - `DEVICE_PROFILE_COUNT 10`
 - `AUTONOMY_PROFILE_COUNT 7`
+- `NATIVE_LAYOUT_PROFILE_COUNT 10`
+- `NATIVE_LAYOUT_HARNESS_COUNT 21`
+
+### Additional Sweep - One-Command Runner
+
+```bash
+python docs/tools/run_software_verification_sweep.py --with-compileall
+```
+
+Observed:
+
+- `SWEEP_GROUPS_SELECTED ['contracts', 'devices', 'integration', 'native', 'profiles']`
+- `SWEEP_COMMAND_COUNT 27`
+- `SWEEP_STATUS PASS`
+- compile step in sweep completed successfully.
 
 ### Additional Sweep - Full Python Compile
 
@@ -88,6 +105,18 @@ python -m compileall server/app firmware
 Observed:
 
 - compile walk completed for `server/app` and `firmware` without syntax errors.
+
+### Additional Sweep - Targeted Group Run
+
+```bash
+python docs/tools/run_software_verification_sweep.py --group profiles --group native
+```
+
+Observed:
+
+- `SWEEP_GROUPS_SELECTED ['native', 'profiles']`
+- `SWEEP_COMMAND_COUNT 3`
+- `SWEEP_STATUS PASS`
 
 ## Not Executed in This Report
 

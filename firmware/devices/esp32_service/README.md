@@ -7,6 +7,9 @@ Implemented as MVP in `v0.08.01`.
 `v0.15.01` adds registration/telemetry e2e verification against server device-runtime APIs.
 `v0.15.02` adds cross-flow chat e2e verifier under `firmware/integration/verify_chat_e2e.py`.
 
+Native Arduino runtime is available in `esp32_service.ino`.
+Preset defaults live in `../../arduino/presets/esp32_service_preset.h`.
+
 ## Scope
 
 - telemetry envelope generation (`device.register.request`, `device.heartbeat`, `telemetry.snapshot`);
@@ -36,3 +39,6 @@ Run from project root:
 python -m firmware.devices.esp32_service.verify_mvp
 python -m firmware.devices.esp32_service.verify_registration_e2e
 ```
+
+Python modules in this directory remain as host-side simulation and verification harnesses.
+Profile metadata lists harness files under `host_harness_entries`.

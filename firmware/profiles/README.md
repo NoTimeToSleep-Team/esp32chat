@@ -14,6 +14,11 @@ Each profile file is JSON and includes:
 - `capabilities` - explicit feature matrix;
 - `autonomy_profile` - realistic offline posture;
 - `constraints` - hard engineering limits.
+- `preferred_stack` - primary implementation toolchain (Arduino IDE / PlatformIO / ESP-IDF / Flipper SDK).
+- `native_runtime_entry` - native firmware runtime file path (`.ino` or `.c`).
+- `native_preset_entry` - per-device Arduino preset header path (`*_preset.h`) for Arduino targets.
+- `native_manifest_entry` - required native manifest path for targets that use it (Flipper `.fam`).
+- `host_harness_entries` - Python verification/simulation files kept for host-side checks.
 
 `v0.07.01` defines baseline profiles used by later implementation stages.
 

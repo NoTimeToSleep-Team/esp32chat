@@ -10,6 +10,18 @@ Stage reference: `v0.16.01`.
 - Python environment with project dependencies installed.
 - No claim is marked as verified unless command execution succeeded in current environment.
 
+Optional one-command sweep:
+
+```bash
+python docs/tools/run_software_verification_sweep.py --with-compileall
+```
+
+Optional targeted run by group (repeat `--group` as needed):
+
+```bash
+python docs/tools/run_software_verification_sweep.py --group profiles --group native
+```
+
 ## Step 1 - Contracts and Shared Runtime
 
 Run:
@@ -70,19 +82,21 @@ Expected:
 - chat event parity between web and device mapping passes;
 - blog/support/admin integrated scenario passes.
 
-## Step 4 - Profile and Autonomy Consistency
+## Step 4 - Profile, Autonomy, and Native Runtime Consistency
 
 Run:
 
 ```bash
 python -c "import json, pathlib; [json.loads(p.read_text(encoding='utf-8')) for p in pathlib.Path('firmware/profiles').glob('*.json')]; print('profiles_ok')"
 python firmware/profiles/autonomy/verify_profiles.py
+python firmware/arduino/verify_native_layout.py
 ```
 
 Expected:
 
 - all top-level firmware profiles parse;
 - each referenced `autonomy_profile` has a matching autonomy definition.
+- native runtime entries, Arduino presets, Flipper manifest linkage, and host harness mappings are valid.
 
 ## Step 5 - Hardware Validation Queue (Manual)
 
