@@ -1,4 +1,4 @@
-# Local Chat Server Project
+# esp32chat
 
 This repository contains the staged implementation of a local distributed chat server built around Raspberry Pi 5, internal service controllers, and external hardware clients.
 
