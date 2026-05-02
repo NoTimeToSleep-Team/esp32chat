@@ -100,7 +100,23 @@ def _build_commands(*, with_compileall: bool) -> list[SweepCommand]:
     commands: list[SweepCommand] = [
         SweepCommand("contracts_protocol", "contracts", ("-m", "firmware.common.protocol.verify_contract_samples")),
         SweepCommand("shared_transport", "contracts", ("-m", "firmware.common.transport.verify_transport_queue")),
+        SweepCommand("shared_uart_framing", "contracts", ("-m", "firmware.common.transport.verify_uart_framing")),
+        SweepCommand(
+            "shared_uart_adapter",
+            "contracts",
+            ("-m", "firmware.common.transport.verify_uart_transport_adapter"),
+        ),
+        SweepCommand(
+            "shared_uart_sync_retry",
+            "contracts",
+            ("-m", "firmware.common.transport.verify_uart_sync_retry"),
+        ),
         SweepCommand("esp32_service_mvp", "devices", ("-m", "firmware.devices.esp32_service.verify_mvp")),
+        SweepCommand(
+            "esp32_sync_transport",
+            "devices",
+            ("-m", "firmware.devices.esp32_service.verify_sync_transport"),
+        ),
         SweepCommand("m5stamp_mvp", "devices", ("-m", "firmware.devices.m5stamp.verify_mvp")),
         SweepCommand("atom_s3_mvp", "devices", ("-m", "firmware.devices.atom_s3.verify_mvp")),
         SweepCommand("m5tab_mvp", "devices", ("-m", "firmware.devices.m5tab.verify_mvp")),

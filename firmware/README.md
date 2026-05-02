@@ -7,7 +7,10 @@ This directory contains firmware workspace artifacts for internal service nodes 
 - Stage 15 Integration is in progress (`v0.15.02` active).
 - Shared protocol code is implemented under `common/protocol/`.
 - Shared transport and queue baseline is implemented under `common/transport/` and `common/queue/`.
+- Internal UART frame baseline for heavy intra-block payload path is implemented under `common/transport/uart_framing.py`.
+- UART envelope adapter baseline is implemented under `common/transport/uart_adapter.py`.
 - ESP32-S3 service controller MVP is implemented under `devices/esp32_service/`.
+- ESP32 service queue sync path now supports transport selection baseline (`inmemory` / UART framed) under `devices/esp32_service/sync_transport.py`.
 - M5Stamp S3 helper-node MVP is implemented under `devices/m5stamp/`.
 - Atom S3 status/alert MVP is implemented under `devices/atom_s3/`.
 - M5Tab shell/info, admin-users and admin-ops MVP is implemented under `devices/m5tab/`.
@@ -31,6 +34,8 @@ This directory contains firmware workspace artifacts for internal service nodes 
 - Python modules under `devices/` remain host-side simulation and verification harnesses.
 - Native profile-to-runtime mapping can be checked via `arduino/verify_native_layout.py`.
 - Build and toolchain guidance is documented in `docs/build.md`.
+- UART framing baseline is documented in `docs/uart-internal-transport.md`.
+- UART retry + sequence rollover verifier is available under `common/transport/verify_uart_sync_retry.py`.
 
 ## Workspace Layout
 

@@ -29,12 +29,18 @@ Run:
 ```bash
 python -m firmware.common.protocol.verify_contract_samples
 python -m firmware.common.transport.verify_transport_queue
+python -m firmware.common.transport.verify_uart_framing
+python -m firmware.common.transport.verify_uart_transport_adapter
+python -m firmware.common.transport.verify_uart_sync_retry
 ```
 
 Expected:
 
 - protocol samples validated + round-trip coverage;
-- queue retry/dedup/reconnect flow passes.
+- queue retry/dedup/reconnect flow passes;
+- UART frame encode/parse/chunked-stream/CRC guard checks pass;
+- UART envelope adapter ACK-required/ACK-optional exchange checks pass;
+- UART-backed sync retry + sequence rollover checks pass.
 
 ## Step 2 - Device-Level Software Verifiers
 
@@ -42,6 +48,7 @@ Run:
 
 ```bash
 python -m firmware.devices.esp32_service.verify_mvp
+python -m firmware.devices.esp32_service.verify_sync_transport
 python -m firmware.devices.m5stamp.verify_mvp
 python -m firmware.devices.atom_s3.verify_mvp
 python -m firmware.devices.m5tab.verify_mvp
@@ -64,6 +71,7 @@ python -m firmware.devices.flipper_zero.ui.verify_flow
 Expected:
 
 - each profile-specific flow passes without guest-mode leakage into hardware clients;
+- ESP32 queue sync path validates transport selection (`inmemory` and `uart`) with shared sync runtime;
 - no fake media/storage capabilities asserted.
 
 ## Step 3 - Stage 15 Integration Verifiers

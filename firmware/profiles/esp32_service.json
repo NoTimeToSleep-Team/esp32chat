@@ -6,6 +6,7 @@
   "native_preset_entry": "arduino/presets/esp32_service_preset.h",
   "host_harness_entries": [
     "devices/esp32_service/verify_mvp.py",
+    "devices/esp32_service/verify_sync_transport.py",
     "devices/esp32_service/verify_registration_e2e.py"
   ],
   "category": "internal_service",

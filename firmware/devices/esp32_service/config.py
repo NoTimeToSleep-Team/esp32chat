@@ -15,6 +15,8 @@ class Esp32ServiceConfig:
     heartbeat_interval_ms: int = 15000
     telemetry_interval_ms: int = 30000
     watchdog_timeout_ms: int = 45000
+    sync_transport: str = "inmemory"
+    sync_uart_ack_required: bool = True
 
     def require_ops_session(self) -> str:
         token = (self.ops_session_token or "").strip()

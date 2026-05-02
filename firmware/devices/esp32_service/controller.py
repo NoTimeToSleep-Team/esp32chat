@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from firmware.common.protocol.models import Envelope
 from firmware.common.queue import LocalEventQueue, QueueEventState
+from firmware.common.transport import (
+    ReconnectResult,
+    ReconnectSyncCoordinator,
+    RetryPolicy,
+    SyncPushAttemptResult,
+    SyncPushClient,
+    TransportAdapter,
+)
 
 from .config import Esp32ServiceConfig
 from .diagnostics import DiagnosticsCollector
@@ -30,6 +39,8 @@ class Esp32ServiceController:
         self._watchdog = watchdog or WatchdogSupervisor(timeout_ms=config.watchdog_timeout_ms)
         self._diagnostics = diagnostics or DiagnosticsCollector()
         self._telemetry = telemetry_factory or TelemetryEnvelopeFactory(config)
+        self._sync_push_client: SyncPushClient | None = None
+        self._sync_reconnect: ReconnectSyncCoordinator | None = None
 
     @property
     def queue(self) -> LocalEventQueue:
@@ -108,6 +119,52 @@ class Esp32ServiceController:
     def safe_shutdown_dry_run(self, *, reason: str) -> dict[str, Any]:
         token = self._config.require_ops_session()
         return self._gateway.shutdown_dry_run(session_token=token, reason=reason)
+
+    def attach_sync_adapter(
+        self,
+        *,
+        adapter: TransportAdapter,
+        retry_policy: RetryPolicy | None = None,
+    ) -> None:
+        policy = retry_policy or RetryPolicy()
+        self._sync_push_client = SyncPushClient(
+            queue=self._queue,
+            adapter=adapter,
+            retry_policy=policy,
+            sender_id=self._config.protocol_sender_id,
+            boot_id=self._config.boot_id,
+            target_id=self._config.protocol_target_id,
+        )
+        self._sync_reconnect = ReconnectSyncCoordinator(
+            adapter=adapter,
+            sender_id=self._config.protocol_sender_id,
+            target_id=self._config.protocol_target_id,
+        )
+
+    def sync_push_once(self, *, base_cursor: str, now_ms: int, limit: int = 100) -> SyncPushAttemptResult:
+        if self._sync_push_client is None:
+            raise RuntimeError("sync adapter is not configured")
+        return self._sync_push_client.attempt(base_cursor=base_cursor, now_ms=now_ms, limit=limit)
+
+    def sync_restore(
+        self,
+        *,
+        since_cursor: str,
+        now_ms: int,
+        is_session_valid: Callable[[], bool],
+        pull_limit: int = 100,
+        channels: list[str] | None = None,
+    ) -> ReconnectResult:
+        if self._sync_push_client is None or self._sync_reconnect is None:
+            raise RuntimeError("sync adapter is not configured")
+        return self._sync_reconnect.restore(
+            push_client=self._sync_push_client,
+            is_session_valid=is_session_valid,
+            since_cursor=since_cursor,
+            now_ms=now_ms,
+            pull_limit=pull_limit,
+            channels=channels,
+        )
 
     def _queue_depth(self) -> int:
         counts = self._queue.count_by_state()
