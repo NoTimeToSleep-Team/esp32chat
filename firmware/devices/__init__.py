@@ -1,1 +1,0 @@
-"""Device-specific firmware targets."""

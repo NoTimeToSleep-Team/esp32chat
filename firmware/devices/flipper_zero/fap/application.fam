@@ -1,9 +1,0 @@
-App(
-    appid="local_chat_flipper",
-    name="Local Chat",
-    apptype=FlipperAppType.EXTERNAL,
-    entry_point="local_chat_flipper_app",
-    stack_size=2 * 1024,
-    fap_category="Tools",
-    requires=["gui"],
-)
