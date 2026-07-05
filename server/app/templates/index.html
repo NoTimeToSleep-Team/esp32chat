@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#0d1117">
+<title>Local Chat</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a href="#/chat" class="nav-brand">⌘ LC</a>
+  <button class="hamburger" id="hamburger">☰</button>
+  <div class="nav-links" id="nav-links">
+    <a href="#/chat">Chat</a>
+    <a href="#/devices">Devices</a>
+    <a href="#/account">Account</a>
+    <a href="#/blog">Blog</a>
+    <a href="#/support">Support</a>
+    <a href="#/admin" id="admin-link" style="display:none">Admin</a>
+  </div>
+  <div class="nav-right" id="nav-right">
+    <span class="nav-user" id="nav-user"></span>
+    <button class="btn-logout" id="logout-btn">Logout</button>
+  </div>
+</nav>
+
+<main class="main" id="content"></main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "error.response",
+  "message_id": "msg-01J0AA00000000000000000015",
+  "idempotency_key": null,
+  "correlation_id": "msg-01J0AA00000000000000000011",
+  "sender": {
+    "kind": "server",
+    "id": "main"
+  },
+  "target": {
+    "kind": "device",
+    "id": "m5stickc-02"
+  },
+  "sent_at_ms": 1775300600100,
+  "payload": {
+    "error": {
+      "code": "resync_required",
+      "message": "Cursor is out of range, full resync is required",
+      "retryable": true
+    },
+    "server_time_ms": 1775300600100
+  }
+}

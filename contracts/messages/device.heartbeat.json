@@ -1,0 +1,26 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "device.heartbeat",
+  "message_id": "msg-01J0AA00000000000000000003",
+  "idempotency_key": null,
+  "correlation_id": null,
+  "sender": {
+    "kind": "device",
+    "id": "esp32-s3-01"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300115123,
+  "payload": {
+    "uptime_ms": 210000,
+    "status": "ok",
+    "queue_depth": 0,
+    "metrics": {
+      "free_heap_bytes": 254112,
+      "wifi_rssi_dbm": -61,
+      "cpu_temp_c": 47.8
+    }
+  }
+}

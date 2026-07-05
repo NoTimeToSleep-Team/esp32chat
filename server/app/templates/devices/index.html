@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Devices | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/devices/devices.css" />
+</head>
+<body>
+  <div class="devices-shell">
+    <header class="hero card">
+      <h1>Devices Catalog</h1>
+      <p>Каталог устройств, инструкции и отметка «у меня есть устройство»</p>
+    </header>
+
+    <section class="session card">
+      <label for="sessionToken">Session token</label>
+      <input id="sessionToken" type="password" placeholder="Вставьте token сессии" autocomplete="off" />
+      <button id="loadCatalogBtn" type="button">Загрузить каталог</button>
+      <p id="statusNote" class="status-note">Ожидание загрузки...</p>
+    </section>
+
+    <section id="publishSection" class="publish card">
+      <h2>Публикация профиля устройства (admin)</h2>
+      <form id="publishForm" autocomplete="off">
+        <input id="deviceSlug" type="text" maxlength="64" placeholder="slug (например m5stickc-plus-2)" required />
+        <input id="deviceTitle" type="text" maxlength="128" placeholder="Название устройства" required />
+        <textarea id="deviceShortDescription" rows="2" maxlength="512" placeholder="Краткое описание" required></textarea>
+        <input id="deviceFirmwareUrl" type="url" maxlength="2048" placeholder="URL архива/прошивки (опционально)" />
+        <textarea id="deviceInstallGuide" rows="3" maxlength="16000" placeholder="Инструкция по установке" required></textarea>
+        <textarea id="devicePairingGuide" rows="3" maxlength="16000" placeholder="Инструкция по первичной привязке" required></textarea>
+        <textarea id="deviceComboResetGuide" rows="3" maxlength="16000" placeholder="Инструкция по смене комбинации входа" required></textarea>
+        <button id="publishBtn" type="submit" disabled>Опубликовать профиль</button>
+      </form>
+    </section>
+
+    <div class="content-grid">
+      <aside class="catalog card">
+        <div class="catalog-head">
+          <h2>Каталог</h2>
+          <button id="refreshBtn" type="button">Обновить</button>
+        </div>
+        <ul id="deviceList" class="device-list" aria-live="polite"></ul>
+      </aside>
+
+      <main class="details card">
+        <header class="details-head">
+          <h2 id="activeTitle">Выберите устройство</h2>
+          <p id="activeMeta">Подробности появятся после выбора</p>
+        </header>
+
+        <section>
+          <p id="activeShortDescription" class="short-description"></p>
+          <p id="activeFirmwareLink"></p>
+        </section>
+
+        <section class="instructions">
+          <article>
+            <h3>Установка</h3>
+            <p id="installGuide"></p>
+          </article>
+          <article>
+            <h3>Первичная привязка</h3>
+            <p id="pairingGuide"></p>
+          </article>
+          <article>
+            <h3>Смена комбинации входа</h3>
+            <p id="comboResetGuide"></p>
+          </article>
+        </section>
+
+        <section class="ownership-row">
+          <button id="toggleOwnershipBtn" type="button" disabled>Отметить «у меня есть устройство»</button>
+          <span id="ownershipState">Статус владения не задан</span>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <template id="deviceItemTemplate">
+    <li>
+      <button type="button" class="device-btn">
+        <strong class="device-title"></strong>
+        <small class="device-meta"></small>
+      </button>
+    </li>
+  </template>
+
+  <script type="module" src="/static/devices/devices.js"></script>
+</body>
+</html>

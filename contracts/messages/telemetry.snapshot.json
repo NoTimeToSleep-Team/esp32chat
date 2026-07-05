@@ -1,0 +1,30 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "telemetry.snapshot",
+  "message_id": "msg-01J0AA00000000000000000008",
+  "idempotency_key": null,
+  "correlation_id": null,
+  "sender": {
+    "kind": "device",
+    "id": "esp32-s3-01"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300400123,
+  "payload": {
+    "power": {
+      "vin_mv": 5032,
+      "current_ma": 412
+    },
+    "temperature": {
+      "board_c": 42.5,
+      "ambient_c": 30.1
+    },
+    "service_flags": {
+      "watchdog_ok": true,
+      "safe_shutdown_ready": true
+    }
+  }
+}

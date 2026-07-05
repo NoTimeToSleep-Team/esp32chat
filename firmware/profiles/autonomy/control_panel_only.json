@@ -1,0 +1,26 @@
+{
+  "autonomy_profile_id": "control_panel_only",
+  "autonomy_class": "operator_hmi",
+  "requires_persistent_storage": false,
+  "offline_behavior": {
+    "chat_send": "not_applicable",
+    "chat_history": "not_applicable",
+    "blog_read": "not_applicable",
+    "support_flow": "read_cached_last_view_only",
+    "admin_actions": "display_only_without_server_commit"
+  },
+  "sync_profile": {
+    "queue_mode": "small_operator_intent_queue",
+    "pull_mode": "state_refresh_on_reconnect",
+    "transport_expectation": "low_latency_local_link"
+  },
+  "allowed_when_server_unreachable": [
+    "show_last_known_state",
+    "prepare_admin_action_intent"
+  ],
+  "not_promised": [
+    "standalone_admin_backend",
+    "autonomous_database_changes",
+    "full_offline_ticket_processing"
+  ]
+}

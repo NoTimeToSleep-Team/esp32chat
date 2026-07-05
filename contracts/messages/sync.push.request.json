@@ -1,0 +1,32 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "sync.push.request",
+  "message_id": "msg-01J0AA00000000000000000009",
+  "idempotency_key": "m5stickc-02:boot-h7g6f5:000301",
+  "correlation_id": null,
+  "sender": {
+    "kind": "device",
+    "id": "m5stickc-02"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300500123,
+  "payload": {
+    "base_cursor": "cur-000001220",
+    "events": [
+      {
+        "event_id": "evt-000901",
+        "event_type": "chat.send",
+        "event_ts_ms": 1775300499001,
+        "payload_hash": "sha256:4e0d1b0f9c1d0d4a",
+        "payload": {
+          "chat_id": "chat-general",
+          "client_message_id": "cmid-7781",
+          "text": "Queued while offline"
+        }
+      }
+    ]
+  }
+}

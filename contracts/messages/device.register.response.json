@@ -1,0 +1,25 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "device.register.response",
+  "message_id": "msg-01J0AA00000000000000000002",
+  "idempotency_key": null,
+  "correlation_id": "msg-01J0AA00000000000000000001",
+  "sender": {
+    "kind": "server",
+    "id": "main"
+  },
+  "target": {
+    "kind": "device",
+    "id": "esp32-s3-01"
+  },
+  "sent_at_ms": 1775300100201,
+  "payload": {
+    "status": "accepted",
+    "server_device_id": "dev-0001",
+    "session_token": "sess-device-dev-0001-example",
+    "heartbeat_interval_ms": 15000,
+    "sync_profile": "ephemeral",
+    "clock_skew_detected": false,
+    "server_time_ms": 1775300100201
+  }
+}

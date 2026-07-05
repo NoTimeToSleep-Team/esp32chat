@@ -1,0 +1,87 @@
+<!doctype html>
+<!-- DEPRECATED in RPi-Only architecture (v1.00.00) -->
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RFID | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/rfid/rfid.css" />
+</head>
+<body>
+  <div class="rfid-shell">
+    <header class="hero card">
+      <h1>RFID / NFC Access</h1>
+      <p>Централизованный список карт, проверка UID и переключение серверного режима</p>
+    </header>
+
+    <section class="session card">
+      <label for="sessionToken">Admin session token</label>
+      <input id="sessionToken" type="password" placeholder="Вставьте admin token" autocomplete="off" />
+      <button id="loadAdminDataBtn" type="button">Загрузить карты и события</button>
+      <p id="statusNote" class="status-note">Ожидание загрузки...</p>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Enroll card (admin)</h2>
+        <form id="enrollForm" autocomplete="off">
+          <input id="cardUid" type="text" maxlength="64" placeholder="UID (hex, напр. 04A1B2C3D4)" required />
+          <input id="cardLabel" type="text" maxlength="128" placeholder="Card label" required />
+          <input id="cardNote" type="text" maxlength="2048" placeholder="Note (optional)" />
+          <label class="checkbox"><input id="cardActive" type="checkbox" checked /> active</label>
+          <button id="enrollBtn" type="submit" disabled>Записать карту</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Card verify / mode switch</h2>
+        <form id="cardActionForm" autocomplete="off">
+          <input id="scanUid" type="text" maxlength="64" placeholder="UID для проверки" required />
+          <input id="scanSource" type="text" maxlength="128" placeholder="Source (например pn532-main)" />
+          <div class="row">
+            <button id="verifyBtn" type="button">Проверить карту</button>
+            <select id="targetMode">
+              <option value="open">open</option>
+              <option value="closed">closed</option>
+            </select>
+            <button id="switchModeByCardBtn" type="button">Switch mode by card</button>
+          </div>
+        </form>
+        <pre id="cardDecision">-</pre>
+      </section>
+
+      <section class="card">
+        <h2>RFID cards</h2>
+        <ul id="cardsList" class="list" aria-live="polite"></ul>
+      </section>
+
+      <section class="card">
+        <h2>RFID events</h2>
+        <ul id="eventsList" class="list" aria-live="polite"></ul>
+      </section>
+    </div>
+
+    <template id="cardItemTemplate">
+      <li class="item">
+        <div>
+          <strong class="card-label"></strong>
+          <p class="card-meta"></p>
+        </div>
+        <div class="row">
+          <button type="button" class="toggle-card-btn"></button>
+          <button type="button" class="delete-card-btn">Delete</button>
+        </div>
+      </li>
+    </template>
+
+    <template id="eventItemTemplate">
+      <li class="item">
+        <strong class="event-title"></strong>
+        <p class="event-meta"></p>
+      </li>
+    </template>
+  </div>
+
+  <script type="module" src="/static/rfid/rfid.js"></script>
+</body>
+</html>

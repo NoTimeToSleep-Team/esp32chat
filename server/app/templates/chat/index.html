@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/chat/chat.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <aside class="left-panel">
+      <div class="brand-block">
+        <h1>Chat Workspace</h1>
+        <p>Локальная вкладка чата для MVP-сценария</p>
+      </div>
+
+      <div class="session-block">
+        <label for="sessionToken">Session token</label>
+        <input id="sessionToken" type="password" placeholder="Вставьте токен сессии" autocomplete="off" />
+        <button id="loadChatsBtn" type="button">Загрузить чаты</button>
+      </div>
+
+      <div class="chats-block">
+        <div class="chats-head">
+          <h2>Список чатов</h2>
+          <button id="refreshChatsBtn" type="button" aria-label="Обновить">Обновить</button>
+        </div>
+        <ul id="chatList" class="chat-list" aria-live="polite"></ul>
+      </div>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="chat-header">
+        <div>
+          <h2 id="activeChatTitle">Выберите чат</h2>
+          <p id="activeChatMeta">История и отправка сообщений</p>
+        </div>
+        <div id="realtimeState" class="status-chip">offline</div>
+      </header>
+
+      <section id="messageViewport" class="message-viewport" aria-live="polite"></section>
+
+      <form id="sendMessageForm" class="composer" autocomplete="off">
+        <textarea id="messageInput" rows="3" placeholder="Введите сообщение..." disabled></textarea>
+        <div class="composer-row">
+          <button id="sendMessageBtn" type="submit" disabled>Отправить</button>
+          <span id="composerHint">Нужно выбрать чат и загрузить сессию</span>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <template id="messageTemplate">
+    <article class="message-item">
+      <header>
+        <span class="author"></span>
+        <time class="time"></time>
+      </header>
+      <p class="body"></p>
+    </article>
+  </template>
+
+  <script type="module" src="/static/chat/chat.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Account | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/account/account.css" />
+</head>
+<body>
+  <div class="account-shell">
+    <header class="hero card">
+      <h1>Account Center</h1>
+      <p>Профиль, аватар и ограничения аккаунта</p>
+    </header>
+
+    <section class="session card">
+      <label for="sessionToken">Session token</label>
+      <input id="sessionToken" type="password" placeholder="Вставьте token сессии" autocomplete="off" />
+      <button id="loadAccountBtn" type="button">Загрузить аккаунт</button>
+      <p id="statusNote" class="status-note">Ожидание загрузки...</p>
+    </section>
+
+    <div class="layout-grid">
+      <section class="profile card">
+        <h2>Профиль</h2>
+        <div class="avatar-row">
+          <img id="avatarPreview" alt="avatar" class="avatar" />
+          <div>
+            <input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" />
+            <button id="uploadAvatarBtn" type="button" disabled>Сменить аватар</button>
+            <p class="hint">PNG/JPEG/WEBP, до 2MB</p>
+          </div>
+        </div>
+
+        <form id="profileForm" autocomplete="off">
+          <label for="displayName">Display name</label>
+          <input id="displayName" type="text" maxlength="128" placeholder="Как вас отображать" disabled />
+
+          <label for="profileBio">Bio</label>
+          <textarea id="profileBio" rows="4" maxlength="1024" placeholder="Коротко о себе" disabled></textarea>
+
+          <button id="saveProfileBtn" type="submit" disabled>Сохранить профиль</button>
+        </form>
+      </section>
+
+      <section class="limits card">
+        <h2>Ограничения аккаунта</h2>
+        <dl class="limits-list">
+          <div><dt>Роль</dt><dd id="limitRole">-</dd></div>
+          <div><dt>Лимит чатов</dt><dd id="limitMax">-</dd></div>
+          <div><dt>Создано чатов</dt><dd id="limitCurrent">-</dd></div>
+          <div><dt>Осталось</dt><dd id="limitRemaining">-</dd></div>
+          <div><dt>Можно создать</dt><dd id="limitAllowed">-</dd></div>
+        </dl>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="/static/account/account.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "package_name": "local-chat-portal-cz",
+  "version": "0.1.0",
+  "app_name": "Local Chat Portal",
+  "bin_name": "local-chat-portal",
+  "description": "Browser launcher for the existing Local Chat web portal on M5CardputerZero.",
+  "runtime": "legacy-deb-only",
+  "caps": ["keyboard", "network", "process"]
+}

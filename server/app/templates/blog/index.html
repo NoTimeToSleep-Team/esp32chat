@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Blog | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/blog/blog.css" />
+</head>
+<body>
+  <div class="blog-shell">
+    <header class="hero">
+      <h1>Local Blog Feed</h1>
+      <p>Публикации администратора и лента для пользователей</p>
+    </header>
+
+    <section class="controls">
+      <label for="sessionToken">Session token</label>
+      <input id="sessionToken" type="password" placeholder="Вставьте токен сессии" autocomplete="off" />
+      <button id="loadPostsBtn" type="button">Загрузить ленту</button>
+    </section>
+
+    <section class="publish-card">
+      <h2>Публикация поста (admin)</h2>
+      <form id="publishPostForm" autocomplete="off">
+        <input id="postTitle" type="text" maxlength="256" placeholder="Заголовок" required />
+        <textarea id="postBody" rows="6" maxlength="12000" placeholder="Текст поста" required></textarea>
+        <button id="publishPostBtn" type="submit">Опубликовать</button>
+      </form>
+      <p id="publishHint" class="hint">Если роль не admin, API вернёт доступ запрещён.</p>
+    </section>
+
+    <main>
+      <ul id="postList" class="post-list" aria-live="polite"></ul>
+    </main>
+  </div>
+
+  <template id="postTemplate">
+    <li class="post-item">
+      <article>
+        <header>
+          <h3 class="post-title"></h3>
+          <p class="post-meta"></p>
+        </header>
+        <p class="post-body"></p>
+      </article>
+    </li>
+  </template>
+
+  <script type="module" src="/static/blog/blog.js"></script>
+</body>
+</html>

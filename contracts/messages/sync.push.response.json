@@ -1,0 +1,26 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "sync.push.response",
+  "message_id": "msg-01J0AA00000000000000000010",
+  "idempotency_key": null,
+  "correlation_id": "msg-01J0AA00000000000000000009",
+  "sender": {
+    "kind": "server",
+    "id": "main"
+  },
+  "target": {
+    "kind": "device",
+    "id": "m5stickc-02"
+  },
+  "sent_at_ms": 1775300500206,
+  "payload": {
+    "status": "ok",
+    "applied_event_ids": [
+      "evt-000901"
+    ],
+    "duplicate_event_ids": [],
+    "rejected": [],
+    "next_cursor": "cur-000001221",
+    "server_time_ms": 1775300500206
+  }
+}

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Content | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/admin/content/content.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <header class="hero card">
+      <h1>Admin: Content and Operations</h1>
+      <p>Заявки, support-очередь, публикация блога и ежедневные операции администратора</p>
+    </header>
+
+    <section class="session card">
+      <label for="sessionToken">Admin session token</label>
+      <input id="sessionToken" type="password" placeholder="Вставьте admin token" autocomplete="off" />
+      <button id="loadAllBtn" type="button">Загрузить данные</button>
+      <a class="link-btn" href="/admin/mode/panel">Открыть panel режима</a>
+      <a class="link-btn" href="/admin/users/panel">Открыть panel пользователей</a>
+      <p id="statusNote" class="status-note">Ожидание загрузки...</p>
+    </section>
+
+    <div class="grid">
+      <section class="card applications">
+        <h2>Applications Queue</h2>
+        <ul id="applicationsList" class="list" aria-live="polite"></ul>
+      </section>
+
+      <section class="card support">
+        <h2>Support Queue</h2>
+        <div class="support-grid">
+          <ul id="ticketsList" class="list" aria-live="polite"></ul>
+          <div class="thread">
+            <h3 id="activeTicketTitle">Выберите обращение</h3>
+            <p id="activeTicketMeta">Детали появятся после выбора</p>
+            <div id="messagesView" class="messages"></div>
+
+            <textarea id="replyText" rows="3" maxlength="8000" placeholder="Ответ админа" disabled></textarea>
+            <div class="row">
+              <button id="sendReplyBtn" type="button" disabled>Отправить ответ</button>
+              <select id="ticketStatusSelect" disabled>
+                <option value="open">open</option>
+                <option value="in_progress">in_progress</option>
+                <option value="resolved">resolved</option>
+                <option value="closed">closed</option>
+              </select>
+              <button id="updateTicketStatusBtn" type="button" disabled>Обновить статус</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card blog">
+        <h2>Blog Publish</h2>
+        <form id="publishPostForm" autocomplete="off">
+          <input id="postTitle" type="text" maxlength="256" placeholder="Заголовок поста" required />
+          <textarea id="postBody" rows="4" maxlength="12000" placeholder="Текст поста" required></textarea>
+          <button id="publishPostBtn" type="submit" disabled>Опубликовать</button>
+        </form>
+        <ul id="postsList" class="list" aria-live="polite"></ul>
+      </section>
+    </div>
+  </div>
+
+  <template id="applicationItemTemplate">
+    <li class="item application-item">
+      <div>
+        <strong class="app-title"></strong>
+        <p class="app-meta"></p>
+      </div>
+      <div class="row">
+        <select class="app-status">
+          <option value="pending">pending</option>
+          <option value="in_review">in_review</option>
+          <option value="approved">approved</option>
+          <option value="rejected">rejected</option>
+        </select>
+        <input class="app-note" type="text" maxlength="2048" placeholder="Комментарий review" />
+        <button type="button" class="apply-status">Применить</button>
+      </div>
+    </li>
+  </template>
+
+  <template id="ticketItemTemplate">
+    <li>
+      <button type="button" class="ticket-btn">
+        <strong class="ticket-title"></strong>
+        <small class="ticket-meta"></small>
+      </button>
+    </li>
+  </template>
+
+  <template id="messageItemTemplate">
+    <article class="message-item">
+      <header>
+        <span class="message-author"></span>
+        <time class="message-time"></time>
+      </header>
+      <p class="message-body"></p>
+    </article>
+  </template>
+
+  <template id="postItemTemplate">
+    <li class="item">
+      <strong class="post-title"></strong>
+      <p class="post-meta"></p>
+    </li>
+  </template>
+
+  <script type="module" src="/static/admin/content/content.js"></script>
+</body>
+</html>

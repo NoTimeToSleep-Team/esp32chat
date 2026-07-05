@@ -1,0 +1,22 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "chat.send.request",
+  "message_id": "msg-01J0AA00000000000000000006",
+  "idempotency_key": "m5cardputer-ext-01:boot-k9l8m7:000015",
+  "correlation_id": null,
+  "sender": {
+    "kind": "device",
+    "id": "m5cardputer-ext-01"
+  },
+  "target": {
+    "kind": "server",
+    "id": "main"
+  },
+  "sent_at_ms": 1775300300123,
+  "payload": {
+    "chat_id": "chat-general",
+    "client_message_id": "cmid-00045",
+    "text": "Hello from device",
+    "local_created_at_ms": 1775300300001
+  }
+}

@@ -1,0 +1,746 @@
+CONTRACT_SAMPLES_VALIDATED 15
+CONTRACT_SAMPLES_ROUNDTRIP 15
+DUPLICATE_ENQUEUE_SAME_EVENT True
+ATTEMPT1 2 2 transport_io_error
+ATTEMPT2 0 0 None
+ATTEMPT3 2 1 1 0 0
+QUEUE_COUNTS {'pending': 0, 'sent': 0, 'acked': 1, 'duplicate': 1, 'rejected': 0}
+RECONNECT True 1 cur-000001222 True None
+UART_FRAME_COUNT 3
+UART_SEQUENCES [42, 43, 43]
+UART_ACK_FLAGS 2
+UART_CRC_GUARD True
+UART_ADAPTER_SYNC_PULL sync.pull.response cur-501
+UART_ADAPTER_ACK_GUARD True
+UART_ADAPTER_RELAXED sync.pull.response
+UART_SYNC_RETRY_ATTEMPT1 transport_io_error 1
+UART_SYNC_RETRY_ATTEMPT2 1 cur-uart-retry-1
+UART_SYNC_SEQUENCES [65535, 0]
+UART_SYNC_QUEUE_COUNTS {'pending': 0, 'sent': 0, 'acked': 1, 'duplicate': 0, 'rejected': 0}
+SWEEP_GROUPS_SELECTED ['contracts']
+SWEEP_COMMAND_COUNT 5
+SWEEP_STEP 1 contracts_protocol
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.common.protocol.verify_contract_samples
+SWEEP_STEP_STATUS contracts_protocol pass
+SWEEP_STEP 2 shared_transport
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.common.transport.verify_transport_queue
+SWEEP_STEP_STATUS shared_transport pass
+SWEEP_STEP 3 shared_uart_framing
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.common.transport.verify_uart_framing
+SWEEP_STEP_STATUS shared_uart_framing pass
+SWEEP_STEP 4 shared_uart_adapter
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.common.transport.verify_uart_transport_adapter
+SWEEP_STEP_STATUS shared_uart_adapter pass
+SWEEP_STEP 5 shared_uart_sync_retry
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.common.transport.verify_uart_sync_retry
+SWEEP_STEP_STATUS shared_uart_sync_retry pass
+SWEEP_STATUS PASS
+
+python.exe : 2026-06-13 15:48:17,100 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_d
+evice_registration_e2e_f3eabf382f7b4ed99dd45f1cffe4a16f.db applied_migrations=13 storage_root=D:\project\server\data cr
+eated_storage_dirs=0
+At line:1 char:7
++ try { & "python" "D:\project\docs\tools\run_software_verification_swe ...
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (2026-06-13 15:4..._storage_dirs=0:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+2026-06-13 15:48:17,106 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:17,259 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:17,271 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/devices/register "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:17,281 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/devices/heartbeat "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:17,292 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/devices/telemetry "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:17,297 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/devices/esp32-s3-01/status?session
+_token=fGVL5JoeZfnHtAkejvuvZDcYkeSxPdKWxWLEIS3vc34 "HTTP/1.1 200 OK"
+2026-06-13 15:48:17,297 | INFO | app.main | Application shutdown profile=test uptime_ms=530
+INTEGRATION_COMMAND_MAP_COUNT 4
+INTEGRATION_COMMAND_PATHS ['/ops/api/devices/heartbeat', '/ops/api/devices/register', '/ops/api/devices/telemetry', '/ops/api/devices/{device_id}/status']
+REGISTER_TYPE device.register.request
+HEARTBEAT_TYPE device.heartbeat
+TELEMETRY_TYPE telemetry.snapshot
+REGISTER_STATUS ok registered
+HEARTBEAT_STATUS ok heartbeat_ok
+TELEMETRY_STATUS ok telemetry
+STATUS_STATUS ok telemetry
+STATUS_DEVICE_ID esp32-s3-01
+STATUS_DEVICE_TYPE esp32_s3_service
+HAS_REGISTRATION True
+HAS_HEARTBEAT True
+HAS_TELEMETRY True
+2026-06-13 15:48:18,889 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_chat_e2e_2fc23
+ea00e7e4d538eb0f790351e8476.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dirs=0
+2026-06-13 15:48:18,895 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:19,137 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:19,224 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:19,230 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats?session_token=igTUOf80JRDJq
+iavrfHZprpQ6_v6qYOAmu1kE66FTzA "HTTP/1.1 200 OK"
+2026-06-13 15:48:19,234 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats?session_token=9nR8jRCHa7zKZ
+hNOWL4MxJuW_nzQe-MqnDHO3z1KPRY "HTTP/1.1 200 OK"
+2026-06-13 15:48:19,246 | INFO | httpx | HTTP Request: POST http://testserver/chat/api/chats/1/messages "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:19,253 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=ig
+TUOf80JRDJqiavrfHZprpQ6_v6qYOAmu1kE66FTzA&limit=50&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:19,257 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=9n
+R8jRCHa7zKZhNOWL4MxJuW_nzQe-MqnDHO3z1KPRY&limit=50&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:19,258 | INFO | app.main | Application shutdown profile=test uptime_ms=719
+CHAT_INTEGRATION_COMMAND_MAP_COUNT 4
+CHAT_INTEGRATION_PATHS ['/auth/login', '/chat/api/chats', '/chat/api/chats/{chat_id}/messages', '/realtime/chat/{chat_id}']
+CHAT_ID 1
+SENT_MESSAGE_ID 1
+REALTIME_EVENT_TYPE chat.message
+PROTOCOL_MESSAGE_TYPE chat.message.event
+PARITY_TEXT device to web e2e message device to web e2e message
+WEB_HISTORY_COUNT 1
+DEVICE_HISTORY_COUNT 1
+2026-06-13 15:48:21,857 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_ops_e2e_5d76ea
+8a411e4c99b2c2a2ae1edc6acf.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dirs=0
+2026-06-13 15:48:21,864 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:22,090 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,173 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,181 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/blog/posts "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:22,185 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts?session_token=e3z5c3Xrh35SZ
+bJaRqYt96BGXDoHSS-By_lF1n2eNP8&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,189 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts/1?session_token=e3z5c3Xrh35
+SZbJaRqYt96BGXDoHSS-By_lF1n2eNP8 "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,198 | INFO | httpx | HTTP Request: POST http://testserver/support/api/tickets "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,202 | INFO | httpx | HTTP Request: GET http://testserver/admin/content/support/tickets?session_toke
+n=pxehg5HdLpX96qYGscupjN6P8Ud0MfAbufXjZuhmhPc&limit=50&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,212 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/support/tickets/1/reply "HT
+TP/1.1 200 OK"
+2026-06-13 15:48:22,220 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/support/tickets/1/status "H
+TTP/1.1 200 OK"
+2026-06-13 15:48:22,224 | INFO | httpx | HTTP Request: GET http://testserver/support/api/tickets/1/messages?session_tok
+en=e3z5c3Xrh35SZbJaRqYt96BGXDoHSS-By_lF1n2eNP8&limit=50&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,226 | INFO | httpx | HTTP Request: GET http://testserver/support/api/tickets?session_token=e3z5c3Xr
+h35SZbJaRqYt96BGXDoHSS-By_lF1n2eNP8&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,227 | INFO | app.main | Application shutdown profile=test uptime_ms=735
+OPS_INTEGRATION_COMMAND_MAP_COUNT 10
+OPS_INTEGRATION_PATHS ['/admin/content/blog/posts', '/admin/content/support/tickets', '/admin/content/support/tickets/{ticket_id}/reply', '/admin/content/support/tickets/{ticket_id}/status', '/auth/login', '/blog/api/posts', '/blog/api/posts/{post_id}', '/support/api/tickets', '/support/api/tickets/{ticket_id}/messages']
+BLOG_POST_ID 1
+SUPPORT_TICKET_ID 1
+SUPPORT_REPLY_ID 2
+SUPPORT_FINAL_STATUS resolved
+profiles_ok
+DEVICE_PROFILE_COUNT 10
+AUTONOMY_PROFILE_COUNT 7
+AUTONOMY_PROFILE_IDS ['control_panel_only', 'limited_buffered', 'limited_text_first', 'non_autonomous', 'non_autonomous_limited', 'non_autonomous_text_first', 'service_assist_only']
+SWEEP_GROUPS_SELECTED ['integration', 'profiles']
+SWEEP_COMMAND_COUNT 5
+SWEEP_STEP 1 esp32_registration_e2e
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.esp32_service.verify_registration_e2e
+SWEEP_STEP_STATUS esp32_registration_e2e pass
+SWEEP_STEP 2 integration_chat_e2e
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.integration.verify_chat_e2e
+SWEEP_STEP_STATUS integration_chat_e2e pass
+SWEEP_STEP 3 integration_ops_e2e
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.integration.verify_ops_e2e
+SWEEP_STEP_STATUS integration_ops_e2e pass
+SWEEP_STEP 4 profile_json_parse
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -c "import json, pathlib; [json.loads(p.read_text(encoding='utf-8')) for p in pathlib.Path('firmware/profiles').glob('*.json')]; print('profiles_ok')"
+SWEEP_STEP_STATUS profile_json_parse pass
+SWEEP_STEP 5 autonomy_profiles
+SWEEP_CMD "C:\Program Files\Python310\python.exe" firmware/profiles/autonomy/verify_profiles.py
+SWEEP_STEP_STATUS autonomy_profiles pass
+SWEEP_STATUS PASS
+
+NATIVE_LAYOUT_PROFILE_COUNT 10
+NATIVE_LAYOUT_HARNESS_COUNT 22
+SWEEP_GROUPS_SELECTED ['native']
+SWEEP_COMMAND_COUNT 1
+SWEEP_STEP 1 native_layout
+SWEEP_CMD "C:\Program Files\Python310\python.exe" firmware/arduino/verify_native_layout.py
+SWEEP_STEP_STATUS native_layout pass
+SWEEP_STATUS PASS
+
+python.exe : 2026-06-13 15:48:16,205 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_e
+sp32_service_test_8c7af9e7428f497f97170ce8f5d15113.db applied_migrations=13 storage_root=D:\project\server\data created
+_storage_dirs=0
+строка:1 знак:7
++ try { & "python" "D:\project\docs\tools\run_software_verification_swe ...
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (2026-06-13 15:4..._storage_dirs=0:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+2026-06-13 15:48:16,213 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:16,378 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:16,382 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:16,386 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/state?session_token=qMjvgrVFTgQkOu
+y4xZt2zovOhzm9NDBOd0LmbBpiHpY "HTTP/1.1 200 OK"
+2026-06-13 15:48:16,396 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/degraded-mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:16,407 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/shutdown/dry-run "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:16,413 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/state?session_token=qMjvgrVFTgQkOu
+y4xZt2zovOhzm9NDBOd0LmbBpiHpY "HTTP/1.1 200 OK"
+2026-06-13 15:48:16,413 | INFO | app.main | Application shutdown profile=test uptime_ms=687
+COMMAND_MAP_COUNT 4
+REGISTER_TYPE device.register.request
+HEARTBEAT_TYPE device.heartbeat
+TELEMETRY_TYPE telemetry.snapshot
+HEALTH_STATUS ok
+RUNTIME_BEFORE ok False
+DEGRADED_ON ok True
+SHUTDOWN_STATUS ok completed
+RUNTIME_AFTER ok True
+DIAGNOSTICS_WATCHDOG_OK True
+DIAGNOSTICS_QUEUE_DEPTH 0
+ESP32_SYNC_MEMORY 1 cur-sync-1
+ESP32_SYNC_UART 1 cur-sync-1
+ESP32_SYNC_RESTORE 1 True
+ESP32_SYNC_ACK_COUNT 1
+ESP32_SYNC_INVALID_TRANSPORT_GUARD True
+2026-06-13 15:48:18,306 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5stamp_servic
+e_test_f37eae2f097749daab9f7369d379f401.db applied_migrations=13 storage_root=D:\project\server\data created_storage_di
+rs=0
+2026-06-13 15:48:18,312 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:18,317 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:18,318 | INFO | httpx | HTTP Request: GET http://testserver/health/ready "HTTP/1.1 200 OK"
+2026-06-13 15:48:18,318 | INFO | app.main | Application shutdown profile=test uptime_ms=344
+COMMAND_MAP_COUNT 2
+COMMAND_PATHS ['/health', '/health/ready']
+REGISTER_TYPE device.register.request
+HEARTBEAT_OK ok
+HEARTBEAT_WARNING degraded
+HEARTBEAT_CRITICAL hold_state
+INDICATOR_PATTERN blink_red_fast
+TELEMETRY_TYPE telemetry.snapshot
+HEALTH_STATUS ok
+READY_STATUS ready
+2026-06-13 15:48:20,419 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_atom_service_t
+est_905faac434d845df99220f83475512eb.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dirs=
+0
+2026-06-13 15:48:20,427 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:20,635 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,640 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,645 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/state?session_token=n68idRtLl-GkM9
+nTmj2E4vnm6bYUzrw7fyYoNhtbOqI "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,655 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/degraded-mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,669 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/incidents "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,679 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/incidents "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,684 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,688 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/state?session_token=n68idRtLl-GkM9
+nTmj2E4vnm6bYUzrw7fyYoNhtbOqI "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,703 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/shutdown/dry-run "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:20,718 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/incidents "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,725 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/incidents?session_token=n68idRtLl-
+GkM9nTmj2E4vnm6bYUzrw7fyYoNhtbOqI&limit=20 "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,735 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/degraded-mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,741 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,747 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/state?session_token=n68idRtLl-GkM9
+nTmj2E4vnm6bYUzrw7fyYoNhtbOqI "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,751 | INFO | httpx | HTTP Request: GET http://testserver/health/ready "HTTP/1.1 200 OK"
+2026-06-13 15:48:20,752 | INFO | app.main | Application shutdown profile=test uptime_ms=702
+COMMAND_MAP_COUNT 7
+COMMAND_PATHS ['/health', '/health/ready', '/ops/api/degraded-mode', '/ops/api/incidents', '/ops/api/shutdown/dry-run', '/ops/api/state']
+INITIAL_STATUS ok steady_green
+MAINTENANCE_ON ok True
+WARNING_INCIDENT ok open
+CRITICAL_INCIDENT ok open
+CRITICAL_PANEL hold_state blink_red_fast
+SHUTDOWN ok completed
+NETWORK_RESET ok open
+INCIDENTS_COUNT 3
+MAINTENANCE_OFF ok False
+FINAL_STATUS ok steady_green
+READINESS_STATUS ready
+2026-06-13 15:48:22,813 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5tab_shell_te
+st_9461f1900742459aa4aabc2b55c2888a.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dirs=0
+2026-06-13 15:48:22,820 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:22,967 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,975 | INFO | httpx | HTTP Request: POST http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,986 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/degraded-mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:22,997 | INFO | httpx | HTTP Request: POST http://testserver/ops/api/incidents "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,002 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,004 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,006 | INFO | httpx | HTTP Request: GET http://testserver/health/ready "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,008 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,011 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/state?session_token=_VAb1Ur1hRvw6K
+V9pDS-T9jL-F9hadNSygnnWmTLsv4 "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,013 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/incidents?session_token=_VAb1Ur1hR
+vw6KV9pDS-T9jL-F9hadNSygnnWmTLsv4&limit=20 "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,015 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,017 | INFO | httpx | HTTP Request: GET http://testserver/health/ready "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,019 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,022 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/state?session_token=_VAb1Ur1hRvw6K
+V9pDS-T9jL-F9hadNSygnnWmTLsv4 "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,026 | INFO | httpx | HTTP Request: GET http://testserver/ops/api/incidents?session_token=_VAb1Ur1hR
+vw6KV9pDS-T9jL-F9hadNSygnnWmTLsv4&limit=20 "HTTP/1.1 200 OK"
+2026-06-13 15:48:23,026 | INFO | app.main | Application shutdown profile=test uptime_ms=547
+COMMAND_MAP_COUNT 5
+COMMAND_PATHS ['/health', '/health/ready', '/mode', '/ops/api/incidents', '/ops/api/state']
+SHELL_CONNECTED True connected
+INFO_HEALTH ok
+INFO_READY ready
+INFO_PROFILE test
+INFO_MODE closed
+INFO_DEGRADED True
+INFO_INCIDENTS 1
+INFO_MIGRATIONS 13
+2026-06-13 15:48:24,506 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5tab_admin_us
+ers_test_e2b744974d1144ae894afabeeed13819.db applied_migrations=13 storage_root=D:\project\server\data created_storage_
+dirs=0
+2026-06-13 15:48:24,512 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:24,738 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:24,742 | INFO | httpx | HTTP Request: GET http://testserver/admin/users?session_token=ws6E2cvpu6zAm0ZY
+UGVj6zzbvx-6cCh4p3aZ4l7q5gI&limit=50&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:24,750 | INFO | httpx | HTTP Request: POST http://testserver/admin/users/2/ban "HTTP/1.1 200 OK"
+2026-06-13 15:48:24,760 | INFO | httpx | HTTP Request: POST http://testserver/admin/users/2/unban "HTTP/1.1 200 OK"
+2026-06-13 15:48:24,770 | INFO | httpx | HTTP Request: POST http://testserver/admin/users/2/blacklist-device "HTTP/1.1 
+200 OK"
+2026-06-13 15:48:24,778 | INFO | httpx | HTTP Request: POST http://testserver/admin/users/2/unblacklist-device "HTTP/1.
+1 200 OK"
+2026-06-13 15:48:24,787 | INFO | httpx | HTTP Request: DELETE http://testserver/admin/users/3?session_token=ws6E2cvpu6z
+Am0ZYUGVj6zzbvx-6cCh4p3aZ4l7q5gI "HTTP/1.1 200 OK"
+2026-06-13 15:48:24,790 | INFO | httpx | HTTP Request: GET http://testserver/admin/users?session_token=ws6E2cvpu6zAm0ZY
+UGVj6zzbvx-6cCh4p3aZ4l7q5gI&limit=50&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:24,790 | INFO | app.main | Application shutdown profile=test uptime_ms=609
+COMMAND_MAP_COUNT 7
+COMMAND_PATHS ['/admin/users', '/admin/users/{user_id}', '/admin/users/{user_id}/ban', '/admin/users/{user_id}/blacklist-device', '/admin/users/{user_id}/unban', '/admin/users/{user_id}/unblacklist-device']
+LIST_COUNT 3
+BAN_STATUS banned
+UNBAN_STATUS active
+BLACKLISTED True device-panel-a
+UNBLACKLISTED False
+DELETED 3 panel-user-b
+POST_DELETE_COUNT 2
+2026-06-13 15:48:26,302 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5tab_admin_op
+s_test_4f941796ea574c2c8ee1a9023d40902f.db applied_migrations=13 storage_root=D:\project\server\data created_storage_di
+rs=0
+2026-06-13 15:48:26,307 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:26,478 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,550 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,559 | INFO | httpx | HTTP Request: POST http://testserver/support/api/tickets "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,563 | INFO | httpx | HTTP Request: GET http://testserver/admin/content/support/tickets?session_toke
+n=C5A1cFv0QimGx53b6HJj_9hEi6-L06sGPuhl6eI0-Oo&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,572 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/support/tickets/1/reply "HT
+TP/1.1 200 OK"
+2026-06-13 15:48:26,582 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/support/tickets/1/status "H
+TTP/1.1 200 OK"
+2026-06-13 15:48:26,591 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/blog/posts "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:26,595 | INFO | httpx | HTTP Request: GET http://testserver/admin/content/blog/posts?session_token=C5A
+1cFv0QimGx53b6HJj_9hEi6-L06sGPuhl6eI0-Oo&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,604 | INFO | httpx | HTTP Request: POST http://testserver/rfid/api/cards "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,615 | INFO | httpx | HTTP Request: POST http://testserver/rfid/api/cards/1/active "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,620 | INFO | httpx | HTTP Request: GET http://testserver/rfid/api/cards?session_token=C5A1cFv0QimGx
+53b6HJj_9hEi6-L06sGPuhl6eI0-Oo&include_inactive=true&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,623 | INFO | httpx | HTTP Request: GET http://testserver/admin/mode/state?session_token=C5A1cFv0Qim
+Gx53b6HJj_9hEi6-L06sGPuhl6eI0-Oo "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,626 | INFO | httpx | HTTP Request: GET http://testserver/admin/mode/state?session_token=C5A1cFv0Qim
+Gx53b6HJj_9hEi6-L06sGPuhl6eI0-Oo "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,635 | INFO | httpx | HTTP Request: POST http://testserver/admin/mode/set "HTTP/1.1 200 OK"
+2026-06-13 15:48:26,636 | INFO | app.main | Application shutdown profile=test uptime_ms=656
+COMMAND_MAP_COUNT 10
+COMMAND_PATHS ['/admin/content/blog/posts', '/admin/content/support/tickets', '/admin/content/support/tickets/{ticket_id}/reply', '/admin/content/support/tickets/{ticket_id}/status', '/admin/mode/set', '/admin/mode/state', '/rfid/api/cards', '/rfid/api/cards/{card_id}/active']
+SUPPORT_COUNT 1
+SUPPORT_REPLY_ID 2
+SUPPORT_STATUS resolved
+BLOG_POST_ID 1
+BLOG_COUNT 1
+RFID_CARD 1 True False 1
+MODE_BEFORE closed 5
+MODE_AFTER open 5
+MODE_SEQUENCE ['hold_toggle_button', 'stop_new_sessions', 'flush_db_writes', 'drain_realtime_buffers', 'apply_mode_change']
+2026-06-13 15:48:28,214 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5cardputer_co
+nsole_test_0e77f03b903e4780b05981acb4e4b49c.db applied_migrations=13 storage_root=D:\project\server\data created_storag
+e_dirs=0
+2026-06-13 15:48:28,219 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:28,338 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:28,341 | INFO | httpx | HTTP Request: GET http://testserver/auth/session/C0Q81qocmMYTaoFpbVexVB8b1IPAR
+ZtMsRsoDrFvMAs?client_kind=device "HTTP/1.1 200 OK"
+2026-06-13 15:48:28,343 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:28,349 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:28,350 | INFO | app.main | Application shutdown profile=test uptime_ms=452
+COMMAND_MAP_COUNT 4
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/mode']
+SHELL_CONNECTED True connected
+LOGIN_STATE authenticated console-user
+SESSION_ROLE user
+CHAT_SCREEN chat
+BLOG_SCREEN blog
+RESUME_STATE authenticated True
+MODE_ACCESS closed
+LOGOUT_STATE connected True
+LOGIN_CLIENT_KIND device
+SESSION_CLIENT_KIND device
+2026-06-13 15:48:29,856 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5cardputer_ch
+at_test_714cd94b522442d5b8f1358b218dfa40.db applied_migrations=13 storage_root=D:\project\server\data created_storage_d
+irs=0
+2026-06-13 15:48:29,864 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:29,995 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:29,999 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats?session_token=kT-_ZxxkVN7Zo
+8zBNAludvWZr0lLqDtmj48XVUmYPbY "HTTP/1.1 200 OK"
+2026-06-13 15:48:30,002 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=kT
+-_ZxxkVN7Zo8zBNAludvWZr0lLqDtmj48XVUmYPbY&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:30,012 | INFO | httpx | HTTP Request: POST http://testserver/chat/api/chats/1/messages "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:30,016 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=kT
+-_ZxxkVN7Zo8zBNAludvWZr0lLqDtmj48XVUmYPbY&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:30,017 | INFO | app.main | Application shutdown profile=test uptime_ms=484
+COMMAND_MAP_COUNT 3
+COMMAND_PATHS ['/chat/api/chats', '/chat/api/chats/{chat_id}/messages']
+CHAT_COUNT 1
+TARGET_CHAT 1 common General
+HISTORY_BEFORE 0
+SENT_MESSAGE 1 1
+DELIVERED_TO 0
+HISTORY_AFTER 1
+2026-06-13 15:48:31,453 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5cardputer_bl
+og_test_7a5295c8b62744e9827bb137da862d98.db applied_migrations=13 storage_root=D:\project\server\data created_storage_d
+irs=0
+2026-06-13 15:48:31,459 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:31,627 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:31,636 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/blog/posts "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:31,704 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:31,708 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts?session_token=w4pEuMvV5AA1a
+LIzVHEUQmQPkK5LZjR4Ld-KegXGsak&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:31,711 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts/1?session_token=w4pEuMvV5AA
+1aLIzVHEUQmQPkK5LZjR4Ld-KegXGsak "HTTP/1.1 200 OK"
+2026-06-13 15:48:31,711 | INFO | app.main | Application shutdown profile=test uptime_ms=577
+COMMAND_MAP_COUNT 2
+COMMAND_PATHS ['/blog/api/posts', '/blog/api/posts/{post_id}']
+POSTS_COUNT 1
+TARGET_POST 1 Console Blog Verification
+LOADED_POST 1 Console Blog Verification
+2026-06-13 15:48:33,231 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5cardputer_se
+rvice_test_14f4f712aa3445748479e47c69c54e05.db applied_migrations=13 storage_root=D:\project\server\data created_storag
+e_dirs=0
+2026-06-13 15:48:33,236 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:33,360 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:33,363 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:33,364 | INFO | httpx | HTTP Request: GET http://testserver/health/ready "HTTP/1.1 200 OK"
+2026-06-13 15:48:33,366 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:33,370 | INFO | httpx | HTTP Request: GET http://testserver/account/api/limits?session_token=QBvybZ6-N
+GSuWH_5dp61Pca7OGoG80YCS78_xK4fAHs "HTTP/1.1 200 OK"
+2026-06-13 15:48:33,370 | INFO | app.main | Application shutdown profile=test uptime_ms=452
+COMMAND_MAP_COUNT 4
+COMMAND_PATHS ['/account/api/limits', '/health', '/health/ready', '/mode']
+SERVICE_HEALTH ok
+SERVICE_READY ready
+SERVICE_MODE closed
+LIMITS_ROLE user
+LIMITS_REMAIN 5
+LIMITS_CAN_CREATE True
+HANDHELD_COMMAND_COUNT 8
+HANDHELD_COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/blog/api/posts', '/blog/api/posts/{post_id}', '/chat/api/chats', '/chat/api/chats/{chat_id}/messages']
+VARIANT_IDS ['m5cardputer_adv', 'm5cardputer_client']
+CLIENT_FIRMWARE_PATH devices/m5cardputer_client
+ADV_FIRMWARE_PATH devices/m5cardputer_client
+2026-06-13 15:48:35,784 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5cardputer_cl
+ient_flow_b6bc56f597d14971a4d195aaae8a675c.db applied_migrations=13 storage_root=D:\project\server\data created_storage
+_dirs=0
+2026-06-13 15:48:35,791 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:35,958 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:35,966 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/blog/posts "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:36,040 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:36,044 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats?session_token=dOJqIu2O0Zdzh
+y2tD-p10Gq4dw9lgQoGxe56yxv8biQ "HTTP/1.1 200 OK"
+2026-06-13 15:48:36,047 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=dO
+JqIu2O0Zdzhy2tD-p10Gq4dw9lgQoGxe56yxv8biQ&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:36,055 | INFO | httpx | HTTP Request: POST http://testserver/chat/api/chats/1/messages "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:36,061 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=dO
+JqIu2O0Zdzhy2tD-p10Gq4dw9lgQoGxe56yxv8biQ&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:36,064 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts?session_token=dOJqIu2O0Zdzh
+y2tD-p10Gq4dw9lgQoGxe56yxv8biQ&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:36,065 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts/1?session_token=dOJqIu2O0Zd
+zhy2tD-p10Gq4dw9lgQoGxe56yxv8biQ "HTTP/1.1 200 OK"
+2026-06-13 15:48:36,073 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:36,074 | INFO | app.main | Application shutdown profile=test uptime_ms=610
+COMMAND_MAP_COUNT 8
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/blog/api/posts', '/blog/api/posts/{post_id}', '/chat/api/chats', '/chat/api/chats/{chat_id}/messages']
+LOGIN_PROFILE external-client-user user closed
+CHAT_COUNT 1
+CHAT_TARGET 1 common
+HISTORY_BEFORE 0
+SENT_MESSAGE 1 1
+HISTORY_AFTER 1
+POSTS_COUNT 1
+LOADED_POST 1 External Handheld Blog Post
+LOGOUT_REVOKED True
+2026-06-13 15:48:37,557 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5stickc_shell
+_test_69acfb613b3b4e4392f2d07912ae851d.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dir
+s=0
+2026-06-13 15:48:37,562 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:37,679 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:37,682 | INFO | httpx | HTTP Request: GET http://testserver/auth/session/-bE_YYmvW3bhddwyP2sjSzlbwCmU0
+_WEETvZ_gvP510?client_kind=device "HTTP/1.1 200 OK"
+2026-06-13 15:48:37,683 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:37,689 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:37,690 | INFO | app.main | Application shutdown profile=test uptime_ms=438
+COMMAND_MAP_COUNT 4
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/mode']
+SHELL_CONNECTED True connected
+LOGIN_STATE authenticated m5stick-user
+SESSION_ROLE user
+CHAT_SCREEN chat
+BLOG_SCREEN blog
+RESUME_STATE authenticated True
+MODE_ACCESS closed
+LOGOUT_STATE connected True
+LOGIN_CLIENT_KIND device
+SESSION_CLIENT_KIND device
+2026-06-13 15:48:39,157 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_m5stick_client
+_flow_2e412707e93f4344aa06e041298aa518.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dir
+s=0
+2026-06-13 15:48:39,163 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:39,329 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,338 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/blog/posts "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:39,404 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,409 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats?session_token=eZ44P51Bcz_dC
+nEC4ySs7K5pLMXdTMLDprYy3GmmGDk "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,412 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=eZ
+44P51Bcz_dCnEC4ySs7K5pLMXdTMLDprYy3GmmGDk&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,420 | INFO | httpx | HTTP Request: POST http://testserver/chat/api/chats/1/messages "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:39,425 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=eZ
+44P51Bcz_dCnEC4ySs7K5pLMXdTMLDprYy3GmmGDk&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,427 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts?session_token=eZ44P51Bcz_dC
+nEC4ySs7K5pLMXdTMLDprYy3GmmGDk&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,431 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts/1?session_token=eZ44P51Bcz_
+dCnEC4ySs7K5pLMXdTMLDprYy3GmmGDk "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,439 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:39,439 | INFO | app.main | Application shutdown profile=test uptime_ms=609
+COMMAND_MAP_COUNT 8
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/blog/api/posts', '/blog/api/posts/{post_id}', '/chat/api/chats', '/chat/api/chats/{chat_id}/messages']
+LOGIN_PROFILE m5stick-client-user user closed
+CHAT_COUNT 1
+CHAT_TARGET 1 common
+HISTORY_BEFORE 0
+SENT_MESSAGE 1 1
+HISTORY_AFTER 1
+POSTS_COUNT 1
+LOADED_POST 1 M5Stick Compact Blog
+LOGOUT_REVOKED True
+2026-06-13 15:48:40,966 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_t_embed_shell_
+test_9573d64d675244898c39102d51080c4a.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dirs
+=0
+2026-06-13 15:48:40,971 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:41,090 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:41,093 | INFO | httpx | HTTP Request: GET http://testserver/auth/session/rqXuOsq-z2TKEKVKX06DtQf8ILJd1
+8nmLZnlFZdmbC0?client_kind=device "HTTP/1.1 200 OK"
+2026-06-13 15:48:41,095 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:41,102 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:41,103 | INFO | app.main | Application shutdown profile=test uptime_ms=468
+COMMAND_MAP_COUNT 4
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/mode']
+SHELL_CONNECTED True connected
+LOGIN_STATE authenticated t-embed-user
+SESSION_ROLE user
+CHAT_SCREEN chat
+BLOG_SCREEN blog
+TEMPLATES_SCREEN templates
+BUFFER_SCREEN buffer
+RESUME_STATE authenticated True
+MODE_ACCESS closed
+LOGOUT_STATE connected True
+LOGIN_CLIENT_KIND device
+SESSION_CLIENT_KIND device
+2026-06-13 15:48:42,547 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_t_embed_client
+_flow_3f2a39911aa94795ba2d7ce8353820b0.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dir
+s=0
+2026-06-13 15:48:42,553 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:42,730 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,739 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/blog/posts "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:42,810 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,814 | INFO | httpx | HTTP Request: GET http://testserver/auth/session/XZ8oZG7AyV1LZtTC8ataUadBAXgdq
+8VGu8tWtwb5tT8?client_kind=device "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,816 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats?session_token=XZ8oZG7AyV1LZ
+tTC8ataUadBAXgdq8VGu8tWtwb5tT8 "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,820 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=XZ
+8oZG7AyV1LZtTC8ataUadBAXgdq8VGu8tWtwb5tT8&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,829 | INFO | httpx | HTTP Request: POST http://testserver/chat/api/chats/1/messages "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:42,839 | INFO | httpx | HTTP Request: POST http://testserver/chat/api/chats/1/messages "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:42,843 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=XZ
+8oZG7AyV1LZtTC8ataUadBAXgdq8VGu8tWtwb5tT8&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,845 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts?session_token=XZ8oZG7AyV1LZ
+tTC8ataUadBAXgdq8VGu8tWtwb5tT8&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,849 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts/1?session_token=XZ8oZG7AyV1
+LZtTC8ataUadBAXgdq8VGu8tWtwb5tT8 "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,856 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:42,857 | INFO | app.main | Application shutdown profile=test uptime_ms=640
+COMMAND_MAP_COUNT 8
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/blog/api/posts', '/blog/api/posts/{post_id}', '/chat/api/chats', '/chat/api/chats/{chat_id}/messages']
+LOGIN_PROFILE t-embed-client-user user closed
+TEMPLATES_COUNT 4
+TEMPLATE_SELECTED ack
+CHAT_COUNT 1
+CHAT_TARGET 1 common
+HISTORY_BEFORE 0
+SEND_TEMPLATE sent t-embed-template-001
+SEND_BUFFERED buffered t-embed-buffer-001
+BUFFER_BEFORE 1
+BUFFER_FLUSH 1 1 0
+BUFFER_AFTER 0
+HISTORY_AFTER 2
+POSTS_COUNT 1
+LOADED_POST 1 T-Embed MVP Blog Post
+LOGOUT_REVOKED True
+LOGIN_CLIENT_KIND device
+SESSION_CLIENT_KIND device
+SESSION_PROBE_STATUS ok
+2026-06-13 15:48:44,349 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_flipper_shell_
+test_1ae8f9087f924cfda8920b80707cb2b6.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dirs
+=0
+2026-06-13 15:48:44,356 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:44,414 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:44,480 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:44,482 | INFO | httpx | HTTP Request: GET http://testserver/auth/session/Bhjs4vSMGmFKk3t29ETQx6NFTI72n
+N1OOJSJlMZU0RQ?client_kind=device "HTTP/1.1 200 OK"
+2026-06-13 15:48:44,484 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:44,490 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:44,491 | INFO | app.main | Application shutdown profile=test uptime_ms=467
+COMMAND_MAP_COUNT 5
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/health', '/mode']
+LIMITED_MODE limited limited_local
+LIMITED_CONNECT limited False
+LIMITED_LOGIN_ERROR secure_login unavailable in limited mode without wifi dev board
+NETWORK_MODE disconnected network
+SHELL_CONNECTED True connected
+LOGIN_STATE authenticated flipper-user
+CHAT_SCREEN chat
+BLOG_SCREEN blog
+RESUME_STATE authenticated True
+MODE_ACCESS closed
+LOGOUT_STATE connected True
+LOGIN_CLIENT_KIND device
+SESSION_CLIENT_KIND device
+HAS_HEALTH_CALL True
+2026-06-13 15:48:45,969 | INFO | app.main | Data layer ready db=D:\project\server\data\sqlite\local_chat_flipper_client
+_flow_171281a56bac4330895d5d7b165178bf.db applied_migrations=13 storage_root=D:\project\server\data created_storage_dir
+s=0
+2026-06-13 15:48:45,975 | INFO | app.main | Application startup profile=test host=127.0.0.1 port=8000 default_common_ch
+at_id=1
+2026-06-13 15:48:46,145 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,155 | INFO | httpx | HTTP Request: POST http://testserver/admin/content/blog/posts "HTTP/1.1 200 OK
+"
+2026-06-13 15:48:46,159 | INFO | httpx | HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,225 | INFO | httpx | HTTP Request: POST http://testserver/auth/login "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,230 | INFO | httpx | HTTP Request: GET http://testserver/auth/session/KDViN9q6vlgJXY21TFByGBb7REKId
+64v6rdOy0tWmeA?client_kind=device "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,232 | INFO | httpx | HTTP Request: GET http://testserver/mode "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,235 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats?session_token=KDViN9q6vlgJX
+Y21TFByGBb7REKId64v6rdOy0tWmeA "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,239 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=KD
+ViN9q6vlgJXY21TFByGBb7REKId64v6rdOy0tWmeA&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,247 | INFO | httpx | HTTP Request: POST http://testserver/chat/api/chats/1/messages "HTTP/1.1 200 O
+K"
+2026-06-13 15:48:46,253 | INFO | httpx | HTTP Request: GET http://testserver/chat/api/chats/1/messages?session_token=KD
+ViN9q6vlgJXY21TFByGBb7REKId64v6rdOy0tWmeA&limit=100&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,257 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts?session_token=KDViN9q6vlgJX
+Y21TFByGBb7REKId64v6rdOy0tWmeA&limit=20&offset=0 "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,262 | INFO | httpx | HTTP Request: GET http://testserver/blog/api/posts/1?session_token=KDViN9q6vlg
+JXY21TFByGBb7REKId64v6rdOy0tWmeA "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,272 | INFO | httpx | HTTP Request: POST http://testserver/auth/logout "HTTP/1.1 200 OK"
+2026-06-13 15:48:46,273 | INFO | app.main | Application shutdown profile=test uptime_ms=657
+COMMAND_MAP_COUNT 8
+COMMAND_PATHS ['/auth/login', '/auth/logout', '/auth/session/{session_token}', '/blog/api/posts', '/blog/api/posts/{post_id}', '/chat/api/chats', '/chat/api/chats/{chat_id}/messages']
+LIMITED_MODE limited limited_local
+LIMITED_CONNECT limited False
+LIMITED_LOGIN_ERROR secure_login unavailable in limited mode without wifi dev board
+NETWORK_MODE disconnected network
+NETWORK_CONNECTED connected True
+LOGIN_ROLE user
+RESUME_STATE authenticated
+MODE_ACCESS closed
+CHAT_COUNT 1
+CHAT_TARGET 1 common
+HISTORY_BEFORE 0
+SENT_MESSAGE 1 1
+HISTORY_AFTER 1
+POSTS_COUNT 1
+LOADED_POST 1 Flipper Limited Blog Post
+LOGOUT_STATE connected True
+LOGIN_CLIENT_KIND device
+SESSION_CLIENT_KIND device
+HAS_HEALTH_CALL True
+SWEEP_GROUPS_SELECTED ['devices']
+SWEEP_COMMAND_COUNT 19
+SWEEP_STEP 1 esp32_service_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.esp32_service.verify_mvp
+SWEEP_STEP_STATUS esp32_service_mvp pass
+SWEEP_STEP 2 esp32_sync_transport
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.esp32_service.verify_sync_transport
+SWEEP_STEP_STATUS esp32_sync_transport pass
+SWEEP_STEP 3 m5stamp_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5stamp.verify_mvp
+SWEEP_STEP_STATUS m5stamp_mvp pass
+SWEEP_STEP 4 atom_s3_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.atom_s3.verify_mvp
+SWEEP_STEP_STATUS atom_s3_mvp pass
+SWEEP_STEP 5 m5tab_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5tab.verify_mvp
+SWEEP_STEP_STATUS m5tab_mvp pass
+SWEEP_STEP 6 m5tab_admin_users
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5tab.screens.admin_users.verify_flow
+SWEEP_STEP_STATUS m5tab_admin_users pass
+SWEEP_STEP 7 m5tab_admin_ops
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5tab.screens.admin_ops.verify_flow
+SWEEP_STEP_STATUS m5tab_admin_ops pass
+SWEEP_STEP 8 m5cardputer_console_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5cardputer_console.verify_mvp
+SWEEP_STEP_STATUS m5cardputer_console_mvp pass
+SWEEP_STEP 9 m5cardputer_console_chat
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5cardputer_console.chat.verify_flow
+SWEEP_STEP_STATUS m5cardputer_console_chat pass
+SWEEP_STEP 10 m5cardputer_console_blog
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5cardputer_console.blog.verify_flow
+SWEEP_STEP_STATUS m5cardputer_console_blog pass
+SWEEP_STEP 11 m5cardputer_console_service_actions
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5cardputer_console.service_actions.verify_flow
+SWEEP_STEP_STATUS m5cardputer_console_service_actions pass
+SWEEP_STEP 12 m5cardputer_client_alignment
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5cardputer_client.verify_alignment
+SWEEP_STEP_STATUS m5cardputer_client_alignment pass
+SWEEP_STEP 13 m5cardputer_client_ui
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5cardputer_client.ui.verify_flow
+SWEEP_STEP_STATUS m5cardputer_client_ui pass
+SWEEP_STEP 14 m5stickc_plus2_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5stickc_plus2.verify_mvp
+SWEEP_STEP_STATUS m5stickc_plus2_mvp pass
+SWEEP_STEP 15 m5stickc_plus2_ui
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.m5stickc_plus2.ui.verify_flow
+SWEEP_STEP_STATUS m5stickc_plus2_ui pass
+SWEEP_STEP 16 t_embed_cc1101_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.t_embed_cc1101.verify_mvp
+SWEEP_STEP_STATUS t_embed_cc1101_mvp pass
+SWEEP_STEP 17 t_embed_cc1101_ui
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.t_embed_cc1101.ui.verify_flow
+SWEEP_STEP_STATUS t_embed_cc1101_ui pass
+SWEEP_STEP 18 flipper_zero_mvp
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.flipper_zero.verify_mvp
+SWEEP_STEP_STATUS flipper_zero_mvp pass
+SWEEP_STEP 19 flipper_zero_ui
+SWEEP_CMD "C:\Program Files\Python310\python.exe" -m firmware.devices.flipper_zero.ui.verify_flow
+SWEEP_STEP_STATUS flipper_zero_ui pass
+SWEEP_STATUS PASS
+

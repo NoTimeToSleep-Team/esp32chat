@@ -1,0 +1,22 @@
+[Unit]
+Description=Local Chat Server (ARM Linux v1.00.00)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=localchat
+Group=localchat
+WorkingDirectory=/opt/local-chat-server
+EnvironmentFile=/opt/local-chat-server/config/app.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/local-chat-server/.venv/bin/uvicorn app.main:app --host ${LCS_HOST} --port ${LCS_PORT}
+Restart=always
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillSignal=SIGINT
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

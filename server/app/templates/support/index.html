@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Support | Local Chat Server</title>
+  <link rel="stylesheet" href="/static/support/support.css" />
+</head>
+<body>
+  <div class="support-shell">
+    <aside class="left-column">
+      <header class="card">
+        <h1>Support Desk</h1>
+        <p>Личные обращения и диалог user-admin</p>
+      </header>
+
+      <section class="card">
+        <label for="sessionToken">Session token</label>
+        <input id="sessionToken" type="password" placeholder="Введите token" autocomplete="off" />
+        <button id="loadTicketsBtn" type="button">Загрузить обращения</button>
+      </section>
+
+      <section class="card">
+        <h2>Новое обращение</h2>
+        <form id="createTicketForm" autocomplete="off">
+          <input id="ticketTitle" type="text" maxlength="256" placeholder="Тема" required />
+          <textarea id="ticketBody" rows="4" maxlength="8000" placeholder="Опишите проблему" required></textarea>
+          <button id="createTicketBtn" type="submit">Создать</button>
+        </form>
+      </section>
+
+      <section class="card tickets-card">
+        <h2>Список обращений</h2>
+        <ul id="ticketList" class="ticket-list" aria-live="polite"></ul>
+      </section>
+    </aside>
+
+    <main class="right-column card">
+      <header class="thread-head">
+        <h2 id="activeTicketTitle">Выберите обращение</h2>
+        <p id="activeTicketMeta">Здесь появится переписка</p>
+      </header>
+
+      <section id="messagesViewport" class="messages-viewport" aria-live="polite"></section>
+
+      <form id="replyForm" class="reply-form" autocomplete="off">
+        <textarea id="replyBody" rows="3" maxlength="8000" placeholder="Ответ в обращение" disabled></textarea>
+        <div class="reply-row">
+          <button id="sendReplyBtn" type="submit" disabled>Отправить</button>
+          <span id="replyHint">Загрузите обращения и выберите диалог</span>
+        </div>
+      </form>
+
+      <section class="status-row">
+        <select id="statusSelect" disabled>
+          <option value="open">open</option>
+          <option value="in_progress">in_progress</option>
+          <option value="resolved">resolved</option>
+          <option value="closed">closed</option>
+        </select>
+        <button id="updateStatusBtn" type="button" disabled>Обновить статус</button>
+      </section>
+    </main>
+  </div>
+
+  <template id="ticketTemplate">
+    <li>
+      <button type="button" class="ticket-btn">
+        <strong class="ticket-title"></strong>
+        <small class="ticket-meta"></small>
+      </button>
+    </li>
+  </template>
+
+  <template id="messageTemplate">
+    <article class="message-item">
+      <header>
+        <span class="author"></span>
+        <time class="time"></time>
+      </header>
+      <p class="body"></p>
+    </article>
+  </template>
+
+  <script type="module" src="/static/support/support.js"></script>
+</body>
+</html>

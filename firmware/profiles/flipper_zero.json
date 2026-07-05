@@ -1,0 +1,35 @@
+{
+  "profile_id": "flipper_zero",
+  "device_display_name": "Flipper Zero",
+  "firmware_path": "devices/flipper_zero",
+  "native_runtime_entry": "devices/flipper_zero/fap/local_chat_flipper.c",
+  "native_manifest_entry": "devices/flipper_zero/fap/application.fam",
+  "host_harness_entries": [
+    "devices/flipper_zero/verify_mvp.py",
+    "devices/flipper_zero/ui/verify_flow.py"
+  ],
+  "category": "limited_client",
+  "primary_role": "capability_detected_lightweight_client",
+  "preferred_stack": ["flipper_sdk_c_cpp"],
+  "transports": {
+    "internal": [],
+    "external": ["wifi_dev_board_conditional", "usb_serial_conditional"]
+  },
+  "capabilities": {
+    "chat": true,
+    "blog": true,
+    "admin_panel": false,
+    "rfid_management": false,
+    "device_action_sequence_login": true,
+    "full_network_mode": "requires_wifi_dev_board",
+    "media_files": false
+  },
+  "autonomy_profile": "non_autonomous_limited",
+  "supports_guest_login": false,
+  "constraints": [
+    "no_fake_full_client_without_network_module",
+    "no_unconfirmed_bluetooth_or_file_promises",
+    "no_main_server_role"
+  ],
+  "status": "mvp_v0_14_02"
+}

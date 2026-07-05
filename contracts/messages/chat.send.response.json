@@ -1,0 +1,22 @@
+{
+  "protocol_version": "1.0",
+  "message_type": "chat.send.response",
+  "message_id": "msg-01J0AA00000000000000000014",
+  "idempotency_key": null,
+  "correlation_id": "msg-01J0AA00000000000000000006",
+  "sender": {
+    "kind": "server",
+    "id": "main"
+  },
+  "target": {
+    "kind": "device",
+    "id": "m5cardputer-ext-01"
+  },
+  "sent_at_ms": 1775300300195,
+  "payload": {
+    "status": "accepted",
+    "message_id": "msg-chat-009912",
+    "server_seq": 9912,
+    "created_at_ms": 1775300300190
+  }
+}
