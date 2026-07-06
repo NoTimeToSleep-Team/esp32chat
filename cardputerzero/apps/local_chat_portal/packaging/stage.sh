@@ -2,6 +2,7 @@
 set -euo pipefail
 
 install -D -m 0755 launch_local_chat_portal.sh "$STAGE$APP_INSTALL_DIR/launch_local_chat_portal.sh"
+install -D -m 0644 mode_switch.html "$STAGE$APP_INSTALL_DIR/mode_switch.html"
 install -D -m 0644 packaging/local-chat-portal.svg "$STAGE$APP_INSTALL_DIR/share/images/local-chat-portal.svg"
 
 tmp=$(mktemp)

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVER_URL="${LOCAL_CHAT_SERVER_URL:-http://127.0.0.1:8000/}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFERRED_BROWSER="${LOCAL_CHAT_BROWSER:-}"
+MODE_SWITCH_PAGE="${SCRIPT_DIR}/mode_switch.html"
 
 log() {
     printf '[local-chat-portal] %s\n' "$*" >&2
@@ -28,10 +29,9 @@ pick_browser() {
     return 1
 }
 
-if has_command curl; then
-    if ! curl -fsS --max-time 2 "${SERVER_URL%/}/health" >/dev/null 2>&1; then
-        log "warning: health probe failed for ${SERVER_URL%/}/health; opening client anyway"
-    fi
+if [[ ! -f "${MODE_SWITCH_PAGE}" ]]; then
+    log "mode switch page not found: ${MODE_SWITCH_PAGE}"
+    exit 1
 fi
 
 BROWSER="$(pick_browser)" || {
@@ -39,17 +39,19 @@ BROWSER="$(pick_browser)" || {
     exit 1
 }
 
+TARGET_URL="file://${MODE_SWITCH_PAGE}"
+
 case "${BROWSER}" in
     chromium|chromium-browser)
-        exec "${BROWSER}" --app="${SERVER_URL}" --start-fullscreen --force-device-scale-factor=1
+        exec "${BROWSER}" --app="${TARGET_URL}" --start-fullscreen --force-device-scale-factor=1
         ;;
     cog)
-        exec "${BROWSER}" "${SERVER_URL}"
+        exec "${BROWSER}" "${TARGET_URL}"
         ;;
     xdg-open)
-        exec "${BROWSER}" "${SERVER_URL}"
+        exec "${BROWSER}" "${TARGET_URL}"
         ;;
     *)
-        exec "${BROWSER}" "${SERVER_URL}"
+        exec "${BROWSER}" "${TARGET_URL}"
         ;;
 esac

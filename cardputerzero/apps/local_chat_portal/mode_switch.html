@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+  <title>Local Chat Mode Switch</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Arial, sans-serif;
+      background: #101820;
+      color: #f4f7fb;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #101820 0%, #132238 100%);
+    }
+    .card {
+      width: min(92vw, 520px);
+      padding: 20px;
+      border-radius: 18px;
+      background: rgba(14, 24, 39, 0.92);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+    p {
+      margin: 0 0 16px;
+      color: #c8d3df;
+      line-height: 1.4;
+    }
+    .grid {
+      display: grid;
+      gap: 12px;
+    }
+    .row {
+      display: grid;
+      gap: 8px;
+    }
+    label {
+      font-size: 14px;
+      color: #d7e3ee;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #2e445d;
+      background: #0d1724;
+      color: #f4f7fb;
+      font-size: 15px;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .server {
+      background: #00b4d8;
+      color: #081018;
+    }
+    .client {
+      background: #8ecae6;
+      color: #081018;
+    }
+    .note {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #9fb3c7;
+    }
+    .status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #9fe29f;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Local Chat</h1>
+    <p>Choose how CardputerZero should open the chat platform.</p>
+    <div class="grid">
+      <div class="row">
+        <label for="serverUrl">Server mode URL</label>
+        <input id="serverUrl" type="text" value="http://127.0.0.1:8000/" />
+      </div>
+      <div class="row">
+        <label for="clientUrl">Client mode URL</label>
+        <input id="clientUrl" type="text" value="http://127.0.0.1:8000/" />
+      </div>
+    </div>
+    <div class="buttons">
+      <button class="server" id="serverBtn">Open Server Mode</button>
+      <button class="client" id="clientBtn">Open Client Mode</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="note">Server mode opens the local CardputerZero server. Client mode opens a remote or alternate URL and remembers it for next launch.</div>
+  </div>
+  <script>
+    const serverInput = document.getElementById('serverUrl');
+    const clientInput = document.getElementById('clientUrl');
+    const status = document.getElementById('status');
+    const serverKey = 'localChatServerModeUrl';
+    const clientKey = 'localChatClientModeUrl';
+
+    const normalize = (value) => {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return '';
+      return trimmed.endsWith('/') ? trimmed : trimmed + '/';
+    };
+
+    const setStatus = (text) => {
+      status.textContent = text;
+    };
+
+    const openMode = (storageKey, input, label) => {
+      const url = normalize(input.value);
+      if (!url) {
+        setStatus(label + ' URL is empty');
+        return;
+      }
+      localStorage.setItem(storageKey, url);
+      setStatus('Opening ' + label + ': ' + url);
+      window.location.href = url;
+    };
+
+    serverInput.value = normalize(localStorage.getItem(serverKey) || serverInput.value);
+    clientInput.value = normalize(localStorage.getItem(clientKey) || clientInput.value);
+
+    document.getElementById('serverBtn').addEventListener('click', () => openMode(serverKey, serverInput, 'server mode'));
+    document.getElementById('clientBtn').addEventListener('click', () => openMode(clientKey, clientInput, 'client mode'));
+  </script>
+</body>
+</html>

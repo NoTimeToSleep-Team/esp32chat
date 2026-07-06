@@ -2,17 +2,12 @@
 
 This is an AppBuilder-compatible launcher for the existing Local Chat SPA.
 
-It does not duplicate the chat UI in a second native implementation. Instead, it opens the already-tested web portal that ships with the server.
+It ships a small mode-switch page with two actions:
 
-## Default Target
+- `Server mode` opens the local server on `http://127.0.0.1:8000/`
+- `Client mode` opens a configurable remote server URL
 
-- `http://127.0.0.1:8000/`
-
-Override with:
-
-```bash
-LOCAL_CHAT_SERVER_URL=http://192.168.4.1:8000/ /usr/share/APPLaunch/bin/local-chat-portal
-```
+The remote URL is stored in browser `localStorage`, so after the first change it persists between launches.
 
 ## Browser Resolution
 

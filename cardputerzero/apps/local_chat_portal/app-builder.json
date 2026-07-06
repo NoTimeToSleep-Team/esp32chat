@@ -1,9 +1,9 @@
 {
   "package_name": "local-chat-portal-cz",
   "version": "0.1.0",
-  "app_name": "Local Chat Portal",
+  "app_name": "Local Chat Mode Switch",
   "bin_name": "local-chat-portal",
-  "description": "Browser launcher for the existing Local Chat web portal on M5CardputerZero.",
+  "description": "Mode switch launcher for Local Chat server/client usage on M5CardputerZero.",
   "runtime": "legacy-deb-only",
   "caps": ["keyboard", "network", "process"]
 }
