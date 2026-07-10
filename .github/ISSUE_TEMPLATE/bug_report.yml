@@ -1,0 +1,81 @@
+name: Bug report
+description: Report a reproducible ESP32Chat software problem
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove passwords, Wi-Fi credentials, tokens, private addresses, and personal data from all logs.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release name or commit SHA for the affected server/client.
+      placeholder: main at abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Raspberry Pi / server
+        - Web interface
+        - M5Cardputer / Cardputer ADV
+        - M5StickC Plus 2
+        - T-Embed CC1101
+        - Flipper Zero
+        - Build / CI
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Hardware revision, operating system, Python/toolchain version, and network topology.
+      placeholder: Raspberry Pi 5, Raspberry Pi OS 64-bit, Python 3.11...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Start the server with...
+        2. Open...
+        3. Send...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I tested the latest available code when practical.
+          required: true
+        - label: I removed secrets and personal data.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a focused improvement to ESP32Chat
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the concrete user or operator problem.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Explain the expected behavior and affected components.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: target
+    attributes:
+      label: Primary target
+      options:
+        - Server / Raspberry Pi
+        - Web interface
+        - ESP32 / M5Stack clients
+        - Flipper Zero
+        - Documentation
+        - Build / release tooling
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Hardware, compatibility, or security constraints
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and the roadmap.
+          required: true
+        - label: The request does not require publishing credentials or private data.
+          required: true

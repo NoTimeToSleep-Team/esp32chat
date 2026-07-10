@@ -1,0 +1,29 @@
+name: Documentation improvement
+description: Report missing, incorrect, or confusing documentation
+title: "[Docs]: "
+labels: ["documentation", "good first issue"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Document or location
+      placeholder: README.md, server/docs/deploy-pi.md, line/section...
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is incorrect or unclear?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked the latest version of the document.
+          required: true
