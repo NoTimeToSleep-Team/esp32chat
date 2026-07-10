@@ -1,0 +1,76 @@
+name: Hardware validation report
+description: Publish repeatable results from a physical ESP32Chat device
+title: "[Hardware]: "
+labels: ["hardware-test", "needs-triage"]
+body:
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - M5Cardputer
+        - Cardputer ADV
+        - M5StickC Plus 2
+        - T-Embed CC1101
+        - Flipper Zero
+        - Raspberry Pi 5
+        - Raspberry Pi Zero 2 W
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Hardware revision
+      placeholder: Board revision, module variant, attached accessories
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Firmware/server commit
+      placeholder: Full or short commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: toolchain
+    attributes:
+      label: Toolchain and build configuration
+      placeholder: Arduino/PlatformIO/Flipper SDK version, libraries, compile-time flags
+    validations:
+      required: true
+  - type: textarea
+    id: topology
+    attributes:
+      label: Server and network topology
+      placeholder: Raspberry Pi model, OS, access point, Wi-Fi band, addressing
+    validations:
+      required: true
+  - type: textarea
+    id: procedure
+    attributes:
+      label: Test procedure
+      description: Provide enough detail for another person to repeat the test.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: State pass/fail/partial and describe observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs and media
+      description: Attach serial output, screenshots, photographs, or video when useful.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: This test was performed on the named physical device.
+          required: true
+        - label: I removed credentials, tokens, private addresses, and personal data.
+          required: true

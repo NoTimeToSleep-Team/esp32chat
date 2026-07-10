@@ -1,0 +1,2271 @@
+From b3c5ffb4fb4221a89ee84391e32f5fb8e08afc1d Mon Sep 17 00:00:00 2001
+From: Repository Refresh <noreply@example.com>
+Date: Fri, 10 Jul 2026 13:54:04 +0000
+Subject: [PATCH] Improve repository presentation and contribution workflow
+
+---
+ .github/ISSUE_TEMPLATE/bug_report.yml         |  81 ++++++++
+ .github/ISSUE_TEMPLATE/config.yml             |   8 +
+ .github/ISSUE_TEMPLATE/documentation.yml      |  29 +++
+ .github/ISSUE_TEMPLATE/feature_request.yml    |  50 +++++
+ .github/ISSUE_TEMPLATE/hardware_test.yml      |  76 +++++++
+ .github/PULL_REQUEST_TEMPLATE.md              |  32 +++
+ .../seed-issues/01-windows-installation.md    |  17 ++
+ .github/seed-issues/02-spanish-translation.md |  10 +
+ .../seed-issues/03-m5stick-hardware-test.md   |  13 ++
+ .github/seed-issues/04-pi-zero-video.md       |  10 +
+ .github/seed-issues/05-browser-flasher.md     |  11 ++
+ CHANGELOG.md                                  |  31 +++
+ CODE_OF_CONDUCT.md                            |  26 +++
+ CONTRIBUTING.md                               |  81 ++++++++
+ GITHUB_SETUP.md                               |  82 ++++++++
+ LICENSE                                       |  21 ++
+ README.md                                     | 187 +++++++++++++++---
+ README.ru.md                                  | 137 +++++++++++++
+ RELEASE_NOTES_v0.8.0-alpha.md                 |  21 ++
+ SECURITY.md                                   |  47 +++++
+ SUPPORT.md                                    |  30 +++
+ docs/assets/README.md                         |   6 +
+ docs/assets/esp32chat-banner.png              | Bin 0 -> 27677 bytes
+ docs/assets/esp32chat-social-preview.png      | Bin 0 -> 25845 bytes
+ tools/community/configure-github.ps1          |  76 +++++++
+ tools/community/configure-github.sh           |  58 ++++++
+ 26 files changed, 1118 insertions(+), 22 deletions(-)
+ create mode 100644 .github/ISSUE_TEMPLATE/bug_report.yml
+ create mode 100644 .github/ISSUE_TEMPLATE/config.yml
+ create mode 100644 .github/ISSUE_TEMPLATE/documentation.yml
+ create mode 100644 .github/ISSUE_TEMPLATE/feature_request.yml
+ create mode 100644 .github/ISSUE_TEMPLATE/hardware_test.yml
+ create mode 100644 .github/PULL_REQUEST_TEMPLATE.md
+ create mode 100644 .github/seed-issues/01-windows-installation.md
+ create mode 100644 .github/seed-issues/02-spanish-translation.md
+ create mode 100644 .github/seed-issues/03-m5stick-hardware-test.md
+ create mode 100644 .github/seed-issues/04-pi-zero-video.md
+ create mode 100644 .github/seed-issues/05-browser-flasher.md
+ create mode 100644 CHANGELOG.md
+ create mode 100644 CODE_OF_CONDUCT.md
+ create mode 100644 CONTRIBUTING.md
+ create mode 100644 GITHUB_SETUP.md
+ create mode 100644 LICENSE
+ create mode 100644 README.ru.md
+ create mode 100644 RELEASE_NOTES_v0.8.0-alpha.md
+ create mode 100644 SECURITY.md
+ create mode 100644 SUPPORT.md
+ create mode 100644 docs/assets/README.md
+ create mode 100644 docs/assets/esp32chat-banner.png
+ create mode 100644 docs/assets/esp32chat-social-preview.png
+ create mode 100644 tools/community/configure-github.ps1
+ create mode 100755 tools/community/configure-github.sh
+
+diff --git a/.github/ISSUE_TEMPLATE/bug_report.yml b/.github/ISSUE_TEMPLATE/bug_report.yml
+new file mode 100644
+index 0000000..76d9303
+--- /dev/null
++++ b/.github/ISSUE_TEMPLATE/bug_report.yml
+@@ -0,0 +1,81 @@
++name: Bug report
++description: Report a reproducible ESP32Chat software problem
++title: "[Bug]: "
++labels: ["bug", "needs-triage"]
++body:
++  - type: markdown
++    attributes:
++      value: |
++        Remove passwords, Wi-Fi credentials, tokens, private addresses, and personal data from all logs.
++  - type: input
++    id: version
++    attributes:
++      label: Version or commit
++      description: Release name or commit SHA for the affected server/client.
++      placeholder: main at abc1234
++    validations:
++      required: true
++  - type: dropdown
++    id: component
++    attributes:
++      label: Component
++      options:
++        - Raspberry Pi / server
++        - Web interface
++        - M5Cardputer / Cardputer ADV
++        - M5StickC Plus 2
++        - T-Embed CC1101
++        - Flipper Zero
++        - Build / CI
++        - Documentation
++        - Other
++    validations:
++      required: true
++  - type: textarea
++    id: environment
++    attributes:
++      label: Environment
++      description: Hardware revision, operating system, Python/toolchain version, and network topology.
++      placeholder: Raspberry Pi 5, Raspberry Pi OS 64-bit, Python 3.11...
++    validations:
++      required: true
++  - type: textarea
++    id: steps
++    attributes:
++      label: Reproduction steps
++      placeholder: |
++        1. Start the server with...
++        2. Open...
++        3. Send...
++    validations:
++      required: true
++  - type: textarea
++    id: expected
++    attributes:
++      label: Expected behavior
++    validations:
++      required: true
++  - type: textarea
++    id: actual
++    attributes:
++      label: Actual behavior
++    validations:
++      required: true
++  - type: textarea
++    id: logs
++    attributes:
++      label: Sanitized logs
++      render: shell
++  - type: checkboxes
++    id: checks
++    attributes:
++      label: Checklist
++      options:
++        - label: I searched existing issues.
++          required: true
++        - label: I tested the latest available code when practical.
++          required: true
++        - label: I removed secrets and personal data.
++          required: true
++        - label: This is not a security vulnerability.
++          required: true
+diff --git a/.github/ISSUE_TEMPLATE/config.yml b/.github/ISSUE_TEMPLATE/config.yml
+new file mode 100644
+index 0000000..61541f3
+--- /dev/null
++++ b/.github/ISSUE_TEMPLATE/config.yml
+@@ -0,0 +1,8 @@
++blank_issues_enabled: false
++contact_links:
++  - name: Security vulnerability
++    url: https://github.com/NoTimeToSleep-Team/esp32chat/security/advisories/new
++    about: Report security problems privately. Do not create a public issue.
++  - name: Project documentation
++    url: https://github.com/NoTimeToSleep-Team/esp32chat/tree/main/docs
++    about: Review architecture, device limits, deployment, and validation documentation.
+diff --git a/.github/ISSUE_TEMPLATE/documentation.yml b/.github/ISSUE_TEMPLATE/documentation.yml
+new file mode 100644
+index 0000000..4fa3411
+--- /dev/null
++++ b/.github/ISSUE_TEMPLATE/documentation.yml
+@@ -0,0 +1,29 @@
++name: Documentation improvement
++description: Report missing, incorrect, or confusing documentation
++title: "[Docs]: "
++labels: ["documentation", "good first issue"]
++body:
++  - type: input
++    id: location
++    attributes:
++      label: Document or location
++      placeholder: README.md, server/docs/deploy-pi.md, line/section...
++    validations:
++      required: true
++  - type: textarea
++    id: problem
++    attributes:
++      label: What is incorrect or unclear?
++    validations:
++      required: true
++  - type: textarea
++    id: suggestion
++    attributes:
++      label: Suggested improvement
++  - type: checkboxes
++    id: checks
++    attributes:
++      label: Checklist
++      options:
++        - label: I checked the latest version of the document.
++          required: true
+diff --git a/.github/ISSUE_TEMPLATE/feature_request.yml b/.github/ISSUE_TEMPLATE/feature_request.yml
+new file mode 100644
+index 0000000..8f68ee3
+--- /dev/null
++++ b/.github/ISSUE_TEMPLATE/feature_request.yml
+@@ -0,0 +1,50 @@
++name: Feature request
++description: Propose a focused improvement to ESP32Chat
++title: "[Feature]: "
++labels: ["enhancement", "needs-triage"]
++body:
++  - type: textarea
++    id: problem
++    attributes:
++      label: Problem
++      description: Describe the concrete user or operator problem.
++    validations:
++      required: true
++  - type: textarea
++    id: proposal
++    attributes:
++      label: Proposed solution
++      description: Explain the expected behavior and affected components.
++    validations:
++      required: true
++  - type: textarea
++    id: alternatives
++    attributes:
++      label: Alternatives considered
++  - type: dropdown
++    id: target
++    attributes:
++      label: Primary target
++      options:
++        - Server / Raspberry Pi
++        - Web interface
++        - ESP32 / M5Stack clients
++        - Flipper Zero
++        - Documentation
++        - Build / release tooling
++        - Other
++    validations:
++      required: true
++  - type: textarea
++    id: constraints
++    attributes:
++      label: Hardware, compatibility, or security constraints
++  - type: checkboxes
++    id: checks
++    attributes:
++      label: Checklist
++      options:
++        - label: I searched existing issues and the roadmap.
++          required: true
++        - label: The request does not require publishing credentials or private data.
++          required: true
+diff --git a/.github/ISSUE_TEMPLATE/hardware_test.yml b/.github/ISSUE_TEMPLATE/hardware_test.yml
+new file mode 100644
+index 0000000..87c0f00
+--- /dev/null
++++ b/.github/ISSUE_TEMPLATE/hardware_test.yml
+@@ -0,0 +1,76 @@
++name: Hardware validation report
++description: Publish repeatable results from a physical ESP32Chat device
++title: "[Hardware]: "
++labels: ["hardware-test", "needs-triage"]
++body:
++  - type: dropdown
++    id: device
++    attributes:
++      label: Device
++      options:
++        - M5Cardputer
++        - Cardputer ADV
++        - M5StickC Plus 2
++        - T-Embed CC1101
++        - Flipper Zero
++        - Raspberry Pi 5
++        - Raspberry Pi Zero 2 W
++        - Other
++    validations:
++      required: true
++  - type: input
++    id: revision
++    attributes:
++      label: Hardware revision
++      placeholder: Board revision, module variant, attached accessories
++    validations:
++      required: true
++  - type: input
++    id: commit
++    attributes:
++      label: Firmware/server commit
++      placeholder: Full or short commit SHA
++    validations:
++      required: true
++  - type: textarea
++    id: toolchain
++    attributes:
++      label: Toolchain and build configuration
++      placeholder: Arduino/PlatformIO/Flipper SDK version, libraries, compile-time flags
++    validations:
++      required: true
++  - type: textarea
++    id: topology
++    attributes:
++      label: Server and network topology
++      placeholder: Raspberry Pi model, OS, access point, Wi-Fi band, addressing
++    validations:
++      required: true
++  - type: textarea
++    id: procedure
++    attributes:
++      label: Test procedure
++      description: Provide enough detail for another person to repeat the test.
++    validations:
++      required: true
++  - type: textarea
++    id: result
++    attributes:
++      label: Result
++      description: State pass/fail/partial and describe observed behavior.
++    validations:
++      required: true
++  - type: textarea
++    id: logs
++    attributes:
++      label: Sanitized logs and media
++      description: Attach serial output, screenshots, photographs, or video when useful.
++  - type: checkboxes
++    id: checks
++    attributes:
++      label: Checklist
++      options:
++        - label: This test was performed on the named physical device.
++          required: true
++        - label: I removed credentials, tokens, private addresses, and personal data.
++          required: true
+diff --git a/.github/PULL_REQUEST_TEMPLATE.md b/.github/PULL_REQUEST_TEMPLATE.md
+new file mode 100644
+index 0000000..483125e
+--- /dev/null
++++ b/.github/PULL_REQUEST_TEMPLATE.md
+@@ -0,0 +1,32 @@
++## Summary
++
++Describe the problem and the implemented solution.
++
++## Related issue
++
++Closes #
++
++## Changes
++
++- _List the main changes._
++
++## Verification
++
++Describe the commands, software tests, and physical hardware tests performed.
++
++```text
++python docs/tools/run_software_verification_sweep.py --with-compileall
++```
++
++## Hardware evidence
++
++For device changes, include the exact board revision, toolchain, firmware commit, logs, and media. Write `Not tested on physical hardware` when applicable.
++
++## Checklist
++
++- [ ] The change is focused and does not include unrelated edits.
++- [ ] Documentation was updated when behavior or configuration changed.
++- [ ] Automated checks pass locally or failures are explained.
++- [ ] Hardware claims are based on real tests, not simulation alone.
++- [ ] No credentials, tokens, private addresses, or personal data are included.
++- [ ] Breaking changes are clearly identified.
+diff --git a/.github/seed-issues/01-windows-installation.md b/.github/seed-issues/01-windows-installation.md
+new file mode 100644
+index 0000000..b0db98b
+--- /dev/null
++++ b/.github/seed-issues/01-windows-installation.md
+@@ -0,0 +1,17 @@
++## Goal
++
++Test the current server setup on a clean Windows installation and improve the instructions so a new user can reach the `/health` and `/chat` pages without guessing.
++
++## Suggested work
++
++- Verify Python and virtual-environment commands.
++- Document PowerShell execution-policy problems if encountered.
++- Record the exact supported Python version.
++- Add common failure messages and fixes.
++- Remove all private paths and credentials from screenshots/logs.
++
++## Acceptance criteria
++
++- A clean, numbered Windows setup guide.
++- Commands copied from a successful test.
++- Software verification command documented.
+diff --git a/.github/seed-issues/02-spanish-translation.md b/.github/seed-issues/02-spanish-translation.md
+new file mode 100644
+index 0000000..98b2955
+--- /dev/null
++++ b/.github/seed-issues/02-spanish-translation.md
+@@ -0,0 +1,10 @@
++## Goal
++
++Add a maintained Spanish translation of the public README for ESP32Chat.
++
++## Acceptance criteria
++
++- Create `README.es.md`.
++- Preserve commands, links, warnings, and status limitations.
++- Add the language link to all public README variants.
++- Avoid translating product names and code identifiers.
+diff --git a/.github/seed-issues/03-m5stick-hardware-test.md b/.github/seed-issues/03-m5stick-hardware-test.md
+new file mode 100644
+index 0000000..328b697
+--- /dev/null
++++ b/.github/seed-issues/03-m5stick-hardware-test.md
+@@ -0,0 +1,13 @@
++## Goal
++
++Perform a repeatable physical-device validation of the M5StickC Plus 2 client against the current Raspberry Pi server.
++
++## Test scope
++
++- Build and flash the native runtime.
++- Connect to Wi-Fi and authenticate.
++- Open chat history and send a text message when enabled.
++- Restart the device and test reconnect behavior.
++- Capture sanitized serial logs and photographs.
++
++Use the hardware validation template and state every untested function explicitly.
+diff --git a/.github/seed-issues/04-pi-zero-video.md b/.github/seed-issues/04-pi-zero-video.md
+new file mode 100644
+index 0000000..19907e1
+--- /dev/null
++++ b/.github/seed-issues/04-pi-zero-video.md
+@@ -0,0 +1,10 @@
++## Goal
++
++Create a short installation demonstration for Raspberry Pi Zero 2 W showing a clean server setup, health check, and web chat page.
++
++## Requirements
++
++- Use a fresh or clearly documented Raspberry Pi OS image.
++- Show exact commands and important configuration choices.
++- Do not expose Wi-Fi credentials, tokens, private addresses, or personal data.
++- Link the video from the deployment guide and public README.
+diff --git a/.github/seed-issues/05-browser-flasher.md b/.github/seed-issues/05-browser-flasher.md
+new file mode 100644
+index 0000000..4c29475
+--- /dev/null
++++ b/.github/seed-issues/05-browser-flasher.md
+@@ -0,0 +1,11 @@
++## Goal
++
++Research and prototype a safe browser-based firmware installation path for supported ESP32/M5Stack clients.
++
++## First milestone
++
++- Identify compatible targets and browser requirements.
++- Define how firmware binaries are produced and verified.
++- Keep Wi-Fi/server credentials out of published binaries.
++- Document recovery when flashing fails.
++- Produce a minimal proof of concept for one supported board.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..b6c2dd9
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,31 @@
++# Changelog
++
++Notable public-facing changes to ESP32Chat will be documented in this file.
++
++The project is currently in alpha and may introduce breaking changes before a stable release.
++
++## [Unreleased]
++
++### Added
++
++- Community health files and structured issue templates.
++- Clear project overview, quick start, supported-client status, and Russian README translation.
++- Repository branding and release preparation material.
++
++### Changed
++
++- Public positioning now reflects the implemented FastAPI server, web interface, verification workflow, and native client entry points.
++
++## [0.8.0-alpha] - 2026-07-07
++
++### Added
++
++- First public engineering alpha.
++- Raspberry Pi 5 and Raspberry Pi Zero 2 W server assets.
++- Initial packaged project files for testing base functionality.
++
++### Known limitations
++
++- Full hardware validation was not complete.
++- Some functions could be incomplete or unstable.
++- The release was not intended for production use.
+diff --git a/CODE_OF_CONDUCT.md b/CODE_OF_CONDUCT.md
+new file mode 100644
+index 0000000..0073fa6
+--- /dev/null
++++ b/CODE_OF_CONDUCT.md
+@@ -0,0 +1,26 @@
++# Code of Conduct
++
++ESP32Chat contributors and maintainers are expected to keep project spaces technical, respectful, and safe.
++
++## Expected behavior
++
++- Discuss ideas and code without attacking people.
++- Give specific, actionable feedback.
++- Respect different experience levels and communication styles.
++- Credit other people's work.
++- Protect private information and credentials.
++- Accept corrections and update inaccurate claims.
++
++## Unacceptable behavior
++
++- Harassment, threats, discrimination, or personal insults.
++- Publishing private information without permission.
++- Deliberately misleading test reports or fabricated results.
++- Repeated spam, off-topic promotion, or disruption.
++- Attempts to pressure contributors into unsafe disclosure or deployment.
++
++## Enforcement
++
++Maintainers may edit or remove content, close discussions, reject contributions, or temporarily or permanently restrict participation when necessary. Reports should be sent privately to the maintainers rather than debated publicly.
++
++Enforcement decisions should focus on protecting participants and the project, be proportionate to the behavior, and avoid unnecessary disclosure of reporter information.
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+new file mode 100644
+index 0000000..2eba3db
+--- /dev/null
++++ b/CONTRIBUTING.md
+@@ -0,0 +1,81 @@
++# Contributing to ESP32Chat
++
++Thank you for helping improve ESP32Chat. Contributions may include code, documentation, translations, hardware test reports, reproducible bug reports, and demonstration media.
++
++## Before opening an issue
++
++1. Search existing issues and pull requests.
++2. Confirm that the problem still occurs on the latest `main` branch.
++3. Remove passwords, Wi-Fi credentials, tokens, private addresses, and personal data from logs.
++4. Use the closest issue template and provide exact reproduction steps.
++
++Security vulnerabilities must be reported privately according to [SECURITY.md](SECURITY.md).
++
++## Development setup
++
++ESP32Chat requires Python 3.10 or newer for the server tooling.
++
++```bash
++git clone https://github.com/NoTimeToSleep-Team/esp32chat.git
++cd esp32chat
++python -m venv .venv
++source .venv/bin/activate
++python -m pip install --upgrade pip
++python -m pip install -e "./server[dev]"
++```
++
++On Windows PowerShell:
++
++```powershell
++.venv\Scripts\Activate.ps1
++```
++
++Run the verification sweep before submitting a pull request:
++
++```bash
++python docs/tools/run_software_verification_sweep.py --with-compileall
++```
++
++## Pull requests
++
++- Keep each pull request focused on one problem.
++- Explain what changed, why it changed, and how it was tested.
++- Link the related issue when one exists.
++- Update documentation when behavior, configuration, or supported hardware changes.
++- Do not claim hardware verification unless the test was performed on the named physical device.
++- Avoid unrelated formatting or generated-file changes.
++- Preserve compatibility unless the pull request clearly documents a deliberate breaking change.
++
++## Hardware test reports
++
++A useful hardware report includes:
++
++- Exact board and hardware revision.
++- Firmware commit SHA.
++- Toolchain and library versions.
++- Build configuration and enabled compile-time options.
++- Server model, operating system, and server commit SHA.
++- Network topology and access-point details.
++- Expected and observed behavior.
++- Serial output or sanitized logs.
++- Reproduction frequency and recovery procedure.
++
++Use the **Hardware validation report** issue template.
++
++## Commit messages
++
++Use concise imperative messages. Examples:
++
++```text
++Fix Cardputer reconnect after Wi-Fi loss
++Document Raspberry Pi Zero 2 W installation
++Add M5StickC Plus 2 hardware validation log
++```
++
++## AI-assisted contributions
++
++AI-assisted code and documentation are allowed, but the contributor remains responsible for the result. Review generated changes, understand their behavior, run the relevant checks, and disclose major AI-generated sections when this helps reviewers assess risk. Unverified claims, fabricated test results, and committed secrets are not acceptable.
++
++## Conduct
++
++Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+diff --git a/GITHUB_SETUP.md b/GITHUB_SETUP.md
+new file mode 100644
+index 0000000..03303cc
+--- /dev/null
++++ b/GITHUB_SETUP.md
+@@ -0,0 +1,82 @@
++# GitHub repository setup checklist
++
++The included scripts automate the changes supported by GitHub CLI. Review the commands before running them.
++
++## 1. Apply the files
++
++Copy this overlay into the root of a local clone or apply the supplied patch:
++
++```bash
++git apply esp32chat-community-update.patch
++git diff --check
++git status
++```
++
++The patch replaces the root README and adds community, branding, issue-template, and release files. It does not move existing source or internal project files.
++
++## 2. Review the license
++
++The package includes the MIT License with `NoTimeToSleep Team` as the copyright holder. Publish it only if the team owns the code or has permission to distribute all included code under MIT. Third-party code and assets must retain their own notices.
++
++## 3. Commit and push
++
++```bash
++git switch -c community/repository-refresh
++git add README.md README.ru.md LICENSE CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md SUPPORT.md CHANGELOG.md GITHUB_SETUP.md RELEASE_NOTES_v0.8.0-alpha.md .github docs/assets tools/community
++git commit -m "Improve repository presentation and contribution workflow"
++git push -u origin community/repository-refresh
++```
++
++Review the pull request and merge it after CI passes.
++
++## 4. Configure GitHub
++
++Install and authenticate GitHub CLI, then run one of:
++
++```powershell
++powershell -ExecutionPolicy Bypass -File tools/community/configure-github.ps1
++```
++
++```bash
++bash tools/community/configure-github.sh
++```
++
++The script:
++
++- Sets a clearer repository description.
++- Enables Issues and Discussions.
++- Adds focused repository topics.
++- Creates contribution labels.
++- Creates five starter issues if their titles do not already exist.
++- Renames the existing `beta` prerelease and applies the prepared release notes.
++- Attempts to update the organization description when the authenticated account has permission.
++
++## 5. Manual GitHub settings
++
++Some useful settings are not handled reliably through the public CLI/API:
++
++1. Open **Settings → General → Social preview**.
++2. Upload `docs/assets/esp32chat-social-preview.png`.
++3. Open **Settings → Code security and analysis**.
++4. Enable **Private vulnerability reporting** and available secret scanning options.
++5. Open **Settings → Branches / Rulesets**.
++6. Protect `main` and require the `software-verification` workflow before merging.
++7. Pin ESP32Chat on the organization profile.
++
++## 6. Organization profile
++
++Recommended organization description:
++
++> Open-source hardware and local-first software for ESP32, M5Stack, Flipper Zero, and Raspberry Pi.
++
++For a full organization profile, create or update the special public repository named `.github` and place a profile README at `profile/README.md`.
++
++## 7. Add real media
++
++The included banner is branding, not proof of working hardware. Before promotion, add:
++
++- One photograph showing the Raspberry Pi server and a supported handheld client.
++- One browser screenshot with private information removed.
++- A short GIF or video showing a message sent between two clients.
++
++Do not imply a device was tested unless the test was actually performed.
+diff --git a/LICENSE b/LICENSE
+new file mode 100644
+index 0000000..3729aba
+--- /dev/null
++++ b/LICENSE
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2026 NoTimeToSleep Team
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+diff --git a/README.md b/README.md
+index b791af1..706a0cc 100644
+--- a/README.md
++++ b/README.md
+@@ -1,31 +1,174 @@
+-# Local Chat Server Project
++<div align="center">
+ 
+-This repository contains the staged implementation of a local distributed chat platform built around ARM Linux server targets and external hardware or handheld clients.
++<img src="docs/assets/esp32chat-banner.png" alt="ESP32Chat" width="100%">
+ 
+-## Current State
++# ESP32Chat
+ 
+-- Work is in early foundation stage (`v0.01.01`).
+-- The repository currently defines structure, rules, and planning artifacts.
+-- Server and firmware implementation will be added in next staged versions.
++**A self-hosted local chat platform for Raspberry Pi, browsers, and handheld ESP32 devices.**
+ 
+-## Repository Layout
++[![software verification](https://github.com/NoTimeToSleep-Team/esp32chat/actions/workflows/software-verification.yml/badge.svg)](https://github.com/NoTimeToSleep-Team/esp32chat/actions/workflows/software-verification.yml)
++![status](https://img.shields.io/badge/status-alpha-orange)
++![license](https://img.shields.io/badge/license-MIT-blue)
+ 
+-- `docs/` - architecture and project documentation.
+-- `contracts/` - protocol and sync contracts between server and firmware.
+-- `server/` - ARM Linux backend, web portal, data services, and admin APIs.
+-- `firmware/` - microcontroller firmware and client applications.
+-- `cardputerzero/` - M5CardputerZero-specific launcher and deployment assets.
++[English](README.md) · [Русский](README.ru.md) · [Documentation](docs/README.md) · [Report a bug](https://github.com/NoTimeToSleep-Team/esp32chat/issues/new/choose)
+ 
+-## Core Principles
++</div>
+ 
+-- Build in small, verifiable versions.
+-- Keep hardware roles realistic.
+-- Use defensive security only.
+-- Do not claim tests or hardware checks that were not actually executed.
++> [!WARNING]
++> ESP32Chat is an early alpha. The server and software verification paths are implemented, but full real-hardware validation is still pending. Do not use the current release for critical or production systems.
+ 
+-## Context Files
++## What is ESP32Chat?
+ 
+-- `SESSION_CONTEXT.md` - permanent project/session rules.
+-- `STAGE_CONTEXT.md` - current stage context.
+-- `SUBSTAGE_CONTEXT.md` - active substage context.
+-- `PLAN.md` - full roadmap and version transitions.
++ESP32Chat runs a private chat server on hardware you control. A Raspberry Pi hosts the FastAPI application, web interface, database, and realtime WebSocket transport. Browsers and supported handheld devices connect as clients over the local network.
++
++The project is intended for local networks, hardware experimentation, education, and self-hosted communication without a mandatory external cloud service.
++
++## Highlights
++
++- Self-hosted FastAPI server for Raspberry Pi and other ARM Linux systems.
++- Realtime chat over WebSocket.
++- Browser-based chat, account, blog, support, device, and administration pages.
++- Public and private chat rooms with roles and access controls.
++- SQLite storage, migrations, logging, backups, incidents, and safe-operation endpoints.
++- Native client entry points for M5Cardputer, M5StickC Plus 2, T-Embed CC1101, and Flipper Zero.
++- Automated software verification through GitHub Actions.
++
++## Architecture
++
++```mermaid
++flowchart LR
++    Browser[Web browser] -->|HTTP / WebSocket| Server[Raspberry Pi server]
++    Cardputer[M5Cardputer / ADV] -->|Wi-Fi| Server
++    Stick[M5StickC Plus 2] -->|Wi-Fi| Server
++    TEmbed[T-Embed CC1101] -->|Wi-Fi| Server
++    Flipper[Flipper Zero + Wi-Fi board] -->|Limited client| Server
++    Server --> API[FastAPI]
++    API --> DB[(SQLite)]
++```
++
++External clients communicate through the server API. They do not access the database directly.
++
++## Current client status
++
++| Client | Repository status | Hardware status |
++|---|---|---|
++| Web browser | Implemented | Software verification available |
++| M5Cardputer / Cardputer ADV | Native runtime present | Validation pending |
++| M5StickC Plus 2 | Native runtime present | Validation pending |
++| T-Embed CC1101 | Native runtime present | Validation pending |
++| Flipper Zero | Limited native FAP client | Validation pending; networking depends on external hardware |
++
++See the [device matrix](docs/device-matrix.md) and [known limitations](docs/known-limitations.md) for the exact boundaries of each target.
++
++## Quick start
++
++### Requirements
++
++- Python 3.10 or newer
++- Git
++- A supported desktop Linux, macOS, Windows, or Raspberry Pi environment
++
++### Start the development server
++
++```bash
++git clone https://github.com/NoTimeToSleep-Team/esp32chat.git
++cd esp32chat/server
++
++python -m venv .venv
++source .venv/bin/activate
++python -m pip install --upgrade pip
++python -m pip install -e .
++python -m uvicorn app.main:app --reload
++```
++
++On Windows PowerShell, activate the virtual environment with:
++
++```powershell
++.venv\Scripts\Activate.ps1
++```
++
++Open these addresses after startup:
++
++- Chat interface: `http://127.0.0.1:8000/chat`
++- Health check: `http://127.0.0.1:8000/health`
++- Readiness check: `http://127.0.0.1:8000/health/ready`
++
++The commands above use the development profile. Before exposing ESP32Chat to a network, configure explicit allowed origins and a strong session secret as described in the [server documentation](server/README.md).
++
++## Raspberry Pi deployment
++
++Deployment assets are maintained under the server directory:
++
++- [Raspberry Pi deployment guide](server/docs/deploy-pi.md)
++- [Raspberry Pi Zero 2 W guide](server/docs/deploy-pi-zero2w.md)
++- `server/scripts/` for installation and network helpers
++- `server/systemd/` for service definitions
++- `server/config/nginx/` for reverse-proxy configuration
++
++Review the scripts before running them and test on a non-critical installation first.
++
++## Device firmware
++
++Native device entry points and shared runtime code are located under `firmware/`.
++
++- Device implementations: `firmware/devices/`
++- Shared Arduino runtime: `firmware/arduino/`
++- Device profiles: `firmware/profiles/`
++- [Build guidance](firmware/docs/build.md)
++- [Native runtime map](firmware/docs/native-runtime-map.md)
++
++Client and administrative write actions may be disabled by default and enabled through compile-time configuration. Never commit Wi-Fi passwords, account credentials, private keys, or server tokens.
++
++## Repository layout
++
++```text
++server/        FastAPI server, web UI, data layer, and Raspberry Pi deployment
++firmware/      ESP32, M5Stack, and Flipper Zero clients and verification harnesses
++contracts/     Protocol and synchronization contracts
++cardputerzero/ CardputerZero-specific launcher and deployment assets
++docs/          Architecture, validation, operations, and project documentation
++```
++
++## Verification
++
++Install the development dependencies and run the same software sweep used by CI:
++
++```bash
++python -m pip install -e "./server[dev]"
++python docs/tools/run_software_verification_sweep.py --with-compileall
++```
++
++Software verification is not a substitute for real-device testing. Hardware results should include the board revision, toolchain, firmware commit, network topology, logs, and exact reproduction steps.
++
++## Project status and roadmap
++
++The current public release is an engineering alpha. Main priorities are:
++
++1. Complete repeatable real-hardware validation for active devices.
++2. Simplify Raspberry Pi installation and recovery.
++3. Publish tested firmware binaries and reproducible build instructions.
++4. Add real screenshots, photographs, and a short end-to-end demonstration.
++5. Improve documentation for first-time contributors.
++6. Prepare a stable, versioned protocol and release process.
++
++The detailed internal roadmap is available in [PLAN.md](PLAN.md).
++
++## Contributing
++
++Bug reports, hardware test results, documentation corrections, translations, and code contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), then check the [open issues](https://github.com/NoTimeToSleep-Team/esp32chat/issues).
++
++Good first contributions include:
++
++- Testing one supported device and publishing reproducible results.
++- Improving setup instructions for Windows or Raspberry Pi.
++- Adding screenshots or a short demonstration video.
++- Fixing documentation inconsistencies.
++- Improving error messages and reconnect behavior.
++
++## Security
++
++Do not publish credentials, Wi-Fi passwords, session tokens, private server addresses, or sensitive logs in an issue. Follow [SECURITY.md](SECURITY.md) for private vulnerability reports.
++
++## License
++
++ESP32Chat is distributed under the [MIT License](LICENSE). Third-party components remain subject to their own licenses.
+diff --git a/README.ru.md b/README.ru.md
+new file mode 100644
+index 0000000..7ae0862
+--- /dev/null
++++ b/README.ru.md
+@@ -0,0 +1,137 @@
++<div align="center">
++
++<img src="docs/assets/esp32chat-banner.png" alt="ESP32Chat" width="100%">
++
++# ESP32Chat
++
++**Локальный self-hosted чат для Raspberry Pi, браузеров и портативных устройств на ESP32.**
++
++[![software verification](https://github.com/NoTimeToSleep-Team/esp32chat/actions/workflows/software-verification.yml/badge.svg)](https://github.com/NoTimeToSleep-Team/esp32chat/actions/workflows/software-verification.yml)
++![status](https://img.shields.io/badge/status-alpha-orange)
++![license](https://img.shields.io/badge/license-MIT-blue)
++
++[English](README.md) · [Русский](README.ru.md) · [Документация](docs/README.md) · [Сообщить об ошибке](https://github.com/NoTimeToSleep-Team/esp32chat/issues/new/choose)
++
++</div>
++
++> [!WARNING]
++> ESP32Chat находится на стадии ранней альфы. Сервер и программные проверки реализованы, но полная проверка на реальном оборудовании ещё не завершена. Не используйте текущий выпуск в критических или производственных системах.
++
++## Что такое ESP32Chat?
++
++ESP32Chat запускает приватный чат-сервер на вашем оборудовании. Raspberry Pi размещает FastAPI-приложение, веб-интерфейс, базу данных и WebSocket-транспорт. Браузеры и поддерживаемые портативные устройства подключаются к нему как клиенты через локальную сеть.
++
++Проект предназначен для локальных сетей, экспериментов с оборудованием, обучения и общения без обязательного внешнего облачного сервиса.
++
++## Возможности
++
++- Self-hosted FastAPI-сервер для Raspberry Pi и других ARM Linux-систем.
++- Чат в реальном времени через WebSocket.
++- Веб-страницы чата, аккаунта, блога, поддержки, устройств и администрирования.
++- Публичные и приватные комнаты, роли и ограничения доступа.
++- SQLite, миграции, журналирование, резервные копии и операционные API.
++- Нативные точки входа для M5Cardputer, M5StickC Plus 2, T-Embed CC1101 и Flipper Zero.
++- Автоматические программные проверки через GitHub Actions.
++
++## Архитектура
++
++```mermaid
++flowchart LR
++    Browser[Веб-браузер] -->|HTTP / WebSocket| Server[Сервер Raspberry Pi]
++    Cardputer[M5Cardputer / ADV] -->|Wi-Fi| Server
++    Stick[M5StickC Plus 2] -->|Wi-Fi| Server
++    TEmbed[T-Embed CC1101] -->|Wi-Fi| Server
++    Flipper[Flipper Zero + Wi-Fi board] -->|Ограниченный клиент| Server
++    Server --> API[FastAPI]
++    API --> DB[(SQLite)]
++```
++
++Внешние клиенты используют API сервера и не обращаются к базе данных напрямую.
++
++## Состояние клиентов
++
++| Клиент | Состояние в репозитории | Проверка оборудования |
++|---|---|---|
++| Веб-браузер | Реализован | Доступны программные проверки |
++| M5Cardputer / Cardputer ADV | Есть нативный runtime | Ожидается |
++| M5StickC Plus 2 | Есть нативный runtime | Ожидается |
++| T-Embed CC1101 | Есть нативный runtime | Ожидается |
++| Flipper Zero | Ограниченный нативный FAP-клиент | Ожидается; сеть зависит от внешнего оборудования |
++
++Точные ограничения находятся в [матрице устройств](docs/device-matrix.md) и документе [Known Limitations](docs/known-limitations.md).
++
++## Быстрый запуск
++
++### Требования
++
++- Python 3.10 или новее
++- Git
++- Linux, macOS, Windows или Raspberry Pi
++
++### Запуск сервера для разработки
++
++```bash
++git clone https://github.com/NoTimeToSleep-Team/esp32chat.git
++cd esp32chat/server
++
++python -m venv .venv
++source .venv/bin/activate
++python -m pip install --upgrade pip
++python -m pip install -e .
++python -m uvicorn app.main:app --reload
++```
++
++В Windows PowerShell активируйте окружение командой:
++
++```powershell
++.venv\Scripts\Activate.ps1
++```
++
++После запуска откройте:
++
++- Чат: `http://127.0.0.1:8000/chat`
++- Проверка состояния: `http://127.0.0.1:8000/health`
++- Проверка готовности: `http://127.0.0.1:8000/health/ready`
++
++Эти команды используют профиль разработки. Перед публикацией сервера в сети настройте разрешённые источники и сильный секрет сессии согласно [документации сервера](server/README.md).
++
++## Raspberry Pi
++
++- [Основное руководство](server/docs/deploy-pi.md)
++- [Руководство для Raspberry Pi Zero 2 W](server/docs/deploy-pi-zero2w.md)
++- Скрипты установки: `server/scripts/`
++- Сервисы systemd: `server/systemd/`
++- Конфигурация Nginx: `server/config/nginx/`
++
++Проверяйте скрипты перед запуском и сначала используйте некритичную тестовую систему.
++
++## Прошивки устройств
++
++- Реализации устройств: `firmware/devices/`
++- Общий Arduino runtime: `firmware/arduino/`
++- Профили устройств: `firmware/profiles/`
++- [Инструкция по сборке](firmware/docs/build.md)
++- [Карта нативных runtime](firmware/docs/native-runtime-map.md)
++
++Не добавляйте в Git Wi-Fi-пароли, данные аккаунтов, приватные ключи и серверные токены.
++
++## Проверка проекта
++
++```bash
++python -m pip install -e "./server[dev]"
++python docs/tools/run_software_verification_sweep.py --with-compileall
++```
++
++Программные тесты не заменяют испытания на реальных устройствах. В отчёте указывайте ревизию платы, toolchain, commit прошивки, топологию сети, логи и точные шаги воспроизведения.
++
++## Участие в разработке
++
++Изучите [CONTRIBUTING.md](CONTRIBUTING.md) и [открытые задачи](https://github.com/NoTimeToSleep-Team/esp32chat/issues). Особенно полезны аппаратные тесты, исправления документации, переводы, скриншоты и улучшение установки.
++
++## Безопасность
++
++Не публикуйте секреты, Wi-Fi-пароли, session tokens, приватные адреса сервера и чувствительные логи. Для уязвимостей используйте инструкции из [SECURITY.md](SECURITY.md).
++
++## Лицензия
++
++ESP32Chat распространяется по [лицензии MIT](LICENSE). Сторонние компоненты могут использовать собственные лицензии.
+diff --git a/RELEASE_NOTES_v0.8.0-alpha.md b/RELEASE_NOTES_v0.8.0-alpha.md
+new file mode 100644
+index 0000000..cd7333e
+--- /dev/null
++++ b/RELEASE_NOTES_v0.8.0-alpha.md
+@@ -0,0 +1,21 @@
++# ESP32Chat v0.8.0-alpha — Raspberry Pi server preview
++
++This is the first public engineering alpha of ESP32Chat. It packages the Raspberry Pi server work and early client/runtime components for testing and development.
++
++## Included
++
++- Raspberry Pi 5 and Raspberry Pi Zero 2 W deployment assets.
++- FastAPI server foundation and local web interfaces.
++- Realtime chat transport and account/chat service components.
++- Early native runtime entry points for supported handheld clients.
++- Software verification workflow and project documentation.
++
++## Important limitations
++
++- This release is not production-ready.
++- Full synchronized testing on all physical devices is incomplete.
++- Network-loss, roaming, long-uptime, thermal, and load behavior require more validation.
++- Device feature coverage differs by hardware target.
++- APIs, configuration, and protocol details may change before a stable release.
++
++Please report reproducible bugs through GitHub Issues and use the hardware validation template for physical-device results. Never publish credentials, Wi-Fi passwords, session tokens, private server addresses, or sensitive logs.
+diff --git a/SECURITY.md b/SECURITY.md
+new file mode 100644
+index 0000000..a1a3957
+--- /dev/null
++++ b/SECURITY.md
+@@ -0,0 +1,47 @@
++# Security Policy
++
++## Supported versions
++
++ESP32Chat is currently an alpha project. Security fixes are applied to the latest `main` branch. Old prereleases and unmaintained snapshots should be considered unsupported.
++
++| Version | Security support |
++|---|---|
++| Latest `main` | Best effort |
++| Current prerelease | Best effort |
++| Older snapshots | No |
++
++## Reporting a vulnerability
++
++Do not open a public issue for a vulnerability that could expose accounts, credentials, sessions, private messages, devices, or server control.
++
++Use GitHub's private vulnerability reporting page:
++
++`https://github.com/NoTimeToSleep-Team/esp32chat/security/advisories/new`
++
++Include:
++
++- Affected commit or release.
++- A clear description of the impact.
++- Reproduction steps or proof of concept.
++- Required configuration and hardware.
++- Suggested mitigation, when available.
++- Whether the issue is already public.
++
++The maintainers will acknowledge a complete report when available, investigate it on a best-effort basis, and coordinate disclosure when a fix is ready. Because this is a volunteer alpha project, no guaranteed response or remediation time is promised.
++
++## Handling secrets
++
++Never commit or publish:
++
++- Wi-Fi SSIDs and passwords.
++- Session tokens or cookies.
++- Account passwords.
++- API keys and private keys.
++- Private server addresses or identifying logs.
++- Production databases or backups.
++
++If a secret is committed, remove it from use immediately and rotate it. Deleting the file from the latest commit is not sufficient because Git history may still contain it.
++
++## Scope note
++
++The repository contains defensive security controls, but it has not undergone a formal security audit or external penetration test. Do not expose an alpha deployment directly to the public internet without independent review and appropriate network controls.
+diff --git a/SUPPORT.md b/SUPPORT.md
+new file mode 100644
+index 0000000..6ede9b2
+--- /dev/null
++++ b/SUPPORT.md
+@@ -0,0 +1,30 @@
++# Support
++
++ESP32Chat is an early open-source alpha maintained on a best-effort basis.
++
++## Use GitHub Issues for
++
++- Reproducible software bugs.
++- Installation failures with logs.
++- Hardware validation reports.
++- Documentation errors.
++- Focused feature proposals.
++
++Choose the appropriate template at:
++
++`https://github.com/NoTimeToSleep-Team/esp32chat/issues/new/choose`
++
++## Include in support requests
++
++- Server and client commit SHA or release.
++- Raspberry Pi model and operating system.
++- Device model and hardware revision.
++- Python, Arduino, PlatformIO, or Flipper toolchain versions.
++- Exact commands and configuration used.
++- Sanitized logs and reproduction steps.
++
++## Do not publish
++
++Passwords, Wi-Fi credentials, session tokens, private IP addresses, personal messages, private databases, or unredacted backups.
++
++Security vulnerabilities must follow [SECURITY.md](SECURITY.md), not the public issue tracker.
+diff --git a/docs/assets/README.md b/docs/assets/README.md
+new file mode 100644
+index 0000000..9521d88
+--- /dev/null
++++ b/docs/assets/README.md
+@@ -0,0 +1,6 @@
++# Public media assets
++
++- `esp32chat-banner.png` is used by the repository README.
++- `esp32chat-social-preview.png` is sized for the GitHub social-preview setting.
++
++These files are project branding, not evidence of hardware validation. Add real screenshots, photographs, and demonstrations only after removing credentials, private addresses, tokens, and personal data.
+diff --git a/docs/assets/esp32chat-banner.png b/docs/assets/esp32chat-banner.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..572746ae84acfa3969be2cb2993df1791cc19eb9
+GIT binary patch
+literal 27677
+zcmeFY_dnJDA3uCbsmLgmY$b$HS(zs(%HFcGx07&eiYN)$AtQSq``D+l_nrr*?0q;K
+z<2Z-!)BAJ%c>M#{?fSlY(K!d_yw3Ca829lwq3Ws%R1}O95D0|o)ywCa5XePO2;}_b
+z%jdx(h8x!eArOa!SI=d&J*PHjJbdXE$=Y|64rbj3hBWK!lzwhBT2WAZAyW^zDl4n*
+z@~<uU3mL8Ug`4LtrEf@g=M<fvNiJ7Bm^~t0>kxz|W+hbGL9q#frgk+-TdB*hQtM%<
+zKB{wnuknJ{0>|gyPia49OuNm@oD*_Ts7~9oIiB?YfB7%@vh=zC{^04o3snERA^d-D
+zK%V~paS_OGeE4y?GkW7JTp>@T2T9gim(R<R{rlhjJ-VKFW{KPCr2nGCcBQD|A{R9|
+ze?^W%+(XA}Y~*JTzxQs~=PzECs$9HBef?78z^(GaElHWYqkI3)bGTK7Q0LR2hOh4%
+zgHSbyO)jaId}F<Nn1(iWWhXoO-wRRNb5YyVIH@lYkvz61vT{|iA3pyVqv=+obL9AP
+z@<4L_{M_`=+u$NIU0vW3u4|>yl+ec~t4awa>b8&pBaw&B199m;CsoN`b%9*8v9!D~
+zbm#v4yv9gmLVbO55I7oB5)<>w%F3SK<>BGy=K+TR`0DNMNBM}6`cmqV*y%>s<*nXi
+zr1|`utLyIl<~34DQ&XYCdbQJx^z@7&5?<y}T7j&nK!UF-kw=e2!SVR)xN+fU!`UH)
+zN`ELOCMYQ>xw%xFECy?B<$V64^<Hk4u8xkKYlV|z5sBpM=hrwhgRZHsm5>mhnw&H+
+z)MsE~Vq#!Wy!f-SvNEgYo)8}&2ghz(cxBCDOJ3ghuml16n>WSsaj?;@pK@>C979gW
+zij58GpVU{vtINwDg9`zd^7wH<Ufz9v{@#AUj-D<>wf>iis;?9koBXBMye-}I^%;uk
+zAp>u(G~eQ}raEcY6YFNUo4ov)y!C9Q-^ceRlBONPZV8XoA8Z|{8%*_*H+`<E8vXo_
+zCY)8I$Z))`t*y--)i+bW`lxK@(WA1#M`iSaFYa-1iKGM;7Zp9=;}Zlg-P_&W(b3=|
+zCVl4-kAT3xuDHTZp8UIGpBqz*)zzQAIe!1^*V!rRG<|gs&vck1E?#TXp9=LAcEmQ3
+zfjf-$N={QX_?6jgL!^Loox8h-ht~W}US2+q5~G<$o6|mH9~h<<{hEzJNvZpU<W0jm
+zg7QGHs;Wk;ZM=N(;(1F|DP3+PGiAN6_%q(Pf=USvMhHZNr;V!1hRR4{&{md=hYS)(
+zUZv;Z?j-FqR@vSTwYRswOQ^Q8vibDMRD#X_5%EuUcLIktNyWtBVsffK)^j4CrGEd%
+z6PLP-jEoP6TkibRJw4iT$p#u4WgeK{Z2m?boO4O{1#REF8K~Dg(BSxl-$d6}g;l&p
+z>+9>++F(EEU{2jO4YKyBUG7DjNY|^S?kx=5A)~tboav9(`hJRW{Q>Eued+M<c_2CD
+zeS8IZU`X2)#+M8bTH!o;;oG-wH$3!M+O5b*{{CIKcXP!5cTO(m*qxMP8h{@8=I~UQ
+zQMhAssu9+ypah#~%7ix!<a$JctB@9UD-92?3K7-hjdLdX94oK|L?y;$uYNY`S-B?I
+zn>JjMlDjm!xKX=(_7+yQ%TAg9J{?FGmqea2FyF}QiH4ROd3Cm@X_-UZq#ZzN$s)vc
+zu7l;vYwzuKUtgl4T<RZH?MmlkW-)BU;Tq-@_GN@td88Y;W-KBY#T~I*s87@kd9!OY
+zk*qu2by#jG8C6%FpbcUGv8L>JpE!e56YOnNLZr@kIGwJeVKU>kUF?^i9XK2N6I>Rd
+zhGILf&O!22b{eXtq=F=hk1kMUU4^8xLQT^GsvWPc(mvN1>1t~uG}GLIO_h#KPUiE#
+zazVh-6r%iaq3ubYUe)%C+ue1eYRb0-34F<kiT;Pb=fY8>8@F$#SIz9$kH`04hNRy~
+zvKmVtZ&<$qQAdHO6m>E}7sQdh&_J=y)Nf6l=)Fh5Vzx%`dorZMMp?3Bv7J97<Kw1;
+z)k}1&Y}|7Wgd@VnWEDQ~mD;O&*OT}l?_DS4Ww`8E>+jI`gB^V81+vCryr>dck$FG%
+z-`_W<%UBfog+r0W@Yt94FuwT2#zyLqRc<!ac%vb`hDm`b#>7zUbZo3SMVA6Hpn(&b
+zTzZuEQ~Ux|@2ci4$Usi8U@soOlfxWqV`Wvlm8%mGQJi!rFW_zEKP;$B=0`#_5nHCG
+z8$KX};5~Wn4tj>KUk}KfgY?P?J!y8*O;COK;~XS*d1;9-?W%SEl1}XtNq*8^5LZ*w
+zJS$5kT@a&@v0=a0No`2O9}uAlen+7nnq>ItAis_rht1O0CI2?f2QBIGLDDbw_b2tO
+zCVG=ouZS)Ei$Z&B=)&+_U0oe{D>XGATUr)Awq%Vk*&TTuT?`JscriFGF7DQ?C0*V4
+zSre0UCrxsnsMl^^FKWvolb4szRG>Ot91p*{<?ib{S2oWrU|P$_#1tSVEe%Ee>ggF7
+zYiq+`kT#Ld7ObrKCY6tzx)wmh=FU<*uZLeDIk!GedIU)qx1uU%G9j>;7Wd2uTwxRr
+z4C4ab46MFI`&VtdxbpJyVVk}*8COuRPujwh85j~dvpG3Av&qTH!7qu5j_t#%OG=8R
+z(cYB~<Dw5A{z9V*8Pd)Pe23aBmo)0==yV~jGcfpV9CivV_oYDt%1TR1OIqK(d*}M@
+zotD-xHJf<#yV1zaDX*p`+ux<1$P4R&Nre4doVGQ7%UetQr;amq(vNs*r=W|Ai_43P
+zxmmLl$kTybB~;Sh-bX#tM8q14W^a#jdjtc1-8&9;-414he0P)pmd74zV6ChBdLn;&
+zTgheTO1{|8JJ(%BMa8REulDpPZ*Dlw7#aF_S8v|FJ}q7uQ(w<y3QFE)+UA<`*qZ^V
+zwfFz7Lfo|d{r%Nn(rlt&sHVmT{QPl7H3bE0?IO_A(xv6EUwaJ5K7$n^5{XP=Lty!N
+z17=4?vK$fyW*fctR%a^wd;+9FUTc<mdwYXDgjZL~%5M7XuZY4o?z;*J>6oI7CHwCL
+zUD|-YJ%lEFReLGrdpJ?eQcp)0Gcpm?(vp=}u`GSuGmLHA4N<h3Xle`~>wd^9v46}q
+zwlz^!pHYs3(t}Q{U$H+PliOcHa<N(;6X0zeT+wLOp<=vuy;HAS#{JzpZP>VKip()7
+za$WUfN<pmy2&(Mt?8!;-D_35%N2J9{uWrt4{k#*zrF?sNax4hO4|$){?_?Fk=$3Tu
+z<`oFPdL-*itWkMJ`8$HEYXqz0&o#pv^a;!~lI~I)vFw*Y5Ri`d{r3hx9q(_>tTZzh
+z6ckuyl3$OBMq(#OJGrJ!4S$1q`c<{@6u}B?Uau3=|NSeYV{Gb05$gtL`<zc2mg7uY
+zTPHg^I`WE&l*5rqDk{gg!bNm7Hd-;ez=}@eQNMBu{$Po!tNnE#`$sqh=-L2(X!ys0
+zHZ+7Xg^9rVdBhisTiJd{xyxr)&CS!z&(om{8*}vfw_KNdR)*`jF?S%45xGy?K@0Km
+zko4+^JHHhLYVGliBAOxgAR3XI6Vg^wyT<kSfaS(W0pq%iHHM<4h2>?`!EbI#Q!lMi
+z6~-s&X`*s5FukHCzvU8Kx6-}qN~5qAbxloNYx!bONW_T^S{1)`AGGh81E_}GO*y${
+zNPy{L0<yH!(`oR$NVQXYpEQSjxR!{Oy4%{`WN1v9&t6$*f`G!d$a%=XH|w{BO7g;x
+zr%EGZ&BmRa0qE^dpRvhtDWq-$Q)^0=`VGU=*{%6`5u0iXkEahsM6OWSBRs1<%j;-s
+zZ%kKtwC&mGtjtsCtS_piN>r@iJ%)yyMc-<jp4hZ+=nrexx!R+vS-aBeP!DZ#0HiB0
+ztg_xjun8O~$JW(&?%*=#)BGKY6Rj|Tq4Duqm}qsiXwW4*c8YVPzkj^9swy}*_-B;a
+zD;F1Q-TiPTyYZ42sp3rja|^3D+&h(qdhlZa7JZn+JPt%7ikUYy95>GnC#Ry~aBzJ6
+z?+6dSAbX#WFTq$fE-?;Z%Eah*9FKU!B_u@W*4*RTiXjj;dRa0^Wdp*WjEu8?7$odg
+z9*(b0)vyfri978!%*LUR$UAkF@q+B<@K7zgqXsD}*rK|&_TGNI(%9*K{e2D<5Pa1z
+z45_PoH`cUuuq-ZGDJeNwEh!H-dLMOKre72*E6*EuQgxJO(XQ5nZ{st_BMb~gR9Gvs
+zNLZ%(hsz4z`tM-faw6<)iTjN0H8c>RC(}5PJzF!~wjGj;3=BsEZ{)#&17;QlGMtS~
+za1qLwlS9bK;Tjv$b#^ZK(yynjZ4_El4PefU&wgQ)jd9c4p|LUfP3fea=~xCu%z($z
+zhS%{vTSf&0Qnk94O=l!_4q`7PrU&0@zJ=elFf;qt<X4blP=g#?>%Cm=`YzVA1|Zy;
+z*OO~#Q2r3>VxgYW-8-c*y!<e0`+|jNHJL{y*;m*v$kw=to9{>}32Shyt{yB2da7i`
+zZEb8++Arz_z-Ax%PSE;s3XGPOm;V44lKBa)l63f7Zq{RvZ}$vL>}D(Fs3wkpmKt}y
+zrVbz|H|ov9F($-EmYL(>NWOZvtrp}X$jFOvMCw2$#kursfa7)Fy}ESChly!DUh8qL
+zTAB|2o_cb!4Gi%Ie_ms-Ec|t}nDg|=0H2z#V%5K^pok+Lcq_^2(b-OcMoF`U7Jb(u
+zS5RVWX0|i<3F}+7$3f!q3eyKw6O={Aqjls>jK3KS*6#5bA`AsodtmN<z)&^<fmriO
+zQLQhYbHAITcuFlu0X4m8EqxjFHvgK^V@dAZf&#^(Mc26cuIB#n_U>-2Y<~TNUD(b}
+zXx#*(=?}^Ec5FhSgs<G-e55q4b%;~Ni;ay{+PuGyKSfRwS9KNAd-W^~pMVD3MH3xh
+zck<(3b4ca4=+5qLJv%QtI=W(~<PS|Jc~Q-=rv8|wAn+~;pu~IgGFw<$S@BhTFF<W3
+z#Ksn#m=z0%wvON8_gq}`Dwus&mE#f_p<#DkV-s}0>C%(jt(m&*Uhs0Es^nD41Au*L
+zn3$wSMddI20Syd;AS~72?2bio<ZP9fYi^EPIQ5zB{GqJ)@q;<e=*i>9gy|#7aIgKm
+zxfh%o8jrdjjG+S9;!NPnC4PyC`V!;R%Z*PAvzgLIuvIT8rO@8OizE>d5&e4W>`y*S
+zO+U^(jZ#$`{`Hw0VjBu*n~s71NQW8v<b<^SAqCb@T?!x-$b{bV*G5J^bPSqmYF<k+
+ziQ3K4?V5ZqCgRcrjK^v?8JI^*;>;g}svTkrnLvsMo+s0u`pR#JTs7kGwd~1Dpl`T8
+zN6E;@*pwe<Xd(PDIJou8qG^FJ1vz9O*2PB&ytIH(&2+sUjm|g@hugy?$$*RlDLheg
+z`1!Mg-rW-8+IRdCT)GO}=)xQi#1=1q!0|qd3QY4o3LBVUa(jQ^&7$69=}te$W>M!?
+z)C^MUN5PRSPz`<kqqMM#7pugCg|$ztC@CrXQz*x4<)180hGw9aK<qU(NYP!7PQpca
+zT&DIVmMNSbx>92LAy2_B*wO-$6x*_%(J(UQzK%KF*5ag>aXVaTptmU`nSgyh@oxg>
+z8IryH3~&`oZDl~9!V*f1YCL&FL{#Y4|NQwg_w#3vjsYh=<hxG+0s%8OH@CK4+gKRs
+z8_x9eIsHI(d~`&}+q-*-n$_!o6v>3VS6o~yAE9mbIM@m8!Bg@2&3lw$vdfaAXYlo-
+z7fS3=FH^ne$~f5qX15dSymoc9-5j;G-7K|xHYGhMDJUp#lsFtEKsU-?!&Q`3Ha0h;
+zq^1r%eE_8@bVyK-EB|>>uy>|mF-_5)3UV0$ow^lVT%n806&V?mjE1DBD2?`Se?e31
+zSN2z={fPG13Q2k5zGpiTmDwKl<%@f^@>1i&ZcxFpbxMrGw6Tq#HrASv7zaK6^`okr
+zY7c|t*^D2%wrK-Y!$}YN<JNCEg*g3k6(+sS5!DJ|`;oU*K_OsYw<#0g*hv&1carXy
+z#O%_%ywbe;LPC6^0w=$Ib6|>1h701Fix{+WRZ@x;j75!qq=Z~$n5fzPe*V9!UOWER
+z?w;nbH0B}Dr%K1_<MziQGCnqzS>_$_04n+^<w@~SFLf1mr=2xX#5GB=@W#!XrYP3Y
+z=hdfUo08bZ)14;LCq_S|DX;33qv;!q38uBUPe2E-ig$C>;<x=A5$Z&qHk^?$*LX|~
+zTB?|g%#JfbT1$(L=0G%4A=2~RpC@r!zLQg}wJA2}mMqJ-S!ppbY_2=Xd3tZW(TBm_
+zkqEvk$(#^9Cpy#ojqEHfvwC<VBUp^}1_sJpu}NxM(<e4>)zcp%i1SHlFBpc;LD+2p
+zFtOVmbJEIHw#Uqxy28xN%^!oR$e|z=`#rY7el&?c00s*T%HZecH}&(Ht>~93Ui+dD
+z!3v|`*v-ta7$*_Y@x^FfUS38&i>p*r2?4vc(YdjK?Dx1hPfPYhjs$pTJLkrV(RC+x
+zq+M`(8RM8*uibcJVsv!$#>S6sy^@mSBcu)=iei;Ei&*HsI{oS>{f?yMa+p;&cy2>k
+zSy{4!Il$(#(*ha~`Lnlfj3L$3$o%|Dyv{+4+c%mZ1J3}?Z>-#Q-<(b_11r;?ATU|s
+zpcJ`f%!FDV9<C@a-*a5w*<QJp=DRmLIs9q#CBp^T!{aoT@OqAGdWcBh!?J%IY^3>q
+zew8~`v={zWsLj%768z}^PDKb96cK}2Z^akPtS@ZMxTTzYbjFnV;3|Y}YLUMXgUu#A
+zc843E8t_2@(xNx1U29+D(-o7l`lgTi7y0MUvuyjxKX=tzeZnA+B=$3K)qRtWNeuSe
+zp-}gM7LH<#9Jh;~tTfv^fEF1NTE~-`qMx<si#o)8|Lz8ueOqx8_3sbpYG(>b7yITm
+zXxxvbr<o>(m2UtO?-E396yE#?@HeU<KQvSkt)>1tt3It4MEI=+qCAN$rf6eBO~$Z#
+z4lNk#tAc<#F*$gE1no;fJ$(BVYIVyQGkdDoBGQz0?rH9$jB^l!O21=jnbSXihK4lx
+z@e<zN{r#yYqym_BQdrX!!dfym=}!?|NJvN!`Tpr@dz=s4nL#QqfWx^nL(eox=vaI)
+z0Rx1dE*)sW-YqU(aw<ht(!d2BUEQXtLozG*e84eYAKkeVQEVVGr#e%cxdEZm!B(FC
+zFaCsEi~dFJsBv@V+HSJ2F-q7@(zC5Qhq6dBR{OPYaaFzAL?0uJcW0K<{PKvKtSuP`
+z#OWkAw%^Y`1Xl=(p4abg*vo9qaOdwirlzjd#75)J#0N@BN){ILalZOKKK1g``E%x0
+zu&48Lb3NmaAuAFBDG<ozsHnkac`3r&bfQpda>g3AZH-}fyJL4*@PvToO5rO6WvGcj
+zK&!Z-xuj$SDz)0VQ&XcscTDjR77{Y9C3ee_>D*Sn1~zoFR@`2hI%AC&a8e10JhR=U
+zfLPN*`6(4nZV`Z#Z~ptGVTwVcyD^w?bbU&)g9AOijiDiv10SD~5+xZKnVg)QbYsZL
+z=f#ByMF`N3K(u@q8X6Le=RdU~<>(9L=6f$o;Tx(~vVrJiWo@;p&I6!~nvb)pH=&WM
+zK6rL^Q`G78@q(6Cm3ry^J{*cLp1Jcx{YVFpAZ}HE0d8)+a3r7ZBiqu4V%-2w*Q(6{
+zL2$XxRNeomN7;(c;Hdt?h~_vPo+(ewB%Ei8EJ^9@?G-UNzjSNqJmhJ+%jyNl-&24;
+zU*iUcwxlmL5~k4HYAJ&&Gxzx)Jh1NlQ6Lu_6BQ-?FW-iPBQyCBP9S&&?BZ>b{OS9v
+zSx+4&vkbbvecxLc*22zot7BOxDJgUeW;MhDZlin`3l!=7?t6({lBM0lkBYBRQd1a#
+zwcWLeJQIFCkP+-8KvMpmnD~w`hYYxXwS~NIi%m;oyD^lR@1$d<F_;$MMA}6Z|BnW4
+z&D1N5m!zP*s&A6QQ@=kv*%d_T_>0!dyDe=T9Z{OpyDpd9N5JP6>>}Z#YJ-3n05aaI
+ztdjC0rD3WHzmHoRM<#e93G3+G@fbBJKy{Nvv>8(*f{TnRhWf^Ik95q<=ebn<RX1a0
+z|7%omO{*gy>bmVLU5wHw;M9NdqLp##I>4iV$#^>wUxz-==)G>+(Lo7;08E#j-`&|c
+zQ*ChoSoTHPQY3PHs8(xvAR<N5V~v*iepl!F@NjofxSCae*v|!*Zmi!#IUUMn&P)DB
+zT=@9-z@Im|ANOS|>46gFw)&XfCf6n{@o+;(EjckC{(<BWW->)MfU78LK6LB&1<>oy
+zAtTlVgpnV7?E${z`!^+}`urgrKo36qtOK<)#_!%0D0cI?x>AT-I6N*nG7C;lF5Fjo
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/docs/assets/esp32chat-social-preview.png b/docs/assets/esp32chat-social-preview.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..b25eca3937d6d94ee39349ce0037fa6f3a341441
+GIT binary patch
+literal 25845
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/tools/community/configure-github.ps1 b/tools/community/configure-github.ps1
+new file mode 100644
+index 0000000..524c70d
+--- /dev/null
++++ b/tools/community/configure-github.ps1
+@@ -0,0 +1,76 @@
++param(
++    [string]$Repo = "NoTimeToSleep-Team/esp32chat"
++)
++
++$ErrorActionPreference = "Stop"
++
++if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
++    throw "GitHub CLI (gh) is required. Install it and run 'gh auth login'."
++}
++
++gh auth status | Out-Null
++
++$org = $Repo.Split('/')[0]
++$description = "Self-hosted local chat for Raspberry Pi with web, M5Cardputer, M5StickC Plus 2, T-Embed and Flipper Zero clients."
++$orgDescription = "Open-source hardware and local-first software for ESP32, M5Stack, Flipper Zero, and Raspberry Pi."
++
++gh repo edit $Repo --description $description --enable-issues --enable-discussions
++
++$topics = @(
++    "esp32", "raspberry-pi", "self-hosted", "local-first", "chat",
++    "fastapi", "websocket", "m5stack", "m5cardputer", "flipper-zero"
++)
++foreach ($topic in $topics) {
++    gh repo edit $Repo --add-topic $topic
++}
++
++$labels = @(
++    @{ Name = "needs-triage"; Color = "D4C5F9"; Description = "Needs maintainer review" },
++    @{ Name = "good first issue"; Color = "7057FF"; Description = "Suitable for a first contribution" },
++    @{ Name = "hardware-test"; Color = "0E8A16"; Description = "Physical hardware validation" },
++    @{ Name = "documentation"; Color = "0075CA"; Description = "Documentation change" },
++    @{ Name = "bug"; Color = "D73A4A"; Description = "Something is not working" },
++    @{ Name = "enhancement"; Color = "A2EEEF"; Description = "New feature or improvement" },
++    @{ Name = "help wanted"; Color = "008672"; Description = "Community help is welcome" }
++)
++foreach ($label in $labels) {
++    gh label create $label.Name --repo $Repo --color $label.Color --description $label.Description --force
++}
++
++function Add-IssueIfMissing {
++    param(
++        [string]$Title,
++        [string]$BodyFile,
++        [string]$Labels
++    )
++
++    $titles = gh issue list --repo $Repo --state all --limit 200 --json title --jq '.[].title'
++    if ($titles -contains $Title) {
++        Write-Host "Issue already exists: $Title"
++        return
++    }
++
++    gh issue create --repo $Repo --title $Title --body-file $BodyFile --label $Labels
++}
++
++Add-IssueIfMissing "[Good first issue] Improve Windows server installation instructions" ".github/seed-issues/01-windows-installation.md" "documentation,good first issue,help wanted"
++Add-IssueIfMissing "[Good first issue] Add Spanish README translation" ".github/seed-issues/02-spanish-translation.md" "documentation,good first issue,help wanted"
++Add-IssueIfMissing "[Hardware test] Validate the M5StickC Plus 2 client" ".github/seed-issues/03-m5stick-hardware-test.md" "hardware-test,help wanted"
++Add-IssueIfMissing "[Documentation] Record a Raspberry Pi Zero 2 W installation video" ".github/seed-issues/04-pi-zero-video.md" "documentation,help wanted"
++Add-IssueIfMissing "[Feature] Prototype a browser-based firmware installer" ".github/seed-issues/05-browser-flasher.md" "enhancement,help wanted"
++
++try {
++    gh release view beta --repo $Repo | Out-Null
++    gh release edit beta --repo $Repo --title "v0.8.0-alpha — Raspberry Pi server preview" --notes-file RELEASE_NOTES_v0.8.0-alpha.md --prerelease
++} catch {
++    Write-Warning "Release tag 'beta' was not found; release update skipped."
++}
++
++try {
++    gh api --method PATCH "/orgs/$org" -f "description=$orgDescription" | Out-Null
++    Write-Host "Organization description updated."
++} catch {
++    Write-Warning "Organization description was not changed. Organization-owner permission may be required."
++}
++
++Write-Host "GitHub repository setup completed for $Repo."
+diff --git a/tools/community/configure-github.sh b/tools/community/configure-github.sh
+new file mode 100755
+index 0000000..5ce80f1
+--- /dev/null
++++ b/tools/community/configure-github.sh
+@@ -0,0 +1,58 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++REPO="${1:-NoTimeToSleep-Team/esp32chat}"
++ORG="${REPO%%/*}"
++
++command -v gh >/dev/null 2>&1 || { echo "GitHub CLI (gh) is required." >&2; exit 1; }
++gh auth status >/dev/null
++
++DESCRIPTION="Self-hosted local chat for Raspberry Pi with web, M5Cardputer, M5StickC Plus 2, T-Embed and Flipper Zero clients."
++ORG_DESCRIPTION="Open-source hardware and local-first software for ESP32, M5Stack, Flipper Zero, and Raspberry Pi."
++
++gh repo edit "$REPO" --description "$DESCRIPTION" --enable-issues --enable-discussions
++
++for topic in esp32 raspberry-pi self-hosted local-first chat fastapi websocket m5stack m5cardputer flipper-zero; do
++  gh repo edit "$REPO" --add-topic "$topic"
++done
++
++while IFS='|' read -r name color description; do
++  gh label create "$name" --repo "$REPO" --color "$color" --description "$description" --force
++done <<'LABELS'
++needs-triage|D4C5F9|Needs maintainer review
++good first issue|7057FF|Suitable for a first contribution
++hardware-test|0E8A16|Physical hardware validation
++documentation|0075CA|Documentation change
++bug|D73A4A|Something is not working
++enhancement|A2EEEF|New feature or improvement
++help wanted|008672|Community help is welcome
++LABELS
++
++create_issue_if_missing() {
++  local title="$1" body_file="$2" labels="$3"
++  if gh issue list --repo "$REPO" --state all --limit 200 --json title --jq '.[].title' | grep -Fqx "$title"; then
++    echo "Issue already exists: $title"
++  else
++    gh issue create --repo "$REPO" --title "$title" --body-file "$body_file" --label "$labels"
++  fi
++}
++
++create_issue_if_missing "[Good first issue] Improve Windows server installation instructions" ".github/seed-issues/01-windows-installation.md" "documentation,good first issue,help wanted"
++create_issue_if_missing "[Good first issue] Add Spanish README translation" ".github/seed-issues/02-spanish-translation.md" "documentation,good first issue,help wanted"
++create_issue_if_missing "[Hardware test] Validate the M5StickC Plus 2 client" ".github/seed-issues/03-m5stick-hardware-test.md" "hardware-test,help wanted"
++create_issue_if_missing "[Documentation] Record a Raspberry Pi Zero 2 W installation video" ".github/seed-issues/04-pi-zero-video.md" "documentation,help wanted"
++create_issue_if_missing "[Feature] Prototype a browser-based firmware installer" ".github/seed-issues/05-browser-flasher.md" "enhancement,help wanted"
++
++if gh release view beta --repo "$REPO" >/dev/null 2>&1; then
++  gh release edit beta --repo "$REPO" --title "v0.8.0-alpha — Raspberry Pi server preview" --notes-file RELEASE_NOTES_v0.8.0-alpha.md --prerelease
++else
++  echo "Release tag 'beta' was not found; release update skipped."
++fi
++
++if gh api --method PATCH "/orgs/$ORG" -f description="$ORG_DESCRIPTION" >/dev/null 2>&1; then
++  echo "Organization description updated."
++else
++  echo "Organization description was not changed (owner permission may be required)."
++fi
++
++echo "GitHub repository setup completed for $REPO."
+-- 
+2.47.3
+
