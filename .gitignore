@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Runtime data (SQLite, WAL/SHM)
+server/data/sqlite/
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Logs
+*.log
