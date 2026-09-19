@@ -1,65 +1,70 @@
 <!DOCTYPE html><html><head><meta charset="UTF-8"><title>LC Debug</title>
 <style>body{font:14px monospace;background:#0d1117;color:#e6edf3;padding:20px}
-.btn{padding:4px 10px;border-radius:4px;border:none;cursor:pointer;margin:2px;font:12px monospace}
-.ok{color:#238636}.err{color:#f85149}.info{color:#58a6ff}
+input,button{padding:8px;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;margin:4px}
+button{cursor:pointer;background:#238636;border:none}.ok{color:#238636}.err{color:#f85149}
 table{border-collapse:collapse;width:100%;margin:10px 0}
-td,th{padding:6px 8px;border:1px solid #30363d;text-align:left}</style></head><body>
-<h2>LC Debug Panel</h2>
-<div id="status" class="info">Initializing...</div>
+td,th{padding:6px 8px;border:1px solid #30363d}</style></head><body>
+<h2>LC Debug</h2>
+<div id="login">
+  <input id="l" placeholder="login" value="admin"><input id="p" type="password" placeholder="password" value="7428">
+  <button onclick="doLogin()">Login</button>
+</div>
+<div id="status"></div>
 <div id="users"></div>
 <script>
-const BASE = '';
-const ST = localStorage.getItem('lc_session_token');
-document.getElementById('status').textContent = ST ? 'Token: ' + ST.substring(0,20) + '...' : 'NO TOKEN - pls login first at /';
+var ST = localStorage.getItem('lc_session_token') || '';
+if (ST) { document.getElementById('login').innerHTML = '<span class=ok>Logged in</span> <button onclick="ST=\'\';localStorage.clear();location.reload()">Logout</button>'; }
 
-async function api(url, opts) {
-  const r = await fetch(url, opts);
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.detail?.message || d.detail?.code || 'HTTP '+r.status);
-  return d;
+async function doLogin() {
+  var el = document.getElementById('status');
+  el.innerHTML = 'Logging in...';
+  try {
+    var r = await fetch('/auth/login', {method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({login:document.getElementById('l').value,password:document.getElementById('p').value,client_kind:'web'})});
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.detail?.message||'HTTP '+r.status);
+    ST = d.session.token;
+    localStorage.setItem('lc_session_token', ST);
+    localStorage.setItem('lc_user', JSON.stringify(d.user));
+    location.reload();
+  } catch(e) { el.innerHTML = '<span class=err>Login FAILED: '+e.message+'</span>'; }
 }
 
 async function load() {
-  if (!ST) return;
+  if (!ST) { document.getElementById('status').innerHTML = 'Login first'; return; }
   try {
-    const d = await api('/admin/users?session_token=' + ST + '&_=' + Date.now());
-    var h = '<table><tr><th>ID</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr>';
-    d.items.forEach(u => {
-      h += '<tr><td>'+u.user_id+'</td><td>'+u.login+'</td><td>'+u.role+'</td><td>'+u.status+'</td><td>';
-      h += '<button class=btn onclick="doAction('+u.user_id+',\'setrole\',\''+(u.role==='moderator'?'user':'moderator')+'\')">'+(u.role==='moderator'?'Demote':'Promote')+'</button>';
-      h += '<button class=btn onclick="doAction('+u.user_id+',\'ban\')">Ban</button>';
-      h += '<button class=btn onclick="doDelete('+u.user_id+',\''+u.login+'\')">Delete</button>';
+    var d = await (await fetch('/admin/users?session_token='+ST+'&_='+Date.now())).json();
+    if (!d.items) throw new Error('No items in response');
+    var h = '<table><tr><th>ID</th><th>Login</th><th>Role</th><th>Actions</th></tr>';
+    d.items.forEach(function(u) {
+      h += '<tr><td>'+u.user_id+'</td><td>'+u.login+'</td><td>'+u.role+'</td><td>';
+      h += '<button onclick="act('+u.user_id+',\'setrole\',\''+(u.role==='moderator'?'user':'moderator')+'\')">'+(u.role==='moderator'?'Demote':'Promote')+'</button> ';
+      h += '<button onclick="act('+u.user_id+',\'ban\')">Ban</button> ';
+      h += '<button onclick="del('+u.user_id+',\''+u.login+'\')">Delete</button>';
       h += '</td></tr>';
     });
     h += '</table>';
     document.getElementById('users').innerHTML = h;
-    document.getElementById('status').innerHTML = '<span class=ok>OK: '+d.items.length+' users loaded</span>';
-  } catch(e) {
-    document.getElementById('status').innerHTML = '<span class=err>ERROR: '+e.message+'</span>';
-  }
+    document.getElementById('status').innerHTML = '<span class=ok>'+d.items.length+' users</span>';
+  } catch(e) { document.getElementById('status').innerHTML = '<span class=err>'+e.message+'</span>'; }
 }
 
-async function doAction(uid, action, role) {
-  var el = document.getElementById('status');
-  el.textContent = 'Working...';
+async function act(uid, action, role) {
+  var s = document.getElementById('status'); s.textContent = '...';
   try {
-    var body = {session_token: ST};
-    if (role) body.role = role;
-    await api('/admin/users/'+uid+'/'+action, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    el.innerHTML = '<span class=ok>'+action+' OK</span>';
-    load();
-  } catch(e) { el.innerHTML = '<span class=err>'+action+' FAILED: '+e.message+'</span>'; }
+    var body = {session_token:ST}; if (role) body.role = role;
+    await fetch('/admin/users/'+uid+'/'+action, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    s.innerHTML = '<span class=ok>'+action+' OK</span>'; load();
+  } catch(e) { s.innerHTML = '<span class=err>'+e.message+'</span>'; }
 }
 
-async function doDelete(uid, login) {
+async function del(uid, login) {
   if (!confirm('Delete '+login+'?')) return;
-  var el = document.getElementById('status');
-  el.textContent = 'Deleting...';
+  var s = document.getElementById('status'); s.textContent = '...';
   try {
-    await api('/admin/users/'+uid+'?session_token='+ST, {method:'DELETE'});
-    el.innerHTML = '<span class=ok>Deleted '+login+'</span>';
-    load();
-  } catch(e) { el.innerHTML = '<span class=err>Delete FAILED: '+e.message+'</span>'; }
+    await fetch('/admin/users/'+uid+'?session_token='+ST, {method:'DELETE'});
+    s.innerHTML = '<span class=ok>Deleted</span>'; load();
+  } catch(e) { s.innerHTML = '<span class=err>'+e.message+'</span>'; }
 }
 
 load();

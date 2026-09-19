@@ -19,6 +19,7 @@ router = APIRouter(tags=["account"])
 class UpdateAccountProfileRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     display_name: str | None = Field(default=None, max_length=128)
+    avatar_emoji: str | None = Field(default=None, max_length=8)
     profile_bio: str | None = Field(default=None, max_length=1024)
 
 
@@ -77,6 +78,7 @@ def _profile_payload(profile: AccountProfile) -> dict[str, object]:
         "role": profile.role.value,
         "status": profile.status.value,
         "phone": profile.phone,
+        "avatar_emoji": getattr(profile, "avatar_emoji", None),
         "display_name": profile.display_name,
         "profile_bio": profile.profile_bio,
         "avatar_url": None,
@@ -186,6 +188,28 @@ async def get_account_profile(
         "status": "ok",
         "profile": payload,
     }
+
+
+
+@router.get("/account/api/profile/{user_id}")
+async def get_user_profile(
+    request: Request,
+    user_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    """Get any user's public profile (read-only, no edit permissions)."""
+    requesting_user_id = _resolve_user_id(request, session_token)
+    service = _account_service(request)
+    try:
+        profile = service.get_profile(user_id=user_id)
+    except AccountError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    data = _profile_payload(profile)
+    data["avatar_url"] = (
+        f"/account/api/profile/avatar?session_token={session_token}&v={profile.avatar_updated_at_ms or 0}"
+        if profile.avatar_path else None
+    )
+    return {"status": "ok", "profile": data}
 
 
 @router.post("/account/api/profile")

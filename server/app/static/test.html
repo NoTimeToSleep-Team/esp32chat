@@ -1,0 +1,11 @@
+<!DOCTYPE html><html><body>
+<h2>Click Test</h2>
+<p>onclick: <button onclick="alert('onclick works!')">Test onclick</button></p>
+<p>addEventListener: <button id="btn2">Test addEventListener</button></p>
+<p>form onsubmit: <form onsubmit="alert('onsubmit works!');return false"><button type="submit">Test onsubmit</button></form></p>
+<p>javascript link: <a href="javascript:alert('javascript link works!')">Test javascript link</a></p>
+<script>
+document.getElementById('btn2').addEventListener('click', function() { alert('addEventListener works!'); });
+console.log('Script executed');
+</script>
+</body></html>

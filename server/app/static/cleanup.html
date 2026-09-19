@@ -1,0 +1,60 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>LC Cleanup</title>
+<style>body{font:14px monospace;background:#0d1117;color:#e6edf3;padding:20px}
+input,button{padding:8px;margin:4px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e6edf3}
+button{cursor:pointer;border:none}.btn-danger{background:#da3633}.btn-outline{background:#30363d}.btn-warn{background:#d29922;color:#000}
+#msg{margin-top:12px;font-size:13px}</style></head><body>
+<h2>LC Cleanup</h2>
+<div id="login" style="margin-bottom:12px">
+  <input id="l" placeholder="login" value="admin"><input id="p" type="password" placeholder="password" value="7428">
+  <button onclick="doLogin()" style="background:#238636">Login</button>
+</div>
+<div id="btns" style="display:none">
+  <button onclick="doAction('clear-global')" class="btn-outline">Clear Global Chat</button>
+  <button onclick="doAction('clear-blog')" class="btn-outline">Clear Blog</button>
+  <button onclick="doAction('clear-support')" class="btn-outline">Clear Support</button>
+  <button onclick="doAction('delete-chats')" class="btn-danger">Delete All Chats</button>
+  <button onclick="doAction('delete-users')" class="btn-danger">Delete All Users</button>
+  <button onclick="doAction('full-reset')" class="btn-warn">FULL RESET</button>
+</div>
+<div id="msg"></div>
+<script>
+var ST = localStorage.getItem('lc_session_token') || '';
+if (ST) { showUI(); }
+
+var actions = {
+  'clear-global':['/chat/api/admin/clear-global','POST'],
+  'clear-blog':['/chat/api/admin/clear-blog','POST'],
+  'clear-support':['/chat/api/admin/clear-support','POST'],
+  'delete-chats':['/chat/api/admin/delete-all-chats','POST'],
+  'delete-users':['/chat/api/admin/delete-all-users','POST'],
+  'full-reset':['/chat/api/admin/full-reset','POST']
+};
+
+function showUI(){document.getElementById('login').innerHTML='<span style=color:#238636>Logged in</span>';document.getElementById('btns').style.display='block'}
+
+async function doLogin(){
+var m=document.getElementById('msg');m.textContent='Logging in...';
+try{
+var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:document.getElementById('l').value,password:document.getElementById('p').value,client_kind:'web'})});
+var d=await r.json();
+if(!r.ok)throw new Error(d.detail?.message||'HTTP '+r.status);
+ST=d.session.token;localStorage.setItem('lc_session_token',ST);
+localStorage.setItem('lc_user',JSON.stringify(d.user));
+showUI();m.innerHTML='<span style=color:#238636>OK</span>';
+}catch(e){m.innerHTML='<span style=color:#f85149>'+e.message+'</span>'}
+}
+
+async function doAction(action){
+var m=document.getElementById('msg'), a=actions[action];
+if(action==='full-reset'){if(!confirm('FULL RESET?'))return;if(!confirm('SECOND?'))return}
+else if(action==='delete-users'||action==='delete-chats'){if(!confirm('Delete ALL?'))return}
+else{if(!confirm('Clear?'))return}
+m.textContent='Working...';
+try{
+var body=action==='full-reset'?{session_token:ST,confirm:true}:{session_token:ST};
+var r=await fetch(a[0],{method:a[1],headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+var d=await r.json();
+m.innerHTML='<span style=color:#238636>OK: '+JSON.stringify(d)+'</span>';
+}catch(e){m.innerHTML='<span style=color:#f85149>ERROR: '+e.message+'</span>'}
+}
+</script></body></html>

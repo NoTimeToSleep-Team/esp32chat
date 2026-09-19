@@ -286,6 +286,23 @@ def create_app() -> FastAPI:
             content={"detail": {"code": "internal_error", "message": "Internal server error"}},
         )
 
+
+    # Captive portal proxy for WiFi login pages
+    @app.post('/captive-proxy')
+    async def captive_proxy(request: Request):
+        import requests
+        target_url = None
+        try:
+            with open('/tmp/captive_info.txt') as f:
+                for line in f:
+                    if line.startswith('REDIR='):
+                        target_url = line.split('=',1)[1].strip()
+        except: pass
+        if not target_url:
+            return JSONResponse({'status': 'error', 'message': 'No captive portal'})
+        form_data = await request.form()
+        resp = requests.post(target_url, data=dict(form_data), allow_redirects=True)
+        return HTMLResponse(content=resp.text, status_code=200)
     return app
 
 

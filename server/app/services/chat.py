@@ -202,16 +202,7 @@ class ChatService:
         with self._connect() as connection:
             user = self._require_active_user(connection, user_id)
 
-            if str(user["role"]) == UserRole.ADMIN.value:
-                rows = connection.execute(
-                    """
-                    SELECT c.*
-                    FROM chats c
-                    ORDER BY c.updated_at_ms DESC, c.id DESC
-                    """
-                ).fetchall()
-            else:
-                rows = connection.execute(
+            rows = connection.execute(
                     """
                     SELECT c.*
                     FROM chats c
@@ -914,3 +905,20 @@ class ChatService:
             connection.execute("DELETE FROM sessions WHERE user_id != ?", (admin_user_id,))
             connection.execute("DELETE FROM device_pairings WHERE user_id != ?", (admin_user_id,))
             return count
+
+    def get_message_author(self, message_id: int):
+        with self._connect() as connection:
+            row = connection.execute("SELECT author_user_id FROM chat_messages WHERE id = ?", (message_id,)).fetchone()
+            return row[0] if row else None
+
+    def edit_message(self, chat_id: int, message_id: int, actor_user_id: int, body_text: str):
+        with self._connect() as connection:
+            msg = connection.execute("SELECT * FROM chat_messages WHERE id = ? AND chat_id = ?", (message_id, chat_id)).fetchone()
+            if not msg:
+                raise ChatError("message_not_found", "Message not found", 404)
+            if int(msg["author_user_id"]) != actor_user_id:
+                raise ChatError("forbidden", "Only the author can edit this message", 403)
+            now_ms = _now_ms()
+            connection.execute("UPDATE chat_messages SET body_text = ?, edited_at_ms = ? WHERE id = ?", (body_text, now_ms, message_id))
+            connection.commit()
+            return self._row_to_message(connection.execute("SELECT * FROM chat_messages WHERE id = ?", (message_id,)).fetchone())

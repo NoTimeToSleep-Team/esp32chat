@@ -1,0 +1,12 @@
+<!DOCTYPE html><html><body>
+<h2>Dynamic onclick test</h2>
+<div id="container"></div>
+<script>
+// Simulate what admin page does
+function testFn(id, name) { alert('Dynamic OK! id=' + id + ' name=' + name); }
+var u = {user_id: 49, login: "admin"};
+var h = '<button class="btn-danger" onclick="testFn(' + u.user_id + ',\'' + u.login + '\')">Delete ' + u.login + '</button>';
+document.getElementById('container').innerHTML = h;
+console.log('Generated HTML:', h);
+</script>
+</body></html>

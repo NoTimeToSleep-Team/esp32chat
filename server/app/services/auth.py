@@ -172,6 +172,19 @@ class AuthService:
             ).rowcount
             return updated
 
+
+    def revoke_user_sessions(self, user_id: int) -> int:
+        with self._connect() as connection:
+            updated = connection.execute(
+                """
+                UPDATE sessions
+                SET revoked_at_ms = ?
+                WHERE revoked_at_ms IS NULL AND user_id = ?
+                """,
+                (_now_ms(), user_id),
+            ).rowcount
+            return updated
+
     def get_session(
         self,
         session_token: str,
@@ -332,17 +345,17 @@ class AuthService:
         except ValueError:
             return AccessMode.CLOSED
 
-    def _create_session(self, connection: sqlite3.Connection, *, user_id: int) -> SessionInfo:
+    def _create_session(self, connection: sqlite3.Connection, *, user_id: int, ip_address: str = "") -> SessionInfo:
         created_at_ms = _now_ms()
         expires_at_ms = created_at_ms + self._session_ttl_ms
         token = secrets.token_urlsafe(32)
 
         connection.execute(
             """
-            INSERT INTO sessions(id, user_id, created_at_ms, expires_at_ms, revoked_at_ms)
-            VALUES (?, ?, ?, ?, NULL)
+            INSERT INTO sessions(id, user_id, created_at_ms, expires_at_ms, revoked_at_ms, ip_address)
+            VALUES (?, ?, ?, ?, NULL, ?)
             """,
-            (token, user_id, created_at_ms, expires_at_ms),
+            (token, user_id, created_at_ms, expires_at_ms, ip_address),
         )
 
         return SessionInfo(

@@ -116,7 +116,7 @@ def user_ip_to_id(ip: str) -> int | None:
 def check_internet(ip: str) -> bool:
     global cache_ts
     now = time.time()
-    if now - cache_ts > 30:
+    if now - cache_ts > 2:
         ip_cache.clear()
         cache_ts = now
     if ip in ip_cache:
@@ -124,6 +124,16 @@ def check_internet(ip: str) -> bool:
 
     user_id = user_ip_to_id(ip)
     if user_id is None:
+        # Fallback: if any user has internet, allow it
+        try:
+            conn = get_db()
+            row = conn.execute("SELECT enabled FROM internet_access WHERE enabled = 1 LIMIT 1").fetchone()
+            conn.close()
+            if row and row[0]:
+                ip_cache[ip] = True
+                return True
+        except:
+            pass
         ip_cache[ip] = False
         return False
 
@@ -211,7 +221,7 @@ def handle_client(client_sock, client_addr):
             client_sock.close()
             return
 
-        # Internet enabled: forward with banner injection
+        # Internet enabled: forward clean (no banner injection for mobile compat)
         if method == "CONNECT":
             # HTTPS: can't inject banner, just forward
             host_port = url.split(":")
@@ -295,16 +305,15 @@ def handle_client(client_sock, client_addr):
                 content_length = int(cl_match.group(1))
             transfer_chunked = "transfer-encoding: chunked" in headers.lower()
 
-            if not is_html:
-                # Pass through as-is
-                client_sock.sendall(resp_data)
-                while True:
-                    chunk = remote.recv(65535)
-                    if not chunk:
-                        break
-                    client_sock.sendall(chunk)
-            else:
-                # Read full body
+            # Clean forward - no banner injection
+            client_sock.sendall(resp_data)
+            while True:
+                chunk = remote.recv(65535)
+                if not chunk:
+                    break
+                client_sock.sendall(chunk)
+            # Banner injection disabled
+            if False:
                 body = remaining_body
                 if transfer_chunked:
                     body_chunks = [remaining_body]

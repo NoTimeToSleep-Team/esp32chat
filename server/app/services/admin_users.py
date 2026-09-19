@@ -87,7 +87,7 @@ class AdminUsersService:
                     FROM users u
                     LEFT JOIN user_restrictions r ON r.user_id = u.id
                     LEFT JOIN device_blacklist b ON b.device_id = u.registration_device_id
-                    WHERE u.status = ?
+                    WHERE u.status = ? AND u.role != 'guest'
                     ORDER BY u.created_at_ms DESC, u.id DESC
                     LIMIT ? OFFSET ?
                     """,
@@ -335,8 +335,9 @@ class AdminUsersService:
         target_user_id: int,
         role: UserRole,
     ) -> AdminUserRecord:
-        if role == UserRole.ADMIN:
-            raise AdminUsersError("cannot_set_admin", "Only direct DB admin can set admin role", 403)
+        # admin promotion now allowed
+        if str(role.value) == "guest":
+            raise AdminUsersError("invalid_target", "Cannot change guest role", 403)
         with self._connect() as connection:
             self._require_active_admin(connection, actor_user_id)
             self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)

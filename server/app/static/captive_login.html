@@ -1,0 +1,52 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>WiFi Login</title>
+<style>body{font:14px monospace;background:#0d1117;color:#e6edf3;padding:20px}
+input,button{padding:8px;margin:4px;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3}
+button{background:#238636;cursor:pointer;border:none}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:12px;max-width:400px}
+</style></head><body>
+<h2>🔑 WiFi Login</h2>
+<div class="card">
+<h3>1. Connect to WiFi</h3>
+<input id="ssid" placeholder="WiFi SSID"><input id="wpass" type="password" placeholder="WiFi Password">
+<button onclick="connectWiFi()">Connect</button>
+<div id="status" style="margin-top:8px;font-size:12px"></div>
+</div>
+<div class="card" id="portal-card" style="display:none">
+<h3>2. Login to Network</h3>
+<p style="font-size:12px;color:#8b949e">This network requires login. Enter your credentials below.</p>
+<input id="plogin" placeholder="Login"><input id="ppass" type="password" placeholder="Password">
+<button onclick="submitPortal()">Login</button>
+<div id="pstatus" style="margin-top:8px;font-size:12px"></div>
+</div>
+<script>
+async function connectWiFi() {
+  var s=document.getElementById('status');
+  s.textContent='Connecting...';
+  var ssid=document.getElementById('ssid').value.trim();
+  var pass=document.getElementById('wpass').value.trim();
+  if(!ssid){s.textContent='Enter SSID';return}
+  try{
+    var r=await fetch('/admin/network/wifi/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_token:localStorage.getItem('lc_session_token')||'',ssid:ssid,password:pass})});
+    var d=await r.json();
+    s.innerHTML='<span style=color:#238636>Connected! IP: '+(d.ip_address||'?')+'</span>';
+    // Check for internet
+    setTimeout(async function(){
+      try{
+        var c=await fetch('http://example.com',{mode:'no-cors'});
+        var f=await fetch('/admin/network/wifi/status?session_token='+localStorage.getItem('lc_session_token'));
+        var sd=await f.json();
+        if(!sd.connected){document.getElementById('portal-card').style.display='block'}
+      }catch(e){document.getElementById('portal-card').style.display='block'}
+    },3000);
+  }catch(e){s.innerHTML='<span style=color:#f85149>'+e.message+'</span>'}
+}
+async function submitPortal(){
+  var s=document.getElementById('pstatus');
+  s.textContent='Logging in...';
+  try{
+    var r=await fetch('/admin/network/captive/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:document.getElementById('plogin').value,password:document.getElementById('ppass').value})});
+    var d=await r.json();
+    s.innerHTML='<span style=color:#238636>'+d.message+'</span>';
+  }catch(e){s.innerHTML='<span style=color:#f85149>'+e.message+'</span>'}
+}
+</script></body></html>

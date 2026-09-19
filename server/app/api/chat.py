@@ -277,7 +277,7 @@ async def delete_chat_message(request: Request, chat_id: int, message_id: int, p
         session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
     except AuthError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
-    if session.user.role not in {UserRole.ADMIN, UserRole.MODERATOR}:
+    if session.user.role not in {UserRole.ADMIN, UserRole.MODERATOR} and session.user.user_id != chat_service.get_message_author(message_id):
         raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Admin or moderator required"})
     if session.user.user_id is None:
         raise HTTPException(status_code=500, detail={"code": "invalid_user", "message": "Missing user id"})
@@ -517,3 +517,17 @@ async def delete_all_users(request: Request, payload: AdminCleanupRequest) -> di
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     return {"status": "ok", "deleted_count": count}
+
+class EditMessageRequest(BaseModel):
+    session_token: str = ""
+    body_text: str = ""
+
+@router.put("/chat/api/chats/{chat_id}/messages/{message_id}")
+async def edit_message(request: Request, chat_id: int, message_id: int, payload: EditMessageRequest):
+    auth_service = _auth_service(request)
+    session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
+    if session.user.user_id is None:
+        raise HTTPException(status_code=500, detail={"code": "invalid_user"})
+    chat_service = _chat_service(request)
+    msg = chat_service.edit_message(chat_id=chat_id, message_id=message_id, actor_user_id=session.user.user_id, body_text=payload.body_text)
+    return {"status": "ok", "message": {"message_id": msg.message_id, "body_text": msg.body_text, "edited_at_ms": msg.edited_at_ms}}
