@@ -49,6 +49,36 @@ def _ensure_migrations_table(connection: sqlite3.Connection) -> None:
     )
 
 
+_SCHEMA_PATCHES: tuple[tuple[str, str, str], ...] = (
+    ("sessions", "ip_address", "TEXT"),
+    ("users", "avatar_emoji", "TEXT"),
+)
+
+
+def _apply_schema_patches(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """Add columns that were applied as manual hotfixes on deployed databases.
+
+    These columns are required by the auth/account code but were never
+    captured in a migration file. The patch is idempotent: it is skipped
+    when the column already exists.
+    """
+    applied: list[str] = []
+    for table, column, ddl in _SCHEMA_PATCHES:
+        try:
+            existing = {
+                row[1]
+                for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+        except sqlite3.OperationalError:
+            continue
+        if not existing:
+            continue
+        if column not in existing:
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+            applied.append(f"{table}.{column}")
+    return tuple(applied)
+
+
 def apply_sql_migrations(database_url: str) -> MigrationResult:
     db_path = _extract_sqlite_path(database_url)
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,6 +120,14 @@ def apply_sql_migrations(database_url: str) -> MigrationResult:
             except Exception:
                 connection.rollback()
                 raise
+
+        connection.execute("BEGIN")
+        try:
+            _apply_schema_patches(connection)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
     finally:
         connection.close()
 
