@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.models import ClientKind, UserRole
 from app.services.admin_users import AdminUsersError, AdminUsersService
 from app.services.auth import AuthError, AuthService
+from app.services.user_reports import UserReportsService
 
 router = APIRouter(tags=["moderation"])
 
@@ -51,6 +52,11 @@ async def get_reports(
         return {"status": "ok", "reports": [], "pending_count": 0, "total": 0}
     reports = mod.get_reports(status=status, limit=limit)
     pending = len(mod.get_reports(status="pending", limit=1000))
+    warn_service = UserReportsService(db_path=request.app.state.data_layer.database_path)
+    warn_counts = warn_service.warn_counts_for([r.get("user_id") for r in reports])
+    for report in reports:
+        user_id = report.get("user_id")
+        report["user_warn_count"] = warn_counts.get(int(user_id), 0) if user_id else 0
     return {
         "status": "ok",
         "reports": reports,

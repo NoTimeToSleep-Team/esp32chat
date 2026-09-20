@@ -146,6 +146,7 @@ a:hover{text-decoration:underline}
 .toast.info{background:var(--accent);color:#fff}
 .toast.error{background:var(--accent4);color:#fff}
 .toast.success{background:var(--accent2);color:#fff}
+.toast.warn{background:var(--accent3);color:#000}
 
 /* Send message */
 .send-area{display:flex;gap:8px;padding:12px 0}
@@ -207,41 +208,41 @@ a:hover{text-decoration:underline}
   .nav-links a { font-size: 11px; padding: 6px 10px; }
   .nav-brand { font-size: 14px; padding: 6px 10px; }
   
-  /* Чат — мобильная структура */
+  /* Р§Р°С‚ вЂ” РјРѕР±РёР»СЊРЅР°СЏ СЃС‚СЂСѓРєС‚СѓСЂР° */
   .grid-2 { display: flex; flex-direction: column; }
   #chat-list { width: 100%; max-height: none; }
   #chat-messages { width: 100%; }
   
-  /* Сообщения */
+  /* РЎРѕРѕР±С‰РµРЅРёСЏ */
   .msg { padding: 6px 4px; }
   .msg-avatar { width: 32px; height: 32px; font-size: 14px; }
   .msg-text { font-size: 14px; line-height: 1.4; }
   .msg-header { font-size: 11px; }
   
-  /* Кнопки */
+  /* РљРЅРѕРїРєРё */
   .btn { font-size: 12px; padding: 6px 12px; }
   .btn-sm { font-size: 11px; padding: 4px 8px; }
   
-  /* Формы */
+  /* Р¤РѕСЂРјС‹ */
   .login-card { padding: 20px; margin: 10px; }
   .card { padding: 10px; margin-bottom: 8px; }
   
-  /* Модалки */
+  /* РњРѕРґР°Р»РєРё */
   .modal { width: 95%; max-width: none; padding: 16px; }
   
-  /* Отправка сообщений */
+  /* РћС‚РїСЂР°РІРєР° СЃРѕРѕР±С‰РµРЅРёР№ */
   .send-area { padding: 6px; }
   .send-area textarea { font-size: 15px; }
   
-  /* Табы админки */
+  /* РўР°Р±С‹ Р°РґРјРёРЅРєРё */
   .tabs { gap: 2px; }
   .tab { font-size: 11px; padding: 6px 10px; }
   
-  /* Таблицы */
+  /* РўР°Р±Р»РёС†С‹ */
   table { font-size: 11px; }
   td, th { padding: 4px 6px; }
   
-  /* Профиль */
+  /* РџСЂРѕС„РёР»СЊ */
   #profile-modal > div { margin: 8px; max-height: 90vh; overflow-y: auto; }
 }
 

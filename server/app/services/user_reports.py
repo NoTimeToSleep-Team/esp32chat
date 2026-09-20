@@ -6,6 +6,8 @@ from time import time
 
 ALLOWED_REASONS = ("spam", "abuse", "profanity", "ads", "scam", "other")
 MAX_COMMENT_LENGTH = 1000
+MAX_WARNS = 3
+WARN_BAN_MINUTES = 3 * 24 * 60
 
 
 def _now_ms() -> int:
@@ -160,3 +162,117 @@ class UserReportsService:
         if resolved is None:
             raise UserReportsError("report_not_found", "Report not found", 404)
         return resolved
+
+    # ----- warnings -----
+
+    def warn_user(self, *, user_id: int, report_id: int, issued_by_login: str) -> int:
+        connection = self._connect()
+        try:
+            target = connection.execute(
+                "SELECT id FROM users WHERE id = ?", (int(user_id),)
+            ).fetchone()
+            if target is None:
+                raise UserReportsError("target_not_found", "User was not found", 404)
+            now_ms = _now_ms()
+            connection.execute(
+                "INSERT INTO user_warnings (user_id, report_id, issued_by_login, created_at_ms) VALUES (?, ?, ?, ?)",
+                (int(user_id), int(report_id), issued_by_login, now_ms),
+            )
+            connection.execute(
+                "UPDATE users SET warn_count = COALESCE(warn_count, 0) + 1, updated_at_ms = ? WHERE id = ?",
+                (now_ms, int(user_id)),
+            )
+            row = connection.execute(
+                "SELECT warn_count FROM users WHERE id = ?", (int(user_id),)
+            ).fetchone()
+            connection.commit()
+        finally:
+            connection.close()
+        return int(row["warn_count"]) if row else 0
+
+    def reset_warnings(self, user_id: int) -> None:
+        connection = self._connect()
+        try:
+            connection.execute(
+                "UPDATE users SET warn_count = 0, updated_at_ms = ? WHERE id = ?",
+                (_now_ms(), int(user_id)),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+    def warn_count(self, user_id: int) -> int:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT COALESCE(warn_count, 0) AS n FROM users WHERE id = ?", (int(user_id),)
+            ).fetchone()
+        finally:
+            connection.close()
+        return int(row["n"]) if row else 0
+
+    def warn_counts_for(self, user_ids: list[int]) -> dict[int, int]:
+        ids = [int(uid) for uid in user_ids if uid]
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                f"SELECT id, COALESCE(warn_count, 0) AS n FROM users WHERE id IN ({placeholders})",
+                ids,
+            ).fetchall()
+        finally:
+            connection.close()
+        return {int(row["id"]): int(row["n"]) for row in rows}
+
+    def reports_against_counts(self, user_ids: list[int]) -> dict[int, int]:
+        ids = [int(uid) for uid in user_ids if uid]
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                f"SELECT target_user_id, COUNT(*) AS n FROM user_reports WHERE target_user_id IN ({placeholders}) GROUP BY target_user_id",
+                ids,
+            ).fetchall()
+        finally:
+            connection.close()
+        return {int(row["target_user_id"]): int(row["n"]) for row in rows}
+
+    def my_status(self, user_id: int) -> dict:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT COALESCE(warn_count, 0) AS n FROM users WHERE id = ?", (int(user_id),)
+            ).fetchone()
+            restriction = connection.execute(
+                "SELECT block_reason, blocked_until_ms FROM user_restrictions WHERE user_id = ?",
+                (int(user_id),),
+            ).fetchone()
+        finally:
+            connection.close()
+        return {
+            "warn_count": int(row["n"]) if row else 0,
+            "max_warns": MAX_WARNS,
+            "block_reason": restriction["block_reason"] if restriction else None,
+            "blocked_until_ms": restriction["blocked_until_ms"] if restriction else None,
+        }
+
+    def target_messages(self, target_user_id: int, *, limit: int = 10) -> list[dict]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT m.id AS message_id, m.chat_id, m.body_text, m.created_at_ms, c.title AS chat_title
+                FROM chat_messages m
+                LEFT JOIN chats c ON c.id = m.chat_id
+                WHERE m.author_user_id = ? AND COALESCE(c.is_private, 0) = 0
+                ORDER BY m.id DESC LIMIT ?
+                """,
+                (int(target_user_id), int(limit)),
+            ).fetchall()
+        finally:
+            connection.close()
+        return [dict(row) for row in rows]

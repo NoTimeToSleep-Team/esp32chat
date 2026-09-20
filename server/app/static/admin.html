@@ -509,13 +509,16 @@ async function loadReports() {
       var sc = r.status === "pending" ? "#f85149" : "#8b949e";
       h += '<div class="card" style="border-left:3px solid ' + sc + '">';
       h += '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><strong>' + esc(r.reporter_login) + ' \u2192 ' + esc(r.target_login || ("User #" + r.target_user_id)) + '</strong><span style="font-size:11px;color:#8b949e">#' + r.id + " " + r.status + "</span></div>";
-      h += '<div style="font-size:12px;color:#d29922;margin:4px 0">' + esc(REPORT_REASONS[r.reason] || r.reason) + " \u00b7 " + new Date(r.created_at_ms).toLocaleString() + "</div>";
+      h += '<div style="font-size:12px;color:#d29922;margin:4px 0">' + esc(REPORT_REASONS[r.reason] || r.reason) + " \u00b7 " + new Date(r.created_at_ms).toLocaleString();
+      if (r.target_reports_count > 1) h += ' \u00b7 reports against: ' + r.target_reports_count;
+      h += "</div>";
       if (r.comment) h += '<div style="font-size:12px;background:#0d1117;padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">' + esc(r.comment) + "</div>";
       if (r.status === "pending") {
-        h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveUserReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveUserReport(' + r.id + ',\'warn\')">Warn</button> <button class="btn-outline" onclick="resolveUserReport(' + r.id + ',\'dismiss\')">Dismiss</button></div>';
+        h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveUserReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveUserReport(' + r.id + ',\'warn\')">Warn (' + (r.target_warn_count || 0) + '/3)</button> <button class="btn-outline" onclick="resolveUserReport(' + r.id + ',\'dismiss\')">Dismiss</button> <button class="btn-outline" onclick="toggleTargetMessages(' + r.id + ',' + r.target_user_id + ')">Messages</button></div>';
       } else {
         h += '<div style="font-size:11px;color:#8b949e">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
       }
+      h += '<div id="uevidence-' + r.id + '" style="display:none;margin-top:8px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px"></div>';
       h += "</div>";
     });
   }
@@ -531,7 +534,7 @@ async function loadReports() {
       h += '<div style="font-size:12px;color:#8b949e;margin:4px 0">Words: <span style="color:#f85149">' + esc(r.found_words || "") + "</span></div>";
       h += '<div style="font-size:12px;background:#0d1117;padding:6px;border-radius:4px;margin:4px 0;max-height:60px;overflow-y:auto">' + esc(r.message_text || "") + "</div>";
       if (r.status === "pending") {
-        h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveReport(' + r.id + ',\'warn\')">Warn</button> <button class="btn-outline" onclick="resolveReport(' + r.id + ',\'dismiss\')">Dismiss</button></div>';
+        h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveReport(' + r.id + ',\'warn\')">Warn (' + (r.user_warn_count || 0) + '/3)</button> <button class="btn-outline" onclick="resolveReport(' + r.id + ',\'dismiss\')">Dismiss</button></div>';
       } else {
         h += '<div style="font-size:11px;color:#8b949e">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
       }
@@ -546,10 +549,31 @@ async function resolveUserReport(rid, action) {
   if (action === "ban" && !confirm("Ban the user from this report?")) return;
   msg("Working...");
   try {
-    await apiCall("/reports/api/resolve", "POST", { session_token: ST, report_id: rid, action: action });
-    msg('<span style="color:#238636">Report ' + action + "</span>");
+    var d = await apiCall("/reports/api/resolve", "POST", { session_token: ST, report_id: rid, action: action });
+    if (action === "warn" && d.warn) {
+      if (d.warn.banned) msg('<span style="color:#f85149">Warn 3/3 \u2014 user banned for 3 days</span>');
+      else msg('<span style="color:#d29922">Warn ' + d.warn.warn_count + '/' + d.warn.max_warns + '</span>');
+    } else {
+      msg('<span style="color:#238636">Report ' + action + "</span>");
+    }
     loadReports();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
+}
+
+async function toggleTargetMessages(rid, uid) {
+  var box = document.getElementById("uevidence-" + rid);
+  if (!box) return;
+  if (box.style.display !== "none" && box.innerHTML) { box.style.display = "none"; return; }
+  box.style.display = "block";
+  box.innerHTML = "Loading...";
+  try {
+    var d = await apiCall("/reports/api/target-messages?session_token=" + encodeURIComponent(ST) + "&target_user_id=" + uid + "&limit=10");
+    var items = d.items || [];
+    if (!items.length) { box.innerHTML = '<span style="color:#8b949e;font-size:12px">No messages</span>'; return; }
+    box.innerHTML = items.map(function(m) {
+      return '<div style="font-size:12px;margin-bottom:6px;border-bottom:1px solid #30363d;padding-bottom:4px"><span style="color:#8b949e">' + esc(m.chat_title || ("Chat #" + m.chat_id)) + " \u00b7 " + new Date(m.created_at_ms).toLocaleString() + '</span><div style="white-space:pre-wrap">' + esc(m.body_text || "") + "</div></div>";
+    }).join("");
+  } catch(e) { box.innerHTML = '<span style="color:#f85149;font-size:12px">' + esc(e.message) + "</span>"; }
 }
 
 async function resolveReport(rid, action) {

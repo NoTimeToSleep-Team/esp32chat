@@ -6,7 +6,12 @@ from pydantic import BaseModel, Field
 from app.models import ClientKind, UserRole
 from app.services.admin_users import AdminUsersError, AdminUsersService
 from app.services.auth import AuthError, AuthService
-from app.services.user_reports import UserReportsError, UserReportsService
+from app.services.user_reports import (
+    MAX_WARNS,
+    WARN_BAN_MINUTES,
+    UserReportsError,
+    UserReportsService,
+)
 
 router = APIRouter(tags=["reports"])
 
@@ -85,12 +90,40 @@ async def list_reports(
     _session(request, session_token, staff=True)
     service = _reports_service(request)
     reports = service.list_reports(status=status, limit=limit)
+    target_ids = [r.get("target_user_id") for r in reports]
+    warn_counts = service.warn_counts_for(target_ids)
+    against_counts = service.reports_against_counts(target_ids)
+    for report in reports:
+        target_id = report.get("target_user_id")
+        report["target_warn_count"] = warn_counts.get(int(target_id), 0) if target_id else 0
+        report["target_reports_count"] = against_counts.get(int(target_id), 0) if target_id else 0
     return {
         "status": "ok",
         "reports": reports,
         "pending_count": service.count_pending(),
         "total": len(reports),
     }
+
+
+@router.get("/reports/api/my-status")
+async def my_status(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    session = _session(request, session_token, staff=False)
+    return {"status": "ok", **_reports_service(request).my_status(int(session.user.user_id))}
+
+
+@router.get("/reports/api/target-messages")
+async def target_messages(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    target_user_id: int = Query(..., ge=1),
+    limit: int = Query(default=10, ge=1, le=50),
+) -> dict[str, object]:
+    _session(request, session_token, staff=True)
+    items = _reports_service(request).target_messages(target_user_id, limit=limit)
+    return {"status": "ok", "items": items, "total": len(items)}
 
 
 @router.post("/reports/api/resolve")
@@ -117,6 +150,43 @@ async def resolve_reports(
             status_code=409,
             detail={"code": "already_resolved", "message": "Report has already been resolved"},
         )
+    warn_info: dict[str, object] | None = None
+    if action == "warn":
+        target_user_id = int(report["target_user_id"])
+        new_count = service.warn_user(
+            user_id=target_user_id,
+            report_id=payload.report_id,
+            issued_by_login=session.user.login,
+        )
+        if new_count >= MAX_WARNS:
+            try:
+                record = AdminUsersService(
+                    db_path=request.app.state.data_layer.database_path
+                ).temporary_block_user(
+                    actor_user_id=int(session.user.user_id),
+                    target_user_id=target_user_id,
+                    duration_minutes=WARN_BAN_MINUTES,
+                    reason=f"{MAX_WARNS} warnings from user reports",
+                )
+            except AdminUsersError as exc:
+                raise HTTPException(
+                    status_code=exc.status_code,
+                    detail={"code": exc.code, "message": exc.message},
+                ) from exc
+            service.reset_warnings(target_user_id)
+            warn_info = {
+                "warn_count": 0,
+                "max_warns": MAX_WARNS,
+                "banned": True,
+                "blocked_until_ms": getattr(record, "blocked_until_ms", None),
+            }
+        else:
+            warn_info = {
+                "warn_count": new_count,
+                "max_warns": MAX_WARNS,
+                "banned": False,
+                "blocked_until_ms": None,
+            }
     if action == "ban":
         target_user_id = report.get("target_user_id")
         if not target_user_id:
@@ -144,4 +214,12 @@ async def resolve_reports(
             status_code=exc.status_code,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
-    return {"status": "ok", "report_id": payload.report_id, "action": action, "report": resolved}
+    response: dict[str, object] = {
+        "status": "ok",
+        "report_id": payload.report_id,
+        "action": action,
+        "report": resolved,
+    }
+    if warn_info is not None:
+        response["warn"] = warn_info
+    return response

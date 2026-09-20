@@ -45,7 +45,7 @@ function hide(el, cond) {if(cond===false)return;if(typeof el==='string')el=$(el)
 function toast(msg, type='info') {
   const t = el('div',{class:`toast ${type}`});
   t.append(el('span',{},String(msg)));
-  const persistent = type === 'error';
+  const persistent = type === 'error' || type === 'warn';
   if (persistent) {
     const existing = document.querySelectorAll('.toast').length;
     t.style.bottom = (24 + existing * 56) + 'px';
@@ -1072,13 +1072,15 @@ async function renderAdminReports() {
           <span><strong>${esc(r.reporter_login)}</strong> → <strong>${esc(r.target_login||('User #'+r.target_user_id))}</strong></span>
           <span style="font-size:11px;color:var(--text2)">#${r.id} · ${esc(r.status)}</span>
         </div>
-        <div style="margin:4px 0"><span class="report-reason-badge">${esc(reportReasonLabel(r.reason))}</span> <span style="font-size:11px;color:var(--text2)">${fmtTime(r.created_at_ms)}</span></div>
+        <div style="margin:4px 0"><span class="report-reason-badge">${esc(reportReasonLabel(r.reason))}</span> <span style="font-size:11px;color:var(--text2)">${fmtTime(r.created_at_ms)}${r.target_reports_count > 1 ? ' · ' + t('reports_against') + ': ' + r.target_reports_count : ''}</span></div>
         ${r.comment ? `<div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">${esc(r.comment)}</div>` : ''}
         ${r.status === 'pending' ? `<div style="margin-top:6px">
             <button class="btn btn-sm btn-danger" data-urep="${r.id}" data-uraction="ban">Ban</button>
-            <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="warn">Warn</button>
+            <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="warn">Warn (${r.target_warn_count||0}/3)</button>
             <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="dismiss">Dismiss</button>
+            <button class="btn btn-sm btn-outline" data-uevidence="${r.id}" data-utarget="${r.target_user_id}">📄 ${t('show_messages')}</button>
           </div>` : `<div style="font-size:11px;color:var(--text2)">${esc(r.action||'?')} · ${esc(r.resolved_by||'?')} · ${fmtTime(r.resolved_at_ms)}</div>`}
+        <div id="uevidence-${r.id}" class="hidden" style="margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px"></div>
       </div>`).join('');
   }
   html += '</div>';
@@ -1097,7 +1099,7 @@ async function renderAdminReports() {
         <div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;max-height:80px;overflow-y:auto">${esc(r.message_text||'')}</div>
         ${r.status === 'pending' ? `<div style="margin-top:6px">
             <button class="btn btn-sm btn-danger" data-rrep="${r.id}" data-raction="ban">Ban</button>
-            <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="warn">Warn</button>
+            <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="warn">Warn (${r.user_warn_count||0}/3)</button>
             <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="dismiss">Dismiss</button>
           </div>` : `<div style="font-size:11px;color:var(--text2)">Resolved: ${esc(r.action||'?')} by ${esc(r.resolved_by||'?')}</div>`}
       </div>`).join('');
@@ -1109,10 +1111,31 @@ async function renderAdminReports() {
     btn.onclick = async () => {
       if (btn.dataset.uraction === 'ban' && !confirm(t('report_ban_confirm'))) return;
       try {
-        await api('/reports/api/resolve', {method:'POST', body:JSON.stringify({session_token:STATE.token, report_id: parseInt(btn.dataset.urep), action: btn.dataset.uraction})});
-        toast(`Report ${btn.dataset.uraction}`, 'success');
+        const d = await api('/reports/api/resolve', {method:'POST', body:JSON.stringify({session_token:STATE.token, report_id: parseInt(btn.dataset.urep), action: btn.dataset.uraction})});
+        if (btn.dataset.uraction === 'warn' && d.warn) {
+          if (d.warn.banned) toast(t('warn_banned').replace('{max}', d.warn.max_warns), 'error');
+          else toast(t('warn_given').replace('{n}', d.warn.warn_count).replace('{max}', d.warn.max_warns), 'warn');
+        } else {
+          toast(`Report ${btn.dataset.uraction}`, 'success');
+        }
         renderAdminReports();
       } catch(e) { toast(e.message, 'error'); }
+    };
+  });
+  container.querySelectorAll('[data-uevidence]').forEach(btn => {
+    btn.onclick = async () => {
+      const box = document.getElementById('uevidence-' + btn.dataset.uevidence);
+      if (!box) return;
+      if (!box.classList.contains('hidden') && box.innerHTML) { box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+      box.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      try {
+        const d = await api(`/reports/api/target-messages?session_token=${encodeURIComponent(STATE.token)}&target_user_id=${btn.dataset.utarget}&limit=10`);
+        const items = d.items || [];
+        box.innerHTML = items.length
+          ? items.map(m => `<div style="font-size:12px;margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:4px"><span style="color:var(--text2)">${esc(m.chat_title||('Chat #'+m.chat_id))} · ${fmtTime(m.created_at_ms)}</span><div style="white-space:pre-wrap">${esc(m.body_text||'')}</div></div>`).join('')
+          : `<div style="font-size:12px;color:var(--text2)">${t('no_messages')}</div>`;
+      } catch(e) { box.innerHTML = `<div style="font-size:12px;color:var(--accent4)">${esc(e.message)}</div>`; }
     };
   });
   container.querySelectorAll('[data-rrep]').forEach(btn => {
@@ -1541,12 +1564,30 @@ async function renderAdminActivity() {
 /* ===== ROUTER ===== */
 function esc(s) {const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
+let warnChecked = false;
+async function checkWarnings() {
+  if (warnChecked || !STATE.token) return;
+  if (STATE.user?.role === 'guest') return;
+  warnChecked = true;
+  try {
+    const d = await api(`/reports/api/my-status?session_token=${encodeURIComponent(STATE.token)}`);
+    if (d.warn_count > 0) {
+      const key = 'lc_warn_seen_' + d.warn_count;
+      if (sessionStorage.getItem(key) !== '1') {
+        sessionStorage.setItem(key, '1');
+        toast(t('warn_banner').replace('{n}', d.warn_count).replace('{max}', d.max_warns), 'warn');
+      }
+    }
+  } catch(e) {}
+}
+
 async function handleRoute() {
   const hash = window.location.hash || '#/login';
   if (hash === '#/login' && STATE.token) {window.location.hash = '#/chat'; return}
   const publicRoutes = ['#/login', '#/about'];
   if (!publicRoutes.includes(hash.split('?')[0]) && !STATE.token) {window.location.hash = '#/login'; return}
   updateNav();
+  checkWarnings();
   try {
     switch(hash.split('?')[0]) {
       case '#/login': await renderLogin(); break;
@@ -1791,6 +1832,12 @@ var T = {
 "admin_user_reports":{rus:"Жалобы пользователей",eng:"User reports"},
 "admin_auto_reports":{rus:"Авто-модерация",eng:"Auto-moderation"},
 "no_reports":{rus:"Жалоб нет",eng:"No reports"},
+"warn_banner":{rus:"⚠️ У вас предупреждений: {n}/{max}. При {max} — бан на 3 дня.",eng:"⚠️ You have {n}/{max} warnings. At {max} — a 3-day ban."},
+"warn_given":{rus:"Предупреждение {n}/{max} выдано",eng:"Warning {n}/{max} issued"},
+"warn_banned":{rus:"{max}/{max} предупреждений — пользователь забанен на 3 дня",eng:"{max}/{max} warnings — user banned for 3 days"},
+"show_messages":{rus:"Сообщения",eng:"Messages"},
+"no_messages":{rus:"Сообщений нет",eng:"No messages"},
+"reports_against":{rus:"жалоб на него",eng:"reports against"},
 "attachments":{rus:"Вложения",eng:"Attachments"},
 "close_ticket":{rus:"Закрыть тикет",eng:"Close Ticket"},
 "sending":{rus:"Отправка...",eng:"Sending..."},

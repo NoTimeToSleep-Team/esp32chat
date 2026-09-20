@@ -54,6 +54,7 @@ _SCHEMA_PATCHES: tuple[tuple[str, str, str], ...] = (
     ("users", "avatar_emoji", "TEXT"),
     ("support_tickets", "kind", "TEXT NOT NULL DEFAULT 'support'"),
     ("support_tickets", "target_user_id", "INTEGER"),
+    ("users", "warn_count", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 _SCHEMA_INDEXES: tuple[str, ...] = (
