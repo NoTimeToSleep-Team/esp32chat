@@ -17,6 +17,7 @@ from app.api.applications import router as applications_router
 from app.api.blog import router as blog_router
 from app.api.chat import router as chat_router
 from app.api.chat_private import router as chat_private_router
+from app.api.debug import router as debug_router
 from app.api.devices import router as devices_router
 from app.api.device_combos import router as device_combos_router
 from app.api.deployment import router as deployment_router
@@ -57,6 +58,7 @@ from app.logging import configure_logging, get_logger
 from app.realtime import ChatRealtimeBroker
 from app.security import InMemoryRateLimiter, SecurityAuditService
 from app.services.chat import ChatService
+from app.services.debug_log import DebugLogService
 from app.services.module_registry import ModuleRegistryService
 from app.services.auto_moderator import AutoModerator
 from app.api.system_health import router as system_health_router
@@ -237,6 +239,28 @@ def create_app() -> FastAPI:
 
         return await call_next(request)
 
+    @app.middleware("http")
+    async def client_debug_trace_middleware(request: Request, call_next):
+        trace_id = request.headers.get("x-debug-trace")
+        if not trace_id:
+            return await call_next(request)
+        started = monotonic()
+        response = await call_next(request)
+        try:
+            DebugLogService(db_path=request.app.state.data_layer.database_path).log(
+                stage="server",
+                trace_id=trace_id[:64],
+                action=request.url.path,
+                method=request.method,
+                status=response.status_code,
+                ok=response.status_code < 400,
+                details="duration_ms=%d" % int((monotonic() - started) * 1000),
+                ip=_resolve_client_ip(request),
+            )
+        except Exception:
+            pass
+        return response
+
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
@@ -253,6 +277,7 @@ def create_app() -> FastAPI:
     app.include_router(device_combos_router)
     app.include_router(chat_router)
     app.include_router(chat_private_router)
+    app.include_router(debug_router)
     app.include_router(media_router)
     app.include_router(mode_router)
     app.include_router(ops_router)

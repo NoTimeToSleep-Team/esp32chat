@@ -20,6 +20,8 @@ def _is_exempt_path(path: str) -> bool:
         return True
     if path.startswith("/static/"):
         return True
+    if path.startswith("/debug/api/client-event"):
+        return True
     return False
 
 

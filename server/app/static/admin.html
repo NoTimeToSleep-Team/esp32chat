@@ -39,23 +39,37 @@ window.onerror = function(m,u,l) {
 
 function msg(t) { var m = document.getElementById("msg"); m.innerHTML = t || ""; setTimeout(function() { m.innerHTML = ""; }, 5000); }
 function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+function dbgReport(payload) {
+  try { if (ST) payload.session_token = ST; fetch("/debug/api/client-event", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(function(){}); } catch(e) {}
+}
+function newTraceId(prefix) { return (prefix||"ad") + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,7); }
 
 async function doLogin() {
   var m = document.getElementById("loginMsg"); m.textContent = "...";
   var login = document.getElementById("l").value.trim();
   var pass = document.getElementById("p").value.trim();
   if (!login || !pass) { m.textContent = "Enter login and password"; return; }
+  var tr = newTraceId("ad-login");
+  var t1 = Date.now();
   try {
-    var r = await fetch("/auth/login", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:login,password:pass,client_kind:"web"})});
+    var r = await fetch("/auth/login", {method:"POST",headers:{"Content-Type":"application/json","X-Debug-Trace":tr},body:JSON.stringify({login:login,password:pass,client_kind:"web"})});
+    var t2 = Date.now();
     var d = await r.json();
-    if (!r.ok) throw new Error(d.detail ? d.detail.message : "HTTP " + r.status);
+    if (!r.ok) {
+      dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, status:r.status, stages_done:2, error:(d.detail ? d.detail.message : ("HTTP "+r.status)), t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
+      throw new Error(d.detail ? d.detail.message : "HTTP " + r.status);
+    }
+    dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:true, status:r.status, stages_done:3, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
     if (d.user.role !== "admin" && d.user.role !== "moderator") { m.textContent = "Admin access only"; return; }
     ST = d.session.token;
     localStorage.setItem("lc_session_token", ST);
     localStorage.setItem("lc_user", JSON.stringify(d.user));
     m.textContent = "OK"; m.style.color = "#238636";
     showMain();
-  } catch(e) { m.textContent = e.message; }
+  } catch(e) {
+    if (e.name === "TypeError") dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
+    m.textContent = e.message;
+  }
 }
 
 function showMain() {
@@ -83,10 +97,27 @@ function switchTab(t) {
 async function apiCall(url, method, body) {
   var opts = { method: method || "GET", headers: { "Content-Type": "application/json" } };
   if (body) opts.body = JSON.stringify(body);
-  var r = await fetch(url, opts);
-  var d = await r.json();
-  if (!r.ok) throw new Error(d.detail ? d.detail.message : "HTTP " + r.status);
-  return d;
+  var tr = newTraceId("ad");
+  opts.headers["X-Debug-Trace"] = tr;
+  var t1 = Date.now();
+  try {
+    var r = await fetch(url, opts);
+    var t2 = Date.now();
+    var d = await r.json().catch(function(){return{}});
+    if (!r.ok) {
+      var emsg = d.detail ? d.detail.message : ("HTTP " + r.status);
+      dbgReport({trace_id:tr, action:url, method:opts.method, ok:false, status:r.status, stages_done:2, error:emsg, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
+      throw new Error(emsg);
+    }
+    dbgReport({trace_id:tr, action:url, method:opts.method, ok:true, status:r.status, stages_done:3, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
+    return d;
+  } catch(e) {
+    if (e.name === "TypeError") {
+      dbgReport({trace_id:tr, action:url, method:opts.method, ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
+      throw new Error("Server unreachable");
+    }
+    throw e;
+  }
 }
 
 // USERS
@@ -205,8 +236,28 @@ async function loadSystem() {
       html += '<tr><td>' + svc.name + '</td><td style="color:' + c + '">' + svc.active + '</td><td><button class="btn-outline" onclick="sysRestart(\'' + svc.name + '\')">Restart</button></td></tr>';
     });
     html += '</table><button class="btn-warn" onclick="sysRestart(\'reboot\')">Reboot RPi</button> <span id="sysMsg" style="font-size:12px"></span></div>';
+    html += '<div class="card"><h3>Debug Log</h3><button class="btn-outline" onclick="loadDebugLog()">Load last 100</button><div id="debug-log" style="margin-top:8px;max-height:320px;overflow-y:auto"></div></div>';
     p.innerHTML = html;
   } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
+}
+
+async function loadDebugLog() {
+  var box = document.getElementById("debug-log");
+  if (!box) return;
+  box.textContent = "Loading...";
+  try {
+    var d = await apiCall("/debug/api/events?session_token=" + encodeURIComponent(ST) + "&limit=100");
+    var h = '<table><tr><th>Time</th><th>Stage</th><th>Action</th><th>Status</th><th>OK</th><th>Stages</th><th>Error</th><th>Trace</th></tr>';
+    (d.items || []).forEach(function(e) {
+      var color = e.ok === 1 ? "#238636" : "#f85149";
+      h += "<tr><td style=font-size:11px>" + new Date(e.created_at_ms).toLocaleTimeString() + "</td>";
+      h += "<td>" + esc(e.stage) + "</td><td style=font-size:11px>" + esc(e.action || "") + " " + esc(e.method || "") + "</td>";
+      h += "<td>" + (e.status == null ? "-" : e.status) + "</td><td style=color:" + color + ">" + (e.ok === 1 ? "ok" : "FAIL") + "</td>";
+      h += "<td>" + (e.stages_done == null ? "-" : e.stages_done) + "/3</td><td style=font-size:11px;color:#f85149>" + esc(e.error || "") + "</td><td style=font-size:10px;color:#8b949e>" + esc(e.trace_id || "") + "</td></tr>";
+    });
+    h += "</table>";
+    box.innerHTML = h;
+  } catch(e) { box.textContent = "Error: " + e.message; }
 }
 
 async function sysRestart(svc) {

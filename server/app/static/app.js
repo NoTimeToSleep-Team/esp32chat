@@ -43,9 +43,20 @@ function show(el, cond) {if(cond===false)return;if(typeof el==='string')el=$(el)
 function hide(el, cond) {if(cond===false)return;if(typeof el==='string')el=$(el);el&&el.classList.add('hidden')}
 
 function toast(msg, type='info') {
-  const t = el('div',{class:`toast ${type}`},msg);
+  const t = el('div',{class:`toast ${type}`});
+  t.append(el('span',{},String(msg)));
+  const persistent = type === 'error';
+  if (persistent) {
+    const existing = document.querySelectorAll('.toast').length;
+    t.style.bottom = (24 + existing * 56) + 'px';
+    const ok = el('button',{style:'margin-left:12px;background:#30363d;color:#e6edf3;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:13px'},'OK');
+    ok.onclick = () => t.remove();
+    t.append(ok);
+    debugReport({stage:'toast', action:'ui-toast', ok:false, stages_done:3, error:String(msg), t3_ms:Date.now()});
+  } else {
+    setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},3000);
+  }
   document.body.append(t);
-  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},3000);
 }
 
 function fmtTime(ms){const d=new Date(ms);return d.toLocaleString()}
@@ -53,20 +64,49 @@ function fmtTimeShort(ms){const d=new Date(ms);const now=new Date();const same=d
   ?d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
   :d.toLocaleDateString([],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});return same}
 
+function debugReport(payload) {
+  try {
+    if (STATE && STATE.token) payload.session_token = STATE.token;
+    fetch('/debug/api/client-event', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+      keepalive: true
+    }).catch(function(){});
+  } catch(e) {}
+}
+window.lcDebugReport = debugReport;
+
+function newTraceId(prefix) {
+  return (prefix || 'tr') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
 async function api(url, opts={}) {
   const headers={'Content-Type':'application/json'};
   if (opts.sessionHeader) headers['X-Session-Token'] = STATE.token;
+  const traceId = newTraceId('tr');
+  headers['X-Debug-Trace'] = traceId;
   const controller = new AbortController();
   const timeoutMs = opts.timeoutMs || 10000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const t1 = Date.now();
   try {
     const r = await fetch(url, {...opts, headers, signal: controller.signal});
+    const t2 = Date.now();
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d?.detail?.message || d?.detail?.code || `HTTP ${r.status}`);
+    if (!r.ok) {
+      debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, status: r.status, stages_done: 2, error: (d?.detail?.message || d?.detail?.code || ('HTTP '+r.status)), t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+      throw new Error(d?.detail?.message || d?.detail?.code || `HTTP ${r.status}`);
+    }
+    debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
     return d;
   } catch(e) {
-    if (e.name === 'AbortError') throw new Error('Request timeout');
+    if (e.name === 'AbortError') {
+      debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, stages_done: 1, error: 'Request timeout', t1_ms: t1, t3_ms: Date.now()});
+      throw new Error('Request timeout');
+    }
     if (e.name!=='TypeError') throw e;
+    debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, stages_done: 1, error: 'Server unreachable', t1_ms: t1, t3_ms: Date.now()});
     throw new Error('Server unreachable');
   } finally {
     clearTimeout(timeoutId);
@@ -76,10 +116,26 @@ async function api(url, opts={}) {
 async function uploadAttachment(file) {
   const form = new FormData();
   form.append('file', file);
-  const r = await fetch(`/media/api/attachments?session_token=${encodeURIComponent(STATE.token)}`, {method:'POST', body:form});
-  const d = await r.json().catch(()=>({}));
-  if (!r.ok) throw new Error(d?.detail?.message || d?.detail?.code || `Upload failed (${r.status})`);
-  return d.attachment;
+  const traceId = newTraceId('up');
+  const t1 = Date.now();
+  try {
+    const r = await fetch(`/media/api/attachments?session_token=${encodeURIComponent(STATE.token)}`, {method:'POST', body:form, headers:{'X-Debug-Trace': traceId}});
+    const t2 = Date.now();
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) {
+      const msg = d?.detail?.message || d?.detail?.code || `Upload failed (${r.status})`;
+      debugReport({trace_id: traceId, action: '/media/api/attachments', method: 'POST', ok: false, status: r.status, stages_done: 2, error: msg, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+      throw new Error(msg);
+    }
+    debugReport({trace_id: traceId, action: '/media/api/attachments', method: 'POST', ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+    return d.attachment;
+  } catch(e) {
+    if (e.name === 'TypeError') {
+      debugReport({trace_id: traceId, action: '/media/api/attachments', method: 'POST', ok: false, stages_done: 1, error: 'Server unreachable', t1_ms: t1, t3_ms: Date.now()});
+      throw new Error('Server unreachable');
+    }
+    throw e;
+  }
 }
 
 function attachmentUrl(a) {

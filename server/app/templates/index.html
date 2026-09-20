@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="theme-color" content="#0d1117">
 <title>Local Chat</title>
-<link rel="stylesheet" href="/static/app.css?v=1784730006">
+<link rel="stylesheet" href="/static/app.css?v=1789900500">
 </head>
 <body>
 <div id="static-login" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0d1117;padding:20px">
@@ -54,7 +54,7 @@
   </noscript>
 </main>
 
-<script src="/static/app.js?v=1784730006"></script>
+<script src="/static/app.js?v=1789900500"></script>
 
 <script>
 var _st = localStorage.getItem("lc_session_token");
@@ -84,22 +84,42 @@ async function doStaticLogin() {
   var p = document.getElementById("sp").value.trim();
   var e = document.getElementById("serr");
   if (!l || !p) { e.textContent = "Enter login and password"; e.style.display = "block"; return; }
+  var tr = "login-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+  var t1 = Date.now();
   try {
-    var r = await fetch("/auth/login", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:l,password:p,client_kind:"web"})});
+    var r = await fetch("/auth/login", {method:"POST",headers:{"Content-Type":"application/json","X-Debug-Trace":tr},body:JSON.stringify({login:l,password:p,client_kind:"web"})});
+    var t2 = Date.now();
     var d = await r.json();
-    if (!r.ok) throw new Error(d.detail?.message||"HTTP "+r.status);
+    if (!r.ok) {
+      if (window.lcDebugReport) window.lcDebugReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, status:r.status, stages_done:2, error:(d.detail?.message||("HTTP "+r.status)), t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
+      throw new Error(d.detail?.message||"HTTP "+r.status);
+    }
+    if (window.lcDebugReport) window.lcDebugReport({trace_id:tr, action:"/auth/login", method:"POST", ok:true, status:r.status, stages_done:3, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
     onStaticLoginSuccess(d);
-  } catch(x) { e.textContent = x.message; e.style.display = "block"; }
+  } catch(x) {
+    if (x.name === "TypeError" && window.lcDebugReport) window.lcDebugReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
+    e.textContent = x.message; e.style.display = "block";
+  }
 }
 
 async function doStaticGuest() {
   var e = document.getElementById("serr");
+  var tr = "guest-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+  var t1 = Date.now();
   try {
-    var r = await fetch("/auth/guest", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_kind:"web"})});
+    var r = await fetch("/auth/guest", {method:"POST",headers:{"Content-Type":"application/json","X-Debug-Trace":tr},body:JSON.stringify({client_kind:"web"})});
+    var t2 = Date.now();
     var d = await r.json();
-    if (!r.ok) throw new Error(d.detail?.message||"HTTP "+r.status);
+    if (!r.ok) {
+      if (window.lcDebugReport) window.lcDebugReport({trace_id:tr, action:"/auth/guest", method:"POST", ok:false, status:r.status, stages_done:2, error:(d.detail?.message||("HTTP "+r.status)), t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
+      throw new Error(d.detail?.message||"HTTP "+r.status);
+    }
+    if (window.lcDebugReport) window.lcDebugReport({trace_id:tr, action:"/auth/guest", method:"POST", ok:true, status:r.status, stages_done:3, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
     onStaticLoginSuccess(d);
-  } catch(x) { if (e) { e.textContent = x.message; e.style.display = "block"; } }
+  } catch(x) {
+    if (x.name === "TypeError" && window.lcDebugReport) window.lcDebugReport({trace_id:tr, action:"/auth/guest", method:"POST", ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
+    if (e) { e.textContent = x.message; e.style.display = "block"; }
+  }
 }
 </script>
 </body>
