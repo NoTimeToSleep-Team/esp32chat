@@ -115,6 +115,8 @@ async function loadUsers() {
 }
 
 async function userAction(uid, action, role) {
+  var label = action === "setrole" ? ("Set role to " + role) : (action === "ban" ? "Ban" : "Unban");
+  if (!confirm(label + " user ID " + uid + "?")) return;
   msg("Working...");
   try {
     var body = { session_token: ST };
@@ -128,6 +130,7 @@ async function userAction(uid, action, role) {
 async function tblk(uid) {
   var dur = parseInt(document.getElementById("tbdur" + uid).value || 60);
   if (isNaN(dur) || dur < 1 || dur > 10080) { msg("1-10080 min"); return; }
+  if (!confirm("Temporarily block user ID " + uid + " for " + dur + " min?")) return;
   msg("Blocking...");
   try {
     await apiCall("/admin/users/" + uid + "/temporary-block", "POST", { session_token: ST, duration_minutes: dur });

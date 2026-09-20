@@ -296,10 +296,10 @@ async function renderChat() {
   const c = $('#content');
   c.innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Chat</div><div class="page-subtitle">Workspace messages</div></div>
+      <div><div class="page-title">${t('chat')}</div><div class="page-subtitle">${t('chat_subtitle')}</div></div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-sm btn-outline" id="dm-chat-btn">+ Личка</button>
-        <button class="btn btn-success btn-sm" id="create-chat-btn">+ New Chat</button>
+        <button class="btn btn-sm btn-outline" id="dm-chat-btn">+ ${t('dm')}</button>
+        <button class="btn btn-success btn-sm" id="create-chat-btn">+ ${t('new_chat')}</button>
       </div>
     </div>
     <div id="create-chat-modal" class="overlay hidden">
@@ -328,14 +328,14 @@ async function renderChat() {
       <div id="chat-messages">
         <div class="card" style="text-align:center;color:var(--text2);padding:40px">
           <div style="font-size:40px;margin-bottom:8px">💬</div>
-          <div>Select a chat to view messages</div>
+          <div>${t('select_chat')}</div>
         </div>
       </div>
     </div>`;
   try {
     const data = await api(`/chat/api/chats?session_token=${encodeURIComponent(STATE.token)}`);
     if (!data.items?.length) {
-      $('#chat-list').innerHTML = '<div class="empty"><div class="empty-text">No chats found</div></div>';
+      $('#chat-list').innerHTML = `<div class="empty"><div class="empty-text">${t('no_chats')}</div></div>`;
       return;
     }
     const list = el('div');
@@ -496,13 +496,13 @@ async function doLoadMessages(opts) {
         <div class="card-title" style="font-size:16px">${esc(currentChatTitle)}</div>
         <div id="msg-list" style="max-height:60vh;overflow-y:auto;margin-bottom:12px"></div>
         <div class="send-area">
-          <textarea id="msg-input" placeholder="Type a message..." rows="1"></textarea>
-          <button class="btn btn-primary btn-sm" id="send-btn">Send</button>
+          <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
+          <button class="btn btn-primary btn-sm" id="send-btn">${t('send')}</button>
         </div>
       </div>`;
     const list = $('#msg-list');
     if (msgs.length >= limit) {
-      const olderBtn = el('button',{class:'btn btn-sm btn-outline load-older',style:'width:100%;margin-bottom:8px'},'↑ Load older messages');
+      const olderBtn = el('button',{class:'btn btn-sm btn-outline load-older',style:'width:100%;margin-bottom:8px'},t('load_older'));
       olderBtn.onclick = () => doLoadMessages({older:true});
       list.append(olderBtn);
     }
@@ -526,7 +526,7 @@ async function sendMessage() {
   if (!text) return;
   input.value = '';
   const sendBtn = $('#send-btn');
-  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending...'; }
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = t('sending'); }
   try {
     await api(`/chat/api/chats/${currentChatId}/messages`, {
       method:'POST',
@@ -536,7 +536,7 @@ async function sendMessage() {
   } catch(e) {
     toast(e.message, 'error');
   } finally {
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = t('send'); }
   }
 }
 
@@ -638,7 +638,7 @@ async function renderAccount() {
   const c = $('#content');
   c.innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Account</div><div class="page-subtitle">Your profile</div></div>
+      <div><div class="page-title">${t('account')}</div><div class="page-subtitle">${t('account_subtitle')}</div></div>
     </div>
     <div id="account-card"><div class="loading"><div class="spinner"></div></div>
         </div>`;
@@ -656,21 +656,21 @@ async function renderAccount() {
         </div>
         
         <div class="form-group">
-          <label>Display Name</label>
+          <label>${t('display_name')}</label>
           <input class="form-input" id="acct-name" value="${esc(p.display_name||'')}">
         </div>
         <div class="form-group">
-          <label>Phone</label>
+          <label>${t('phone')}</label>
           <input class="form-input" id="acct-phone" value="${esc(p.phone||'')}">
         </div>
         <div class="form-group">
-          <label>Bio</label>
+          <label>${t('bio')}</label>
           <textarea class="form-input" id="acct-bio" rows="3">${esc(p.profile_bio||'')}</textarea>
         </div>
-        <button class="btn btn-success" id="acct-save">Save Changes</button>
+        <button class="btn btn-success" id="acct-save">${t('save_changes')}</button>
         <div class="card" style="margin-top:12px;text-align:center">
           <div style="font-size:36px;margin-bottom:4px" id="my-emoji-display"></div>
-          <div style="color:#8b949e;font-size:11px;margin-bottom:6px">Avatar emoji</div>
+          <div style="color:#8b949e;font-size:11px;margin-bottom:6px">${t('avatar_emoji')}</div>
           <div id="emoji-grid" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;max-width:280px;margin:0 auto"></div>
         </div>
         
@@ -726,7 +726,7 @@ async function renderBlog() {
   const c = $('#content');
   c.innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Blog</div><div class="page-subtitle">Latest posts</div></div>
+      <div><div class="page-title">${t('blog')}</div><div class="page-subtitle">${t('blog_subtitle')}</div></div>
     </div>
     <div id="blog-list"><div class="loading"><div class="spinner"></div></div></div>`;
   try {
@@ -734,7 +734,7 @@ async function renderBlog() {
     const list = $('#blog-list');
     list.innerHTML = '';
     if (!data.items?.length) {
-      list.innerHTML = '<div class="empty"><div class="empty-text">No posts yet</div></div>';
+      list.innerHTML = `<div class="empty"><div class="empty-text">${t('no_posts')}</div></div>`;
       return;
     }
     data.items.forEach(post => {
@@ -787,29 +787,29 @@ async function renderSupport() {
   const c = $('#content');
   c.innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Support</div><div class="page-subtitle">Help desk tickets</div></div>
-      <button class="btn btn-success btn-sm" id="new-ticket-btn" style="${STATE.user?.role === 'guest' ? 'display:none' : ''}">+ New Ticket</button>
+      <div><div class="page-title">${t('support')}</div><div class="page-subtitle">${t('support_subtitle')}</div></div>
+      <button class="btn btn-success btn-sm" id="new-ticket-btn" style="${STATE.user?.role === 'guest' ? 'display:none' : ''}">+ ${t('new_ticket')}</button>
     </div>
     <div id="new-ticket-modal" class="overlay hidden">
       <div class="modal">
         <h3>New Ticket</h3>
-        <div class="form-group"><label>Type</label>
+        <div class="form-group"><label>${t('type_label')}</label>
           <select class="form-input" id="ticket-kind">
-            <option value="support">Support request</option>
-            <option value="report">Report a user</option>
+            <option value="support">${t('support_kind')}</option>
+            <option value="report">${t('report_kind')}</option>
           </select>
         </div>
         <div class="form-group" id="report-user-group" style="display:none">
-          <label>User to report</label>
-          <input class="form-input" id="report-user-search" placeholder="Search by login...">
+          <label>${t('report_user_label')}</label>
+          <input class="form-input" id="report-user-search" placeholder="${t('search_user')}">
           <div id="report-user-results" style="max-height:140px;overflow-y:auto;margin-top:6px"></div>
         </div>
-        <div class="form-group"><label>Title</label><input class="form-input" id="ticket-title"></div>
-        <div class="form-group"><label>Description</label><textarea class="form-input" id="ticket-body" rows="4"></textarea></div>
-        <div class="form-group"><label>Attachments</label><input class="form-input" id="ticket-file" type="file" multiple></div>
+        <div class="form-group"><label>${t('title')}</label><input class="form-input" id="ticket-title"></div>
+        <div class="form-group"><label>${t('description')}</label><textarea class="form-input" id="ticket-body" rows="4"></textarea></div>
+        <div class="form-group"><label>${t('attachments')}</label><input class="form-input" id="ticket-file" type="file" multiple></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
-          <button class="btn btn-outline" id="ticket-cancel">Cancel</button>
-          <button class="btn btn-primary" id="ticket-submit">Submit</button>
+          <button class="btn btn-outline" id="ticket-cancel">${t('cancel')}</button>
+          <button class="btn btn-primary" id="ticket-submit">${t('submit')}</button>
         </div>
       </div>
     </div>
@@ -818,7 +818,7 @@ async function renderSupport() {
       <div id="ticket-detail">
         <div class="card" style="text-align:center;color:var(--text2);padding:40px">
           <div style="font-size:40px;margin-bottom:8px">🎫</div>
-          <div>Select a ticket to view</div>
+          <div>${t('select_ticket')}</div>
         </div>
       </div>
     </div>`;
@@ -841,7 +841,7 @@ async function renderSupport() {
       });
       if (data.items.length && list.firstChild) list.firstChild.click();
     } else {
-      list.innerHTML = '<div class="empty"><div class="empty-text">No tickets</div></div>';
+      list.innerHTML = `<div class="empty"><div class="empty-text">${t('no_tickets')}</div></div>`;
     }
   } catch(e) {
     $('#ticket-list').innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
@@ -915,7 +915,7 @@ async function renderSupport() {
     if (!title || !body) { toast('Fill in title and message', 'error'); return; }
     if (kindValue === 'report' && !reportTarget.user_id) { toast('Select the user to report', 'error'); return; }
     const submitBtn = $('#ticket-submit');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = t('sending'); }
     try {
       const attachmentIds = [];
       for (const file of files) { const a = await uploadAttachment(file); attachmentIds.push(a.attachment_id); }
@@ -933,7 +933,7 @@ async function renderSupport() {
       reportTarget.user_id = null;
       renderSupport();
     } catch(e) { toast(e.message, 'error'); }
-    finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; } }
+    finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t('submit'); } }
   };
 }
 
@@ -949,7 +949,7 @@ async function loadTicketDetail(ticketId, title, itemEl) {
     container.innerHTML = `
       <div class="card" style="padding:16px">
         <div class="card-title" style="font-size:16px">${esc(title)}</div>
-        <div style="margin-bottom:12px"><button class="btn btn-sm btn-outline" id="close-ticket-btn">Close Ticket</button></div>
+        <div style="margin-bottom:12px"><button class="btn btn-sm btn-outline" id="close-ticket-btn">${t('close_ticket')}</button></div>
         <div style="max-height:40vh;overflow-y:auto;margin-bottom:12px">
           ${msgs.length ? msgs.map(m => `
             <div class="msg" style="margin-bottom:8px">
@@ -962,7 +962,7 @@ async function loadTicketDetail(ticketId, title, itemEl) {
                   <div class="msg-text">${esc(m.body_text || '')}</div>
                 ${renderAttachments(m.attachments)}
               </div>
-            </div>`).join('') : '<div style="color:var(--text2);text-align:center;padding:16px">No messages</div>'}
+            </div>`).join('') : `<div style="color:var(--text2);text-align:center;padding:16px">${t('no_messages')}</div>`}
         </div>
         <div class="send-area">
           <textarea id="support-input" placeholder="Reply..." rows="1"></textarea>
@@ -1155,6 +1155,7 @@ async function renderAdminUsers() {
         if (action === 'tempblock') {
           const inp = btn.previousElementSibling; const dur = parseInt(inp?.value || '60');
           if (isNaN(dur) || dur < 1 || dur > 10080) { toast('Invalid duration (1-10080)', 'error'); return; }
+          if (!confirm(`Temporarily block user ID ${uid} for ${dur} min?`)) return;
           try {
             await api(`/admin/users/${uid}/temporary-block`, {
               method:'POST',
@@ -1188,6 +1189,8 @@ async function renderAdminUsers() {
           } catch(e) { toast(e.message, 'error'); }
           return;
         }
+        if (action === 'ban' && !confirm(`Ban user ID ${uid}?`)) return;
+        if (action === 'unban' && !confirm(`Unban user ID ${uid}?`)) return;
         try {
           await api(`/admin/users/${uid}/${action}`, {
             method:'POST',
@@ -1501,7 +1504,7 @@ async function handleRoute() {
     switch(hash.split('?')[0]) {
       case '#/login': await renderLogin(); break;
       case '#/chat': await renderChat(); break;
-      case '#/devices': await renderDevices(); break;
+      case '#/devices': window.location.hash = '#/chat'; break; // Devices direction paused; renderDevices kept for later
       case '#/account': await renderAccount(); break;
       case '#/blog': await renderBlog(); break;
       case '#/support': await renderSupport(); break;
@@ -1709,6 +1712,26 @@ var T = {
 "sign_in_portal":{rus:"Войдите для доступа",eng:"Sign in to access internet"},
 "enter_login":{rus:"Введите логин",eng:"Enter login"},
 "lang_label":{rus:"🇷🇺 RUS",eng:"🇬🇧 ENG"},"enter_pass":{rus:"Введите пароль",eng:"Enter password"},
+"chat_subtitle":{rus:"Сообщения",eng:"Workspace messages"},
+"support_subtitle":{rus:"Тикеты помощи",eng:"Help desk tickets"},
+"account_subtitle":{rus:"Ваш профиль",eng:"Your profile"},
+"blog_subtitle":{rus:"Последние посты",eng:"Latest posts"},
+"load_older":{rus:"↑ Загрузить старые",eng:"↑ Load older messages"},
+"new_ticket":{rus:"Новый тикет",eng:"New Ticket"},
+"submit":{rus:"Отправить",eng:"Submit"},
+"save_changes":{rus:"Сохранить изменения",eng:"Save Changes"},
+"no_tickets":{rus:"Нет тикетов",eng:"No tickets"},
+"no_messages":{rus:"Нет сообщений",eng:"No messages"},
+"no_posts":{rus:"Пока нет постов",eng:"No posts yet"},
+"type_label":{rus:"Тип",eng:"Type"},
+"support_kind":{rus:"Запрос в поддержку",eng:"Support request"},
+"report_kind":{rus:"Жалоба на пользователя",eng:"Report a user"},
+"report_user_label":{rus:"На кого жалоба",eng:"User to report"},
+"attachments":{rus:"Вложения",eng:"Attachments"},
+"close_ticket":{rus:"Закрыть тикет",eng:"Close Ticket"},
+"sending":{rus:"Отправка...",eng:"Sending..."},
+"access_application":{rus:"Заявка на доступ",eng:"Access Application"},
+"select_ticket":{rus:"Выберите тикет для просмотра",eng:"Select a ticket to view"},
 };
 function t(key) { var e = T[key]; return e ? (e[LANG] || e["rus"] || key) : key; }
 
@@ -1785,6 +1808,7 @@ function switchLang() {
   LANG = LANG === 'eng' ? 'rus' : 'eng';
   localStorage.setItem('lc_lang', LANG);
   applyLang();
+  if (typeof handleRoute === 'function') { handleRoute(); }
 }
 document.addEventListener('click', function(e) {
   var t = e.target;
