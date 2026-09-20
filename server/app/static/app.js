@@ -1086,6 +1086,16 @@ async function renderAdmin() {
     t.classList.add('active');
     ['users','support','blog','mode','cleanup','passwords','system','activity','reports'].forEach(id => hide('#admin-' + id));
     show('#admin-' + t.dataset.tab);
+    const tab = t.dataset.tab;
+    if (tab === 'users') renderAdminUsers();
+    else if (tab === 'support') renderAdminSupport();
+    else if (tab === 'blog') renderAdminBlog();
+    else if (tab === 'mode') renderAdminMode();
+    else if (tab === 'cleanup') renderAdminCleanup();
+    else if (tab === 'passwords') renderAdminPasswords();
+    else if (tab === 'system') renderAdminSystem();
+    else if (tab === 'activity') renderAdminActivity();
+    else if (tab === 'reports') renderAdminReports();
   });
   await renderAdminUsers();
   await renderAdminSupport();
