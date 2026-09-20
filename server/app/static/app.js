@@ -170,13 +170,40 @@ function renderAttachments(items) {
     const name = esc(a.filename || `attachment-${a.attachment_id}`);
     const mime = String(a.mime_type || '');
     if ((a.media_kind === 'image' || mime.startsWith('image/'))) {
-      return `<a class="attachment image" href="${safeUrl(url)}" target="_blank" rel="noopener"><img src="${safeUrl(url)}" alt="${name}" loading="lazy"><span>${name}</span></a>`;
+      return `<a class="attachment image" href="${safeUrl(url)}" data-name="${name}" onclick="openImageLightbox(this.href, this.dataset.name);return false"><img src="${safeUrl(url)}" alt="${name}" loading="lazy"><span>${name}</span></a>`;
     }
     if (a.media_kind === 'audio' || mime.startsWith('audio/')) {
       return `<div class="attachment audio"><div>${name}</div><audio controls preload="none" src="${safeUrl(url)}"></audio></div>`;
     }
     return `<a class="attachment file" href="${safeUrl(url)}" target="_blank" rel="noopener">📎 ${name}</a>`;
   }).join('')}</div>`;
+}
+
+function openImageLightbox(url, name) {
+  let box = document.getElementById('img-lightbox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'img-lightbox';
+    box.className = 'img-lightbox';
+    box.innerHTML = '<button class="img-lightbox-close" title="Close">✕</button><img alt=""><div class="img-lightbox-name"></div>';
+    box.onclick = function(e) {
+      if (e.target === box || e.target.classList.contains('img-lightbox-close')) closeImageLightbox();
+    };
+    document.body.appendChild(box);
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeImageLightbox(); });
+  }
+  const img = box.querySelector('img');
+  img.src = url;
+  box.querySelector('.img-lightbox-name').textContent = name || '';
+  box.classList.add('open');
+}
+
+function closeImageLightbox() {
+  const box = document.getElementById('img-lightbox');
+  if (!box) return;
+  box.classList.remove('open');
+  const img = box.querySelector('img');
+  if (img) img.removeAttribute('src');
 }
 
 async function currentMode() {
@@ -500,6 +527,19 @@ function fmtBytes(n) {
   return (n / 1048576).toFixed(1) + ' MB';
 }
 
+function fileChipsHtml(files) {
+  return files.map((f, i) =>
+    `<span class="attach-chip"><span class="attach-name">📎 ${esc(f.name)}</span><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`
+  ).join('');
+}
+
+function wireFileChips(box, files, onRemove) {
+  if (!box) return;
+  box.querySelectorAll('.attach-remove').forEach(b => {
+    b.onclick = () => { onRemove(Number(b.dataset.i)); };
+  });
+}
+
 function addPendingFiles(list) {
   const files = Array.from(list || []);
   for (const f of files) {
@@ -515,12 +555,8 @@ function renderAttachPreview() {
   const box = $('#attach-preview');
   if (!box) return;
   if (!pendingFiles.length) { box.innerHTML = ''; return; }
-  box.innerHTML = pendingFiles.map((f, i) =>
-    `<span class="attach-chip"><span class="attach-name">📎 ${esc(f.name)}</span><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`
-  ).join('');
-  box.querySelectorAll('.attach-remove').forEach(b => {
-    b.onclick = () => { pendingFiles.splice(Number(b.dataset.i), 1); renderAttachPreview(); };
-  });
+  box.innerHTML = fileChipsHtml(pendingFiles);
+  wireFileChips(box, pendingFiles, (i) => { pendingFiles.splice(i, 1); renderAttachPreview(); });
 }
 
 async function loadChatMessages(chatId, title, itemEl) {
@@ -864,7 +900,8 @@ async function renderBlog() {
       div.innerHTML = `
         <h3>${esc(post.title)}</h3>
         <div class="blog-meta">By User #${post.author_user_id} · ${fmtTime(post.published_at_ms)}</div>
-        <div class="blog-body">${esc(post.body_text)}</div>`;
+        <div class="blog-body">${esc(post.body_text)}</div>
+        ${renderAttachments(post.attachments)}`;
       list.append(div);
     });
   } catch(e) {
@@ -938,7 +975,7 @@ async function renderSupport() {
     const list = $('#ticket-list');
     list.innerHTML = '';
     if (data.items?.length) {
-      const _admIsMe = function(m) { return m.author_user_id === STATE.user?.id; };
+    const _admIsMe = function(m) { return m.author_user_id === STATE.user?.id; };
     data.items.forEach(t => {
         const item = el('div',{class:'ticket-item'});
         item.innerHTML = `
@@ -1125,6 +1162,7 @@ async function renderAdminReports() {
         </div>
         <div style="margin:4px 0"><span class="report-reason-badge">${esc(reportReasonLabel(r.reason))}</span> <span style="font-size:11px;color:var(--text2)">${fmtTime(r.created_at_ms)}${r.target_reports_count > 1 ? ' · ' + t('reports_against') + ': ' + r.target_reports_count : ''}</span></div>
         ${r.comment ? `<div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">${esc(r.comment)}</div>` : ''}
+        ${(r.attachments||[]).length ? renderAttachments(r.attachments) : ''}
         ${r.status === 'pending' ? `<div style="margin-top:6px">
             <button class="btn btn-sm btn-danger" data-urep="${r.id}" data-uraction="ban">Ban</button>
             <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="warn">Warn (${r.target_warn_count||0}/3)</button>
@@ -1336,6 +1374,7 @@ async function renderAdminSupport() {
     container.innerHTML = `<div class="admin-card"><h3>Support Tickets (${data.count||0})</h3></div>`;
     if (!data.items?.length) { container.innerHTML += '<div class="empty"><div class="empty-text">No tickets</div></div>'; return; }
     const _admIsMe = function(m) { return m.author_user_id === STATE.user?.id; };
+    const _attachTitle = t('attach');
     data.items.forEach(t => {
       const card = el('div',{class:'ticket-item',style:'margin-bottom:8px'});
       card.innerHTML = `
@@ -1346,6 +1385,8 @@ async function renderAdminSupport() {
         <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? '🚩 report · ' : ''}User #${t.user_id} · ${fmtTime(t.created_at_ms)}</div>
         <div id="admin-ticket-${t.ticket_id}-msgs" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px"></div>
         <div id="admin-ticket-${t.ticket_id}-reply" style="display:none;margin-top:8px" class="send-area">
+          <input id="admin-ticket-${t.ticket_id}-file" type="file" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">
+          <button class="btn btn-sm btn-outline att-btn" data-tid="${t.ticket_id}" title="${_attachTitle}">📎</button>
           <textarea id="admin-ticket-${t.ticket_id}-input" placeholder="Reply as admin..." rows="1"></textarea>
           <button class="btn btn-primary btn-sm" data-tid="${t.ticket_id}">Send</button>
         </div>`;
@@ -1379,16 +1420,25 @@ async function renderAdminSupport() {
         e.stopPropagation();
         const tid = btn.dataset.tid;
         if (btn.classList.contains("aus")) return;
+        if (btn.classList.contains("att-btn")) { const fi = $(`#admin-ticket-${tid}-file`); if (fi) fi.click(); return; }
         const inp = $(`#admin-ticket-${tid}-input`);
-        if (!inp?.value.trim()) { toast("Reply cannot be empty", "error"); return; }
-        const text = inp.value.trim(); inp.value = '';
+        const files = Array.from($(`#admin-ticket-${tid}-file`)?.files || []);
+        const text = (inp?.value || '').trim();
+        if (!text && !files.length) { toast("Reply cannot be empty", "error"); return; }
+        btn.disabled = true;
         try {
+          const ids = [];
+          for (const f of files) { const a = await uploadAttachment(f); ids.push(a.attachment_id); }
           await api(`/admin/content/support/tickets/${tid}/reply`, {
             method:'POST',
-            body:JSON.stringify({session_token:STATE.token, body_text:text})
+            body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:ids})
           });
           toast('Reply sent', 'success');
+          if (inp) inp.value = '';
+          const msgsDiv = $(`#admin-ticket-${tid}-msgs`);
+          if (msgsDiv) msgsDiv.innerHTML = '';
         } catch(e) { toast(e.message, 'error'); }
+        finally { btn.disabled = false; }
       };
     });
   } catch(e) {
@@ -1400,6 +1450,7 @@ async function renderAdminSupport() {
 async function renderAdminBlog() {
   const container = $('#admin-blog');
   container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  let blogFiles = [];
   try {
     const data = await api(`/admin/content/blog/posts?session_token=${encodeURIComponent(STATE.token)}`);
     container.innerHTML = `
@@ -1407,29 +1458,55 @@ async function renderAdminBlog() {
         <h3>Publish Post</h3>
         <div class="form-group"><label>Title</label><input class="form-input" id="blog-post-title"></div>
         <div class="form-group"><label>Body</label><textarea class="form-input" id="blog-post-body" rows="6"></textarea></div>
+        <div class="form-group"><label>${t('attachments')}</label>
+          <input id="blog-post-file" type="file" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">
+          <button type="button" class="btn btn-sm btn-outline" id="blog-post-attach">📎 ${t('attach')}</button>
+          <div id="blog-post-preview" class="attach-preview" style="margin-top:8px"></div>
+        </div>
         <button class="btn btn-success" id="blog-post-publish">Publish</button>
       </div>
       <div class="admin-card"><h3>Published Posts (${data.count||0})</h3></div>`;
+    const blogPreview = $('#blog-post-preview');
+    function renderBlogChips() {
+      blogPreview.innerHTML = blogFiles.length ? fileChipsHtml(blogFiles) : '';
+      wireFileChips(blogPreview, blogFiles, (i) => { blogFiles.splice(i, 1); renderBlogChips(); });
+    }
+    $('#blog-post-attach').onclick = () => $('#blog-post-file').click();
+    $('#blog-post-file').onchange = function() {
+      for (const f of Array.from(this.files || [])) {
+        if (blogFiles.length >= MAX_ATTACH_FILES) { toast(t('too_many_files'), 'error'); break; }
+        if (f.size > MAX_UPLOAD_MB * 1024 * 1024) { toast(`${f.name}: ${t('file_too_large')} (${MAX_UPLOAD_MB} MB)`, 'error'); continue; }
+        blogFiles.push(f);
+      }
+      this.value = '';
+      renderBlogChips();
+    };
     $('#blog-post-publish').onclick = async () => { 
       const title = $('#blog-post-title').value.trim();
       const body = $('#blog-post-body').value.trim();
       if (!title || !body) { toast('Fill in all fields', 'error'); return; }
+      const btn = $('#blog-post-publish');
+      btn.disabled = true;
+      if (blogFiles.length) btn.textContent = t('uploading');
       try {
+        const ids = [];
+        for (const f of blogFiles) { const a = await uploadAttachment(f); ids.push(a.attachment_id); }
         await api('/admin/content/blog/posts', {
           method:'POST',
-          body:JSON.stringify({session_token:STATE.token, title, body_text:body})
+          body:JSON.stringify({session_token:STATE.token, title, body_text:body, attachment_ids:ids})
         });
         toast('Post published', 'success');
         $('#blog-post-title').value=''; $('#blog-post-body').value='';
         renderAdminBlog();
-      } catch(e) { toast(e.message, 'error'); }
+      } catch(e) { toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Publish'; }
     };
     if (data.items?.length) {
       data.items.forEach(post => {
         const div = el('div',{class:'blog-card',style:'margin-bottom:8px'});
         div.innerHTML = `<h3>${esc(post.title)}</h3>
           <div class="blog-meta">Published ${fmtTime(post.published_at_ms)}</div>
-          <div class="blog-body">${esc(post.body_text)}</div>`;
+          <div class="blog-body">${esc(post.body_text)}</div>
+          ${renderAttachments(post.attachments)}`;
         container.append(div);
       });
     } else {
@@ -1890,6 +1967,7 @@ var T = {
 "no_messages":{rus:"Сообщений нет",eng:"No messages"},
 "reports_against":{rus:"жалоб на него",eng:"reports against"},
 "attachments":{rus:"Вложения",eng:"Attachments"},
+"optional":{rus:"необязательно",eng:"optional"},
 "attach":{rus:"Прикрепить файл",eng:"Attach file"},
 "uploading":{rus:"Загрузка...",eng:"Uploading..."},
 "too_many_files":{rus:"Максимум 8 файлов на сообщение",eng:"Up to 8 files per message"},
@@ -1985,6 +2063,11 @@ function openReportModal(uid, name, emoji) {
       <div class="form-group"><label>${t('report_comment_label')}</label>
         <textarea class="form-input" id="report-comment" rows="3" maxlength="1000" placeholder="${t('report_comment_ph')}"></textarea>
       </div>
+      <div class="form-group"><label>${t('attachments')} (${t('optional')})</label>
+        <input id="report-file" type="file" multiple style="display:none" accept="image/*,.pdf,.txt,.zip">
+        <button type="button" class="btn btn-sm btn-outline" id="report-attach">📎 ${t('attach')}</button>
+        <div id="report-preview" class="attach-preview" style="margin-top:8px"></div>
+      </div>
       <div id="report-error" class="login-error"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-outline" id="report-cancel">${t('cancel')}</button>
@@ -2009,15 +2092,39 @@ function openReportModal(uid, name, emoji) {
     reasonsBox.appendChild(b);
   });
   document.getElementById('report-cancel').onclick = function() { overlay.remove(); };
+  var reportFiles = [];
+  var reportPreview = document.getElementById('report-preview');
+  var reportFileInput = document.getElementById('report-file');
+  function renderReportChips() {
+    if (!reportPreview) return;
+    reportPreview.innerHTML = reportFiles.length ? fileChipsHtml(reportFiles) : '';
+    wireFileChips(reportPreview, reportFiles, function(i) { reportFiles.splice(i, 1); renderReportChips(); });
+  }
+  document.getElementById('report-attach').onclick = function() { reportFileInput.click(); };
+  reportFileInput.onchange = function() {
+    for (const f of Array.from(reportFileInput.files || [])) {
+      if (reportFiles.length >= MAX_ATTACH_FILES) { toast(t('too_many_files'), 'error'); break; }
+      if (f.size > MAX_UPLOAD_MB * 1024 * 1024) { toast(`${f.name}: ${t('file_too_large')} (${MAX_UPLOAD_MB} MB)`, 'error'); continue; }
+      reportFiles.push(f);
+    }
+    reportFileInput.value = '';
+    renderReportChips();
+  };
   document.getElementById('report-send').onclick = async function() {
     var btn = document.getElementById('report-send');
     var errBox = document.getElementById('report-error');
     errBox.textContent = ''; errBox.style.display = 'none';
-    btn.disabled = true; btn.textContent = t('sending');
+    btn.disabled = true; btn.textContent = reportFiles.length ? t('uploading') : t('sending');
     try {
+      var ids = [];
+      for (const f of reportFiles) {
+        const a = await uploadAttachment(f);
+        ids.push(a.attachment_id);
+      }
       await api('/reports/api/create', {method:'POST', body:JSON.stringify({
         session_token: STATE.token, target_user_id: uid, reason: selected,
         comment: document.getElementById('report-comment').value.trim(),
+        attachment_ids: ids,
       })});
       var card = overlay.querySelector('.modal');
       card.innerHTML = `

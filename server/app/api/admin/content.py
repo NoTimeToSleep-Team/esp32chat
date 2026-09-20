@@ -35,7 +35,8 @@ class UpdateApplicationStatusRequest(BaseModel):
 
 class SendSupportReplyRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
-    body_text: str = Field(min_length=1, max_length=8000)
+    body_text: str = Field(default="", max_length=8000)
+    attachment_ids: list[int] = Field(default_factory=list, max_length=8)
 
 
 class UpdateSupportStatusRequest(BaseModel):
@@ -47,6 +48,7 @@ class PublishAdminBlogPostRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     title: str = Field(min_length=1, max_length=256)
     body_text: str = Field(min_length=1, max_length=12000)
+    attachment_ids: list[int] = Field(default_factory=list, max_length=8)
 
 
 def _template_path() -> Path:
@@ -70,7 +72,7 @@ def _support_service(request: Request) -> SupportService:
 
 def _blog_service(request: Request) -> BlogService:
     data_layer = request.app.state.data_layer
-    return BlogService(db_path=data_layer.database_path)
+    return BlogService(db_path=data_layer.database_path, storage_root=data_layer.storage_root)
 
 
 def _resolve_admin_user_id(request: Request, session_token: str) -> int:
@@ -135,6 +137,17 @@ def _support_message_payload(message: SupportMessage) -> dict[str, object]:
         "author_user_id": message.author_user_id,
         "body_text": message.body_text,
         "created_at_ms": message.created_at_ms,
+        "attachments": [
+            {
+                "attachment_id": item.attachment_id,
+                "filename": item.original_filename,
+                "mime_type": item.mime_type,
+                "media_kind": item.media_kind.value,
+                "size_bytes": item.size_bytes,
+                "download_url": f"/media/api/attachments/{item.attachment_id}/download",
+            }
+            for item in getattr(message, "attachments", ())
+        ],
     }
 
 
@@ -146,6 +159,17 @@ def _blog_post_payload(post: BlogPost) -> dict[str, object]:
         "author_user_id": post.author_user_id,
         "published_at_ms": post.published_at_ms,
         "updated_at_ms": post.updated_at_ms,
+        "attachments": [
+            {
+                "attachment_id": item.attachment_id,
+                "filename": item.original_filename,
+                "mime_type": item.mime_type,
+                "media_kind": item.media_kind.value,
+                "size_bytes": item.size_bytes,
+                "download_url": f"/media/api/attachments/{item.attachment_id}/download",
+            }
+            for item in post.attachments
+        ],
     }
 
 
@@ -270,7 +294,10 @@ async def reply_admin_support_ticket(
         message = service.send_message(
             ticket_id=ticket_id,
             author_user_id=admin_user_id,
-            draft=SupportMessageDraft(body_text=payload.body_text),
+            draft=SupportMessageDraft(
+                body_text=payload.body_text,
+                attachment_ids=tuple(payload.attachment_ids),
+            ),
         )
     except (SupportError, ValueError) as exc:
         if isinstance(exc, SupportError):
@@ -334,7 +361,11 @@ async def publish_admin_blog_post(
     try:
         post = service.publish_post(
             author_user_id=admin_user_id,
-            draft=BlogPostDraft(title=payload.title, body_text=payload.body_text),
+            draft=BlogPostDraft(
+                title=payload.title,
+                body_text=payload.body_text,
+                attachment_ids=tuple(payload.attachment_ids),
+            ),
         )
     except (BlogError, ValueError) as exc:
         if isinstance(exc, BlogError):

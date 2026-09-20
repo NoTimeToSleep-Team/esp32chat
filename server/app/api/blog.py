@@ -18,6 +18,7 @@ class PublishPostRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     title: str = Field(min_length=1, max_length=256)
     body_text: str = Field(min_length=1, max_length=12000)
+    attachment_ids: list[int] = Field(default_factory=list, max_length=8)
 
 
 def _template_path() -> Path:
@@ -31,7 +32,7 @@ def _auth_service(request: Request) -> AuthService:
 
 def _blog_service(request: Request) -> BlogService:
     data_layer = request.app.state.data_layer
-    return BlogService(db_path=data_layer.database_path)
+    return BlogService(db_path=data_layer.database_path, storage_root=data_layer.storage_root)
 
 
 def _resolve_user_id(request: Request, session_token: str) -> int:
@@ -66,6 +67,17 @@ def _post_payload(post: BlogPost) -> dict[str, object]:
         "author_user_id": post.author_user_id,
         "published_at_ms": post.published_at_ms,
         "updated_at_ms": post.updated_at_ms,
+        "attachments": [
+            {
+                "attachment_id": item.attachment_id,
+                "filename": item.original_filename,
+                "mime_type": item.mime_type,
+                "media_kind": item.media_kind.value,
+                "size_bytes": item.size_bytes,
+                "download_url": f"/media/api/attachments/{item.attachment_id}/download",
+            }
+            for item in post.attachments
+        ],
     }
 
 
@@ -136,7 +148,11 @@ async def publish_blog_post(request: Request, payload: PublishPostRequest) -> di
     try:
         post = service.publish_post(
             author_user_id=user_id,
-            draft=BlogPostDraft(title=payload.title, body_text=payload.body_text),
+            draft=BlogPostDraft(
+                title=payload.title,
+                body_text=payload.body_text,
+                attachment_ids=tuple(payload.attachment_ids),
+            ),
         )
     except (BlogError, ValueError) as exc:
         if isinstance(exc, BlogError):

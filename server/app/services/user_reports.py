@@ -4,6 +4,8 @@ import sqlite3
 from pathlib import Path
 from time import time
 
+from app.services.media import MAX_ATTACHMENTS_PER_MESSAGE
+
 ALLOWED_REASONS = ("spam", "abuse", "profanity", "ads", "scam", "other")
 MAX_COMMENT_LENGTH = 1000
 MAX_WARNS = 3
@@ -44,6 +46,7 @@ class UserReportsService:
         target_user_id: int,
         reason: str,
         comment: str,
+        attachment_ids: tuple[int, ...] = (),
     ) -> dict:
         reason = (reason or "").strip().lower()
         if reason not in ALLOWED_REASONS:
@@ -56,6 +59,7 @@ class UserReportsService:
         target_user_id = int(target_user_id)
         if target_user_id == int(reporter_user_id):
             raise UserReportsError("self_report", "You cannot report yourself", 422)
+        ids = self._normalize_attachment_ids(attachment_ids)
 
         connection = self._connect()
         try:
@@ -78,6 +82,21 @@ class UserReportsService:
                     "You have already reported this user; the report is under review",
                     409,
                 )
+            for attachment_id in ids:
+                attachment = connection.execute(
+                    "SELECT owner_user_id FROM media_attachments WHERE id = ?",
+                    (attachment_id,),
+                ).fetchone()
+                if attachment is None:
+                    raise UserReportsError(
+                        "attachment_not_found", "Attachment not found", 404
+                    )
+                if int(attachment["owner_user_id"]) != int(reporter_user_id):
+                    raise UserReportsError(
+                        "forbidden_attachment",
+                        "Cannot attach a file owned by another user",
+                        403,
+                    )
             cursor = connection.execute(
                 """
                 INSERT INTO user_reports (
@@ -96,6 +115,14 @@ class UserReportsService:
                 ),
             )
             report_id = int(cursor.lastrowid)
+            for position, attachment_id in enumerate(ids):
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO report_attachments(report_id, attachment_id, position)
+                    VALUES (?, ?, ?)
+                    """,
+                    (report_id, attachment_id, position),
+                )
             connection.commit()
         finally:
             connection.close()
@@ -162,6 +189,15 @@ class UserReportsService:
         if resolved is None:
             raise UserReportsError("report_not_found", "Report not found", 404)
         return resolved
+
+    @staticmethod
+    def _normalize_attachment_ids(attachment_ids: tuple[int, ...]) -> tuple[int, ...]:
+        ids = tuple(dict.fromkeys(int(value) for value in attachment_ids if int(value) > 0))
+        if len(ids) > MAX_ATTACHMENTS_PER_MESSAGE:
+            raise UserReportsError(
+                "too_many_attachments", "Too many attachments for one report", 422
+            )
+        return ids
 
     # ----- warnings -----
 

@@ -39,6 +39,44 @@ window.onerror = function(m,u,l) {
 
 function msg(t) { var m = document.getElementById("msg"); m.innerHTML = t || ""; setTimeout(function() { m.innerHTML = ""; }, 5000); }
 function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+function attachmentUrl(a) {
+  var base = a.download_url || ("/media/api/attachments/" + a.attachment_id + "/download");
+  return base + (base.indexOf("?") >= 0 ? "&" : "?") + "session_token=" + encodeURIComponent(ST);
+}
+function attachmentsHtml(items) {
+  if (!items || !items.length) return "";
+  var h = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">';
+  items.forEach(function(a) {
+    var url = attachmentUrl(a);
+    var name = esc(a.filename || ("attachment-" + a.attachment_id));
+    if (a.media_kind === "image") {
+      h += '<img src="' + url + '" alt="' + name + '" title="' + name + '" style="max-width:140px;max-height:120px;border-radius:6px;border:1px solid #30363d;cursor:zoom-in" onclick="openImg(this.src)">';
+    } else {
+      h += '<a href="' + url + '" target="_blank" rel="noopener" style="color:#58a6ff;font-size:12px;border:1px solid #30363d;border-radius:6px;padding:4px 8px;text-decoration:none">\ud83d\udcce ' + name + "</a>";
+    }
+  });
+  return h + "</div>";
+}
+function openImg(src) {
+  var o = document.getElementById("img-overlay");
+  if (!o) {
+    o = document.createElement("div");
+    o.id = "img-overlay";
+    o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out";
+    o.onclick = function() { o.remove(); };
+    o.innerHTML = '<img style="max-width:92vw;max-height:88vh;border-radius:8px">';
+    document.body.appendChild(o);
+  }
+  o.querySelector("img").src = src;
+}
+async function uploadFile(file) {
+  var fd = new FormData();
+  fd.append("file", file);
+  var r = await fetch("/media/api/attachments?session_token=" + encodeURIComponent(ST), { method: "POST", body: fd });
+  var d = await r.json().catch(function() { return {}; });
+  if (!r.ok) throw new Error((d.detail && (d.detail.message || d.detail.code)) || ("Upload failed (" + r.status + ")"));
+  return d.attachment;
+}
 function dbgReport(payload) {
   try { if (ST) payload.session_token = ST; fetch("/debug/api/client-event", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(function(){}); } catch(e) {}
 }
@@ -321,6 +359,8 @@ async function loadSupport() {
       h += '<div style="margin-top:6px"><select id="sts' + t.ticket_id + '"><option value="open" ' + (t.status === "open" ? "selected" : "") + '>open</option><option value="in_progress" ' + (t.status === "in_progress" ? "selected" : "") + '>in progress</option><option value="resolved" ' + (t.status === "resolved" ? "selected" : "") + '>resolved</option><option value="closed" ' + (t.status === "closed" ? "selected" : "") + '>closed</option></select> ';
       h += '<button class="btn-outline" onclick="suppStatus(' + t.ticket_id + ')">Update</button>';
       h += '<textarea id="sti' + t.ticket_id + '" placeholder="Reply..." rows="2" style="width:100%;margin-top:4px"></textarea>';
+      h += '<input type="file" id="stf' + t.ticket_id + '" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">';
+      h += '<button class="btn-outline" onclick="document.getElementById(\'stf' + t.ticket_id + '\').click()">\ud83d\udcce Attach</button> ';
       h += '<button class="btn-green" onclick="suppReply(' + t.ticket_id + ')">Send Reply</button></div></div>';
     });
     h += "</div>";
@@ -336,10 +376,17 @@ async function suppStatus(tid) {
 
 async function suppReply(tid) {
   var inp = document.getElementById("sti" + tid);
-  if (!inp || !inp.value.trim()) { msg("Reply cannot be empty"); return; }
+  var fileInput = document.getElementById("stf" + tid);
+  var files = fileInput ? Array.prototype.slice.call(fileInput.files || []) : [];
+  var text = inp ? inp.value.trim() : "";
+  if (!text && !files.length) { msg("Reply cannot be empty"); return; }
   try {
-    await apiCall("/admin/content/support/tickets/" + tid + "/reply", "POST", { session_token: ST, body_text: inp.value.trim() });
-    inp.value = ""; msg('<span style="color:#238636">Reply sent</span>');
+    var ids = [];
+    for (var i = 0; i < files.length; i++) { var a = await uploadFile(files[i]); ids.push(a.attachment_id); }
+    await apiCall("/admin/content/support/tickets/" + tid + "/reply", "POST", { session_token: ST, body_text: text, attachment_ids: ids });
+    if (inp) inp.value = "";
+    if (fileInput) fileInput.value = "";
+    msg('<span style="color:#238636">Reply sent</span>');
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
@@ -513,6 +560,7 @@ async function loadReports() {
       if (r.target_reports_count > 1) h += ' \u00b7 reports against: ' + r.target_reports_count;
       h += "</div>";
       if (r.comment) h += '<div style="font-size:12px;background:#0d1117;padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">' + esc(r.comment) + "</div>";
+      if (r.attachments && r.attachments.length) h += attachmentsHtml(r.attachments);
       if (r.status === "pending") {
         h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveUserReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveUserReport(' + r.id + ',\'warn\')">Warn (' + (r.target_warn_count || 0) + '/3)</button> <button class="btn-outline" onclick="resolveUserReport(' + r.id + ',\'dismiss\')">Dismiss</button> <button class="btn-outline" onclick="toggleTargetMessages(' + r.id + ',' + r.target_user_id + ')">Messages</button></div>';
       } else {

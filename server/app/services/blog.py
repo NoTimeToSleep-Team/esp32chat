@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import time
 
 from app.models import BlogPost, BlogPostDraft, UserRole, UserStatus
+from app.services.media import MAX_ATTACHMENTS_PER_MESSAGE, MediaService
 
 
 def _now_ms() -> int:
@@ -23,14 +24,35 @@ class BlogError(RuntimeError):
 
 
 class BlogService:
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(self, db_path: str | Path, storage_root: str | Path | None = None) -> None:
         self._db_path = Path(db_path)
+        self._storage_root = storage_root
+
+    def _media(self) -> MediaService | None:
+        if self._storage_root is None:
+            return None
+        return MediaService(db_path=self._db_path, storage_root=self._storage_root)
 
     def publish_post(self, *, author_user_id: int, draft: BlogPostDraft) -> BlogPost:
+        ids = self._normalize_attachment_ids(draft.attachment_ids)
         with self._connect() as connection:
             author = self._require_active_user(connection, author_user_id)
             if str(author["role"]) != UserRole.ADMIN.value:
                 raise BlogError("admin_only", "Only admin can publish blog posts", 403)
+
+            for attachment_id in ids:
+                attachment = connection.execute(
+                    "SELECT owner_user_id FROM media_attachments WHERE id = ?",
+                    (attachment_id,),
+                ).fetchone()
+                if attachment is None:
+                    raise BlogError("attachment_not_found", "Attachment not found", 404)
+                if int(attachment["owner_user_id"]) != int(author_user_id):
+                    raise BlogError(
+                        "forbidden_attachment",
+                        "Cannot attach a file owned by another user",
+                        403,
+                    )
 
             now_ms = _now_ms()
             cursor = connection.execute(
@@ -53,6 +75,14 @@ class BlogService:
                 ),
             )
             post_id = int(cursor.lastrowid)
+            for position, attachment_id in enumerate(ids):
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO blog_post_attachments(post_id, attachment_id, position)
+                    VALUES (?, ?, ?)
+                    """,
+                    (post_id, attachment_id, position),
+                )
 
             row = connection.execute(
                 "SELECT * FROM blog_posts WHERE id = ?",
@@ -60,7 +90,8 @@ class BlogService:
             ).fetchone()
             if row is None:
                 raise BlogError("publish_failed", "Failed to publish blog post", 500)
-            return self._row_to_post(row)
+            post = self._row_to_post(row)
+        return self._with_attachments([post])[0]
 
     def list_posts(self, *, requester_user_id: int, limit: int = 20, offset: int = 0) -> list[BlogPost]:
         safe_limit = min(max(limit, 1), 200)
@@ -78,7 +109,8 @@ class BlogService:
                 """,
                 (safe_limit, safe_offset),
             ).fetchall()
-            return [self._row_to_post(row) for row in rows]
+            posts = [self._row_to_post(row) for row in rows]
+        return self._with_attachments(posts)
 
     def get_post(self, *, requester_user_id: int, post_id: int) -> BlogPost:
         with self._connect() as connection:
@@ -89,7 +121,24 @@ class BlogService:
             ).fetchone()
             if row is None:
                 raise BlogError("post_not_found", "Blog post was not found", 404)
-            return self._row_to_post(row)
+            post = self._row_to_post(row)
+        return self._with_attachments([post])[0]
+
+    def _with_attachments(self, posts: list[BlogPost]) -> list[BlogPost]:
+        media = self._media()
+        if media is None or not posts:
+            return posts
+        grouped = media.attachments_for_blog_posts([post.post_id for post in posts])
+        return [
+            replace(post, attachments=grouped.get(post.post_id, ())) for post in posts
+        ]
+
+    @staticmethod
+    def _normalize_attachment_ids(attachment_ids: tuple[int, ...]) -> tuple[int, ...]:
+        ids = tuple(dict.fromkeys(int(value) for value in attachment_ids if int(value) > 0))
+        if len(ids) > MAX_ATTACHMENTS_PER_MESSAGE:
+            raise BlogError("too_many_attachments", "Too many attachments for one post", 422)
+        return ids
 
     def _require_active_user(self, connection: sqlite3.Connection, user_id: int) -> sqlite3.Row:
         row = connection.execute(

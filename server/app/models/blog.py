@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.models.media import MediaAttachment
+
 
 @dataclass(frozen=True)
 class BlogPost:
@@ -11,12 +13,14 @@ class BlogPost:
     author_user_id: int
     published_at_ms: int
     updated_at_ms: int
+    attachments: tuple[MediaAttachment, ...] = ()
 
 
 @dataclass(frozen=True)
 class BlogPostDraft:
     title: str
     body_text: str
+    attachment_ids: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.title.strip():

@@ -159,6 +159,12 @@ a:hover{text-decoration:underline}
 .attach-remove{background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:12px;padding:0 2px}
 .attach-remove:hover{color:var(--accent4)}
 #attach-btn{flex:0 0 auto;padding:10px 12px;font-size:16px;line-height:1}
+.img-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:24px}
+.img-lightbox.open{display:flex}
+.img-lightbox img{max-width:92vw;max-height:82vh;border-radius:8px;background:#000}
+.img-lightbox-name{color:#e6edf3;font-size:13px;max-width:90vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.img-lightbox-close{position:absolute;top:16px;right:16px;background:#30363d;color:#e6edf3;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer}
+.img-lightbox-close:hover{background:#484f58}
 .file-picker{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;min-width:42px;height:42px;cursor:pointer;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--accent);font-size:20px}
 .file-picker input{position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1}
 .file-picker:hover{border-color:var(--accent);background:var(--bg2)}

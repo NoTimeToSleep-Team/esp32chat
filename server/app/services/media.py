@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import hashlib
-import re
 import sqlite3
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -219,6 +219,48 @@ class MediaService:
         ).fetchall()
         return self._group_attachment_rows(rows, "message_id")
 
+    def list_for_reports(self, connection: sqlite3.Connection, report_ids: list[int]) -> dict[int, tuple[MediaAttachment, ...]]:
+        ids = sorted({int(report_id) for report_id in report_ids})
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        rows = connection.execute(
+            f"""
+            SELECT ra.report_id, ma.*
+            FROM report_attachments ra
+            JOIN media_attachments ma ON ma.id = ra.attachment_id
+            WHERE ra.report_id IN ({placeholders})
+            ORDER BY ra.report_id ASC, ra.position ASC, ma.id ASC
+            """,
+            ids,
+        ).fetchall()
+        return self._group_attachment_rows(rows, "report_id")
+
+    def list_for_blog_posts(self, connection: sqlite3.Connection, post_ids: list[int]) -> dict[int, tuple[MediaAttachment, ...]]:
+        ids = sorted({int(post_id) for post_id in post_ids})
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        rows = connection.execute(
+            f"""
+            SELECT bpa.post_id, ma.*
+            FROM blog_post_attachments bpa
+            JOIN media_attachments ma ON ma.id = bpa.attachment_id
+            WHERE bpa.post_id IN ({placeholders})
+            ORDER BY bpa.post_id ASC, bpa.position ASC, ma.id ASC
+            """,
+            ids,
+        ).fetchall()
+        return self._group_attachment_rows(rows, "post_id")
+
+    def attachments_for_reports(self, report_ids: list[int]) -> dict[int, tuple[MediaAttachment, ...]]:
+        with self._connect() as connection:
+            return self.list_for_reports(connection, report_ids)
+
+    def attachments_for_blog_posts(self, post_ids: list[int]) -> dict[int, tuple[MediaAttachment, ...]]:
+        with self._connect() as connection:
+            return self.list_for_blog_posts(connection, post_ids)
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._db_path)
         connection.row_factory = sqlite3.Row
@@ -250,7 +292,11 @@ class MediaService:
     @staticmethod
     def _safe_filename(filename: str | None) -> str:
         raw = Path(filename or "upload.bin").name.strip() or "upload.bin"
-        cleaned = re.sub(r"[^A-Za-z0-9._ -]", "_", raw).strip(" .")
+        raw = unicodedata.normalize("NFC", raw)
+        forbidden = set('/\\:*?"<>|')
+        cleaned = "".join(
+            ch if (ch.isprintable() and ch not in forbidden) else "_" for ch in raw
+        ).strip(" .")
         if not cleaned:
             cleaned = "upload.bin"
         return cleaned[:160]
@@ -305,7 +351,33 @@ class MediaService:
             """,
             (attachment_id,),
         ).fetchone()
-        return support_row is not None and int(support_row["user_id"]) == requester_user_id
+        if support_row is not None and int(support_row["user_id"]) == requester_user_id:
+            return True
+        if self._attachment_referenced_by(connection, "report_attachments", attachment_id):
+            user = connection.execute(
+                "SELECT role FROM users WHERE id = ?", (requester_user_id,)
+            ).fetchone()
+            if user is not None and str(user["role"]) in (
+                UserRole.ADMIN.value,
+                UserRole.MODERATOR.value,
+            ):
+                return True
+        if self._attachment_referenced_by(connection, "blog_post_attachments", attachment_id):
+            return True
+        return False
+
+    @staticmethod
+    def _attachment_referenced_by(connection: sqlite3.Connection, table: str, attachment_id: int) -> bool:
+        if table not in {"report_attachments", "blog_post_attachments"}:
+            return False
+        try:
+            row = connection.execute(
+                f"SELECT 1 FROM {table} WHERE attachment_id = ? LIMIT 1",
+                (attachment_id,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return False
+        return row is not None
 
     def _get_attachment(self, connection: sqlite3.Connection, attachment_id: int) -> MediaAttachment:
         row = connection.execute("SELECT * FROM media_attachments WHERE id = ?", (attachment_id,)).fetchone()

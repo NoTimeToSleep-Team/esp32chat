@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.models import ClientKind, UserRole
 from app.services.admin_users import AdminUsersError, AdminUsersService
 from app.services.auth import AuthError, AuthService
+from app.services.media import MediaService
 from app.services.user_reports import (
     MAX_WARNS,
     WARN_BAN_MINUTES,
@@ -21,6 +22,7 @@ class CreateReportRequest(BaseModel):
     target_user_id: int = Field(ge=1)
     reason: str = Field(min_length=1, max_length=32)
     comment: str = Field(default="", max_length=1000)
+    attachment_ids: list[int] = Field(default_factory=list, max_length=8)
 
 
 class ResolveUserReportRequest(BaseModel):
@@ -31,6 +33,22 @@ class ResolveUserReportRequest(BaseModel):
 
 def _reports_service(request: Request) -> UserReportsService:
     return UserReportsService(db_path=request.app.state.data_layer.database_path)
+
+
+def _media_service(request: Request) -> MediaService:
+    data_layer = request.app.state.data_layer
+    return MediaService(db_path=data_layer.database_path, storage_root=data_layer.storage_root)
+
+
+def _attachment_payload(item) -> dict[str, object]:
+    return {
+        "attachment_id": item.attachment_id,
+        "filename": item.original_filename,
+        "mime_type": item.mime_type,
+        "media_kind": item.media_kind.value,
+        "size_bytes": item.size_bytes,
+        "download_url": f"/media/api/attachments/{item.attachment_id}/download",
+    }
 
 
 def _session(request: Request, session_token: str, *, staff: bool):
@@ -71,6 +89,7 @@ async def create_report(request: Request, payload: CreateReportRequest) -> dict[
             target_user_id=payload.target_user_id,
             reason=payload.reason,
             comment=payload.comment,
+            attachment_ids=tuple(payload.attachment_ids),
         )
     except UserReportsError as exc:
         raise HTTPException(
@@ -93,10 +112,17 @@ async def list_reports(
     target_ids = [r.get("target_user_id") for r in reports]
     warn_counts = service.warn_counts_for(target_ids)
     against_counts = service.reports_against_counts(target_ids)
+    attachments = _media_service(request).attachments_for_reports(
+        [int(r["id"]) for r in reports if r.get("id")]
+    )
     for report in reports:
         target_id = report.get("target_user_id")
         report["target_warn_count"] = warn_counts.get(int(target_id), 0) if target_id else 0
         report["target_reports_count"] = against_counts.get(int(target_id), 0) if target_id else 0
+        report["attachments"] = [
+            _attachment_payload(item)
+            for item in attachments.get(int(report["id"]), ())
+        ]
     return {
         "status": "ok",
         "reports": reports,
