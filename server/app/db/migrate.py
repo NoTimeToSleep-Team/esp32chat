@@ -56,6 +56,10 @@ _SCHEMA_PATCHES: tuple[tuple[str, str, str], ...] = (
     ("support_tickets", "target_user_id", "INTEGER"),
 )
 
+_SCHEMA_INDEXES: tuple[str, ...] = (
+    "CREATE INDEX IF NOT EXISTS idx_support_tickets_kind ON support_tickets(kind, status, updated_at_ms DESC)",
+)
+
 
 def _apply_schema_patches(connection: sqlite3.Connection) -> tuple[str, ...]:
     """Add columns that were applied as manual hotfixes on deployed databases.
@@ -78,6 +82,11 @@ def _apply_schema_patches(connection: sqlite3.Connection) -> tuple[str, ...]:
         if column not in existing:
             connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
             applied.append(f"{table}.{column}")
+    for index_sql in _SCHEMA_INDEXES:
+        try:
+            connection.execute(index_sql)
+        except sqlite3.OperationalError:
+            continue
     return tuple(applied)
 
 

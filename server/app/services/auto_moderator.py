@@ -22,6 +22,7 @@ class AutoModerator:
         self._running = False
         self._last_id = 0
         self._ensure_table()
+        self._last_id = self._load_last_id()
 
     def _conn(self):
         c = sqlite3.connect(self.db_path, timeout=10)
@@ -38,7 +39,17 @@ class AutoModerator:
             user_login TEXT, message_text TEXT, found_words TEXT,
             status TEXT DEFAULT 'pending', created_at_ms INTEGER,
             resolved_by TEXT, resolved_at_ms INTEGER, action TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS moderation_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_message_id INTEGER NOT NULL DEFAULT 0)""")
+        c.execute("INSERT OR IGNORE INTO moderation_state (id, last_message_id) VALUES (1, 0)")
         c.commit(); c.close()
+
+    def _load_last_id(self):
+        c = self._conn()
+        row = c.execute("SELECT last_message_id FROM moderation_state WHERE id = 1").fetchone()
+        c.close()
+        return int(row["last_message_id"]) if row else 0
 
     def get_reports(self, status=None, limit=100):
         c = self._conn()
@@ -75,15 +86,20 @@ class AutoModerator:
                     c.execute("INSERT INTO moderation_reports (message_id,chat_id,user_id,user_login,message_text,found_words,created_at_ms) VALUES (?,?,?,?,?,?,?)",
                               (r['id'],r['chat_id'],r['author_user_id'],r['login'],(r['body_text'] or '')[:200],','.join(words),int(time.time()*1000)))
             self._last_id = max(self._last_id, r['id'])
+        c.execute("UPDATE moderation_state SET last_message_id = ? WHERE id = 1", (self._last_id,))
         c.commit(); c.close()
 
     def start(self, interval=10):
         if self._running: return
         self._running = True
         def loop():
+            import logging
+            logger = logging.getLogger("lc.auto_moderator")
             while self._running:
-                try: self.scan_new()
-                except: pass
+                try:
+                    self.scan_new()
+                except Exception as exc:
+                    logger.warning("auto-moderator scan failed: %s", exc)
                 time.sleep(interval)
         self._thread = threading.Thread(target=loop, daemon=True)
         self._thread.start()

@@ -30,8 +30,12 @@ class AccountProfileUpdate:
             raise ValueError("display_name must be <= 128 chars")
         if self.profile_bio is not None and len(self.profile_bio.strip()) > 1024:
             raise ValueError("profile_bio must be <= 1024 chars")
-        if self.avatar_emoji is not None and len(self.avatar_emoji.strip()) > 8:
-            raise ValueError("avatar_emoji must be <= 8 chars")
+        if self.avatar_emoji is not None:
+            emoji = self.avatar_emoji.strip()
+            if len(emoji) > 8:
+                raise ValueError("avatar_emoji must be <= 8 chars")
+            if any(ch in emoji for ch in "<>&\"'"):
+                raise ValueError("avatar_emoji must not contain markup characters")
 
 
 @dataclass(frozen=True)

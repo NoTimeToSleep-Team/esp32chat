@@ -12,5 +12,11 @@ server/data/sqlite/
 *.db-wal
 *.db-journal
 
+# Runtime artifacts (uploads, avatars, backups)
+server/data/backups/
+server/data/avatars/
+server/data/media/
+server/data/logs/
+
 # Logs
 *.log

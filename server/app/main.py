@@ -148,6 +148,10 @@ def create_app() -> FastAPI:
         try:
             yield
         finally:
+            try:
+                auto_moderator.stop()
+            except Exception:
+                pass
             uptime_ms = int((monotonic() - app.state.started_at_monotonic) * 1000)
             logger.info(
                 "Application shutdown profile=%s uptime_ms=%s",

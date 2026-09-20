@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
-from app.models import AccountLimits, AccountProfile, AccountProfileUpdate, AvatarImage, ClientKind
+from app.models import AccountLimits, AccountProfile, AccountProfileUpdate, AvatarImage, ClientKind, UserRole
 from app.services.account import AccountError, AccountService
 from app.services.auth import AuthError, AuthService
 
@@ -198,13 +198,25 @@ async def get_user_profile(
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
     """Get any user's public profile (read-only, no edit permissions)."""
-    requesting_user_id = _resolve_user_id(request, session_token)
+    auth_service = _auth_service(request)
+    try:
+        session = auth_service.get_session(session_token, client_kind=ClientKind.WEB)
+    except AuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    if session.user.user_id is None:
+        raise HTTPException(status_code=500, detail={"code": "invalid_user", "message": "Authenticated user id is missing"})
     service = _account_service(request)
     try:
         profile = service.get_profile(user_id=user_id)
     except AccountError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     data = _profile_payload(profile)
+    can_see_private = (
+        profile.user_id == session.user.user_id
+        or session.user.role in {UserRole.ADMIN, UserRole.MODERATOR}
+    )
+    if not can_see_private:
+        data["phone"] = None
     data["avatar_url"] = (
         f"/account/api/profile/avatar?session_token={session_token}&v={profile.avatar_updated_at_ms or 0}"
         if profile.avatar_path else None

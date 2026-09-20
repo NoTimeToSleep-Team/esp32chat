@@ -466,16 +466,24 @@ async function doLoadMessages(opts) {
   try {
     if (opts.older) {
       const list = $('#msg-list');
-      if (!list) return;
-      const data = await api(`/chat/api/chats/${currentChatId}/messages?session_token=${encodeURIComponent(STATE.token)}&limit=${limit}&offset=${msgLoadOffset}`);
-      const older = data.items || [];
-      const prevHeight = list.scrollHeight;
-      const prevTop = list.scrollTop;
-      const anchor = list.querySelector('.load-older');
-      older.forEach(m => list.insertBefore(buildMessageEl(m), anchor ? anchor.nextSibling : list.firstChild));
-      msgLoadOffset += older.length;
-      if (older.length < limit && anchor) anchor.remove();
-      list.scrollTop = prevTop + (list.scrollHeight - prevHeight);
+      if (!list || list._olderLoading) return;
+      list._olderLoading = true;
+      try {
+        const data = await api(`/chat/api/chats/${currentChatId}/messages?session_token=${encodeURIComponent(STATE.token)}&limit=${limit}&offset=${msgLoadOffset}`);
+        const older = data.items || [];
+        if (!older.length) return;
+        const prevHeight = list.scrollHeight;
+        const prevTop = list.scrollTop;
+        const anchor = list.querySelector('.load-older');
+        const fragment = document.createDocumentFragment();
+        older.forEach(m => fragment.append(buildMessageEl(m)));
+        list.insertBefore(fragment, anchor ? anchor.nextSibling : list.firstChild);
+        msgLoadOffset += older.length;
+        if (older.length < limit && anchor) anchor.remove();
+        list.scrollTop = prevTop + (list.scrollHeight - prevHeight);
+      } finally {
+        list._olderLoading = false;
+      }
       return;
     }
     const data = await api(`/chat/api/chats/${currentChatId}/messages?session_token=${encodeURIComponent(STATE.token)}&limit=${limit}`);
@@ -640,7 +648,7 @@ async function renderAccount() {
     $('#account-card').innerHTML = `
       <div class="card">
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
-          <div class="account-avatar">${(p.avatar_emoji || localStorage.getItem('lc_my_emoji') || '🐱')}</div>
+          <div class="account-avatar">${esc(p.avatar_emoji || localStorage.getItem('lc_my_emoji') || '🐱')}</div>
           <div>
             <div style="font-size:18px;font-weight:600">${esc(p.display_name||p.login)}</div>
             <div style="font-size:13px;color:var(--text2)">@${esc(p.login)} · <span class="badge badge-${p.role}">${p.role}</span></div>
@@ -1727,7 +1735,7 @@ async function viewUserProfile(uid) {
     var isGuest = STATE.user?.role === 'guest';
     var h = "<div style=background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:340px;width:100%;position:relative>";
     h += "<button onclick=document.getElementById(\"profile-modal\").remove() style=position:absolute;top:8px;right:8px;background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer>&times;</button>";
-    h += "<div style=text-align:center;font-size:48px;margin-bottom:8px>" + emoji + "</div>";
+    h += "<div style=text-align:center;font-size:48px;margin-bottom:8px>" + esc(emoji) + "</div>";
     h += "<h2 style=color:#58a6ff;text-align:center;margin:8px 0;font-size:18px>" + esc(p.display_name || p.login) + "</h2>";
     h += "<div style=text-align:center;color:#8b949e;font-size:13px>@" + esc(p.login) + "</div>";
     h += "<div style=text-align:center;color:#8b949e;font-size:12px;margin-bottom:12px>" + esc(p.role) + "</div>";

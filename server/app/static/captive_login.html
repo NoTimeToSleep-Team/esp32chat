@@ -44,9 +44,17 @@ async function submitPortal(){
   var s=document.getElementById('pstatus');
   s.textContent='Logging in...';
   try{
-    var r=await fetch('/admin/network/captive/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:document.getElementById('plogin').value,password:document.getElementById('ppass').value})});
-    var d=await r.json();
-    s.innerHTML='<span style=color:#238636>'+d.message+'</span>';
+    var fd=new FormData();
+    fd.append('username',document.getElementById('plogin').value);
+    fd.append('login',document.getElementById('plogin').value);
+    fd.append('password',document.getElementById('ppass').value);
+    var r=await fetch('/captive-proxy',{method:'POST',body:fd});
+    if(r.status===200){
+      s.innerHTML='<span style=color:#238636>Portal login submitted</span>';
+    } else {
+      var d=await r.json().catch(function(){return{}});
+      s.innerHTML='<span style=color:#f85149>'+(d.message||('HTTP '+r.status))+'</span>';
+    }
   }catch(e){s.innerHTML='<span style=color:#f85149>'+e.message+'</span>'}
 }
 </script></body></html>

@@ -434,10 +434,31 @@ async def restart_service(request: Request, payload: RestartServiceRequest):
     allowed = ["local-chat-server", "local-chat-proxy", "hostapd", "dnsmasq", "ssh", "wpa_supplicant", "bluetooth", "cron", "NetworkManager", "lc-iptables-restore", "lc-network-boot", "systemd-timesyncd"]
     if payload.service not in allowed:
         raise HTTPException(status_code=400, detail={"code": "bad_service", "message": "Allowed: " + ", ".join(allowed)})
+    import os
+    import subprocess
+
+    def _try_sudo(cmd: list) -> subprocess.CompletedProcess:
+        result = subprocess.run(["sudo", "-n"] + cmd, capture_output=True, timeout=30)
+        if result.returncode == 0:
+            return result
+        sudo_pass = os.environ.get("LC_SUDO_PASSWORD", "")
+        if sudo_pass:
+            result = subprocess.run(
+                ["sudo", "-S"] + cmd,
+                input=(sudo_pass + "\n").encode(),
+                capture_output=True,
+                timeout=30,
+            )
+        return result
+
     try:
-        import subprocess
-        subprocess.run(["sudo", "-S", "systemctl", "restart", payload.service], input=b"admin_pass!\n", capture_output=True, timeout=30)
+        result = _try_sudo(["systemctl", "restart", payload.service])
+        if result.returncode != 0:
+            message = (result.stderr or b"").decode("utf-8", "replace").strip() or "sudo failed"
+            raise HTTPException(status_code=500, detail={"code": "restart_failed", "message": message[:300]})
         return {"status": "ok", "service": payload.service}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail={"code": "restart_failed", "message": str(e)})
 
@@ -474,6 +495,10 @@ async def reboot_rpi(request: Request, payload: RebootRequest):
     _resolve_admin_user_id(request, payload.session_token)
     if not payload.confirm:
         raise HTTPException(status_code=400, detail={"code": "confirm_required", "message": "Set confirm=true to reboot"})
+    import os
     import subprocess
-    subprocess.Popen(["sudo", "reboot"])
+    result = subprocess.run(["sudo", "-n", "reboot"], capture_output=True, timeout=10)
+    if result.returncode != 0 and os.environ.get("LC_SUDO_PASSWORD"):
+        proc = subprocess.Popen(["sudo", "-S", "reboot"], stdin=subprocess.PIPE)
+        proc.communicate((os.environ["LC_SUDO_PASSWORD"] + "\n").encode(), timeout=10)
     return {"status": "ok", "message": "Rebooting..."}

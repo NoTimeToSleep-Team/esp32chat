@@ -129,13 +129,12 @@ class AdminUsersService:
                 "UPDATE users SET status = ?, updated_at_ms = ? WHERE id = ?",
                 (UserStatus.BANNED.value, now_ms, target_user_id),
             )
-            # Revoke all sessions for banned user
-            try:
-                from app.services.auth import AuthService
-                auth = AuthService(db_path=self._db_path)
-                auth.revoke_user_sessions(target_user_id)
-            except Exception:
-                pass
+            # Revoke all sessions on the same connection: opening a second
+            # writer connection here would deadlock until the busy timeout.
+            connection.execute(
+                "UPDATE sessions SET revoked_at_ms = ? WHERE revoked_at_ms IS NULL AND user_id = ?",
+                (now_ms, target_user_id),
+            )
             self._upsert_restriction(
                 connection,
                 user_id=target_user_id,
@@ -157,8 +156,9 @@ class AdminUsersService:
         target_user_id: int,
     ) -> AdminUserRecord:
         with self._connect() as connection:
-            self._require_active_admin(connection, actor_user_id)
-            self._ensure_target_exists(connection, target_user_id)
+            actor = self._require_active_admin(connection, actor_user_id)
+            target = self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)
+            self._ensure_can_manage_target(actor=actor, target=target)
 
             now_ms = _now_ms()
             connection.execute(
@@ -210,13 +210,11 @@ class AdminUsersService:
                 "UPDATE users SET status = ?, updated_at_ms = ? WHERE id = ?",
                 (UserStatus.BLOCKED.value, now_ms, target_user_id),
             )
-            # Revoke all sessions for blocked user
-            try:
-                from app.services.auth import AuthService
-                auth = AuthService(db_path=self._db_path)
-                auth.revoke_user_sessions(target_user_id)
-            except Exception:
-                pass
+            # Revoke all sessions on the same connection (see ban_user).
+            connection.execute(
+                "UPDATE sessions SET revoked_at_ms = ? WHERE revoked_at_ms IS NULL AND user_id = ?",
+                (now_ms, target_user_id),
+            )
             self._upsert_restriction(
                 connection,
                 user_id=target_user_id,

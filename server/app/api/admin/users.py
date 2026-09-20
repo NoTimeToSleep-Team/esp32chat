@@ -343,6 +343,17 @@ async def reset_user_password(
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     if len(payload.new_password) < 8:
         raise HTTPException(status_code=422, detail={"code": "weak_password", "message": "Password must be at least 8 characters"})
+    service = _admin_users_service(request)
+    try:
+        actor = service.get_user(actor_user_id=admin_user_id, target_user_id=admin_user_id)
+        target = service.get_user(actor_user_id=admin_user_id, target_user_id=user_id)
+    except AdminUsersError as exc:
+        _raise_admin_error(exc)
+    if target.role.value == "admin" and actor.role.value != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "admin_only", "message": "Only a full admin can reset an admin password"},
+        )
     import sqlite3
     from app.services.auth import hash_password
     conn = sqlite3.connect(request.app.state.data_layer.database_path)

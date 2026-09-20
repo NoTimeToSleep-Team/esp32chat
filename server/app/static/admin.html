@@ -332,8 +332,9 @@ async function loadNetwork() {
     // Interfaces
     h += '<div class="card"><h3>Network Interfaces</h3><table><tr><th>Name</th><th>Role</th><th>IP</th><th>Mode</th></tr>';
     ifaces.items.forEach(function(i) {
+      var curRole = i.role === "ap" ? "ap" : (i.role === "uplink" ? "client" : "off");
       h += '<tr><td>' + i.ifname + '</td><td>' + i.role + '</td><td>' + (i.ip_address || "-") + '</td>';
-      h += '<td><select id="mode-' + i.ifname + '" style="padding:2px 6px;font-size:11px"><option value="ap">AP</option><option value="client">Client</option><option value="off">Off</option></select></td></tr>';
+      h += '<td><select id="mode-' + i.ifname + '" data-initial="' + curRole + '" style="padding:2px 6px;font-size:11px"><option value="ap"' + (curRole === "ap" ? " selected" : "") + '>AP</option><option value="client"' + (curRole === "client" ? " selected" : "") + '>Client</option><option value="off"' + (curRole === "off" ? " selected" : "") + '>Off</option></select></td></tr>';
     });
     h += '</table>';
     h += '<button class="btn-warn" onclick="saveNetworkConfig()" style="margin-top:8px">💾 Save & Apply</button> <span id="net-save-msg" style="font-size:11px"></span>';
@@ -408,9 +409,11 @@ async function saveNetworkConfig() {
   // Collect mode changes
   var config = {};
   document.querySelectorAll("[id^='mode-']").forEach(function(sel) {
+    if (sel.dataset && sel.dataset.initial === sel.value) return;
     var iface = sel.id.replace("mode-", "");
     config[iface] = sel.value;
   });
+  if (!Object.keys(config).length) { m.textContent = "No changes to save"; return; }
   try {
     await apiCall("/admin/network/config/save", "POST", { session_token: ST, config: config });
     m.innerHTML = '<span style="color:#238636">Saved! Restarting network...</span>';
