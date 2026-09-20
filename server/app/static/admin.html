@@ -63,11 +63,45 @@ function openImg(src) {
     o = document.createElement("div");
     o.id = "img-overlay";
     o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out";
-    o.onclick = function() { o.remove(); };
-    o.innerHTML = '<img style="max-width:92vw;max-height:88vh;border-radius:8px">';
+    o.innerHTML = '<button id="io-close" style="position:absolute;top:16px;right:16px;background:#30363d;color:#e6edf3;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer">\u2715</button>' +
+      '<button id="io-prev" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#e6edf3;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u2039</button>' +
+      '<img style="max-width:92vw;max-height:88vh;border-radius:8px">' +
+      '<button id="io-next" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#e6edf3;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u203a</button>' +
+      '<div id="io-counter" style="position:absolute;bottom:18px;color:#8b949e;font-size:12px"></div>';
     document.body.appendChild(o);
+    o.onclick = function(e) { if (e.target === o || e.target.id === "io-close") o.remove(); };
+    o.querySelector("#io-prev").onclick = function(e) { e.stopPropagation(); stepImg(-1); };
+    o.querySelector("#io-next").onclick = function(e) { e.stopPropagation(); stepImg(1); };
+    var touchX = null;
+    o.addEventListener("touchstart", function(e) { touchX = e.changedTouches[0].clientX; }, { passive: true });
+    o.addEventListener("touchend", function(e) {
+      if (touchX === null) return;
+      var dx = e.changedTouches[0].clientX - touchX;
+      touchX = null;
+      if (Math.abs(dx) > 40) stepImg(dx < 0 ? 1 : -1);
+    }, { passive: true });
   }
-  o.querySelector("img").src = src;
+  var imgs = Array.prototype.slice.call(document.querySelectorAll('img[onclick^="openImg"]'));
+  window.__imgs = imgs.map(function(i) { return i.src; });
+  if (!window.__imgs.length) window.__imgs = [src];
+  window.__imgIdx = Math.max(0, window.__imgs.indexOf(src));
+  showImg();
+}
+function showImg() {
+  var o = document.getElementById("img-overlay");
+  if (!o) return;
+  o.querySelector("img").src = window.__imgs[window.__imgIdx];
+  var counter = document.getElementById("io-counter");
+  var multi = window.__imgs.length > 1;
+  if (counter) counter.textContent = multi ? (window.__imgIdx + 1) + " / " + window.__imgs.length : "";
+  var prev = document.getElementById("io-prev"), next = document.getElementById("io-next");
+  if (prev) prev.style.display = multi ? "" : "none";
+  if (next) next.style.display = multi ? "" : "none";
+}
+function stepImg(d) {
+  if (!window.__imgs || window.__imgs.length < 2) return;
+  window.__imgIdx = (window.__imgIdx + d + window.__imgs.length) % window.__imgs.length;
+  showImg();
 }
 async function uploadFile(file) {
   var fd = new FormData();

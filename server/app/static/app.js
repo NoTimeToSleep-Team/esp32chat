@@ -179,23 +179,73 @@ function renderAttachments(items) {
   }).join('')}</div>`;
 }
 
-function openImageLightbox(url, name) {
+let lightboxItems = [];
+let lightboxIndex = 0;
+
+function _ensureLightbox() {
   let box = document.getElementById('img-lightbox');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'img-lightbox';
-    box.className = 'img-lightbox';
-    box.innerHTML = '<button class="img-lightbox-close" title="Close">✕</button><img alt=""><div class="img-lightbox-name"></div>';
-    box.onclick = function(e) {
-      if (e.target === box || e.target.classList.contains('img-lightbox-close')) closeImageLightbox();
-    };
-    document.body.appendChild(box);
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeImageLightbox(); });
-  }
-  const img = box.querySelector('img');
-  img.src = url;
-  box.querySelector('.img-lightbox-name').textContent = name || '';
+  if (box) return box;
+  box = document.createElement('div');
+  box.id = 'img-lightbox';
+  box.className = 'img-lightbox';
+  box.innerHTML = '<button class="img-lightbox-close" title="Close">✕</button>' +
+    '<button class="img-lightbox-nav prev" title="Previous">‹</button>' +
+    '<img alt="">' +
+    '<button class="img-lightbox-nav next" title="Next">›</button>' +
+    '<div class="img-lightbox-name"></div><div class="img-lightbox-counter"></div>';
+  box.onclick = function(e) {
+    if (e.target === box || e.target.classList.contains('img-lightbox-close')) closeImageLightbox();
+  };
+  box.querySelector('.prev').onclick = function(e) { e.stopPropagation(); lightboxStep(-1); };
+  box.querySelector('.next').onclick = function(e) { e.stopPropagation(); lightboxStep(1); };
+  let touchX = null;
+  box.addEventListener('touchstart', function(e) { touchX = e.changedTouches[0].clientX; }, {passive: true});
+  box.addEventListener('touchend', function(e) {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    touchX = null;
+    if (Math.abs(dx) > 40) lightboxStep(dx < 0 ? 1 : -1);
+  }, {passive: true});
+  document.body.appendChild(box);
+  document.addEventListener('keydown', function(e) {
+    const open = document.getElementById('img-lightbox');
+    if (!open || !open.classList.contains('open')) return;
+    if (e.key === 'Escape') closeImageLightbox();
+    else if (e.key === 'ArrowLeft') lightboxStep(-1);
+    else if (e.key === 'ArrowRight') lightboxStep(1);
+  });
+  return box;
+}
+
+function openImageLightbox(url, name) {
+  const box = _ensureLightbox();
+  lightboxItems = Array.from(document.querySelectorAll('a.attachment.image')).map(el => ({
+    url: el.getAttribute('href'), name: el.dataset.name || ''
+  }));
+  if (!lightboxItems.length) lightboxItems = [{ url: url, name: name || '' }];
+  lightboxIndex = lightboxItems.findIndex(x => x.url === url);
+  if (lightboxIndex < 0) lightboxIndex = 0;
+  showLightboxItem();
   box.classList.add('open');
+}
+
+function showLightboxItem() {
+  const box = document.getElementById('img-lightbox');
+  if (!box) return;
+  const item = lightboxItems[lightboxIndex] || { url: '', name: '' };
+  box.querySelector('img').src = item.url;
+  box.querySelector('.img-lightbox-name').textContent = item.name || '';
+  box.querySelector('.img-lightbox-counter').textContent =
+    lightboxItems.length > 1 ? (lightboxIndex + 1) + ' / ' + lightboxItems.length : '';
+  const multi = lightboxItems.length > 1;
+  box.querySelector('.prev').style.display = multi ? '' : 'none';
+  box.querySelector('.next').style.display = multi ? '' : 'none';
+}
+
+function lightboxStep(delta) {
+  if (lightboxItems.length < 2) return;
+  lightboxIndex = (lightboxIndex + delta + lightboxItems.length) % lightboxItems.length;
+  showLightboxItem();
 }
 
 function closeImageLightbox() {
@@ -1817,6 +1867,8 @@ async function renderAdminSystem() {
   try {
     var h = await api("/ops/api/system-health?session_token=" + encodeURIComponent(STATE.token));
     var s = await api("/ops/api/services?session_token=" + encodeURIComponent(STATE.token));
+    var media = null;
+    try { media = await api("/media/api/stats?session_token=" + encodeURIComponent(STATE.token)); } catch(e) {}
     var health = h.health || {};
     var svcs = s.services || [];
     var html = "<div class=admin-card><h3>RPi System</h3>";
@@ -1824,7 +1876,18 @@ async function renderAdminSystem() {
     html += "<div style=background:var(--bg);padding:12px;border-radius:8px;text-align:center><div style=font-size:24px;font-weight:700;color:var(--accent2)>" + (health.cpu_temp||"?") + "</div><div style=font-size:11px;color:var(--text2)>CPU</div></div>";
     html += "<div style=background:var(--bg);padding:12px;border-radius:8px;text-align:center><div style=font-size:24px;font-weight:700>" + (health.ram_used||"?") + "</div><div style=font-size:11px;color:var(--text2)>RAM / " + (health.ram_total||"?") + "</div></div>";
     html += "<div style=background:var(--bg);padding:12px;border-radius:8px;text-align:center><div style=font-size:24px;font-weight:700>" + (health.disk_used||"?") + "</div><div style=font-size:11px;color:var(--text2)>Disk " + (health.disk_pct||"?") + "</div></div>";
-    html += "</div><h4 style=margin:12px 0 8px>Services</h4>";
+    html += "</div>";
+    if (media && media.count !== undefined) {
+      var freeGb = media.free_bytes != null ? (media.free_bytes / 1073741824).toFixed(2) + " GB" : "?";
+      var usedMb = (media.total_bytes / 1048576).toFixed(1) + " MB";
+      var lowFree = media.free_bytes != null && media.free_bytes < 1024 * 1024 * 1024;
+      html += "<h4 style=margin:12px 0 8px>Media storage</h4>";
+      html += "<div style=font-size:13px;background:var(--bg);padding:10px;border-radius:8px>";
+      html += "Files: <strong>" + media.count + "</strong> \u00b7 Used: <strong>" + usedMb + "</strong> \u00b7 Free on disk: <strong style=color:" + (lowFree ? "var(--accent4)" : "var(--accent2)") + ">" + freeGb + "</strong>";
+      if (lowFree) html += "<div style=color:var(--accent4);font-size:12px;margin-top:6px>\u26a0 Free space is low. Uploads are disabled automatically when free space drops below " + Math.round((media.min_free_bytes||0)/1048576) + " MB.</div>";
+      html += "</div>";
+    }
+    html += "<h4 style=margin:12px 0 8px>Services</h4>";
     for (var i = 0; i < svcs.length; i++) {
       var svc = svcs[i];
       var color = svc.active === "active" ? "var(--accent2)" : "var(--accent4)";

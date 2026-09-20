@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from app.models import ClientKind, MediaAttachment
+from app.models import ClientKind, MediaAttachment, UserRole
 from app.services.auth import AuthError, AuthService
 from app.services.media import MAX_UPLOAD_BYTES, MediaError, MediaService
 
@@ -93,6 +93,27 @@ async def list_my_attachments(
     except MediaError as exc:
         _raise_media_error(exc)
     return {"status": "ok", "count": len(items), "items": [_attachment_payload(item) for item in items]}
+
+
+@router.get("/stats")
+async def media_storage_stats(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    service = _auth_service(request)
+    try:
+        session = service.get_session(session_token, client_kind=ClientKind.WEB)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+    if session.user.role not in {UserRole.ADMIN, UserRole.MODERATOR}:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "forbidden", "message": "Admin or moderator required"},
+        )
+    return {"status": "ok", **_media_service(request).storage_stats()}
 
 
 @router.get("/attachments/{attachment_id}/download")

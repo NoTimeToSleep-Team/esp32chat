@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import shutil
 import sqlite3
 import unicodedata
 import uuid
@@ -13,6 +15,19 @@ from app.models import MediaAttachment, MediaDownload, MediaKind, UserRole
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_ATTACHMENTS_PER_MESSAGE = 8
+MIN_FREE_BYTES_DEFAULT = 200 * 1024 * 1024
+
+
+def _min_free_bytes() -> int:
+    raw = os.environ.get("LCS_MIN_FREE_MB", "").strip()
+    if raw:
+        try:
+            value = int(float(raw))
+            if value >= 0:
+                return value * 1024 * 1024
+        except ValueError:
+            pass
+    return MIN_FREE_BYTES_DEFAULT
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 AUDIO_MIME_TYPES = {"audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/mp4"}
@@ -71,6 +86,13 @@ class MediaService:
             raise MediaError("empty_upload", "Uploaded file is empty", 422)
         if len(content) > MAX_UPLOAD_BYTES:
             raise MediaError("upload_too_large", "Uploaded file exceeds the size limit", 413)
+        free_bytes = self._free_bytes()
+        if free_bytes is not None and free_bytes - len(content) < _min_free_bytes():
+            raise MediaError(
+                "storage_full",
+                "Server storage is almost full; uploads are temporarily disabled",
+                507,
+            )
 
         safe_name = self._safe_filename(original_filename)
         suffix = Path(safe_name).suffix.lower()
@@ -260,6 +282,48 @@ class MediaService:
     def attachments_for_blog_posts(self, post_ids: list[int]) -> dict[int, tuple[MediaAttachment, ...]]:
         with self._connect() as connection:
             return self.list_for_blog_posts(connection, post_ids)
+
+    def storage_stats(self) -> dict[str, object]:
+        with self._connect() as connection:
+            totals = connection.execute(
+                "SELECT COUNT(*) AS n, COALESCE(SUM(size_bytes), 0) AS total FROM media_attachments"
+            ).fetchone()
+            rows = connection.execute(
+                """
+                SELECT media_kind, COUNT(*) AS n, COALESCE(SUM(size_bytes), 0) AS total
+                FROM media_attachments
+                GROUP BY media_kind
+                """
+            ).fetchall()
+        return {
+            "count": int(totals["n"]) if totals else 0,
+            "total_bytes": int(totals["total"]) if totals else 0,
+            "free_bytes": self._free_bytes(),
+            "min_free_bytes": _min_free_bytes(),
+            "max_upload_bytes": MAX_UPLOAD_BYTES,
+            "max_attachments_per_message": MAX_ATTACHMENTS_PER_MESSAGE,
+            "by_kind": [
+                {
+                    "media_kind": str(row["media_kind"]),
+                    "count": int(row["n"]),
+                    "total_bytes": int(row["total"]),
+                }
+                for row in rows
+            ],
+        }
+
+    def _free_bytes(self) -> int | None:
+        target = self._storage_root
+        try:
+            return shutil.disk_usage(target).free
+        except OSError:
+            parent = target
+            while not parent.exists() and parent != parent.parent:
+                parent = parent.parent
+            try:
+                return shutil.disk_usage(parent).free
+            except OSError:
+                return None
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._db_path)
