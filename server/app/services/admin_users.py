@@ -39,6 +39,7 @@ class AdminUsersService:
 
         with self._connect() as connection:
             self._require_active_admin(connection, actor_user_id)
+            self._expire_temporary_blocks(connection)
 
             if status is None:
                 rows = connection.execute(
@@ -105,6 +106,7 @@ class AdminUsersService:
     ) -> AdminUserRecord:
         with self._connect() as connection:
             self._require_active_admin(connection, actor_user_id)
+            self._expire_temporary_blocks(connection)
             row = self._select_admin_user(connection, user_id=target_user_id)
             if row is None:
                 raise AdminUsersError("user_not_found", "User was not found", 404)
@@ -431,6 +433,32 @@ class AdminUsersService:
         if str(row["role"]) not in {UserRole.ADMIN.value, UserRole.MODERATOR.value}:
             raise AdminUsersError("admin_only", "Admin or moderator role is required", 403)
         return row
+
+    @staticmethod
+    def _expire_temporary_blocks(connection: sqlite3.Connection) -> None:
+        """Auto-unblock users whose temporary block has expired (admin views)."""
+        now_ms = _now_ms()
+        connection.execute(
+            """
+            UPDATE users
+            SET status = ?, updated_at_ms = ?
+            WHERE status = ? AND id IN (
+                SELECT user_id FROM user_restrictions
+                WHERE blocked_until_ms IS NOT NULL AND blocked_until_ms <= ?
+            )
+            """,
+            (UserStatus.ACTIVE.value, now_ms, UserStatus.BLOCKED.value, now_ms),
+        )
+        connection.execute(
+            """
+            UPDATE user_restrictions
+            SET block_reason = NULL,
+                blocked_until_ms = NULL,
+                updated_at_ms = ?
+            WHERE blocked_until_ms IS NOT NULL AND blocked_until_ms <= ?
+            """,
+            (now_ms, now_ms),
+        )
 
     @staticmethod
     def _ensure_target_exists(connection: sqlite3.Connection, user_id: int) -> sqlite3.Row:

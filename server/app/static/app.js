@@ -1057,19 +1057,20 @@ async function renderAdmin() {
   if (!requireAuth()) return;
   if (STATE.user?.role !== 'admin' && STATE.user?.role !== 'moderator') { window.location.hash = '#/chat'; return; }
   const c = $('#content');
+  const adminOnlyStyle = STATE.user?.role === 'admin' ? '' : 'display:none';
   c.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">Admin Panel</div><div class="page-subtitle">System management</div></div>
     </div>
     <div class="tabs">
       <button class="tab active" data-tab="users">Users</button>
-      <button class="tab" data-tab="blog">Blog</button>
-      <button class="tab" data-tab="support">Support</button>
-      <button class="tab" data-tab="mode">Mode</button>
-      <button class="tab" data-tab="cleanup">Cleanup</button>
-      <button class="tab" data-tab="passwords" style="${STATE.user?.role === 'admin' ? '' : 'display:none'}">Passwords</button>
-      <button class="tab" data-tab="system">System</button>
-      <button class="tab" data-tab="activity">Activity</button>
+      <button class="tab" data-tab="blog" style="${adminOnlyStyle}">Blog</button>
+      <button class="tab" data-tab="support" style="${adminOnlyStyle}">Support</button>
+      <button class="tab" data-tab="mode" style="${adminOnlyStyle}">Mode</button>
+      <button class="tab" data-tab="cleanup" style="${adminOnlyStyle}">Cleanup</button>
+      <button class="tab" data-tab="passwords" style="${adminOnlyStyle}">Passwords</button>
+      <button class="tab" data-tab="system" style="${adminOnlyStyle}">System</button>
+      <button class="tab" data-tab="activity" style="${adminOnlyStyle}">Activity</button>
       <button class="tab" data-tab="reports">Reports</button>
     </div>
     <div id="admin-users"></div>
@@ -1155,6 +1156,7 @@ async function renderAdminUsers() {
     var onlineIds = [];
     try { var od = await api('/realtime/online', {method:'POST',body:JSON.stringify({session_token:STATE.token})}); onlineIds = od.online_user_ids || []; } catch(e) {}
     const items = data.items || [];
+    const isFullAdmin = STATE.user?.role === 'admin';
     container.innerHTML = `<div class="admin-card">
       <h3>Users (${items.length})</h3>
       ${items.map(u => `
@@ -1167,11 +1169,11 @@ async function renderAdminUsers() {
           </div>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
             ${u.user_id === STATE.user?.id ? '<span style="font-size:12px;color:var(--text2)">you</span>' : `
-              ${u.status === 'active' ? `<button class="btn btn-sm btn-outline" data-action="setrole" data-uid="${u.user_id}" data-role="${u.role==='moderator'?'user':'moderator'}">${u.role==='moderator'?'Demote':'Promote'}</button>
+              ${u.status === 'active' ? `${isFullAdmin || u.role !== 'admin' ? `<button class="btn btn-sm btn-outline" data-action="setrole" data-uid="${u.user_id}" data-role="${u.role==='moderator'?'user':'moderator'}">${u.role==='moderator'?'Demote':'Promote'}</button>` : ''}
               <button class="btn btn-sm btn-danger" data-action="ban" data-uid="${u.user_id}">Ban</button>
               <input class="tb-dur" data-uid="${u.user_id}" type="number" min="1" max="10080" value="60" style="width:50px;padding:4px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;text-align:center" title="Minutes"><button class="btn btn-sm btn-outline" data-action="tempblock" data-uid="${u.user_id}">min</button>
-              ${u.device_blacklisted ? `<button class="btn btn-sm btn-outline" data-action="unblacklist" data-uid="${u.user_id}">Unblacklist Dev</button>` : `<button class="btn btn-sm btn-outline" data-action="blacklist" data-uid="${u.user_id}">Blacklist Dev</button>`}
-              <button class="btn btn-sm btn-danger" data-action="delete" data-uid="${u.user_id}" data-login="${esc(u.login)}">Delete</button>` : `
+              ${isFullAdmin ? (u.device_blacklisted ? `<button class="btn btn-sm btn-outline" data-action="unblacklist" data-uid="${u.user_id}">Unblacklist Dev</button>` : `<button class="btn btn-sm btn-outline" data-action="blacklist" data-uid="${u.user_id}">Blacklist Dev</button>`) : ''}
+              ${isFullAdmin ? `<button class="btn btn-sm btn-danger" data-action="delete" data-uid="${u.user_id}" data-login="${esc(u.login)}">Delete</button>` : ''}` : `
               <button class="btn btn-sm btn-success" data-action="unban" data-uid="${u.user_id}">Unban</button>`}
             `}
           </div>

@@ -73,8 +73,16 @@ async function doLogin() {
 }
 
 function showMain() {
-  document.getElementById("login").innerHTML = '<span style="color:#238636">Logged in as <b>' + JSON.parse(localStorage.getItem("lc_user") || "{}").login + '</b></span> <button class="btn-outline" onclick="ST=\'\';localStorage.clear();location.reload()">Logout</button>';
+  var me = {};
+  try { me = JSON.parse(localStorage.getItem("lc_user") || "{}"); } catch(e) {}
+  document.getElementById("login").innerHTML = '<span style="color:#238636">Logged in as <b>' + (me.login || "") + '</b></span> <button class="btn-outline" onclick="ST=\'\';localStorage.clear();location.reload()">Logout</button>';
   document.getElementById("main").style.display = "block";
+  if (me.role !== "admin") {
+    var keep = ["Users", "Reports", "Profile"];
+    document.querySelectorAll(".tab").forEach(function(t) {
+      if (keep.indexOf(t.textContent.trim()) === -1) t.style.display = "none";
+    });
+  }
   loadUsers();
 }
 
@@ -124,6 +132,9 @@ async function apiCall(url, method, body) {
 async function loadUsers() {
   var p = document.getElementById("panel-users");
   p.innerHTML = '<div class="card">Loading...</div>';
+  var meRole = "user";
+  try { meRole = JSON.parse(localStorage.getItem("lc_user") || "{}").role || "user"; } catch(e) {}
+  var isFullAdmin = meRole === "admin";
   try {
     var d = await apiCall("/admin/users?session_token=" + ST + "&_=" + Date.now());
     var h = '<div class="card"><h3>Users (' + d.count + ')</h3><table><tr><th>ID</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr>';
@@ -134,7 +145,7 @@ async function loadUsers() {
         h += '<button class="btn-danger" onclick="userAction(' + u.user_id + ',\'ban\')">Ban</button> ';
         h += '<input id="tbdur' + u.user_id + '" type="number" value="60" min="1" max="10080" size="4" style="width:55px"> ';
         h += '<button class="btn-outline" onclick="tblk(' + u.user_id + ')">min</button> ';
-        h += '<button class="btn-danger" onclick="delUser(' + u.user_id + ',this)">Delete</button>';
+        if (isFullAdmin) h += '<button class="btn-danger" onclick="delUser(' + u.user_id + ',this)">Delete</button>';
       } else {
         h += '<button class="btn-green" onclick="userAction(' + u.user_id + ',\'unban\')">Unban</button>';
       }
