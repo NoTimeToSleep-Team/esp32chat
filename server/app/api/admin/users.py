@@ -346,18 +346,19 @@ async def reset_user_password(
     service = _admin_users_service(request)
     try:
         actor = service.get_user(actor_user_id=admin_user_id, target_user_id=admin_user_id)
-        target = service.get_user(actor_user_id=admin_user_id, target_user_id=user_id)
+        service.get_user(actor_user_id=admin_user_id, target_user_id=user_id)
     except AdminUsersError as exc:
         _raise_admin_error(exc)
-    if target.role.value == "admin" and actor.role.value != "admin":
+    if actor.role.value != "admin":
         raise HTTPException(
             status_code=403,
-            detail={"code": "admin_only", "message": "Only a full admin can reset an admin password"},
+            detail={"code": "admin_only", "message": "Only a full admin can reset passwords"},
         )
     import sqlite3
     from app.services.auth import hash_password
     conn = sqlite3.connect(request.app.state.data_layer.database_path)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 5000")
     user = conn.execute("SELECT id, login FROM users WHERE id = ?", (user_id,)).fetchone()
     if not user:
         conn.close()

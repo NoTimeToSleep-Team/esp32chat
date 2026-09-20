@@ -1011,7 +1011,7 @@ async function renderAdmin() {
       <button class="tab" data-tab="support">Support</button>
       <button class="tab" data-tab="mode">Mode</button>
       <button class="tab" data-tab="cleanup">Cleanup</button>
-      <button class="tab" data-tab="passwords">Passwords</button>
+      <button class="tab" data-tab="passwords" style="${STATE.user?.role === 'admin' ? '' : 'display:none'}">Passwords</button>
       <button class="tab" data-tab="system">System</button>
       <button class="tab" data-tab="activity">Activity</button>
       <button class="tab" data-tab="reports">Reports</button>
