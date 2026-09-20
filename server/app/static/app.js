@@ -81,6 +81,20 @@ function newTraceId(prefix) {
   return (prefix || 'tr') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+function apiErrorMessage(d, status) {
+  if (d && d.detail) {
+    const det = d.detail;
+    if (Array.isArray(det) && det.length) {
+      const first = det[0] || {};
+      const loc = Array.isArray(first.loc) && first.loc.length > 1 ? first.loc[first.loc.length - 1] : '';
+      return (loc ? loc + ': ' : '') + (first.msg || 'validation error');
+    }
+    if (typeof det === 'string') return det;
+    return det.message || det.code || `HTTP ${status}`;
+  }
+  return `HTTP ${status}`;
+}
+
 async function api(url, opts={}) {
   const headers={'Content-Type':'application/json'};
   if (opts.sessionHeader) headers['X-Session-Token'] = STATE.token;
@@ -95,8 +109,9 @@ async function api(url, opts={}) {
     const t2 = Date.now();
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
-      debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, status: r.status, stages_done: 2, error: (d?.detail?.message || d?.detail?.code || ('HTTP '+r.status)), t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
-      throw new Error(d?.detail?.message || d?.detail?.code || `HTTP ${r.status}`);
+      const errMsg = apiErrorMessage(d, r.status);
+      debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, status: r.status, stages_done: 2, error: errMsg, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+      throw new Error(errMsg);
     }
     debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
     return d;
@@ -1800,6 +1815,8 @@ var T = {
 "sending":{rus:"Отправка...",eng:"Sending..."},
 "access_application":{rus:"Заявка на доступ",eng:"Access Application"},
 "select_ticket":{rus:"Выберите тикет для просмотра",eng:"Select a ticket to view"},
+"register_link":{rus:"Нет аккаунта? Зарегистрироваться",eng:"No account? Register"},
+"login_link":{rus:"Уже есть аккаунт? Войти",eng:"Already have an account? Sign in"},
 };
 function t(key) { var e = T[key]; return e ? (e[LANG] || e["rus"] || key) : key; }
 

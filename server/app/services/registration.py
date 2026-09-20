@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -12,6 +13,9 @@ from app.services.auth import AuthResult, SessionInfo, hash_password
 
 def _now_ms() -> int:
     return int(time() * 1000)
+
+
+_PHONE_RE = re.compile(r"\+?\d{10,15}")
 
 
 @dataclass(frozen=True)
@@ -46,8 +50,12 @@ class RegistrationService:
             raise RegistrationError("invalid_login", "Login must not be empty", 422)
         if len(password) < 8:
             raise RegistrationError("weak_password", "Password must be at least 8 characters", 422)
-        if not normalized_phone:
-            raise RegistrationError("invalid_phone", "Phone must not be empty", 422)
+        if normalized_phone and not _PHONE_RE.fullmatch(normalized_phone):
+            raise RegistrationError(
+                "invalid_phone",
+                "Invalid phone number: use 10-15 digits, e.g. +79991234567",
+                422,
+            )
         if not normalized_device_id:
             raise RegistrationError("invalid_device", "Device id must not be empty", 422)
 
@@ -66,7 +74,7 @@ class RegistrationService:
             ).fetchone() is not None:
                 raise RegistrationError("login_taken", "Login is already taken", 409)
 
-            if connection.execute(
+            if normalized_phone and connection.execute(
                 "SELECT id FROM users WHERE phone = ?",
                 (normalized_phone,),
             ).fetchone() is not None:
@@ -102,7 +110,7 @@ class RegistrationService:
                         hash_password(password),
                         UserRole.USER.value,
                         UserStatus.ACTIVE.value,
-                        normalized_phone,
+                        normalized_phone or None,
                         normalized_device_id,
                         _now_ms(),
                         _now_ms(),
@@ -222,6 +230,8 @@ class RegistrationService:
     @staticmethod
     def _normalize_phone(phone: str) -> str:
         compact = "".join(ch for ch in phone.strip() if ch not in {" ", "-", "(", ")"})
+        if compact.lower() in {"nophone", "no"}:
+            return ""
         return compact
 
     @staticmethod
