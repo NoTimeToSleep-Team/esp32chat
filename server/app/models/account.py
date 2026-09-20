@@ -16,18 +16,22 @@ class AccountProfile:
     profile_bio: str | None
     avatar_path: str | None
     avatar_updated_at_ms: int | None
+    avatar_emoji: str | None = None
 
 
 @dataclass(frozen=True)
 class AccountProfileUpdate:
     display_name: str | None = None
     profile_bio: str | None = None
+    avatar_emoji: str | None = None
 
     def __post_init__(self) -> None:
         if self.display_name is not None and len(self.display_name.strip()) > 128:
             raise ValueError("display_name must be <= 128 chars")
         if self.profile_bio is not None and len(self.profile_bio.strip()) > 1024:
             raise ValueError("profile_bio must be <= 1024 chars")
+        if self.avatar_emoji is not None and len(self.avatar_emoji.strip()) > 8:
+            raise ValueError("avatar_emoji must be <= 8 chars")
 
 
 @dataclass(frozen=True)

@@ -21,10 +21,8 @@ th{color:#8b949e;font-weight:normal}
 </style></head><body>
 <h2>LC Admin Panel</h2>
 <div id="js-status" style="background:#d29922;color:#000;padding:4px 8px;font-size:11px;margin-bottom:8px">JS checking...</div>
-<button onclick="alert('ONCLICK WORKS')" style="background:#d29922;margin-bottom:8px">TEST: onclick alert</button>
 <div id="login"><form onsubmit="doLogin();return false" style="display:inline"><input id="l" placeholder="admin login" size="12" autocomplete="username"><input id="p" type="password" placeholder="admin password" size="12" autocomplete="current-password"><button type="submit" class="btn-green">Login</button></form><span id="loginMsg" style="color:#58a6ff;margin-left:8px;font-size:12px"></span></div>
 <div id="main" style="display:none"><div id="msg"></div>
-<button onclick="alert('STATIC BUTTON WORKS')" style="background:#d29922;margin:8px">STATIC TEST: onclick alert</button>
 <div class="tabs"><div class="tab active" onclick="switchTab('users')">Users</div><div class="tab" onclick="switchTab('cleanup')">Cleanup</div><div class="tab" onclick="switchTab('system')">System</div><div class="tab" onclick="switchTab('passwords')">Passwords</div><div class="tab" onclick="switchTab('support')">Support</div><div class="tab" onclick="switchTab('mode')">Mode</div><div class="tab" onclick="switchTab('activity')">Activity</div><div class="tab" onclick="switchTab('network')">Network</div><div class="tab" onclick="switchTab('reports')">Reports</div>
   <div class="tab" onclick="switchTab('profile')">Profile</div></div>
 <div id="panel-users" class="panel active"></div><div id="panel-cleanup" class="panel"></div><div id="panel-system" class="panel"></div><div id="panel-passwords" class="panel"></div><div id="panel-support" class="panel"></div><div id="panel-mode" class="panel"></div><div id="panel-activity" class="panel"></div><div id="panel-network" class="panel"></div><div id="panel-reports" class="panel"></div>
@@ -79,6 +77,7 @@ function switchTab(t) {
   if (t === "activity") loadActivity();
   if (t === "network") loadNetwork();
   if (t === "reports") loadReports();
+  if (t === "profile") loadProfile();
 }
 
 async function apiCall(url, method, body) {
@@ -104,7 +103,7 @@ async function loadUsers() {
         h += '<button class="btn-danger" onclick="userAction(' + u.user_id + ',\'ban\')">Ban</button> ';
         h += '<input id="tbdur' + u.user_id + '" type="number" value="60" min="1" max="10080" size="4" style="width:55px"> ';
         h += '<button class="btn-outline" onclick="tblk(' + u.user_id + ')">min</button> ';
-        h += '<button class="btn-danger" onclick="delUser(' + u.user_id + ',\'' + esc(u.login) + '\')">Delete</button>';
+        h += '<button class="btn-danger" onclick="delUser(' + u.user_id + ',this)">Delete</button>';
       } else {
         h += '<button class="btn-green" onclick="userAction(' + u.user_id + ',\'unban\')">Unban</button>';
       }
@@ -137,11 +136,14 @@ async function tblk(uid) {
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
-async function delUser(uid, login) {
+async function delUser(uid, btn) {
+  var login = "";
+  try { login = btn && btn.closest("tr") ? btn.closest("tr").children[1].textContent : ""; } catch(e) {}
+  if (!confirm('Delete user "' + login + '" (ID ' + uid + ')? This cannot be undone.')) return;
   msg("Deleting...");
   try {
-    await apiCall("/admin/users/" + uid + "?session_token=" + ST, "DELETE");
-    msg('<span style="color:#238636">Deleted ' + login + "</span>");
+    await apiCall("/admin/users/" + uid + "?session_token=" + encodeURIComponent(ST), "DELETE");
+    msg('<span style="color:#238636">Deleted ' + esc(login) + "</span>");
     loadUsers();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
@@ -319,8 +321,8 @@ async function loadNetwork() {
     var users = await apiCall("/admin/network/users?session_token=" + ST);
     
     // WiFi client mode section
-    var h = '<div class="card"><h3>WiFi Client Mode (new)</h3>';
-    h += '<p style="color:#8b949e;font-size:12px;margin-bottom:8px">Connect RPi to existing WiFi. mDNS will make it available at <b>chat.local</b></p>';
+    var h = '<div class="card"><h3>WiFi Client Mode</h3>';
+    h += '<p style="color:#8b949e;font-size:12px;margin-bottom:8px">Connect RPi to an existing WiFi. First assign a wireless interface the <b>Client</b> role below and press <b>Save &amp; Apply</b>, then scan and connect. mDNS: <b>chat.local</b></p>';
     h += '<div style="display:flex;gap:8px;margin-bottom:8px"><input id="wifi-ssid" placeholder="WiFi SSID" size="20"><input id="wifi-pass" type="password" placeholder="Password (leave empty for open)" size="20"><button class="btn-green" onclick="wifiConnect()">Connect</button></div>';
     h += '<button class="btn-outline" onclick="wifiScan()">Scan Networks</button> <span id="wifi-scan-msg" style="font-size:11px;color:#8b949e"></span>';
     h += '<div id="wifi-scan-results" style="margin-top:8px;max-height:120px;overflow-y:auto"></div>';
@@ -364,7 +366,7 @@ async function wifiScan() {
   var results = document.getElementById("wifi-scan-results");
   msg.textContent = "Scanning..."; results.innerHTML = "";
   try {
-    var d = await apiCall("/admin/network/wifi/scan?session_token=" + ST + "&interface=wlan1");
+    var d = await apiCall("/admin/network/wifi/scan?session_token=" + encodeURIComponent(ST));
     if (d.networks && d.networks.length) {
       var h = '<table><tr><th>SSID</th><th>Signal</th><th>Security</th></tr>';
       d.networks.forEach(function(n) {
@@ -375,7 +377,7 @@ async function wifiScan() {
     } else {
       results.innerHTML = '<span style="color:#8b949e">No networks found</span>';
     }
-    msg.textContent = "Done";
+    msg.textContent = "Done (" + (d.interface || "uplink") + ")";
   } catch(e) { msg.textContent = "Error: " + e.message; msg.style.color = "#f85149"; }
 }
 
@@ -385,7 +387,7 @@ async function wifiConnect() {
   if (!ssid) { msg("Enter SSID"); return; }
   msg("Connecting to " + ssid + "...");
   try {
-    await apiCall("/admin/network/wifi/connect", "POST", { session_token: ST, ssid: ssid, password: pass || "", interface: "wlan1" });
+    await apiCall("/admin/network/wifi/connect", "POST", { session_token: ST, ssid: ssid, password: pass || "" });
     msg("Waiting for IP...");
     // Check real status after 3+6+9 seconds
     for (var i = 0; i < 3; i++) {
@@ -421,12 +423,12 @@ async function toggleInternet(uid, enable) {
   catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
-// REPORTS
+// REPORTS (integrated moderation API)
 async function loadReports() {
   var p = document.getElementById("panel-reports");
   p.innerHTML = '<div class="card">Loading...</div>';
   try {
-    var d = await fetch("http://" + location.hostname + ":18081/reports?token=" + ST).then(function(r) { return r.json(); });
+    var d = await apiCall("/moderation/api/admin/reports?session_token=" + encodeURIComponent(ST) + "&limit=100");
     var h = '<div class="card"><h3>Moderation Reports <span style="color:#f85149">(' + d.pending_count + ' pending)</span></h3>';
     if (!d.reports || !d.reports.length) { h += '<p style="color:#8b949e">No reports</p>'; }
     d.reports.forEach(function(r) {
@@ -449,7 +451,7 @@ async function loadReports() {
 async function resolveReport(rid, action) {
   msg("Working...");
   try {
-    await fetch("http://" + location.hostname + ":18081/reports/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: ST, report_id: rid, action: action }) });
+    await apiCall("/moderation/api/admin/reports/resolve", "POST", { session_token: ST, report_id: rid, action: action });
     msg('<span style="color:#238636">Report ' + action + "</span>");
     loadReports();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
@@ -491,7 +493,7 @@ async function loadProfile() {
   } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + '</div>'; }
 }
 
-async function _removed_lookupProfile() {
+async function lookupProfile() {
   var login = document.getElementById('lookup-login').value.trim();
   if (!login) { document.getElementById('lookup-result').textContent = 'Enter a login'; return; }
   document.getElementById('lookup-result').innerHTML = 'Searching...';

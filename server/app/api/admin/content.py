@@ -120,6 +120,8 @@ def _support_ticket_payload(ticket: SupportTicket) -> dict[str, object]:
         "user_id": ticket.user_id,
         "title": ticket.title,
         "status": ticket.status.value,
+        "kind": getattr(ticket, "kind", None).value if getattr(ticket, "kind", None) else "support",
+        "target_user_id": getattr(ticket, "target_user_id", None),
         "created_at_ms": ticket.created_at_ms,
         "updated_at_ms": ticket.updated_at_ms,
         "last_message_at_ms": ticket.last_message_at_ms,

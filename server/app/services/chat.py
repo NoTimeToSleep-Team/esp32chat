@@ -492,10 +492,7 @@ class ChatService:
                 (now_ms, chat_id),
             )
 
-            row = connection.execute(
-                "SELECT * FROM chat_messages WHERE id = ?",
-                (message_id,),
-            ).fetchone()
+            row = self._select_message_row(connection, message_id)
             if row is None:
                 raise ChatError("message_create_failed", "Failed to save chat message", 500)
             return self._with_message_attachments(connection, self._row_to_message(row))
@@ -520,14 +517,17 @@ class ChatService:
 
             rows = connection.execute(
                 """
-                SELECT *
-                FROM chat_messages
-                WHERE chat_id = ?
-                ORDER BY created_at_ms ASC, id ASC
+                SELECT m.*, u.login AS author_login, u.avatar_emoji AS author_avatar_emoji
+                FROM chat_messages m
+                LEFT JOIN users u ON u.id = m.author_user_id
+                WHERE m.chat_id = ?
+                ORDER BY m.created_at_ms DESC, m.id DESC
                 LIMIT ? OFFSET ?
                 """,
                 (chat_id, safe_limit, safe_offset),
             ).fetchall()
+            # Offset counts from the newest message; return oldest-first for rendering.
+            rows = list(reversed(rows))
             messages = [self._row_to_message(row) for row in rows]
             attachments_by_id = MediaService(self._db_path, self._storage_root).list_for_chat_messages(
                 connection,
@@ -652,6 +652,8 @@ class ChatService:
             client_message_id=ChatService._row_optional_str(row, "client_message_id"),
             created_at_ms=ChatService._row_int(row, "created_at_ms"),
             edited_at_ms=ChatService._row_optional_int(row, "edited_at_ms"),
+            author_login=ChatService._row_optional_str_lenient(row, "author_login"),
+            author_avatar_emoji=ChatService._row_optional_str_lenient(row, "author_avatar_emoji"),
         )
 
     def _with_message_attachments(
@@ -675,6 +677,8 @@ class ChatService:
             created_at_ms=message.created_at_ms,
             edited_at_ms=message.edited_at_ms,
             attachments=attachments_by_id.get(message.message_id, ()),
+            author_login=message.author_login,
+            author_avatar_emoji=message.author_avatar_emoji,
         )
 
     @staticmethod
@@ -772,6 +776,26 @@ class ChatService:
     def _row_optional_str(row: sqlite3.Row, key: str) -> str | None:
         value = row[key]
         return str(value) if value is not None else None
+
+    @staticmethod
+    def _row_optional_str_lenient(row: sqlite3.Row, key: str) -> str | None:
+        try:
+            value = row[key]
+        except Exception:
+            return None
+        return str(value) if value is not None else None
+
+    @staticmethod
+    def _select_message_row(connection: sqlite3.Connection, message_id: int) -> sqlite3.Row | None:
+        return connection.execute(
+            """
+            SELECT m.*, u.login AS author_login, u.avatar_emoji AS author_avatar_emoji
+            FROM chat_messages m
+            LEFT JOIN users u ON u.id = m.author_user_id
+            WHERE m.id = ?
+            """,
+            (message_id,),
+        ).fetchone()
 
     @staticmethod
     def _row_bool(row: sqlite3.Row, key: str) -> bool:
@@ -921,4 +945,7 @@ class ChatService:
             now_ms = _now_ms()
             connection.execute("UPDATE chat_messages SET body_text = ?, edited_at_ms = ? WHERE id = ?", (body_text, now_ms, message_id))
             connection.commit()
-            return self._row_to_message(connection.execute("SELECT * FROM chat_messages WHERE id = ?", (message_id,)).fetchone())
+            updated_row = self._select_message_row(connection, message_id)
+            if updated_row is None:
+                raise ChatError("message_not_found", "Message not found", 404)
+            return self._row_to_message(updated_row)

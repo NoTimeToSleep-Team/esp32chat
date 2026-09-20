@@ -226,6 +226,7 @@ async def update_account_profile(
             draft=AccountProfileUpdate(
                 display_name=payload.display_name,
                 profile_bio=payload.profile_bio,
+                avatar_emoji=payload.avatar_emoji,
             ),
         )
     except (AccountError, ValueError) as exc:

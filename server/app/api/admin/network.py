@@ -19,6 +19,7 @@ class WiFiConnectRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     ssid: str = Field(min_length=1, max_length=64)
     password: str = Field(max_length=128)
+    interface: str | None = Field(default=None, max_length=16)
 
 
 class WiFiDisconnectRequest(BaseModel):
@@ -122,14 +123,55 @@ async def restart_services(request: Request, session_token: str = Query(..., min
     return result
 
 
+class NetworkConfigSaveRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    config: dict[str, str] = Field(default_factory=dict)
+
+
+_ROLE_ALIASES: dict[str, WiFiInterfaceRole] = {
+    "ap": WiFiInterfaceRole.AP,
+    "client": WiFiInterfaceRole.UPLINK,
+    "uplink": WiFiInterfaceRole.UPLINK,
+    "off": WiFiInterfaceRole.UNASSIGNED,
+    "unassigned": WiFiInterfaceRole.UNASSIGNED,
+}
+
+
+@router.post("/config/save")
+async def save_network_config(request: Request, payload: NetworkConfigSaveRequest) -> dict[str, object]:
+    """Apply AP/Client/Off role changes for one or more interfaces (used by the admin UI)."""
+    _resolve_admin(request, payload.session_token)
+    if not payload.config:
+        raise HTTPException(status_code=422, detail={"code": "empty_config", "message": "config must not be empty"})
+    roles: dict[str, WiFiInterfaceRole] = {}
+    for ifname, raw_role in payload.config.items():
+        role = _ROLE_ALIASES.get(str(raw_role).strip().lower())
+        if role is None:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "invalid_role", "message": f"Invalid role '{raw_role}' for interface {ifname}"},
+            )
+        roles[str(ifname)] = role
+    svc = _network_service(request)
+    svc.set_interface_roles(roles)
+    return {
+        "status": "ok",
+        "changed": [{"ifname": name, "role": role.value} for name, role in roles.items()],
+    }
+
+
 # --- WiFi management ---
 
 @router.get("/wifi/scan")
-async def scan_wifi(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
+async def scan_wifi(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    interface: str | None = Query(default=None, max_length=16),
+) -> dict[str, object]:
     _resolve_admin(request, session_token)
     svc = _network_service(request)
-    networks = svc.scan_wifi()
-    return {"status": "ok", "count": len(networks),
+    networks = svc.scan_wifi(interface=interface)
+    return {"status": "ok", "count": len(networks), "interface": svc.get_uplink_iface(),
             "networks": [{"ssid": n.ssid, "signal": n.signal_strength, "security": n.security} for n in networks]}
 
 
@@ -137,7 +179,7 @@ async def scan_wifi(request: Request, session_token: str = Query(..., min_length
 async def connect_wifi(request: Request, payload: WiFiConnectRequest) -> dict[str, object]:
     _resolve_admin(request, payload.session_token)
     svc = _network_service(request)
-    ok = svc.connect_wifi(payload.ssid, payload.password)
+    ok = svc.connect_wifi(payload.ssid, payload.password, interface=payload.interface)
     status = svc.get_uplink_status()
     return {"status": "ok" if ok else "error", "connected": status.connected,
             "ssid": status.ssid, "ip_address": status.ip_address}

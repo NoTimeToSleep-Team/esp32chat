@@ -12,6 +12,7 @@ from app.models import (
     SupportMessageDraft,
     SupportTicket,
     SupportTicketDraft,
+    SupportTicketKind,
     SupportTicketStatus,
 )
 from app.services.auth import AuthError, AuthService
@@ -26,6 +27,8 @@ class CreateSupportTicketRequest(BaseModel):
     title: str = Field(min_length=1, max_length=256)
     body_text: str = Field(min_length=0, max_length=8000)
     attachment_ids: list[int] = Field(default_factory=list, max_length=8)
+    kind: str = Field(default="support", max_length=16)
+    target_user_id: int | None = Field(default=None, ge=1)
 
 
 class SendSupportMessageRequest(BaseModel):
@@ -83,6 +86,8 @@ def _ticket_payload(ticket: SupportTicket) -> dict[str, object]:
         "user_id": ticket.user_id,
         "title": ticket.title,
         "status": ticket.status.value,
+        "kind": ticket.kind.value,
+        "target_user_id": ticket.target_user_id,
         "created_at_ms": ticket.created_at_ms,
         "updated_at_ms": ticket.updated_at_ms,
         "last_message_at_ms": ticket.last_message_at_ms,
@@ -136,12 +141,22 @@ async def create_support_ticket(
     service = _support_service(request)
 
     try:
+        ticket_kind = SupportTicketKind(payload.kind.strip().lower())
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_kind", "message": "kind must be 'support' or 'report'"},
+        )
+
+    try:
         ticket = service.create_ticket(
             requester_user_id=user_id,
             draft=SupportTicketDraft(
                 title=payload.title,
                 body_text=payload.body_text,
                 attachment_ids=tuple(payload.attachment_ids),
+                kind=ticket_kind,
+                target_user_id=payload.target_user_id,
             ),
         )
     except (SupportError, ValueError) as exc:

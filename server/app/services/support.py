@@ -10,6 +10,7 @@ from app.models import (
     SupportMessageDraft,
     SupportTicket,
     SupportTicketDraft,
+    SupportTicketKind,
     SupportTicketStatus,
     UserRole,
     UserStatus,
@@ -40,6 +41,23 @@ class SupportService:
         with self._connect() as connection:
             requester = self._require_support_user(connection, requester_user_id)
 
+            kind = draft.kind if isinstance(draft.kind, SupportTicketKind) else SupportTicketKind(str(draft.kind))
+            target_user_id = draft.target_user_id
+            if kind == SupportTicketKind.REPORT:
+                if not target_user_id:
+                    raise SupportError("target_required", "Report requires target_user_id", 422)
+                if int(target_user_id) == requester_user_id:
+                    raise SupportError("invalid_target", "Cannot report yourself", 422)
+                target = connection.execute(
+                    "SELECT id FROM users WHERE id = ?",
+                    (int(target_user_id),),
+                ).fetchone()
+                if target is None:
+                    raise SupportError("target_not_found", "Reported user was not found", 404)
+                target_user_id = int(target_user_id)
+            else:
+                target_user_id = None
+
             now_ms = _now_ms()
             ticket_cursor = connection.execute(
                 """
@@ -49,9 +67,11 @@ class SupportService:
                     status,
                     created_at_ms,
                     updated_at_ms,
-                    last_message_at_ms
+                    last_message_at_ms,
+                    kind,
+                    target_user_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     requester_user_id,
@@ -60,6 +80,8 @@ class SupportService:
                     now_ms,
                     now_ms,
                     now_ms,
+                    kind.value,
+                    target_user_id,
                 ),
             )
             ticket_id = self._lastrowid(ticket_cursor)
@@ -352,6 +374,20 @@ class SupportService:
 
     @staticmethod
     def _row_to_ticket(row: sqlite3.Row) -> SupportTicket:
+        kind = SupportTicketKind.SUPPORT
+        target_user_id: int | None = None
+        try:
+            raw_kind = row["kind"]
+            if raw_kind:
+                kind = SupportTicketKind(str(raw_kind))
+        except Exception:
+            pass
+        try:
+            raw_target = row["target_user_id"]
+            if raw_target is not None:
+                target_user_id = int(raw_target)
+        except Exception:
+            pass
         return SupportTicket(
             ticket_id=SupportService._row_int(row, "id"),
             user_id=SupportService._row_int(row, "user_id"),
@@ -360,6 +396,8 @@ class SupportService:
             created_at_ms=SupportService._row_int(row, "created_at_ms"),
             updated_at_ms=SupportService._row_int(row, "updated_at_ms"),
             last_message_at_ms=SupportService._row_int(row, "last_message_at_ms"),
+            kind=kind,
+            target_user_id=target_user_id,
         )
 
     @staticmethod

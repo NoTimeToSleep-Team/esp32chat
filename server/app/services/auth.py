@@ -87,6 +87,7 @@ class AuthService:
         login: str,
         password: str,
         client_kind: ClientKind,
+        ip_address: str = "",
     ) -> AuthResult:
         normalized_login = login.strip()
         if not normalized_login:
@@ -124,7 +125,7 @@ class AuthService:
                     403,
                 )
 
-            session = self._create_session(connection, user_id=int(user_row["id"]))
+            session = self._create_session(connection, user_id=int(user_row["id"]), ip_address=ip_address)
             return AuthResult(user=user, session=session, access_mode=access_mode)
 
     def login_by_user_id(self, user_id: int) -> AuthResult:

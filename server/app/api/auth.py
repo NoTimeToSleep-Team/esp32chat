@@ -127,6 +127,7 @@ async def login(payload: LoginRequest, request: Request) -> dict[str, object]:
                 login=normalized_login,
                 password=payload.password,
                 client_kind=payload.client_kind,
+                ip_address=ip_address,
             )
     except AuthError as exc:
         blocked_until_ms: int | None = None

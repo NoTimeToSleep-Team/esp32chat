@@ -48,6 +48,8 @@ class ChatMessage:
     created_at_ms: int
     edited_at_ms: int | None
     attachments: tuple[MediaAttachment, ...] = ()
+    author_login: str | None = None
+    author_avatar_emoji: str | None = None
 
 
 @dataclass(frozen=True)

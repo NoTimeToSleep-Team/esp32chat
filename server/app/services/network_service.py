@@ -170,6 +170,29 @@ class NetworkService:
         self._restart_network_services()
         return True
 
+    def set_interface_roles(self, roles: dict[str, WiFiInterfaceRole]) -> bool:
+        """Assign roles for multiple interfaces, then restart network services once."""
+        now_ms = int(time.time() * 1000)
+        conn = self._connect()
+        try:
+            for ifname, role in roles.items():
+                row = conn.execute("SELECT priority, chipset, tx_power_dbm FROM wifi_interface_map WHERE ifname = ?", (ifname,)).fetchone()
+                priority = row["priority"] if row else 0
+                chipset = row["chipset"] if row else ""
+                tx_power = row["tx_power_dbm"] if row else 20
+                conn.execute(
+                    """INSERT INTO wifi_interface_map (ifname, role, priority, chipset, tx_power_dbm, assigned_at_ms)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(ifname) DO UPDATE SET role=?, priority=?, chipset=?, tx_power_dbm=?, assigned_at_ms=?""",
+                    (ifname, role.value, priority, chipset, tx_power, now_ms,
+                     role.value, priority, chipset, tx_power, now_ms),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        self._restart_network_services()
+        return True
+
     def set_tx_power(self, ifname: str, power_dbm: int) -> bool:
         power_dbm = min(max(power_dbm, 1), 33)
         try:
@@ -195,7 +218,22 @@ class NetworkService:
         return self._restart_network_services()
 
     def _restart_network_services(self) -> dict:
-        ap_ifaces = self.get_ap_ifaces()
+        conn = self._connect()
+        rows = conn.execute("SELECT ifname FROM wifi_interface_map WHERE role = 'ap' ORDER BY priority DESC").fetchall()
+        total_map_rows = int(conn.execute("SELECT COUNT(*) AS n FROM wifi_interface_map").fetchone()["n"])
+        conn.close()
+        ap_ifaces = [r["ifname"] for r in rows]
+        if not ap_ifaces and total_map_rows == 0:
+            # No assignments recorded yet: keep the legacy single-AP behaviour.
+            ap_ifaces = ["wlan0"]
+        if not ap_ifaces:
+            try:
+                subprocess.run(["sudo", "systemctl", "stop", "hostapd"], capture_output=True, timeout=10)
+                subprocess.run(["sudo", "systemctl", "stop", "dnsmasq"], capture_output=True, timeout=10)
+                self.ensure_uplink_routing()
+            except Exception as exc:
+                return {"status": "error", "message": str(exc)}
+            return {"status": "ok", "ap_interface": None, "message": "No AP interfaces assigned; hostapd/dnsmasq stopped"}
         primary_ap = ap_ifaces[0]
         try:
             # Update hostapd.conf for primary AP
@@ -249,10 +287,11 @@ class NetworkService:
         rows = conn.execute("SELECT ifname FROM wifi_interface_map WHERE role = 'uplink' ORDER BY priority DESC").fetchall()
         conn.close()
         ifaces = [r["ifname"] for r in rows]
-        return ifaces if ifaces else ["wlan1"]
+        return ifaces
 
     def get_uplink_iface(self) -> str:
-        return self.get_uplink_ifaces()[0]
+        ifaces = self.get_uplink_ifaces()
+        return ifaces[0] if ifaces else ""
 
     def get_ap_ifaces(self) -> list[str]:
         conn = self._connect()
@@ -281,6 +320,8 @@ class NetworkService:
 
     def scan_wifi(self, interface: str | None = None) -> list[WiFiNetwork]:
         iface = interface or self.get_uplink_iface()
+        if not iface:
+            return []
         try:
             result = subprocess.run(
                 ["sudo", "iw", "dev", iface, "scan"],
@@ -327,6 +368,8 @@ class NetworkService:
 
     def connect_wifi(self, ssid: str, password: str, interface: str | None = None) -> bool:
         iface = interface or self.get_uplink_iface()
+        if not iface:
+            return False
         try:
             result = subprocess.run(
                 ["sudo", "wpa_cli", "-i", iface, "list_networks"],
@@ -377,14 +420,15 @@ class NetworkService:
     def get_uplink_status(self) -> WiFiUplinkStatus:
         iface = self.get_uplink_iface()
         ip_address = None
-        try:
-            result = subprocess.run(["ip", "-4", "addr", "show", iface],
-                                    capture_output=True, text=True, timeout=10)
-            match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
-            if match:
-                ip_address = match.group(1)
-        except Exception:
-            pass
+        if iface:
+            try:
+                result = subprocess.run(["ip", "-4", "addr", "show", iface],
+                                        capture_output=True, text=True, timeout=10)
+                match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+                if match:
+                    ip_address = match.group(1)
+            except Exception:
+                pass
 
         ssid = ""
         connected = False

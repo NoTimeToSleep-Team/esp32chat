@@ -47,6 +47,7 @@ except ImportError:
 from app.api.health import router as health_router
 from app.api.mode import router as mode_router
 from app.api.media import router as media_router
+from app.api.moderation import router as moderation_router
 from app.api.ops import router as ops_router
 from app.api.realtime import router as realtime_router
 from app.api.support import router as support_router
@@ -57,6 +58,7 @@ from app.realtime import ChatRealtimeBroker
 from app.security import InMemoryRateLimiter, SecurityAuditService
 from app.services.chat import ChatService
 from app.services.module_registry import ModuleRegistryService
+from app.services.auto_moderator import AutoModerator
 from app.api.system_health import router as system_health_router
 
 
@@ -116,6 +118,10 @@ def create_app() -> FastAPI:
 
         chat_service = ChatService(app.state.data_layer.database_path)
         default_chat = chat_service.ensure_default_common_chat()
+
+        auto_moderator = AutoModerator(app.state.data_layer.database_path)
+        auto_moderator.start()
+        app.state.auto_moderator = auto_moderator
 
         if _is_pn532_enabled(app):
             _include_rfid_router_once(app)
@@ -246,6 +252,7 @@ def create_app() -> FastAPI:
     app.include_router(media_router)
     app.include_router(mode_router)
     app.include_router(ops_router)
+    app.include_router(moderation_router)
     if device_runtime_router:
         app.include_router(device_runtime_router)
     if discovery_router:
@@ -290,7 +297,13 @@ def create_app() -> FastAPI:
     # Captive portal proxy for WiFi login pages
     @app.post('/captive-proxy')
     async def captive_proxy(request: Request):
-        import requests
+        try:
+            import requests
+        except ImportError:
+            return JSONResponse(
+                {'status': 'error', 'message': 'Proxy support unavailable (requests module missing)'},
+                status_code=503,
+            )
         target_url = None
         try:
             with open('/tmp/captive_info.txt') as f:
@@ -301,7 +314,10 @@ def create_app() -> FastAPI:
         if not target_url:
             return JSONResponse({'status': 'error', 'message': 'No captive portal'})
         form_data = await request.form()
-        resp = requests.post(target_url, data=dict(form_data), allow_redirects=True)
+        try:
+            resp = requests.post(target_url, data=dict(form_data), allow_redirects=True, timeout=15)
+        except Exception as exc:
+            return JSONResponse({'status': 'error', 'message': f'Upstream request failed: {exc}'}, status_code=502)
         return HTMLResponse(content=resp.text, status_code=200)
     return app
 

@@ -61,6 +61,7 @@ class AdminUsersService:
                     FROM users u
                     LEFT JOIN user_restrictions r ON r.user_id = u.id
                     LEFT JOIN device_blacklist b ON b.device_id = u.registration_device_id
+                    WHERE u.role != 'guest'
                     ORDER BY u.created_at_ms DESC, u.id DESC
                     LIMIT ? OFFSET ?
                     """,
@@ -117,8 +118,9 @@ class AdminUsersService:
         reason: str | None = None,
     ) -> AdminUserRecord:
         with self._connect() as connection:
-            self._require_active_admin(connection, actor_user_id)
-            self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)
+            actor = self._require_active_admin(connection, actor_user_id)
+            target = self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)
+            self._ensure_can_manage_target(actor=actor, target=target)
 
             now_ms = _now_ms()
             normalized_reason = (reason or "").strip() or "banned by admin"
@@ -193,8 +195,9 @@ class AdminUsersService:
             )
 
         with self._connect() as connection:
-            self._require_active_admin(connection, actor_user_id)
-            self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)
+            actor = self._require_active_admin(connection, actor_user_id)
+            target = self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)
+            self._ensure_can_manage_target(actor=actor, target=target)
 
             now_ms = _now_ms()
             blocked_until_ms = now_ms + duration_minutes * 60_000
@@ -339,8 +342,21 @@ class AdminUsersService:
         if str(role.value) == "guest":
             raise AdminUsersError("invalid_target", "Cannot change guest role", 403)
         with self._connect() as connection:
-            self._require_active_admin(connection, actor_user_id)
-            self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)
+            actor = self._require_active_admin(connection, actor_user_id)
+            target = self._ensure_target_allowed(connection, actor_user_id=actor_user_id, target_user_id=target_user_id)
+            actor_role = str(actor["role"])
+            target_role = str(target["role"])
+            if actor_role != UserRole.ADMIN.value:
+                # Moderators may only promote a regular user to moderator.
+                allowed_for_moderator = (
+                    target_role == UserRole.USER.value and role == UserRole.MODERATOR
+                )
+                if not allowed_for_moderator:
+                    raise AdminUsersError(
+                        "admin_only",
+                        "Only full admin can change this role",
+                        403,
+                    )
             now_ms = _now_ms()
             connection.execute(
                 "UPDATE users SET role = ?, updated_at_ms = ? WHERE id = ?",
@@ -442,6 +458,19 @@ class AdminUsersService:
                 409,
             )
         return AdminUsersService._ensure_target_exists(connection, target_user_id)
+
+    @staticmethod
+    def _ensure_can_manage_target(*, actor: sqlite3.Row, target: sqlite3.Row) -> None:
+        """A moderator must not ban or block a full admin account."""
+        if (
+            str(target["role"]) == UserRole.ADMIN.value
+            and str(actor["role"]) != UserRole.ADMIN.value
+        ):
+            raise AdminUsersError(
+                "admin_only",
+                "Only full admin can apply this action to an admin",
+                403,
+            )
 
     @staticmethod
     def _upsert_restriction(

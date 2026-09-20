@@ -13,6 +13,11 @@ class SupportTicketStatus(str, Enum):
     CLOSED = "closed"
 
 
+class SupportTicketKind(str, Enum):
+    SUPPORT = "support"
+    REPORT = "report"
+
+
 @dataclass(frozen=True)
 class SupportTicket:
     ticket_id: int
@@ -22,6 +27,8 @@ class SupportTicket:
     created_at_ms: int
     updated_at_ms: int
     last_message_at_ms: int
+    kind: SupportTicketKind = SupportTicketKind.SUPPORT
+    target_user_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +46,8 @@ class SupportTicketDraft:
     title: str
     body_text: str
     attachment_ids: tuple[int, ...] = ()
+    kind: SupportTicketKind = SupportTicketKind.SUPPORT
+    target_user_id: int | None = None
 
     def __post_init__(self) -> None:
         if not self.title.strip():

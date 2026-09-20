@@ -50,6 +50,7 @@ from app.models.support import (
     SupportMessageDraft,
     SupportTicket,
     SupportTicketDraft,
+    SupportTicketKind,
     SupportTicketStatus,
 )
 from app.models.user import (
@@ -112,6 +113,7 @@ __all__ = [
     "SupportMessageDraft",
     "SupportTicket",
     "SupportTicketDraft",
+    "SupportTicketKind",
     "SupportTicketStatus",
     "AccessMode",
     "ClientKind",

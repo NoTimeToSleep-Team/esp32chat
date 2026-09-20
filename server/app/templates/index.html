@@ -4,21 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="theme-color" content="#0d1117">
-<title>Local Chat (v=1784730006)</title>
-<link rel="stylesheet" href="/static/app.css?v=1784468559?v=1783514455">
+<title>Local Chat</title>
+<link rel="stylesheet" href="/static/app.css?v=1784730006">
 </head>
 <body>
 <div id="static-login" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0d1117;padding:20px">
   <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;width:100%;max-width:380px">
     <div style="color:#58a6ff;font:20px monospace;margin-bottom:4px">Local Chat</div>
-    <div style="color:#8b949e;font:13px monospace;margin-bottom:20px">Sign in</div>
+    <div style="color:#8b949e;font:13px monospace;margin-bottom:20px"><span data-t="sign_in">Sign in</span> · <a href="#" class="lang-btn" style="color:#58a6ff;text-decoration:none;font:13px monospace">🇬🇧 ENG</a></div>
     <form onsubmit="doStaticLogin();return false">
-      <input id="sl" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;padding:10px 12px;border-radius:6px;font:14px monospace;margin-bottom:10px" placeholder="Login" autocomplete="username">
-      <input id="sp" type="password" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;padding:10px 12px;border-radius:6px;font:14px monospace;margin-bottom:10px" placeholder="Password" autocomplete="current-password">
+      <input id="sl" data-t-placeholder="enter_login" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;padding:10px 12px;border-radius:6px;font:14px monospace;margin-bottom:10px" placeholder="Login" autocomplete="username">
+      <input id="sp" data-t-placeholder="enter_pass" type="password" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;padding:10px 12px;border-radius:6px;font:14px monospace;margin-bottom:10px" placeholder="Password" autocomplete="current-password">
       <div id="serr" style="color:#f85149;font:12px monospace;margin-bottom:8px;display:none"></div>
-      <button type="submit" style="width:100%;background:#238636;color:#fff;border:none;padding:10px;border-radius:6px;font:14px monospace;cursor:pointer">Sign In</button>
+      <button type="submit" data-t="login_btn" style="width:100%;background:#238636;color:#fff;border:none;padding:10px;border-radius:6px;font:14px monospace;cursor:pointer">Sign In</button>
     </form>
-    <button onclick="doStaticGuest()" style="width:100%;background:#30363d;color:#e6edf3;border:none;padding:10px;border-radius:6px;font:14px monospace;cursor:pointer;margin-top:6px">Continue as guest</button>
+    <button onclick="doStaticGuest()" data-t="continue_guest" style="width:100%;background:#30363d;color:#e6edf3;border:none;padding:10px;border-radius:6px;font:14px monospace;cursor:pointer;margin-top:6px">Continue as guest</button>
   </div>
 </div>
 
@@ -27,18 +27,19 @@
     <a href="#/chat" class="nav-brand">LC</a>
     <button class="hamburger" id="hamburger">☰</button>
     <div class="nav-links" id="nav-links">
-      <a href="#/chat">Chat</a>
-      <a href="#/devices">Devices</a>
-      <a href="#/account">Account</a>
-      <a href="#/blog">Blog</a>
-      <a href="#/support">Support</a>
-      <a href="#/admin" id="admin-link" style="display:none">Admin</a>
-      <a href="/admin/network" id="network-link" style="display:none">Network</a>
-      <a href="#/about" data-public="true">О проекте</a>
+      <a href="#/chat" data-t="chat">Chat</a>
+      <a href="#/devices" data-t="devices">Devices</a>
+      <a href="#/account" data-t="account">Account</a>
+      <a href="#/blog" data-t="blog">Blog</a>
+      <a href="#/support" data-t="support">Support</a>
+      <a href="#/admin" id="admin-link" style="display:none" data-t="admin">Admin</a>
+      <a href="/admin/network" id="network-link" style="display:none" data-t="network">Network</a>
+      <a href="#/about" data-public="true" data-t="about">О проекте</a>
     </div>
   <div class="nav-right" id="nav-right">
+    <button class="btn-logout lang-btn" style="margin-right:6px">🇬🇧 ENG</button>
     <span class="nav-user" id="nav-user"></span>
-    <button class="btn-logout" id="logout-btn">Logout</button>
+    <button class="btn-logout" id="logout-btn" data-t="logout">Logout</button>
   </div>
 </nav>
 
@@ -54,7 +55,7 @@
   </noscript>
 </main>
 
-<script src="/static/app.js?v=1784493493"></script>
+<script src="/static/app.js?v=1784730006"></script>
 
 <script>
 var _st = localStorage.getItem("lc_session_token");
@@ -63,6 +64,20 @@ if (_st) {
   document.querySelector(".nav").style.display = "";
   document.getElementById("nav-right").style.display = "";
   try { var u = JSON.parse(localStorage.getItem("lc_user")||"{}"); document.getElementById("nav-user").textContent = u.login||""; } catch(e) {}
+}
+
+function onStaticLoginSuccess(d) {
+  localStorage.setItem("lc_session_token", d.session.token);
+  localStorage.setItem("lc_user", JSON.stringify(d.user));
+  document.getElementById("static-login").style.display = "none"; document.getElementById("content").style.display = "";
+  document.querySelector(".nav").style.display = "";
+  document.getElementById("nav-user").textContent = d.user.login;
+  document.getElementById("nav-right").style.display = "";
+  if (window.lcStaticLoginComplete) {
+    window.lcStaticLoginComplete();
+  } else {
+    var s = document.createElement("script"); s.src = "/static/app.js"; document.body.appendChild(s);
+  }
 }
 
 async function doStaticLogin() {
@@ -74,27 +89,18 @@ async function doStaticLogin() {
     var r = await fetch("/auth/login", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:l,password:p,client_kind:"web"})});
     var d = await r.json();
     if (!r.ok) throw new Error(d.detail?.message||"HTTP "+r.status);
-    localStorage.setItem("lc_session_token", d.session.token);
-    localStorage.setItem("lc_user", JSON.stringify(d.user));
-    document.getElementById("static-login").style.display = "none"; document.getElementById("content").style.display = "";
-    document.querySelector(".nav").style.display = "";
-    document.getElementById("nav-user").textContent = d.user.login;
-    document.getElementById("nav-right").style.display = "";
-    var s = document.createElement("script"); s.src = "/static/app.js"; document.body.appendChild(s);
+    onStaticLoginSuccess(d);
   } catch(x) { e.textContent = x.message; e.style.display = "block"; }
 }
 
 async function doStaticGuest() {
+  var e = document.getElementById("serr");
   try {
     var r = await fetch("/auth/guest", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_kind:"web"})});
     var d = await r.json();
-    localStorage.setItem("lc_session_token", d.session.token);
-    localStorage.setItem("lc_user", JSON.stringify(d.user));
-    document.getElementById("static-login").style.display = "none"; document.getElementById("content").style.display = "";
-    document.querySelector(".nav").style.display = "";
-    document.getElementById("nav-right").style.display = "";
-    var s = document.createElement("script"); s.src = "/static/app.js"; document.body.appendChild(s);
-  } catch(e) {}
+    if (!r.ok) throw new Error(d.detail?.message||"HTTP "+r.status);
+    onStaticLoginSuccess(d);
+  } catch(x) { if (e) { e.textContent = x.message; e.style.display = "block"; } }
 }
 </script>
 </body>

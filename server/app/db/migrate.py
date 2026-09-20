@@ -52,6 +52,8 @@ def _ensure_migrations_table(connection: sqlite3.Connection) -> None:
 _SCHEMA_PATCHES: tuple[tuple[str, str, str], ...] = (
     ("sessions", "ip_address", "TEXT"),
     ("users", "avatar_emoji", "TEXT"),
+    ("support_tickets", "kind", "TEXT NOT NULL DEFAULT 'support'"),
+    ("support_tickets", "target_user_id", "INTEGER"),
 )
 
 
@@ -117,6 +119,21 @@ def apply_sql_migrations(database_url: str) -> MigrationResult:
                 )
                 connection.commit()
                 applied_versions.append(version)
+            except sqlite3.OperationalError as exc:
+                connection.rollback()
+                if "duplicate column name" in str(exc).lower():
+                    # The column was already added manually on this database
+                    # (deployed hotfix). Record the migration as applied and
+                    # let _apply_schema_patches fill any remaining gaps.
+                    connection.execute("BEGIN")
+                    connection.execute(
+                        "INSERT INTO schema_migrations(version, applied_at_ms) VALUES (?, ?)",
+                        (version, int(time() * 1000)),
+                    )
+                    connection.commit()
+                    applied_versions.append(version)
+                    continue
+                raise
             except Exception:
                 connection.rollback()
                 raise

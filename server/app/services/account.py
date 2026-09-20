@@ -76,18 +76,37 @@ class AccountService:
                 if draft.profile_bio is not None
                 else self._row_optional_str(row, "profile_bio")
             )
+            avatar_emoji = (
+                (draft.avatar_emoji or "").strip() or None
+                if draft.avatar_emoji is not None
+                else self._row_optional_str(row, "avatar_emoji")
+            )
 
             now_ms = _now_ms()
-            connection.execute(
-                """
-                UPDATE users
-                SET display_name = ?,
-                    profile_bio = ?,
-                    updated_at_ms = ?
-                WHERE id = ?
-                """,
-                (display_name, profile_bio, now_ms, user_id),
-            )
+            try:
+                connection.execute(
+                    """
+                    UPDATE users
+                    SET display_name = ?,
+                        profile_bio = ?,
+                        avatar_emoji = ?,
+                        updated_at_ms = ?
+                    WHERE id = ?
+                    """,
+                    (display_name, profile_bio, avatar_emoji, now_ms, user_id),
+                )
+            except sqlite3.OperationalError:
+                # avatar_emoji column may be absent on old databases
+                connection.execute(
+                    """
+                    UPDATE users
+                    SET display_name = ?,
+                        profile_bio = ?,
+                        updated_at_ms = ?
+                    WHERE id = ?
+                    """,
+                    (display_name, profile_bio, now_ms, user_id),
+                )
 
             updated = connection.execute(
                 "SELECT * FROM users WHERE id = ?",
@@ -263,6 +282,7 @@ class AccountService:
             profile_bio=AccountService._row_optional_str(row, "profile_bio"),
             avatar_path=AccountService._row_optional_str(row, "avatar_path"),
             avatar_updated_at_ms=AccountService._row_optional_int(row, "avatar_updated_at_ms"),
+            avatar_emoji=AccountService._row_optional_str(row, "avatar_emoji"),
         )
 
     @staticmethod

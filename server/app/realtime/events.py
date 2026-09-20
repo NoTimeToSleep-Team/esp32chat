@@ -8,6 +8,8 @@ def chat_message_payload(message: ChatMessage) -> dict[str, object]:
         "message_id": message.message_id,
         "chat_id": message.chat_id,
         "author_user_id": message.author_user_id,
+        "author_login": message.author_login,
+        "author_avatar_emoji": message.author_avatar_emoji,
         "body_text": message.body_text,
         "client_message_id": message.client_message_id,
         "created_at_ms": message.created_at_ms,

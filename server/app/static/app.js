@@ -56,14 +56,20 @@ function fmtTimeShort(ms){const d=new Date(ms);const now=new Date();const same=d
 async function api(url, opts={}) {
   const headers={'Content-Type':'application/json'};
   if (opts.sessionHeader) headers['X-Session-Token'] = STATE.token;
+  const controller = new AbortController();
+  const timeoutMs = opts.timeoutMs || 10000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const r = await fetch(url, {...opts, headers});
-    const d = await r.json();
+    const r = await fetch(url, {...opts, headers, signal: controller.signal});
+    const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d?.detail?.message || d?.detail?.code || `HTTP ${r.status}`);
     return d;
   } catch(e) {
+    if (e.name === 'AbortError') throw new Error('Request timeout');
     if (e.name!=='TypeError') throw e;
     throw new Error('Server unreachable');
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -138,8 +144,16 @@ function clearAuth() {
 function updateNav() {
   const authed = !!STATE.token;
   const isAdmin = STATE.user?.role === 'admin' || STATE.user?.role === 'moderator';
-  show('#nav-links');
-  if (authed) show('#nav-right'); else hide('#nav-right');
+  const nav = document.querySelector('.nav');
+  if (authed) {
+    if (nav) nav.style.display = '';
+    show('#nav-links');
+    show('#nav-right');
+  } else {
+    if (nav) nav.style.display = 'none';
+    hide('#nav-links');
+    hide('#nav-right');
+  }
   $$('.nav-links a').forEach(a => {
     if (!authed && !a.dataset.public) a.style.display = 'none'; else a.style.display = '';
   });
@@ -221,7 +235,6 @@ async function renderLogin() {
     const login = $('#login-login').value.trim();
     const pass = $('#login-pass').value;
     if (!login || !pass) {show('#login-error');$('#login-error').textContent='Fill in all fields';return}
-  if (phone !== 'No Phone') { var cleanPhone = phone.replace(/[^0-9+]/g, ''); if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) { show('#login-error'); $('#login-error').textContent = 'Invalid phone. Use +79991234567'; return; } $('#login-phone').value = cleanPhone; }
     hide('#login-error');
     $('#login-btn').disabled = true; $('#login-btn').textContent = 'Signing in...';
     try {
@@ -233,12 +246,15 @@ async function renderLogin() {
   async function doRegister() {
     const login = $('#login-login').value.trim();
     const pass = $('#login-pass').value;
-    const phone = ($('#login-phone')?.value||'').trim() || 'No Phone';
-  if (phone !== 'No Phone') { var cleanPhone = phone.replace(/[^0-9+]/g, ''); if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) { show('#login-error'); document.getElementById('login-error').textContent = 'Invalid phone. Use +79991234567'; return; } document.getElementById('login-phone').value = cleanPhone; }
+    const phoneInputEl = $('#login-phone');
+    let phone = (phoneInputEl?.value||'').trim() || 'No Phone';
+    if (phone !== 'No Phone') {
+      const cleanPhone = phone.replace(/[^0-9+]/g, '');
+      if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) { show('#login-error'); document.getElementById('login-error').textContent = 'Invalid phone. Use +79991234567'; return; }
+      phone = cleanPhone;
+      if (phoneInputEl) phoneInputEl.value = cleanPhone;
+    }
     if (!login || !pass) {show('#login-error');$('#login-error').textContent='Fill in all fields';return}
-  if (phone !== 'No Phone') { var cleanPhone = phone.replace(/[^0-9+]/g, ''); if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) { show('#login-error'); $('#login-error').textContent = 'Invalid phone. Use +79991234567'; return; } $('#login-phone').value = cleanPhone; }
-  if (phone !== "No Phone") { var cleanPhone = phone.replace(/[^0-9+]/g, ""); if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) { show("#login-error"); document.getElementById("login-error").textContent = "Invalid phone. Use +79991234567"; return; } document.getElementById("login-phone").value = cleanPhone; }
-  if (phone !== 'No Phone') { var cleanPhone = phone.replace(/[^0-9+]/g, ''); if (!/^\\+?[0-9]{10,15}$/.test(cleanPhone)) { show('#login-error'); document.getElementById('login-error').textContent = 'Invalid phone. Use +79991234567'; return; } document.getElementById('login-phone').value = cleanPhone; }
     $('#login-btn').disabled = true; $('#login-btn').textContent = 'Registering...';
     try {
       const data = await api('/auth/register', {method:'POST',body:JSON.stringify({login,password:pass,phone,device_id:'web-'+Date.now().toString(36),client_kind:'web'})});
@@ -338,8 +354,7 @@ async function renderChat() {
     $('#chat-list').innerHTML = '';
     $('#chat-list').append(list);
     // auto-select first
-    if (data.items.length) {
-      const firstChat = data.items[0];
+    if (data.items.length && list.firstChild) {
       list.firstChild.click();
     }
   } catch(e) {
@@ -410,22 +425,60 @@ async function loadChatMessages(chatId, title, itemEl) {
   if (itemEl) itemEl.classList.add('active');
   currentChatId = chatId;
   currentChatTitle = title;
+  msgLoadOffset = 0;
   if (messagesPollTimer) clearInterval(messagesPollTimer);
-  await doLoadMessages();
+  await doLoadMessages({force:true});
   // messagesPollTimer = setInterval(doLoadMessages, 10000); // отключено — только при отправке
 }
 
-async function doLoadMessages() {
+let msgLoadOffset = 0;
+
+function buildMessageEl(m) {
+  const isMe = m.author_user_id === STATE.user?.id;
+  var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯','🐙','🦄','🐳','🐧','🐤'];
+  var uemoji = emojis[(m.author_user_id||0) % emojis.length];
+  var initial = m.author_avatar_emoji || uemoji;
+  const div = el('div',{class:'msg',style:{flexDirection:isMe?'row-reverse':undefined}});
+  const authorName = isMe ? esc(STATE.user?.login||'You') : esc(m.author_login || userName(m.author_user_id));
+  div.innerHTML = `
+    <div class="msg-avatar" style="cursor:pointer;${isMe?'background:var(--accent2)':''}" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${esc(initial)}</div>
+    <div class="msg-body" style="text-align:${isMe?'right':'left'}">
+      <div class="msg-header" style="justify-content:${isMe?'flex-end':'flex-start'}">
+        <span class="msg-author">${authorName}</span>
+        <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
+      </div>
+      <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span style=font-size:10px;color:var(--text2)>(edited)</span>' : ''}</div>${isMe ? '<div class=msg-actions style=text-align:right;margin-top:4px;opacity:0.6><button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Edit" onclick="editMsg(' + m.message_id + ',this)">✏️</button> <button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Delete" onclick="confirmDel(' + m.message_id + ')">🗑️</button></div>' : ''}
+    ${renderAttachments(m.attachments)}
+    </div>`;
+  return div;
+}
+
+async function doLoadMessages(opts) {
+  opts = opts || {};
   if (!currentChatId) return;
   const container = $('#chat-messages');
-  // Не перерисовывать если пользователь печатает или ушёл вверх
+  // Не перерисовывать если пользователь печатает или ушёл вверх (кроме force/older)
   var oldInput2 = document.getElementById('msg-input');
-  if (oldInput2 && oldInput2.value.trim()) return;
+  if (!opts.force && oldInput2 && oldInput2.value.trim()) return;
   var msgList2 = document.getElementById('msg-list');
-  if (msgList2 && (msgList2.scrollHeight - msgList2.scrollTop - msgList2.clientHeight > 100)) return;
+  if (!opts.force && !opts.older && msgList2 && (msgList2.scrollHeight - msgList2.scrollTop - msgList2.clientHeight > 100)) return;
+  const limit = 50;
   try {
-    const data = await api(`/chat/api/chats/${currentChatId}/messages?session_token=${encodeURIComponent(STATE.token)}&limit=50`);
-    // Save scroll state before re-render
+    if (opts.older) {
+      const list = $('#msg-list');
+      if (!list) return;
+      const data = await api(`/chat/api/chats/${currentChatId}/messages?session_token=${encodeURIComponent(STATE.token)}&limit=${limit}&offset=${msgLoadOffset}`);
+      const older = data.items || [];
+      const prevHeight = list.scrollHeight;
+      const prevTop = list.scrollTop;
+      const anchor = list.querySelector('.load-older');
+      older.forEach(m => list.insertBefore(buildMessageEl(m), anchor ? anchor.nextSibling : list.firstChild));
+      msgLoadOffset += older.length;
+      if (older.length < limit && anchor) anchor.remove();
+      list.scrollTop = prevTop + (list.scrollHeight - prevHeight);
+      return;
+    }
+    const data = await api(`/chat/api/chats/${currentChatId}/messages?session_token=${encodeURIComponent(STATE.token)}&limit=${limit}`);
     const msgs = data.items || [];
     var oldList = document.getElementById("msg-list");
     var wasAtBottom = !oldList || (oldList.scrollHeight - oldList.scrollTop - oldList.clientHeight < 50);
@@ -433,30 +486,24 @@ async function doLoadMessages() {
     container.innerHTML = `
       <div class="card" style="padding:16px">
         <div class="card-title" style="font-size:16px">${esc(currentChatTitle)}</div>
-        <div id="msg-list" style="max-height:50vh;overflow-y:auto;margin-bottom:12px"></div>
+        <div id="msg-list" style="max-height:60vh;overflow-y:auto;margin-bottom:12px"></div>
         <div class="send-area">
           <textarea id="msg-input" placeholder="Type a message..." rows="1"></textarea>
           <button class="btn btn-primary btn-sm" id="send-btn">Send</button>
         </div>
       </div>`;
     const list = $('#msg-list');
-    msgs.forEach(m => {
-      const isMe = m.author_user_id === STATE.user?.id;
-      var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯','🐙','🦄','🐳','🐧','🐤']; var uemoji = emojis[(m.author_user_id||0) % emojis.length]; var initial = (m.author_user_id===STATE.user?.id) ? (STATE.user?.display_name||STATE.user?.login||'👤').charAt(0) : uemoji;
-      const div = el('div',{class:'msg',style:{flexDirection:isMe?'row-reverse':undefined}});
-      div.innerHTML = `
-        <div class="msg-avatar" style="cursor:pointer;${isMe?'background:var(--accent2)':''}" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${esc(initial)}</div>
-        <div class="msg-body" style="text-align:${isMe?'right':'left'}">
-          <div class="msg-header" style="justify-content:${isMe?'flex-end':'flex-start'}">
-            <span class="msg-author">${isMe?esc(STATE.user?.login||'You'):(m.author_login||userName(m.author_user_id))}</span>
-            <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
-          </div>
-          <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span style=font-size:10px;color:var(--text2)>(edited)</span>' : ''}</div>${isMe ? '<div class=msg-actions style=text-align:right;margin-top:4px;opacity:0.6><button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Edit" onclick="editMsg(${m.message_id})">✏️</button> <button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Delete" onclick="confirmDel(${m.message_id})">🗑️</button></div>' : ''}
-          ${renderAttachments(m.attachments)}
-        </div>`;
-      list.append(div);
-    });
-    if (wasAtBottom) { requestAnimationFrame(function() { if (list && wasAtBottom) list.scrollTop = list.scrollHeight; }); } else { list.scrollTop = oldScrollTop; }
+    if (msgs.length >= limit) {
+      const olderBtn = el('button',{class:'btn btn-sm btn-outline load-older',style:'width:100%;margin-bottom:8px'},'↑ Load older messages');
+      olderBtn.onclick = () => doLoadMessages({older:true});
+      list.append(olderBtn);
+    }
+    msgs.forEach(m => list.append(buildMessageEl(m)));
+    msgLoadOffset = msgs.length;
+    if (opts.force || wasAtBottom) { requestAnimationFrame(function() { if (list) list.scrollTop = list.scrollHeight; }); } else { list.scrollTop = oldScrollTop; }
+    list.onscroll = function() {
+      if (list.scrollTop < 40 && list.querySelector('.load-older')) doLoadMessages({older:true});
+    };
     $('#send-btn').onclick = sendMessage;
     $('#msg-input').onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
   } catch(e) {
@@ -477,7 +524,7 @@ async function sendMessage() {
       method:'POST',
       body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:[]})
     });
-    await doLoadMessages();
+    await doLoadMessages({force:true});
   } catch(e) {
     toast(e.message, 'error');
   } finally {
@@ -593,7 +640,7 @@ async function renderAccount() {
     $('#account-card').innerHTML = `
       <div class="card">
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
-          <div class="account-avatar">${(localStorage.getItem('lc_my_emoji') || '🐱')}</div>
+          <div class="account-avatar">${(p.avatar_emoji || localStorage.getItem('lc_my_emoji') || '🐱')}</div>
           <div>
             <div style="font-size:18px;font-weight:600">${esc(p.display_name||p.login)}</div>
             <div style="font-size:13px;color:var(--text2)">@${esc(p.login)} · <span class="badge badge-${p.role}">${p.role}</span></div>
@@ -621,8 +668,8 @@ async function renderAccount() {
         
       </div>`;
 
-    // Emoji avatar picker
-    var myEmoji = localStorage.getItem("lc_my_emoji") || "🐱";
+    // Emoji avatar picker (stored on the server, mirrored locally)
+    var myEmoji = p.avatar_emoji || localStorage.getItem("lc_my_emoji") || "🐱";
     var ed = document.getElementById("my-emoji-display");
     if (ed) ed.textContent = myEmoji;
     var eg = document.getElementById("emoji-grid");
@@ -632,11 +679,16 @@ async function renderAccount() {
         var d = document.createElement("div");
         d.textContent = e; d.style.cssText = "font-size:24px;cursor:pointer;padding:2px;border-radius:4px;width:36px;text-align:center";
         if (e === myEmoji) d.style.background = "#238636";
-        d.onclick = function() {
+        d.onclick = async function() {
           localStorage.setItem("lc_my_emoji", e);
           document.getElementById("my-emoji-display").textContent = e;
           document.querySelectorAll("#emoji-grid div").forEach(function(x) { x.style.background = ""; });
           d.style.background = "#238636";
+          try {
+            await api('/account/api/profile', {method:'POST', body:JSON.stringify({session_token: STATE.token, avatar_emoji: e})});
+            if (STATE.user) STATE.user.avatar_emoji = e;
+            toast('Avatar updated', 'success');
+          } catch(err) { toast(err.message, 'error'); }
         };
         eg.appendChild(d);
       });
@@ -728,11 +780,22 @@ async function renderSupport() {
   c.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">Support</div><div class="page-subtitle">Help desk tickets</div></div>
-      <button class="btn btn-success btn-sm" id="new-ticket-btn">+ New Ticket</button>
+      <button class="btn btn-success btn-sm" id="new-ticket-btn" style="${STATE.user?.role === 'guest' ? 'display:none' : ''}">+ New Ticket</button>
     </div>
     <div id="new-ticket-modal" class="overlay hidden">
       <div class="modal">
         <h3>New Ticket</h3>
+        <div class="form-group"><label>Type</label>
+          <select class="form-input" id="ticket-kind">
+            <option value="support">Support request</option>
+            <option value="report">Report a user</option>
+          </select>
+        </div>
+        <div class="form-group" id="report-user-group" style="display:none">
+          <label>User to report</label>
+          <input class="form-input" id="report-user-search" placeholder="Search by login...">
+          <div id="report-user-results" style="max-height:140px;overflow-y:auto;margin-top:6px"></div>
+        </div>
         <div class="form-group"><label>Title</label><input class="form-input" id="ticket-title"></div>
         <div class="form-group"><label>Description</label><textarea class="form-input" id="ticket-body" rows="4"></textarea></div>
         <div class="form-group"><label>Attachments</label><input class="form-input" id="ticket-file" type="file" multiple></div>
@@ -764,11 +827,11 @@ async function renderSupport() {
             <strong>${esc(t.title)}</strong>
             <span class="ticket-status ${t.status}">${t.status.replace('_',' ')}</span>
           </div>
-          <div style="font-size:12px;color:var(--text2)">${fmtTime(t.created_at_ms)}</div>`;
+          <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? '🚩 report · ' : ''}${fmtTime(t.created_at_ms)}</div>`;
         item.onclick = () => loadTicketDetail(t.ticket_id, t.title, item);
         list.append(item);
       });
-      if (data.items.length) list.firstChild.click();
+      if (data.items.length && list.firstChild) list.firstChild.click();
     } else {
       list.innerHTML = '<div class="empty"><div class="empty-text">No tickets</div></div>';
     }
@@ -776,24 +839,93 @@ async function renderSupport() {
     $('#ticket-list').innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
   // always attach modal handlers regardless of API result
-  $('#new-ticket-btn').onclick = () => show('#new-ticket-modal');
+  const reportTarget = { user_id: null };
+  function onKindChange() {
+    const kindSel = $('#ticket-kind');
+    const group = $('#report-user-group');
+    if (group) group.style.display = kindSel && kindSel.value === 'report' ? '' : 'none';
+  }
+  async function prefillReportUser(uid) {
+    const results = $('#report-user-results');
+    if (!results) return;
+    try {
+      const d = await api(`/account/api/profile/${uid}?session_token=${encodeURIComponent(STATE.token)}`);
+      const p = d.profile;
+      results.innerHTML = `<div class="ticket-item" style="padding:8px;border-radius:6px;background:var(--bg3)">✔ ${esc(p.display_name||p.login)} (#${p.user_id})</div>`;
+    } catch(e) { results.innerHTML = `<div style="padding:6px;color:var(--text2)">User #${uid}</div>`; }
+  }
+  const newTicketBtn = $('#new-ticket-btn');
+  if (newTicketBtn) newTicketBtn.onclick = () => {
+    show('#new-ticket-modal');
+    if (window.STATE_REPORT_TARGET) {
+      const kindSel = $('#ticket-kind');
+      if (kindSel && STATE.user?.role !== 'guest') kindSel.value = 'report';
+      reportTarget.user_id = window.STATE_REPORT_TARGET;
+      window.STATE_REPORT_TARGET = null;
+      onKindChange();
+      prefillReportUser(reportTarget.user_id);
+    } else {
+      onKindChange();
+    }
+  };
   $('#ticket-cancel').onclick = () => { hide('#new-ticket-modal'); $('#ticket-title').value=''; $('#ticket-body').value=''; if ($('#ticket-file')) $('#ticket-file').value=''; };
-  $('#ticket-kind').onchange = function() { document.getElementById('report-user-group').style.display = this.value === 'report' ? '' : 'none'; };
+  const kindSelEl = $('#ticket-kind');
+  if (kindSelEl) kindSelEl.onchange = onKindChange;
+  const reportSearchEl = $('#report-user-search');
+  if (reportSearchEl) {
+    let reportTimer = null;
+    reportSearchEl.oninput = () => {
+      clearTimeout(reportTimer);
+      reportTimer = setTimeout(async () => {
+        const q = reportSearchEl.value.trim();
+        const results = $('#report-user-results');
+        if (!results) return;
+        if (!q) { results.innerHTML = ''; return; }
+        try {
+          const d = await api(`/chat/api/users/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(q)}`);
+          results.innerHTML = '';
+          (d.items||[]).forEach(u => {
+            if (u.user_id === STATE.user?.id) return;
+            const item = el('div',{class:'ticket-item',style:'padding:8px;cursor:pointer;border-radius:6px'},`${u.login} (#${u.user_id})`);
+            item.onclick = () => {
+              reportTarget.user_id = u.user_id;
+              results.querySelectorAll('.ticket-item').forEach(x => x.style.background='');
+              item.style.background = 'var(--bg3)';
+            };
+            results.append(item);
+          });
+          if (!results.children.length) results.innerHTML = '<div style="padding:6px;color:var(--text2)">Not found</div>';
+        } catch(e) { results.innerHTML = `<div style="padding:6px;color:var(--accent4)">${esc(e.message)}</div>`; }
+      }, 300);
+    };
+  }
   $('#ticket-submit').onclick = async () => { 
     const title = $('#ticket-title').value.trim();
     const body = $('#ticket-body').value.trim();
+    const kindValue = ($('#ticket-kind')?.value) || 'support';
     const files = Array.from($('#ticket-file')?.files || []);
     if (!title || !body) { toast('Fill in title and message', 'error'); return; }
+    if (kindValue === 'report' && !reportTarget.user_id) { toast('Select the user to report', 'error'); return; }
+    const submitBtn = $('#ticket-submit');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
     try {
+      const attachmentIds = [];
+      for (const file of files) { const a = await uploadAttachment(file); attachmentIds.push(a.attachment_id); }
       await api('/support/api/tickets', {
         method:'POST',
-        body:JSON.stringify({session_token:STATE.token, title, body_text:body, kind: $('#ticket-kind').value, attachment_ids:[]})
+        body:JSON.stringify({
+          session_token:STATE.token, title, body_text:body, attachment_ids:attachmentIds,
+          kind: kindValue,
+          target_user_id: kindValue === 'report' ? reportTarget.user_id : undefined,
+        })
       });
       toast('Ticket created', 'success');
       hide('#new-ticket-modal');
       $('#ticket-title').value=''; $('#ticket-body').value=''; if ($('#ticket-file')) $('#ticket-file').value='';
+      reportTarget.user_id = null;
       renderSupport();
     } catch(e) { toast(e.message, 'error'); }
+    finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; } }
   };
 }
 
@@ -819,7 +951,7 @@ async function loadTicketDetail(ticketId, title, itemEl) {
                   <span class="msg-author">${m.author_user_id===STATE.user?.id?esc(STATE.user?.login||'You'):(m.author_login||((m.author_user_id===STATE.user?.id) ? (STATE.user?.login||'You') : (userName(m.author_user_id))))}</span>
                   <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
                 </div>
-                <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span style=font-size:10px;color:var(--text2)>(edited)</span>' : ''}</div>${(m.author_user_id===STATE.user?.id) ? '<div class=msg-actions style=text-align:right;margin-top:4px;opacity:0.6><button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Edit" onclick="editMsg(${m.message_id})">✏️</button> <button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Delete" onclick="confirmDel(${m.message_id})">🗑️</button></div>' : ''}
+                  <div class="msg-text">${esc(m.body_text || '')}</div>
                 ${renderAttachments(m.attachments)}
               </div>
             </div>`).join('') : '<div style="color:var(--text2);text-align:center;padding:16px">No messages</div>'}
@@ -827,6 +959,7 @@ async function loadTicketDetail(ticketId, title, itemEl) {
         <div class="send-area">
           <textarea id="support-input" placeholder="Reply..." rows="1"></textarea>
           
+          <input id="support-file" type="file" multiple style="max-width:180px">
           <button class="btn btn-primary btn-sm" id="support-send">Send</button>
         </div>
         
@@ -840,7 +973,7 @@ async function loadTicketDetail(ticketId, title, itemEl) {
       $('#support-send').disabled = true;
       try {
         const attachments = [];
-        var files = Array.from(document.getElementById('ticket-file')?.files || []);
+        var files = Array.from(document.getElementById('support-file')?.files || []);
         for (const file of files) attachments.push(await uploadAttachment(file));
         await api(`/support/api/tickets/${currentTicketId}/messages`, {
           method:'POST',
@@ -873,6 +1006,7 @@ async function renderAdmin() {
       <button class="tab" data-tab="passwords">Passwords</button>
       <button class="tab" data-tab="system">System</button>
       <button class="tab" data-tab="activity">Activity</button>
+      <button class="tab" data-tab="reports">Reports</button>
     </div>
     <div id="admin-users"></div>
     <div id="admin-support" class="hidden"></div>
@@ -881,11 +1015,12 @@ async function renderAdmin() {
     <div id="admin-cleanup" class="hidden"></div>
     <div id="admin-passwords" class="hidden"></div>
     <div id="admin-system" class="hidden"></div>
-    <div id="admin-activity" class="hidden"></div>`;
+    <div id="admin-activity" class="hidden"></div>
+    <div id="admin-reports" class="hidden"></div>`;
   $$('.tab').forEach(t => t.onclick = () => {
     $$('.tab').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
-    ['users','support','blog','mode','cleanup','passwords','system','activity'].forEach(id => hide('#admin-' + id));
+    ['users','support','blog','mode','cleanup','passwords','system','activity','reports'].forEach(id => hide('#admin-' + id));
     show('#admin-' + t.dataset.tab);
   });
   await renderAdminUsers();
@@ -896,6 +1031,46 @@ async function renderAdmin() {
   try { renderAdminPasswords(); } catch(e) {}
   try { renderAdminSystem(); } catch(e) {}
   renderAdminActivity();
+  renderAdminReports();
+}
+
+async function renderAdminReports() {
+  const container = $('#admin-reports');
+  if (!container) return;
+  container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const data = await api(`/moderation/api/admin/reports?session_token=${encodeURIComponent(STATE.token)}&limit=100`);
+    let html = `<div class="admin-card"><h3>Moderation Reports <span style="color:var(--accent4)">(${data.pending_count||0} pending)</span></h3>`;
+    if (!data.reports?.length) html += '<div class="empty"><div class="empty-text">No reports</div></div>';
+    html += (data.reports||[]).map(r => `
+      <div class="user-row" style="display:block">
+        <div style="display:flex;justify-content:space-between">
+          <strong>${esc(r.user_login||('User #'+r.user_id))}</strong>
+          <span style="font-size:11px;color:var(--text2)">#${r.id} ${esc(r.status)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--accent4);margin:4px 0">Words: ${esc(r.found_words||'')}</div>
+        <div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;max-height:80px;overflow-y:auto">${esc(r.message_text||'')}</div>
+        ${r.status === 'pending' ? `<div style="margin-top:6px">
+            <button class="btn btn-sm btn-danger" data-rrep="${r.id}" data-raction="ban">Ban</button>
+            <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="warn">Warn</button>
+            <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="dismiss">Dismiss</button>
+          </div>` : `<div style="font-size:11px;color:var(--text2)">Resolved: ${esc(r.action||'?')} by ${esc(r.resolved_by||'?')}</div>`}
+      </div>`).join('');
+    html += '</div>';
+    container.innerHTML = html;
+    container.querySelectorAll('[data-rrep]').forEach(btn => {
+      btn.onclick = async () => {
+        if (btn.dataset.raction === 'ban' && !confirm('Ban the author of this report?')) return;
+        try {
+          await api('/moderation/api/admin/reports/resolve', {method:'POST', body:JSON.stringify({session_token:STATE.token, report_id: parseInt(btn.dataset.rrep), action: btn.dataset.raction})});
+          toast(`Report ${btn.dataset.raction}`, 'success');
+          renderAdminReports();
+        } catch(e) { toast(e.message, 'error'); }
+      };
+    });
+  } catch(e) {
+    container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
+  }
 }
 
 async function renderAdminUsers() {
@@ -952,8 +1127,7 @@ async function renderAdminUsers() {
           try {
             await api(`/admin/users/${uid}?session_token=${encodeURIComponent(STATE.token)}`, {method:'DELETE'});
             toast('User ' + btn.dataset.login + ' deleted', 'success');
-            renderAdminUsers();
-            renderAdminUsers();
+            await renderAdminUsers();
           } catch(e) { toast(e.message, 'error'); }
           return;
         }
@@ -1037,7 +1211,7 @@ async function renderAdminSupport() {
           <strong>${esc(t.title)}</strong>
           <select class="ats" data-tid="${t.ticket_id}" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px"><option value="open" ${t.status==="open"?"selected":""}>open</option><option value="in_progress" ${t.status==="in_progress"?"selected":""}>in progress</option><option value="resolved" ${t.status==="resolved"?"selected":""}>resolved</option><option value="closed" ${t.status==="closed"?"selected":""}>closed</option></select><button class="btn btn-sm btn-outline aus" data-tid="${t.ticket_id}">Update</button>
         </div>
-        <div style="font-size:12px;color:var(--text2)">User #${t.user_id} · ${fmtTime(t.created_at_ms)}</div>
+        <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? '🚩 report · ' : ''}User #${t.user_id} · ${fmtTime(t.created_at_ms)}</div>
         <div id="admin-ticket-${t.ticket_id}-msgs" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px"></div>
         <div id="admin-ticket-${t.ticket_id}-reply" style="display:none;margin-top:8px" class="send-area">
           <textarea id="admin-ticket-${t.ticket_id}-input" placeholder="Reply as admin..." rows="1"></textarea>
@@ -1058,7 +1232,7 @@ async function renderAdminSupport() {
                 <div class="msg-avatar" style="width:24px;height:24px;font-size:10px">${m.author_user_id===STATE.user?.id?'A':'U'}</div>
                 <div class="msg-body">
                   <div class="msg-header"><span class="msg-author">${m.author_user_id===STATE.user?.id?'Admin':(m.author_login||((m.author_user_id===STATE.user?.id) ? (STATE.user?.login||'You') : (userName(m.author_user_id))))}</span><span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span></div>
-                  <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span style=font-size:10px;color:var(--text2)>(edited)</span>' : ''}</div>${(m.author_user_id===STATE.user?.id) ? '<div class=msg-actions style=text-align:right;margin-top:4px;opacity:0.6><button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Edit" onclick="editMsg(${m.message_id})">✏️</button> <button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Delete" onclick="confirmDel(${m.message_id})">🗑️</button></div>' : ''}
+                <div class="msg-text">${esc(m.body_text || '')}</div>
                   ${renderAttachments(m.attachments)}
                 </div>
               </div>`).join('') || '<div style="color:var(--text2);text-align:center">No messages</div>';
@@ -1309,26 +1483,42 @@ async function renderAdminActivity() {
 /* ===== ROUTER ===== */
 function esc(s) {const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
-function handleRoute() {
+async function handleRoute() {
   const hash = window.location.hash || '#/login';
   if (hash === '#/login' && STATE.token) {window.location.hash = '#/chat'; return}
   const publicRoutes = ['#/login', '#/about'];
   if (!publicRoutes.includes(hash.split('?')[0]) && !STATE.token) {window.location.hash = '#/login'; return}
   updateNav();
-  switch(hash.split('?')[0]) {
-    case '#/login': renderLogin(); break;
-    case '#/chat': renderChat(); break;
-    case '#/devices': renderDevices(); break;
-    case '#/account': renderAccount(); break;
-    case '#/blog': renderBlog(); break;
-    case '#/support': renderSupport(); break;
-    case '#/admin': renderAdmin(); break;
-    case '#/about': renderAbout(); break;
-    default: window.location.hash = '#/chat';
+  try {
+    switch(hash.split('?')[0]) {
+      case '#/login': await renderLogin(); break;
+      case '#/chat': await renderChat(); break;
+      case '#/devices': await renderDevices(); break;
+      case '#/account': await renderAccount(); break;
+      case '#/blog': await renderBlog(); break;
+      case '#/support': await renderSupport(); break;
+      case '#/admin': await renderAdmin(); break;
+      case '#/about': renderAbout(); break;
+      default: window.location.hash = '#/chat';
+    }
+  } catch(e) {
+    console.error('Route render error:', e);
+    const c = $('#content');
+    if (c) c.innerHTML = `<div class="empty"><div class="empty-text">Error: ${esc(e.message||e)}</div></div>`;
   }
 }
 
 window.onhashchange = handleRoute;
+
+// Entry point for the static login form in templates/index.html
+window.lcStaticLoginComplete = function() {
+  try {
+    STATE.token = localStorage.getItem('lc_session_token') || null;
+    STATE.user = (function(){ try { return JSON.parse(localStorage.getItem('lc_user') || 'null'); } catch(e) { return null; } })();
+  } catch(e) {}
+  updateNav();
+  handleRoute();
+};
 window.onload = async () => {
   // Auto-login from ?token= in URL (captive portal login)
   const params = new URLSearchParams(window.location.search);
@@ -1459,7 +1649,10 @@ async function renderAdminSystem() {
 }
 
 
-setTimeout(function() { if (typeof handleRoute === "function") handleRoute(); }, 100);
+setTimeout(function() {
+  var c = document.getElementById('content');
+  if (typeof handleRoute === "function" && (!c || !c.innerHTML.trim())) handleRoute();
+}, 100);
 
 // ===== TRANSLATION SYSTEM =====
 var LANG = localStorage.getItem("lc_lang") || "rus";
@@ -1530,32 +1723,85 @@ async function viewUserProfile(uid) {
     var d = await api("/account/api/profile/" + uid + "?session_token=" + encodeURIComponent(STATE.token));
     var p = d.profile;
     var emojis = ["🐱","🐶","🐼","🦊","🐸","🐵","🦁","🐮","🐷","🐭","🐹","🐰","🐻","🐨","🐯"];
-    var emoji = localStorage.getItem("lc_emoji_" + uid) || emojis[uid % emojis.length];
+    var emoji = p.avatar_emoji || emojis[uid % emojis.length];
+    var isGuest = STATE.user?.role === 'guest';
     var h = "<div style=background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:340px;width:100%;position:relative>";
     h += "<button onclick=document.getElementById(\"profile-modal\").remove() style=position:absolute;top:8px;right:8px;background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer>&times;</button>";
     h += "<div style=text-align:center;font-size:48px;margin-bottom:8px>" + emoji + "</div>";
     h += "<h2 style=color:#58a6ff;text-align:center;margin:8px 0;font-size:18px>" + esc(p.display_name || p.login) + "</h2>";
     h += "<div style=text-align:center;color:#8b949e;font-size:13px>@" + esc(p.login) + "</div>";
-    h += "<div style=text-align:center;color:#8b949e;font-size:12px;margin-bottom:12px>" + p.role + "</div>";
+    h += "<div style=text-align:center;color:#8b949e;font-size:12px;margin-bottom:12px>" + esc(p.role) + "</div>";
     if (p.phone) h += "<div style=margin:6px 0;font-size:13px>📞 " + esc(p.phone) + "</div>";
     if (p.profile_bio) h += "<div style=margin-top:8px;font-size:13px;white-space:pre-wrap;background:#0d1117;padding:10px;border-radius:6px;line-height:1.4>" + esc(p.profile_bio) + "</div>";
-    h += "</div>";
+    h += "<div style='display:flex;gap:8px;margin-top:14px;justify-content:center'>";
+    h += "<button id=pm-dm style=background:#238636;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer>✉ DM</button>";
+    if (!isGuest) h += "<button id=pm-report style=background:#da3633;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer>🚩 Report</button>";
+    h += "</div></div>";
     showProfileModal(h);
+    var dmBtn = document.getElementById("pm-dm");
+    if (dmBtn) dmBtn.onclick = async function() {
+      try {
+        await api('/chat/api/dm', {method:'POST', body:JSON.stringify({session_token:STATE.token, target_user_id: uid})});
+        var modal = document.getElementById("profile-modal"); if (modal) modal.remove();
+        window.location.hash = '#/chat';
+        setTimeout(function(){ renderChat(); }, 150);
+      } catch(e) { toast(e.message, 'error'); }
+    };
+    var repBtn = document.getElementById("pm-report");
+    if (repBtn) repBtn.onclick = function() {
+      window.STATE_REPORT_TARGET = uid;
+      var modal = document.getElementById("profile-modal"); if (modal) modal.remove();
+      window.location.hash = '#/support';
+    };
   } catch(e) { toast(e.message, "error"); }
 }
 
-// Обновить кнопку языка при загрузке
-setTimeout(function() {
-  if (lb) lb.textContent = LANG === "rus" ? "🇬🇧 ENG" : "🇷🇺 RUS";
-}, 200);
+// ===== Language switcher =====
+function applyLang() {
+  document.documentElement.lang = LANG === 'eng' ? 'en' : 'ru';
+  $$('[data-t]').forEach(function(node) {
+    var key = node.getAttribute('data-t');
+    var value = T[key];
+    if (value) node.textContent = value[LANG] || value.rus || key;
+  });
+  $$('[data-t-placeholder]').forEach(function(node) {
+    var key = node.getAttribute('data-t-placeholder');
+    var value = T[key];
+    if (value) node.setAttribute('placeholder', value[LANG] || value.rus || key);
+  });
+  $$('.lang-btn').forEach(function(btn) {
+    btn.textContent = LANG === 'eng' ? '🇷🇺 RUS' : '🇬🇧 ENG';
+  });
+}
+function switchLang() {
+  LANG = LANG === 'eng' ? 'rus' : 'eng';
+  localStorage.setItem('lc_lang', LANG);
+  applyLang();
+}
+document.addEventListener('click', function(e) {
+  var t = e.target;
+  if (t && t.classList && t.classList.contains('lang-btn')) {
+    e.preventDefault();
+    switchLang();
+  }
+});
+setTimeout(function() { applyLang(); }, 50);
 
 // Edit/Delete messages
-async function editMsg(mid) {
-  var oldText = prompt("Edit message:", "");
-  if (!oldText) return;
+async function editMsg(mid, btn) {
+  var current = "";
+  if (btn) {
+    var body = btn.closest('.msg-body');
+    var textEl = body ? body.querySelector('.msg-text') : null;
+    current = textEl ? textEl.textContent.replace(/\s*\(edited\)\s*$/,'') : "";
+  }
+  var newText = prompt("Edit message:", current);
+  if (newText === null) return;
+  newText = newText.trim();
+  if (!newText || newText === current) return;
   try {
-    await api("/chat/api/chats/" + currentChatId + "/messages/" + mid, {method:"PUT", body:JSON.stringify({session_token:STATE.token, body_text:oldText})});
-    doLoadMessages();
+    await api("/chat/api/chats/" + currentChatId + "/messages/" + mid, {method:"PUT", body:JSON.stringify({session_token:STATE.token, body_text:newText})});
+    doLoadMessages({force:true});
   } catch(e) { toast(e.message, "error"); }
 }
 
@@ -1571,6 +1817,6 @@ function confirmDel(mid) {
 async function delMsg(mid) {
   try {
     await api("/chat/api/chats/" + currentChatId + "/messages/" + mid, {method:"DELETE", body:JSON.stringify({session_token:STATE.token})});
-    doLoadMessages();
+    doLoadMessages({force:true});
   } catch(e) { toast(e.message, "error"); }
 }

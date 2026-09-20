@@ -49,6 +49,12 @@ class AutoModerator:
         c.close()
         return [dict(r) for r in rows]
 
+    def get_report(self, report_id):
+        c = self._conn()
+        row = c.execute("SELECT * FROM moderation_reports WHERE id = ?", (int(report_id),)).fetchone()
+        c.close()
+        return dict(row) if row else None
+
     def resolve(self, rid, action, admin_login):
         c = self._conn()
         c.execute("UPDATE moderation_reports SET status='resolved',resolved_by=?,resolved_at_ms=?,action=? WHERE id=?",
