@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LC · Вариант 2 — Светлый</title>
+<style>
+:root{
+  --bg:#f4f6fa;--panel:#ffffff;--line:#e8ecf3;--text:#1f2328;--muted:#6b7280;
+  --accent:#2f6fed;--accent-soft:#e8f0fe;--bubble:#ffffff;--shadow:0 1px 2px rgba(16,24,40,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,'Segoe UI',Roboto,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.app{display:flex;flex-direction:column;height:100vh}
+.top{display:flex;align-items:center;gap:4px;height:56px;padding:0 18px;background:var(--panel);box-shadow:var(--shadow);flex:0 0 auto;z-index:5}
+.brand{font-weight:800;color:var(--accent);margin-right:18px;font-size:16px;letter-spacing:.3px}
+.tlink{padding:7px 12px;border-radius:10px;color:var(--muted);font-size:13.5px}
+.tlink:hover{background:#f1f3f8;color:var(--text)}
+.tlink.on{color:var(--accent);background:var(--accent-soft);font-weight:600}
+.top .spacer{flex:1}
+.icon-btn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--muted);font-size:16px}
+.icon-btn:hover{background:#f1f3f8;color:var(--text)}
+.avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;background:var(--accent)}
+.cols{display:flex;flex:1;min-height:0;padding:14px 16px 16px;gap:14px}
+.list{width:300px;flex:0 0 auto;display:flex;flex-direction:column;min-height:0;background:var(--panel);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.search{margin:12px;padding:9px 14px;border-radius:12px;background:#f1f3f8;color:var(--muted);font-size:13px;display:flex;gap:8px;align-items:center}
+.search input{flex:1;background:none;border:0;outline:0;color:var(--text);font:inherit}
+.chats{overflow-y:auto;padding:0 8px 8px}
+.chat{padding:10px;border-radius:14px;cursor:pointer;display:flex;gap:11px;align-items:center;margin-bottom:2px}
+.chat:hover{background:#f6f8fc}
+.chat.on{background:var(--accent-soft)}
+.chat .ava{width:42px;height:42px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:14px;font-weight:700;color:#fff}
+.chat .meta{flex:1;min-width:0}
+.chat .row1{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.chat .nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat .tm{font-size:11.5px;color:var(--muted);flex:0 0 auto}
+.chat .pv{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.unread{min-width:19px;height:19px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 5px}
+.chatpane{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.chead{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.chead .cava{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;background:var(--accent)}
+.chead .t1{font-size:15px;font-weight:700}
+.chead .t2{font-size:12px;color:var(--muted);margin-top:1px}
+.chead .spacer{flex:1}
+.msgs{flex:1;overflow-y:auto;padding:18px 20px 8px;background:linear-gradient(#fbfcfe,#fff 220px)}
+.day{text-align:center;margin:4px 0 18px}
+.day span{background:#eef1f6;color:var(--muted);font-size:11.5px;padding:4px 12px;border-radius:999px}
+.msg{display:flex;gap:10px;margin-bottom:10px;max-width:78%}
+.msg.out{margin-left:auto;flex-direction:row-reverse}
+.msg .ava{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;margin-top:18px}
+.bubble{background:var(--bubble);border-radius:16px 16px 16px 5px;padding:8px 13px 9px;box-shadow:var(--shadow);min-width:0}
+.msg.out .bubble{background:var(--accent);color:#fff;border-radius:16px 16px 5px 16px}
+.who{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px}
+.txt{font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.meta{font-size:10.5px;color:var(--muted);text-align:right;margin-top:3px}
+.msg.out .meta{color:rgba(255,255,255,.75)}
+.pic{display:block;margin-top:6px;border-radius:12px;overflow:hidden;max-width:330px;cursor:zoom-in}
+.pic img{display:block;width:100%;height:auto}
+.file{margin-top:7px;display:inline-flex;align-items:center;gap:9px;background:#f1f3f8;border-radius:12px;padding:8px 12px;font-size:13px;max-width:300px;cursor:pointer}
+.msg.out .file{background:rgba(255,255,255,.18)}
+.file .fn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file .fs{font-size:11.5px;opacity:.7;flex:0 0 auto}
+.comp{flex:0 0 auto;padding:12px 16px 16px}
+.pending{display:none;gap:6px;flex-wrap:wrap;padding:0 2px 9px}
+.pending.show{display:flex}
+.pchip{display:inline-flex;align-items:center;gap:7px;background:#f1f3f8;border-radius:10px;padding:6px 10px;font-size:12px;color:var(--muted)}
+.pchip button:hover{color:#e5484d}
+.field{display:flex;align-items:flex-end;gap:6px;background:#f1f3f8;border-radius:24px;padding:6px 6px 6px 14px;border:1px solid transparent;transition:.15s}
+.field:focus-within{border-color:rgba(47,111,237,.35);background:#fff;box-shadow:0 0 0 3px rgba(47,111,237,.1)}
+.field textarea{flex:1;background:none;border:0;outline:0;color:var(--text);font:inherit;resize:none;max-height:120px;padding:8px 2px;line-height:1.45}
+.field textarea::placeholder{color:var(--muted)}
+.round{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--muted);font-size:17px;flex:0 0 auto}
+.round:hover{background:rgba(0,0,0,.05);color:var(--text)}
+.round.send{background:var(--accent);color:#fff;font-size:15px;box-shadow:0 2px 6px rgba(47,111,237,.35)}
+.round.send:hover{filter:brightness(1.06)}
+.badge{position:fixed;left:16px;bottom:16px;z-index:50;background:var(--accent-soft);color:var(--accent);border:1px solid rgba(47,111,237,.25);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;pointer-events:none}
+.back{display:none}
+@media (max-width:760px){
+  .list{position:fixed;inset:56px 0 0;width:100%;z-index:40;border-radius:0;display:none}
+  .app.show-list .list{display:flex}
+  .back{display:grid}
+  .cols{padding:8px;gap:8px}
+  .msg{max-width:92%}
+  .pic{max-width:230px}
+  .badge{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="top">
+    <span class="brand">Local Chat</span>
+    <button class="tlink on">Чат</button>
+    <button class="tlink">Блог</button>
+    <button class="tlink">Поддержка</button>
+    <button class="tlink">Аккаунт</button>
+    <span class="spacer"></span>
+    <button class="icon-btn" title="Настройки">⚙</button>
+    <div class="avatar">В</div>
+  </div>
+  <div class="cols">
+    <aside class="list">
+      <div class="search">🔎<input placeholder="Поиск по чатам"></div>
+      <div class="chats" id="chats"></div>
+    </aside>
+    <section class="chatpane">
+      <div class="chead">
+        <button class="icon-btn back" id="back">←</button>
+        <div class="cava" id="cava"></div>
+        <div><div class="t1" id="ctitle"></div><div class="t2" id="csub"></div></div>
+        <span class="spacer"></span>
+        <button class="icon-btn" title="Поиск">🔎</button>
+        <button class="icon-btn" title="Ещё">⋯</button>
+      </div>
+      <div class="msgs" id="msgs"></div>
+      <div class="comp">
+        <div class="pending" id="pending">
+          <span class="pchip">📄 смета.xlsx · 84 КБ <button>✕</button></span>
+        </div>
+        <div class="field">
+          <button class="round" id="attach" title="Прикрепить файл">📎</button>
+          <textarea id="input" rows="1" placeholder="Сообщение"></textarea>
+          <button class="round send" id="send" title="Отправить">➤</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="badge">Вариант 2 · Светлый</div>
+<script>
+const PIC="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='420'%20height='280'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23ff9d6b'/%3E%3Cstop%20offset='1'%20stop-color='%232b3a67'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='420'%20height='280'%20fill='url(%23g)'/%3E%3Ccircle%20cx='320'%20cy='86'%20r='36'%20fill='%23ffe08a'/%3E%3Cpath%20d='M0%20210%20L130%20126%20L232%20210%20L312%20146%20L420%20220%20L420%20280%20L0%20280%20Z'%20fill='%231d2b4a'/%3E%3C/svg%3E";
+const COLORS=["#5b8def","#e0725f","#4fb286","#b678d9","#d9a441","#5aa9c9","#c96a9b"];
+function color(n){let h=0;for(const ch of n)h=(h*31+ch.charCodeAt(0))>>>0;return COLORS[h%COLORS.length]}
+function initials(n){return n.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase()}
+const CHATS=[
+ {title:"Общий чат",sub:"24 участника · 6 онлайн",pv:"Максим: фото со смены",tm:"14:02",un:2},
+ {title:"11А класс",sub:"18 участников",pv:"Аня: домашка на завтра",tm:"13:47",un:0},
+ {title:"Учителя",sub:"9 участников",pv:"Ольга Ивановна: напоминаю…",tm:"12:30",un:0},
+ {title:"Мария Петрова",sub:"была недавно",pv:"завтра в 10?",tm:"11:05",un:0,dm:1},
+ {title:"Данил К.",sub:"был 2 ч назад",pv:"ок, скинул",tm:"вчера",un:0,dm:1}
+];
+const M={
+ "Общий чат":[
+  {n:"Максим",t:"14:02",x:"Скинул фото с сегодняшней смены, смотрите как красиво",img:1},
+  {n:"Аня",t:"14:03",x:"Ого, круто! А это где?"},
+  {n:"Максим",t:"14:04",x:"Да на площадке у входа"},
+  {n:"Вы",t:"14:06",x:"Освещение классное получилось",me:1},
+  {n:"Ольга Ивановна",t:"14:08",x:"Молодцы. Не забудьте про отчёт 🙌",file:["отчёт_сентябрь.pdf","1,2 МБ"]},
+  {n:"Максим",t:"14:09",x:"Хорошо!"}
+ ],
+ "11А класс":[
+  {n:"Аня",t:"13:40",x:"Напоминаю: завтра контрольная по алгебре"},
+  {n:"Кирилл",t:"13:44",x:"А какие темы?"},
+  {n:"Аня",t:"13:47",x:"Логарифмы и показательные уравнения"}
+ ],
+ "Учителя":[
+  {n:"Ольга Ивановна",t:"12:30",x:"Коллеги, напоминаю про планёрку в 15:00"},
+  {n:"Пётр Сергеевич",t:"12:35",x:"Буду"}
+ ],
+ "Мария Петрова":[
+  {n:"Мария Петрова",t:"10:58",x:"Привет! Завтра сможешь помочь с проектом?"},
+  {n:"Вы",t:"11:03",x:"Привет, да, после уроков",me:1},
+  {n:"Мария Петрова",t:"11:05",x:"завтра в 10?"}
+ ],
+ "Данил К.":[
+  {n:"Данил К.",t:"18:20",x:"Скинь пж конспект"},
+  {n:"Вы",t:"18:22",x:"Держи",me:1},
+  {n:"Данил К.",t:"18:25",x:"ок, скинул"}
+ ]
+};
+const $=s=>document.querySelector(s);
+let current="Общий чат";
+function renderList(){
+  $("#chats").innerHTML="";
+  CHATS.forEach(c=>{
+    const d=document.createElement("div");
+    d.className="chat"+(c.title===current?" on":"");
+    d.innerHTML=`<div class="ava" style="background:${c.dm?"#8a94a6":color(c.title)}">${initials(c.title)}</div>
+      <div class="meta"><div class="row1"><span class="nm">${c.title}</span><span class="tm">${c.tm}</span></div>
+      <div class="row1"><span class="pv">${c.pv}</span>${c.un?`<span class="unread">${c.un}</span>`:""}</div></div>`;
+    d.onclick=()=>{current=c.title;$("#app").classList.remove("show-list");renderList();renderHead();renderMsgs()};
+    $("#chats").append(d);
+  });
+}
+function renderHead(){
+  const c=CHATS.find(x=>x.title===current);
+  $("#ctitle").textContent=c.title;$("#csub").textContent=c.sub;
+  $("#cava").textContent=initials(c.title);$("#cava").style.background=c.dm?"#8a94a6":color(c.title);
+}
+function renderMsgs(){
+  const box=$("#msgs");box.innerHTML='<div class="day"><span>Сегодня</span></div>';
+  (M[current]||[]).forEach(m=>{
+    const d=document.createElement("div");
+    d.className="msg"+(m.me?" out":"");
+    let html=`<div class="ava" style="background:${m.me?"#2f6fed":color(m.n)}">${m.me?"В":initials(m.n)}</div><div class="bubble">`;
+    if(!m.me)html+=`<div class="who">${m.n}</div>`;
+    html+=`<div class="txt">${m.x}</div>`;
+    if(m.img)html+=`<span class="pic"><img src="${PIC}" alt=""></span>`;
+    if(m.file)html+=`<span class="file">📄<span class="fn">${m.file[0]}</span><span class="fs">${m.file[1]}</span></span>`;
+    html+=`<div class="meta">${m.t}${m.me?" ✓✓":""}</div></div>`;
+    d.innerHTML=html;
+    box.append(d);
+  });
+  box.scrollTop=box.scrollHeight;
+}
+function send(){
+  const inp=$("#input");const v=inp.value.trim();if(!v)return;
+  const now=new Date();
+  (M[current]=M[current]||[]).push({n:"Вы",t:String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0"),x:v,me:1});
+  inp.value="";inp.style.height="auto";renderMsgs();
+}
+$("#send").onclick=send;
+$("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});
+$("#input").addEventListener("input",e=>{e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"});
+$("#attach").onclick=()=>$("#pending").classList.toggle("show");
+$("#back").onclick=()=>$("#app").classList.add("show-list");
+renderList();renderHead();renderMsgs();
+</script>
+</body>
+</html>

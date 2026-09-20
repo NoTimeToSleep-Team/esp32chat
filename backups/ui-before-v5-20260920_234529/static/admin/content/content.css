@@ -1,0 +1,272 @@
+:root {
+  --bg-1: #f4eee5;
+  --bg-2: #dce7ef;
+  --card: #fffefb;
+  --ink: #1f252a;
+  --muted: #5d6670;
+  --line: #d9dee3;
+  --accent: #1f6474;
+  --error: #9b3a3a;
+  --ok: #2f7b45;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: linear-gradient(150deg, var(--bg-1), var(--bg-2));
+}
+
+.admin-shell {
+  width: min(1320px, 96vw);
+  margin: 0 auto;
+  padding: 22px 0 34px;
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(20, 32, 38, 0.08);
+  padding: 13px;
+}
+
+.hero h1 {
+  margin: 0;
+}
+
+.hero p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.session {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.session label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+
+.link-btn,
+button {
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  padding: 9px 12px;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+}
+
+.status-note.ok {
+  color: var(--ok);
+}
+
+.status-note.error {
+  color: var(--error);
+}
+
+input,
+textarea,
+select,
+button,
+.link-btn {
+  font: inherit;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fff;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+h2 {
+  margin: 0 0 8px;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fbfdfe;
+}
+
+.application-item {
+  display: grid;
+  gap: 8px;
+}
+
+.app-title {
+  display: block;
+}
+
+.app-meta {
+  margin: 3px 0 0;
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.app-status {
+  max-width: 160px;
+}
+
+.app-note {
+  min-width: 220px;
+  flex: 1;
+}
+
+.support-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) 1fr;
+  gap: 10px;
+}
+
+.ticket-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #f6fafd;
+  color: var(--ink);
+}
+
+.ticket-btn strong,
+.ticket-btn small {
+  display: block;
+}
+
+.ticket-btn small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.ticket-btn.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.thread {
+  display: grid;
+  gap: 8px;
+}
+
+.thread h3 {
+  margin: 0;
+}
+
+.thread p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.messages {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  max-height: 300px;
+  overflow: auto;
+  background: #fcfffe;
+}
+
+.message-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px;
+  margin-bottom: 8px;
+}
+
+.message-item header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.message-body {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
+
+#publishPostForm {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.post-title {
+  display: block;
+}
+
+.post-meta {
+  margin: 3px 0 0;
+  color: var(--muted);
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 10px;
+}
+
+@media (max-width: 980px) {
+  .session {
+    grid-template-columns: 1fr;
+  }
+
+  .support-grid {
+    grid-template-columns: 1fr;
+  }
+}

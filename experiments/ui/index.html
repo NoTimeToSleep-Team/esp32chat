@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LC · Эксперименты с интерфейсом</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#f4f6fa;color:#1f2328;font:15px/1.5 -apple-system,'Segoe UI',Roboto,sans-serif;padding:36px 20px 60px}
+.wrap{max-width:1080px;margin:0 auto}
+h1{font-size:24px;margin-bottom:6px}
+.sub{color:#6b7280;margin-bottom:28px;font-size:14px}
+.note{background:#fff7e6;border:1px solid #f0d9a8;color:#7a5c1e;border-radius:12px;padding:12px 16px;font-size:13.5px;margin-bottom:28px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(470px,1fr));gap:20px}
+.card{background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(16,24,40,.08);overflow:hidden;display:flex;flex-direction:column}
+.shots{display:flex;background:#e9edf3;align-items:flex-end;gap:0}
+.shots img{display:block;width:100%;height:auto}
+.shots .d{width:72%;border-right:3px solid #e9edf3}
+.shots .m{width:28%}
+.body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:10px;flex:1}
+.title{font-size:17px;font-weight:700}
+.title span{color:#6b7280;font-weight:500;font-size:13px}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{background:#eef1f6;color:#4b5563;font-size:12px;padding:3px 10px;border-radius:999px}
+ul{padding-left:18px;color:#4b5563;font-size:13.5px;display:flex;flex-direction:column;gap:3px}
+.open{margin-top:auto;display:inline-block;text-align:center;background:#2f6fed;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px}
+.open:hover{filter:brightness(1.07)}
+.open.ghost{background:transparent;color:#2f6fed;border:1px solid rgba(47,111,237,.4)}
+.btns{display:flex;gap:8px;margin-top:auto}
+.btns .open{margin-top:0;flex:1}
+.pick{background:#2f6fed;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.hint{margin-top:30px;color:#6b7280;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Эксперименты с интерфейсом</h1>
+  <div class="sub">4 варианта чата, локальные макеты с тестовыми данными. Ничего не залито на RPi, рабочий интерфейс не тронут.</div>
+  <div class="note">Это кликабельные макеты: можно переключать чаты, отправлять сообщения (Enter), нажимать 📎. Данные ненастоящие. <b>Вариант 5</b> — это собранная версия: мессенджер из 4 + верхняя панель из 1/2. Выбери, что доработать — и я перенесу в рабочий интерфейс.</div>
+  <div class="grid">
+    <div class="card">
+      <div class="shots"><img class="d" src="shots/v5-desktop.png" alt=""><img class="m" src="shots/v5-mobile-chat.png" alt=""></div>
+      <div class="body">
+        <div class="title">Вариант 5 · Мессенджер + верхнее меню <span class="pick">★ собран по твоим правкам</span></div>
+        <div class="tags"><span class="tag">основа — вариант 4</span><span class="tag">верхняя панель как в 1 и 2</span><span class="tag">мобильная логика</span></div>
+        <ul>
+          <li>Всё из 4-го: пузыри, галочки, крупные аватары, эмодзи/скрепка/микрофон</li>
+          <li>Сверху — панель разделов: Чат · Блог · Поддержка · Аккаунт</li>
+          <li>На телефоне панель сворачивается в ☰, а чаты — в отдельный экран со списком</li>
+          <li>Кнопка «назад» возвращает из чата к списку, как в обычном мессенджере</li>
+        </ul>
+        <div class="btns">
+          <a class="open" href="v5.html">Открыть v5</a>
+          <a class="open ghost" href="v5-phones.html">На телефоне</a>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="shots"><img class="d" src="shots/v1-desktop.png" alt=""><img class="m" src="shots/v1-mobile.png" alt=""></div>
+      <div class="body">
+        <div class="title">Вариант 1 · Минимал <span>тёмный</span></div>
+        <div class="tags"><span class="tag">меньше рамок</span><span class="tag">без «пузырей»</span><span class="tag">действия по наведению</span></div>
+        <ul>
+          <li>Сообщения — просто текст, без коробок и фонов</li>
+          <li>Кнопки жалобы/ответа прячутся до наведения на сообщение</li>
+          <li>Поле ввода — одна «пилюля», кнопки внутри</li>
+          <li>Верхнее меню сокращено до 4 пунктов</li>
+        </ul>
+        <a class="open" href="v1.html">Открыть вариант 1</a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="shots"><img class="d" src="shots/v2-desktop.png" alt=""><img class="m" src="shots/v2-mobile.png" alt=""></div>
+      <div class="body">
+        <div class="title">Вариант 2 · Светлый <span>лёгкий</span></div>
+        <div class="tags"><span class="tag">светлая тема</span><span class="tag">пузыри</span><span class="tag">воздух</span></div>
+        <ul>
+          <li>Светлый фон, мягкие тени вместо рамок</li>
+          <li>Классические пузыри: свои — синие справа</li>
+          <li>Много свободного места, спокойные цвета</li>
+          <li>Хорошо читается на улице/при ярком свете</li>
+        </ul>
+        <a class="open" href="v2.html">Открыть вариант 2</a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="shots"><img class="d" src="shots/v3-desktop.png" alt=""><img class="m" src="shots/v3-mobile.png" alt=""></div>
+      <div class="body">
+        <div class="title">Вариант 3 · Компакт <span>плотный</span></div>
+        <div class="tags"><span class="tag">много сообщений на экране</span><span class="tag">время слева</span><span class="tag">иконки-рейл</span></div>
+        <ul>
+          <li>Плотная вёрстка: на экран влезает больше истории</li>
+          <li>Время в отдельной колонке, сообщения сгруппированы</li>
+          <li>Меню — узкая панель иконок слева</li>
+          <li>Подсказки по клавишам под полем ввода</li>
+        </ul>
+        <a class="open" href="v3.html">Открыть вариант 3</a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="shots"><img class="d" src="shots/v4-desktop.png" alt=""><img class="m" src="shots/v4-mobile.png" alt=""></div>
+      <div class="body">
+        <div class="title">Вариант 4 · Мессенджер <span>привычный</span></div>
+        <div class="tags"><span class="tag">как в телеграме</span><span class="tag">крупные аватары</span><span class="tag">галочки</span></div>
+        <ul>
+          <li>Привычная логика мессенджера — ничего объяснять не надо</li>
+          <li>Крупные аватары, галочки прочтения, дата-разделитель</li>
+          <li>Эмодзи/скрепка/микрофон внутри поля ввода</li>
+          <li>Кнопка «Отправить» появляется только когда есть текст</li>
+        </ul>
+        <a class="open" href="v4.html">Открыть вариант 4</a>
+      </div>
+    </div>
+  </div>
+  <div class="hint">Подсказка: сузить окно до ширины телефона (или открыть на телефоне) — макеты адаптивные. Скриншоты обновляются скриптом shoot.js.</div>
+</div>
+</body>
+</html>

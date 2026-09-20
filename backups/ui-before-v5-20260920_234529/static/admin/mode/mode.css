@@ -1,0 +1,147 @@
+:root {
+  --bg-1: #f2ede5;
+  --bg-2: #dce6ef;
+  --card: #fffefb;
+  --ink: #20262a;
+  --muted: #5f6871;
+  --line: #d9dde3;
+  --accent: #1d6374;
+  --error: #9b3e3e;
+  --ok: #2f7a44;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: linear-gradient(148deg, var(--bg-1), var(--bg-2));
+}
+
+.mode-shell {
+  width: min(920px, 95vw);
+  margin: 0 auto;
+  padding: 22px 0 34px;
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(20, 32, 38, 0.08);
+  padding: 13px;
+}
+
+.hero h1 {
+  margin: 0;
+}
+
+.hero p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.session {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.session label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+
+.status-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+}
+
+.status-note.ok {
+  color: var(--ok);
+}
+
+.status-note.error {
+  color: var(--error);
+}
+
+input,
+select,
+button,
+.link-btn {
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fff;
+}
+
+button,
+.link-btn {
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  padding: 9px 12px;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mode-panel h2,
+.mode-panel h3 {
+  margin: 0 0 8px;
+}
+
+#currentMode {
+  margin: 0 0 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.sequence {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+}
+
+.controls label {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+@media (max-width: 820px) {
+  .session {
+    grid-template-columns: 1fr;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}
