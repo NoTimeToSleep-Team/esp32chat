@@ -490,6 +490,38 @@ async function renderChat() {
 let currentChatId = null;
 let currentChatTitle = '';
 let messagesPollTimer = null;
+let pendingFiles = [];
+const MAX_ATTACH_FILES = 8;
+const MAX_UPLOAD_MB = 10;
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
+}
+
+function addPendingFiles(list) {
+  const files = Array.from(list || []);
+  for (const f of files) {
+    if (pendingFiles.length >= MAX_ATTACH_FILES) { toast(t('too_many_files'), 'error'); break; }
+    if (f.size > MAX_UPLOAD_MB * 1024 * 1024) { toast(`${f.name}: ${t('file_too_large')} (${MAX_UPLOAD_MB} MB)`, 'error'); continue; }
+    if (pendingFiles.some(x => x.name === f.name && x.size === f.size)) continue;
+    pendingFiles.push(f);
+  }
+  renderAttachPreview();
+}
+
+function renderAttachPreview() {
+  const box = $('#attach-preview');
+  if (!box) return;
+  if (!pendingFiles.length) { box.innerHTML = ''; return; }
+  box.innerHTML = pendingFiles.map((f, i) =>
+    `<span class="attach-chip"><span class="attach-name">📎 ${esc(f.name)}</span><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`
+  ).join('');
+  box.querySelectorAll('.attach-remove').forEach(b => {
+    b.onclick = () => { pendingFiles.splice(Number(b.dataset.i), 1); renderAttachPreview(); };
+  });
+}
 
 async function loadChatMessages(chatId, title, itemEl) {
   $$('.chat-item.active').forEach(e => e.classList.remove('active'));
@@ -567,9 +599,12 @@ async function doLoadMessages(opts) {
         <div class="card-title" style="font-size:16px">${esc(currentChatTitle)}</div>
         <div id="msg-list" style="max-height:60vh;overflow-y:auto;margin-bottom:12px"></div>
         <div class="send-area">
+          <input id="msg-file" type="file" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">
+          <button class="btn btn-sm btn-outline" id="attach-btn" title="${t('attach')}">📎</button>
           <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
           <button class="btn btn-primary btn-sm" id="send-btn">${t('send')}</button>
         </div>
+        <div id="attach-preview" class="attach-preview"></div>
       </div>`;
     const list = $('#msg-list');
     if (msgs.length >= limit) {
@@ -584,6 +619,10 @@ async function doLoadMessages(opts) {
       if (list.scrollTop < 40 && list.querySelector('.load-older')) doLoadMessages({older:true});
     };
     $('#send-btn').onclick = sendMessage;
+    const msgFile = $('#msg-file');
+    if ($('#attach-btn')) $('#attach-btn').onclick = () => msgFile && msgFile.click();
+    if (msgFile) msgFile.onchange = () => { addPendingFiles(msgFile.files); msgFile.value = ''; };
+    renderAttachPreview();
     $('#msg-input').onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
   } catch(e) {
     if (container) container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
@@ -594,20 +633,32 @@ async function sendMessage() {
   const input = $('#msg-input');
   if (!input) return;
   const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
+  if (!text && !pendingFiles.length) return;
+  const files = pendingFiles.slice();
   const sendBtn = $('#send-btn');
-  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = t('sending'); }
+  const attachBtn = $('#attach-btn');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = files.length ? t('uploading') : t('sending'); }
+  if (attachBtn) attachBtn.disabled = true;
   try {
+    const ids = [];
+    for (const f of files) {
+      const a = await uploadAttachment(f);
+      ids.push(a.attachment_id);
+      const idx = pendingFiles.indexOf(f);
+      if (idx >= 0) pendingFiles.splice(idx, 1);
+    }
     await api(`/chat/api/chats/${currentChatId}/messages`, {
       method:'POST',
-      body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:[]})
+      body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:ids})
     });
+    input.value = '';
     await doLoadMessages({force:true});
   } catch(e) {
     toast(e.message, 'error');
   } finally {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = t('send'); }
+    if (attachBtn) attachBtn.disabled = false;
+    renderAttachPreview();
   }
 }
 
@@ -966,7 +1017,7 @@ async function loadTicketDetail(ticketId, title, itemEl) {
         <div class="send-area">
           <textarea id="support-input" placeholder="Reply..." rows="1"></textarea>
           
-          <input id="support-file" type="file" multiple style="max-width:180px">
+          <input id="support-file" type="file" multiple accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json" style="max-width:180px">
           <button class="btn btn-primary btn-sm" id="support-send">Send</button>
         </div>
         
@@ -974,18 +1025,18 @@ async function loadTicketDetail(ticketId, title, itemEl) {
     $('#close-ticket-btn').onclick = async () => { try { await api('/support/api/tickets/' + currentTicketId + '/status', {method:'POST',body:JSON.stringify({session_token:STATE.token,status:'closed'})}); toast('Ticket closed','success'); loadTicketDetail(currentTicketId, title, null); } catch(e) { toast(e.message,'error'); } };
     $('#support-send').onclick = async () => { 
       const inp = $('#support-input');
-      if (!inp?.value.trim()) return;
-      const text = inp.value.trim();
-      inp.value = '';
+      const files = Array.from(document.getElementById('support-file')?.files || []);
+      const text = (inp?.value || '').trim();
+      if (!text && !files.length) return;
       $('#support-send').disabled = true;
       try {
         const attachments = [];
-        var files = Array.from(document.getElementById('support-file')?.files || []);
         for (const file of files) attachments.push(await uploadAttachment(file));
         await api(`/support/api/tickets/${currentTicketId}/messages`, {
           method:'POST',
           body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:attachments.map(a=>a.attachment_id)})
         });
+        if (inp) inp.value = '';
         await loadTicketDetail(currentTicketId, title, null);
       } catch(e) { toast(e.message, 'error'); }
       finally { if ($('#support-send')) $('#support-send').disabled = false; }
@@ -1839,6 +1890,11 @@ var T = {
 "no_messages":{rus:"Сообщений нет",eng:"No messages"},
 "reports_against":{rus:"жалоб на него",eng:"reports against"},
 "attachments":{rus:"Вложения",eng:"Attachments"},
+"attach":{rus:"Прикрепить файл",eng:"Attach file"},
+"uploading":{rus:"Загрузка...",eng:"Uploading..."},
+"too_many_files":{rus:"Максимум 8 файлов на сообщение",eng:"Up to 8 files per message"},
+"file_too_large":{rus:"Файл слишком большой",eng:"File is too large"},
+"remove":{rus:"Убрать",eng:"Remove"},
 "close_ticket":{rus:"Закрыть тикет",eng:"Close Ticket"},
 "sending":{rus:"Отправка...",eng:"Sending..."},
 "access_application":{rus:"Заявка на доступ",eng:"Access Application"},

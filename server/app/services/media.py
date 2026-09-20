@@ -21,6 +21,17 @@ FILE_MIME_TYPES = {
     "text/plain",
     "application/zip",
     "application/octet-stream",
+    "image/heic",
+    "image/heif",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/csv",
+    "application/json",
 }
 ALLOWED_MIME_TYPES = IMAGE_MIME_TYPES | AUDIO_MIME_TYPES | FILE_MIME_TYPES
 
