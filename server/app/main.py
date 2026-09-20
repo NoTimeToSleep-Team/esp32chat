@@ -52,6 +52,7 @@ from app.api.moderation import router as moderation_router
 from app.api.ops import router as ops_router
 from app.api.realtime import router as realtime_router
 from app.api.support import router as support_router
+from app.api.user_reports import router as user_reports_router
 from app.config import ConfigError, get_settings
 from app.db import initialize_data_layer
 from app.logging import configure_logging, get_logger
@@ -273,6 +274,7 @@ def create_app() -> FastAPI:
     app.include_router(applications_router)
     app.include_router(blog_router)
     app.include_router(support_router)
+    app.include_router(user_reports_router)
     app.include_router(devices_router)
     app.include_router(device_combos_router)
     app.include_router(chat_router)

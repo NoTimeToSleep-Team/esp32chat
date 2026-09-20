@@ -491,15 +491,41 @@ async function toggleInternet(uid, enable) {
   catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
-// REPORTS (integrated moderation API)
+// REPORTS: user reports (dedicated API) + auto-moderation
+var REPORT_REASONS = {spam:"Spam",abuse:"Abuse",profanity:"Profanity",ads:"Ads",scam:"Scam",other:"Other"};
 async function loadReports() {
   var p = document.getElementById("panel-reports");
   p.innerHTML = '<div class="card">Loading...</div>';
-  try {
-    var d = await apiCall("/moderation/api/admin/reports?session_token=" + encodeURIComponent(ST) + "&limit=100");
-    var h = '<div class="card"><h3>Moderation Reports <span style="color:#f85149">(' + d.pending_count + ' pending)</span></h3>';
-    if (!d.reports || !d.reports.length) { h += '<p style="color:#8b949e">No reports</p>'; }
-    d.reports.forEach(function(r) {
+  var auto = {reports:[],pending_count:0}, user = {reports:[],pending_count:0};
+  var autoErr = "", userErr = "";
+  try { auto = await apiCall("/moderation/api/admin/reports?session_token=" + encodeURIComponent(ST) + "&limit=100"); } catch(e) { autoErr = e.message; }
+  try { user = await apiCall("/reports/api/list?session_token=" + encodeURIComponent(ST) + "&limit=100"); } catch(e) { userErr = e.message; }
+
+  var h = '<div class="card"><h3>User Reports <span style="color:#f85149">(' + (user.pending_count||0) + ' pending)</span></h3>';
+  if (userErr) { h += '<p style="color:#f85149">' + esc(userErr) + '</p>'; }
+  else if (!user.reports || !user.reports.length) { h += '<p style="color:#8b949e">No reports</p>'; }
+  else {
+    user.reports.forEach(function(r) {
+      var sc = r.status === "pending" ? "#f85149" : "#8b949e";
+      h += '<div class="card" style="border-left:3px solid ' + sc + '">';
+      h += '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><strong>' + esc(r.reporter_login) + ' \u2192 ' + esc(r.target_login || ("User #" + r.target_user_id)) + '</strong><span style="font-size:11px;color:#8b949e">#' + r.id + " " + r.status + "</span></div>";
+      h += '<div style="font-size:12px;color:#d29922;margin:4px 0">' + esc(REPORT_REASONS[r.reason] || r.reason) + " \u00b7 " + new Date(r.created_at_ms).toLocaleString() + "</div>";
+      if (r.comment) h += '<div style="font-size:12px;background:#0d1117;padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">' + esc(r.comment) + "</div>";
+      if (r.status === "pending") {
+        h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveUserReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveUserReport(' + r.id + ',\'warn\')">Warn</button> <button class="btn-outline" onclick="resolveUserReport(' + r.id + ',\'dismiss\')">Dismiss</button></div>';
+      } else {
+        h += '<div style="font-size:11px;color:#8b949e">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
+      }
+      h += "</div>";
+    });
+  }
+  h += "</div>";
+
+  h += '<div class="card"><h3>Auto-Moderation <span style="color:#f85149">(' + (auto.pending_count||0) + ' pending)</span></h3>';
+  if (autoErr) { h += '<p style="color:#f85149">' + esc(autoErr) + '</p>'; }
+  else if (!auto.reports || !auto.reports.length) { h += '<p style="color:#8b949e">No reports</p>'; }
+  else {
+    auto.reports.forEach(function(r) {
       var sc = r.status === "pending" ? "#d29922" : "#8b949e";
       h += '<div class="card" style="border-left:3px solid ' + sc + '"><div style="display:flex;justify-content:space-between"><strong>' + esc(r.user_login) + '</strong><span style="font-size:11px;color:#8b949e">#' + r.id + " " + r.status + "</span></div>";
       h += '<div style="font-size:12px;color:#8b949e;margin:4px 0">Words: <span style="color:#f85149">' + esc(r.found_words || "") + "</span></div>";
@@ -511,9 +537,19 @@ async function loadReports() {
       }
       h += "</div>";
     });
-    h += "</div>";
-    p.innerHTML = h;
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + (e.message || "Moderation API offline") + "</div>"; }
+  }
+  h += "</div>";
+  p.innerHTML = h;
+}
+
+async function resolveUserReport(rid, action) {
+  if (action === "ban" && !confirm("Ban the user from this report?")) return;
+  msg("Working...");
+  try {
+    await apiCall("/reports/api/resolve", "POST", { session_token: ST, report_id: rid, action: action });
+    msg('<span style="color:#238636">Report ' + action + "</span>");
+    loadReports();
+  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
 async function resolveReport(rid, action) {

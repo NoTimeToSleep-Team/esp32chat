@@ -864,17 +864,6 @@ async function renderSupport() {
     <div id="new-ticket-modal" class="overlay hidden">
       <div class="modal">
         <h3>New Ticket</h3>
-        <div class="form-group"><label>${t('type_label')}</label>
-          <select class="form-input" id="ticket-kind">
-            <option value="support">${t('support_kind')}</option>
-            <option value="report">${t('report_kind')}</option>
-          </select>
-        </div>
-        <div class="form-group" id="report-user-group" style="display:none">
-          <label>${t('report_user_label')}</label>
-          <input class="form-input" id="report-user-search" placeholder="${t('search_user')}">
-          <div id="report-user-results" style="max-height:140px;overflow-y:auto;margin-top:6px"></div>
-        </div>
         <div class="form-group"><label>${t('title')}</label><input class="form-input" id="ticket-title"></div>
         <div class="form-group"><label>${t('description')}</label><textarea class="form-input" id="ticket-body" rows="4"></textarea></div>
         <div class="form-group"><label>${t('attachments')}</label><input class="form-input" id="ticket-file" type="file" multiple></div>
@@ -917,74 +906,15 @@ async function renderSupport() {
   } catch(e) {
     $('#ticket-list').innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
-  // always attach modal handlers regardless of API result
-  const reportTarget = { user_id: null };
-  function onKindChange() {
-    const kindSel = $('#ticket-kind');
-    const group = $('#report-user-group');
-    if (group) group.style.display = kindSel && kindSel.value === 'report' ? '' : 'none';
-  }
-  async function prefillReportUser(uid) {
-    const results = $('#report-user-results');
-    if (!results) return;
-    try {
-      const d = await api(`/account/api/profile/${uid}?session_token=${encodeURIComponent(STATE.token)}`);
-      const p = d.profile;
-      results.innerHTML = `<div class="ticket-item" style="padding:8px;border-radius:6px;background:var(--bg3)">✔ ${esc(p.display_name||p.login)} (#${p.user_id})</div>`;
-    } catch(e) { results.innerHTML = `<div style="padding:6px;color:var(--text2)">User #${uid}</div>`; }
-  }
+  // support-only ticket modal handlers
   const newTicketBtn = $('#new-ticket-btn');
-  if (newTicketBtn) newTicketBtn.onclick = () => {
-    show('#new-ticket-modal');
-    if (window.STATE_REPORT_TARGET) {
-      const kindSel = $('#ticket-kind');
-      if (kindSel && STATE.user?.role !== 'guest') kindSel.value = 'report';
-      reportTarget.user_id = window.STATE_REPORT_TARGET;
-      window.STATE_REPORT_TARGET = null;
-      onKindChange();
-      prefillReportUser(reportTarget.user_id);
-    } else {
-      onKindChange();
-    }
-  };
+  if (newTicketBtn) newTicketBtn.onclick = () => { show('#new-ticket-modal'); };
   $('#ticket-cancel').onclick = () => { hide('#new-ticket-modal'); $('#ticket-title').value=''; $('#ticket-body').value=''; if ($('#ticket-file')) $('#ticket-file').value=''; };
-  const kindSelEl = $('#ticket-kind');
-  if (kindSelEl) kindSelEl.onchange = onKindChange;
-  const reportSearchEl = $('#report-user-search');
-  if (reportSearchEl) {
-    let reportTimer = null;
-    reportSearchEl.oninput = () => {
-      clearTimeout(reportTimer);
-      reportTimer = setTimeout(async () => {
-        const q = reportSearchEl.value.trim();
-        const results = $('#report-user-results');
-        if (!results) return;
-        if (!q) { results.innerHTML = ''; return; }
-        try {
-          const d = await api(`/chat/api/users/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(q)}`);
-          results.innerHTML = '';
-          (d.items||[]).forEach(u => {
-            if (u.user_id === STATE.user?.id) return;
-            const item = el('div',{class:'ticket-item',style:'padding:8px;cursor:pointer;border-radius:6px'},`${u.login} (#${u.user_id})`);
-            item.onclick = () => {
-              reportTarget.user_id = u.user_id;
-              results.querySelectorAll('.ticket-item').forEach(x => x.style.background='');
-              item.style.background = 'var(--bg3)';
-            };
-            results.append(item);
-          });
-          if (!results.children.length) results.innerHTML = '<div style="padding:6px;color:var(--text2)">Not found</div>';
-        } catch(e) { results.innerHTML = `<div style="padding:6px;color:var(--accent4)">${esc(e.message)}</div>`; }
-      }, 300);
-    };
-  }
   $('#ticket-submit').onclick = async () => { 
     const title = $('#ticket-title').value.trim();
     const body = $('#ticket-body').value.trim();
-    const kindValue = ($('#ticket-kind')?.value) || 'support';
     const files = Array.from($('#ticket-file')?.files || []);
     if (!title || !body) { toast('Fill in title and message', 'error'); return; }
-    if (kindValue === 'report' && !reportTarget.user_id) { toast('Select the user to report', 'error'); return; }
     const submitBtn = $('#ticket-submit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = t('sending'); }
     try {
@@ -994,14 +924,12 @@ async function renderSupport() {
         method:'POST',
         body:JSON.stringify({
           session_token:STATE.token, title, body_text:body, attachment_ids:attachmentIds,
-          kind: kindValue,
-          target_user_id: kindValue === 'report' ? reportTarget.user_id : undefined,
+          kind: 'support',
         })
       });
       toast('Ticket created', 'success');
       hide('#new-ticket-modal');
       $('#ticket-title').value=''; $('#ticket-body').value=''; if ($('#ticket-file')) $('#ticket-file').value='';
-      reportTarget.user_id = null;
       renderSupport();
     } catch(e) { toast(e.message, 'error'); }
     finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t('submit'); } }
@@ -1128,12 +1056,39 @@ async function renderAdminReports() {
   const container = $('#admin-reports');
   if (!container) return;
   container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  try {
-    const data = await api(`/moderation/api/admin/reports?session_token=${encodeURIComponent(STATE.token)}&limit=100`);
-    let html = `<div class="admin-card"><h3>Moderation Reports <span style="color:var(--accent4)">(${data.pending_count||0} pending)</span></h3>`;
-    if (!data.reports?.length) html += '<div class="empty"><div class="empty-text">No reports</div></div>';
-    html += (data.reports||[]).map(r => `
-      <div class="user-row" style="display:block">
+  let userData = { reports: [], pending_count: 0 };
+  let autoData = { reports: [], pending_count: 0 };
+  let userErr = null, autoErr = null;
+  try { userData = await api(`/reports/api/list?session_token=${encodeURIComponent(STATE.token)}&limit=100`); } catch(e) { userErr = e.message; }
+  try { autoData = await api(`/moderation/api/admin/reports?session_token=${encodeURIComponent(STATE.token)}&limit=100`); } catch(e) { autoErr = e.message; }
+
+  let html = `<div class="admin-card"><h3>🚩 ${t('admin_user_reports')} <span style="color:var(--accent4)">(${userData.pending_count||0})</span></h3>`;
+  if (userErr) html += `<div class="empty"><div class="empty-text">${esc(userErr)}</div></div>`;
+  else if (!userData.reports?.length) html += `<div class="empty"><div class="empty-text">${t('no_reports')}</div></div>`;
+  else {
+    html += userData.reports.map(r => `
+      <div class="user-row" style="display:block;border-left:3px solid ${r.status==='pending'?'var(--accent4)':'var(--border)'};padding-left:12px">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <span><strong>${esc(r.reporter_login)}</strong> → <strong>${esc(r.target_login||('User #'+r.target_user_id))}</strong></span>
+          <span style="font-size:11px;color:var(--text2)">#${r.id} · ${esc(r.status)}</span>
+        </div>
+        <div style="margin:4px 0"><span class="report-reason-badge">${esc(reportReasonLabel(r.reason))}</span> <span style="font-size:11px;color:var(--text2)">${fmtTime(r.created_at_ms)}</span></div>
+        ${r.comment ? `<div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">${esc(r.comment)}</div>` : ''}
+        ${r.status === 'pending' ? `<div style="margin-top:6px">
+            <button class="btn btn-sm btn-danger" data-urep="${r.id}" data-uraction="ban">Ban</button>
+            <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="warn">Warn</button>
+            <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="dismiss">Dismiss</button>
+          </div>` : `<div style="font-size:11px;color:var(--text2)">${esc(r.action||'?')} · ${esc(r.resolved_by||'?')} · ${fmtTime(r.resolved_at_ms)}</div>`}
+      </div>`).join('');
+  }
+  html += '</div>';
+
+  html += `<div class="admin-card"><h3>🤖 ${t('admin_auto_reports')} <span style="color:var(--accent4)">(${autoData.pending_count||0})</span></h3>`;
+  if (autoErr) html += `<div class="empty"><div class="empty-text">${esc(autoErr)}</div></div>`;
+  else if (!autoData.reports?.length) html += `<div class="empty"><div class="empty-text">${t('no_reports')}</div></div>`;
+  else {
+    html += (autoData.reports||[]).map(r => `
+      <div class="user-row" style="display:block;border-left:3px solid ${r.status==='pending'?'var(--accent3)':'var(--border)'};padding-left:12px">
         <div style="display:flex;justify-content:space-between">
           <strong>${esc(r.user_login||('User #'+r.user_id))}</strong>
           <span style="font-size:11px;color:var(--text2)">#${r.id} ${esc(r.status)}</span>
@@ -1146,21 +1101,30 @@ async function renderAdminReports() {
             <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="dismiss">Dismiss</button>
           </div>` : `<div style="font-size:11px;color:var(--text2)">Resolved: ${esc(r.action||'?')} by ${esc(r.resolved_by||'?')}</div>`}
       </div>`).join('');
-    html += '</div>';
-    container.innerHTML = html;
-    container.querySelectorAll('[data-rrep]').forEach(btn => {
-      btn.onclick = async () => {
-        if (btn.dataset.raction === 'ban' && !confirm('Ban the author of this report?')) return;
-        try {
-          await api('/moderation/api/admin/reports/resolve', {method:'POST', body:JSON.stringify({session_token:STATE.token, report_id: parseInt(btn.dataset.rrep), action: btn.dataset.raction})});
-          toast(`Report ${btn.dataset.raction}`, 'success');
-          renderAdminReports();
-        } catch(e) { toast(e.message, 'error'); }
-      };
-    });
-  } catch(e) {
-    container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
+  html += '</div>';
+  container.innerHTML = html;
+
+  container.querySelectorAll('[data-urep]').forEach(btn => {
+    btn.onclick = async () => {
+      if (btn.dataset.uraction === 'ban' && !confirm(t('report_ban_confirm'))) return;
+      try {
+        await api('/reports/api/resolve', {method:'POST', body:JSON.stringify({session_token:STATE.token, report_id: parseInt(btn.dataset.urep), action: btn.dataset.uraction})});
+        toast(`Report ${btn.dataset.uraction}`, 'success');
+        renderAdminReports();
+      } catch(e) { toast(e.message, 'error'); }
+    };
+  });
+  container.querySelectorAll('[data-rrep]').forEach(btn => {
+    btn.onclick = async () => {
+      if (btn.dataset.raction === 'ban' && !confirm('Ban the author of this report?')) return;
+      try {
+        await api('/moderation/api/admin/reports/resolve', {method:'POST', body:JSON.stringify({session_token:STATE.token, report_id: parseInt(btn.dataset.rrep), action: btn.dataset.raction})});
+        toast(`Report ${btn.dataset.raction}`, 'success');
+        renderAdminReports();
+      } catch(e) { toast(e.message, 'error'); }
+    };
+  });
 }
 
 async function renderAdminUsers() {
@@ -1810,6 +1774,23 @@ var T = {
 "support_kind":{rus:"Запрос в поддержку",eng:"Support request"},
 "report_kind":{rus:"Жалоба на пользователя",eng:"Report a user"},
 "report_user_label":{rus:"На кого жалоба",eng:"User to report"},
+"report_title":{rus:"Пожаловаться на пользователя",eng:"Report user"},
+"report_reason_label":{rus:"Причина",eng:"Reason"},
+"report_comment_label":{rus:"Комментарий",eng:"Comment"},
+"report_comment_ph":{rus:"Опишите проблему (необязательно)",eng:"Describe the issue (optional)"},
+"report_send":{rus:"Отправить жалобу",eng:"Send report"},
+"report_sent_title":{rus:"Жалоба отправлена",eng:"Report sent"},
+"report_sent_text":{rus:"Модераторы рассмотрят её в ближайшее время. Спасибо!",eng:"Moderators will review it soon. Thank you!"},
+"report_ban_confirm":{rus:"Забанить пользователя из этой жалобы?",eng:"Ban the user from this report?"},
+"reason_spam":{rus:"Спам",eng:"Spam"},
+"reason_abuse":{rus:"Оскорбления",eng:"Abuse"},
+"reason_profanity":{rus:"Мат",eng:"Profanity"},
+"reason_ads":{rus:"Реклама",eng:"Ads"},
+"reason_scam":{rus:"Мошенничество",eng:"Scam"},
+"reason_other":{rus:"Другое",eng:"Other"},
+"admin_user_reports":{rus:"Жалобы пользователей",eng:"User reports"},
+"admin_auto_reports":{rus:"Авто-модерация",eng:"Auto-moderation"},
+"no_reports":{rus:"Жалоб нет",eng:"No reports"},
 "attachments":{rus:"Вложения",eng:"Attachments"},
 "close_ticket":{rus:"Закрыть тикет",eng:"Close Ticket"},
 "sending":{rus:"Отправка...",eng:"Sending..."},
@@ -1865,11 +1846,90 @@ async function viewUserProfile(uid) {
     };
     var repBtn = document.getElementById("pm-report");
     if (repBtn) repBtn.onclick = function() {
-      window.STATE_REPORT_TARGET = uid;
       var modal = document.getElementById("profile-modal"); if (modal) modal.remove();
-      window.location.hash = '#/support';
+      openReportModal(uid, p.display_name || p.login, emoji);
     };
   } catch(e) { toast(e.message, "error"); }
+}
+
+// ===== User reports (dedicated flow, not support tickets) =====
+function reportReasonLabel(reason) {
+  var map = {
+    spam: t('reason_spam'), abuse: t('reason_abuse'), profanity: t('reason_profanity'),
+    ads: t('reason_ads'), scam: t('reason_scam'), other: t('reason_other'),
+  };
+  return map[reason] || reason;
+}
+function openReportModal(uid, name, emoji) {
+  var existing = document.getElementById('report-modal');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'report-modal';
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="modal report-modal">
+      <h3>🚩 ${t('report_title')}</h3>
+      <div class="report-target">
+        <span class="report-target-avatar">${esc(emoji || '👤')}</span>
+        <div>
+          <div class="report-target-name">${esc(name || ('User #' + uid))}</div>
+          <div class="report-target-sub">ID #${uid}</div>
+        </div>
+      </div>
+      <div class="form-group"><label>${t('report_reason_label')}</label>
+        <div class="report-reasons" id="report-reasons"></div>
+      </div>
+      <div class="form-group"><label>${t('report_comment_label')}</label>
+        <textarea class="form-input" id="report-comment" rows="3" maxlength="1000" placeholder="${t('report_comment_ph')}"></textarea>
+      </div>
+      <div id="report-error" class="login-error"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" id="report-cancel">${t('cancel')}</button>
+        <button class="btn btn-danger" id="report-send">${t('report_send')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var selected = 'spam';
+  var reasonsBox = document.getElementById('report-reasons');
+  [['spam','📢'],['abuse','😠'],['profanity','🤬'],['ads','📣'],['scam','💰'],['other','❓']].forEach(function(pair) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'report-reason' + (pair[0] === selected ? ' active' : '');
+    b.dataset.reason = pair[0];
+    b.textContent = pair[1] + ' ' + reportReasonLabel(pair[0]);
+    b.onclick = function() {
+      selected = pair[0];
+      reasonsBox.querySelectorAll('.report-reason').forEach(function(x) { x.classList.remove('active'); });
+      b.classList.add('active');
+    };
+    reasonsBox.appendChild(b);
+  });
+  document.getElementById('report-cancel').onclick = function() { overlay.remove(); };
+  document.getElementById('report-send').onclick = async function() {
+    var btn = document.getElementById('report-send');
+    var errBox = document.getElementById('report-error');
+    errBox.textContent = ''; errBox.style.display = 'none';
+    btn.disabled = true; btn.textContent = t('sending');
+    try {
+      await api('/reports/api/create', {method:'POST', body:JSON.stringify({
+        session_token: STATE.token, target_user_id: uid, reason: selected,
+        comment: document.getElementById('report-comment').value.trim(),
+      })});
+      var card = overlay.querySelector('.modal');
+      card.innerHTML = `
+        <div class="report-success">
+          <div class="report-success-icon">✅</div>
+          <h3>${t('report_sent_title')}</h3>
+          <p>${t('report_sent_text')}</p>
+          <button class="btn btn-primary" id="report-close">${t('close')}</button>
+        </div>`;
+      document.getElementById('report-close').onclick = function() { overlay.remove(); };
+    } catch(e) {
+      errBox.textContent = e.message; errBox.style.display = 'block';
+      btn.disabled = false; btn.textContent = t('report_send');
+    }
+  };
 }
 
 // ===== Language switcher =====
