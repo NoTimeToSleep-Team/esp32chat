@@ -170,7 +170,7 @@ function renderAttachments(items) {
     const name = esc(a.filename || `attachment-${a.attachment_id}`);
     const mime = String(a.mime_type || '');
     if ((a.media_kind === 'image' || mime.startsWith('image/'))) {
-      return `<a class="attachment image" href="${safeUrl(url)}" data-name="${name}" onclick="openImageLightbox(this.href, this.dataset.name);return false"><img src="${safeUrl(url)}" alt="${name}" loading="lazy"><span>${name}</span></a>`;
+      return `<a class="attachment image" href="${safeUrl(url)}" data-name="${name}" onclick="openImageLightbox(this.href, this.dataset.name);return false"><img src="${safeUrl(url)}" alt="${name}"><span>${name}</span></a>`;
     }
     if (a.media_kind === 'audio' || mime.startsWith('audio/')) {
       return `<div class="attachment audio"><div>${name}</div><audio controls preload="none" src="${safeUrl(url)}"></audio></div>`;
@@ -471,14 +471,19 @@ async function renderChat() {
         </div>
       </div>
     </div>
-    <div class="grid-2" id="chat-layout">
-      <div id="chat-list"><div class="loading"><div class="spinner"></div></div></div>
-      <div id="chat-messages">
-        <div class="card" style="text-align:center;color:var(--text2);padding:40px">
-          <div style="font-size:40px;margin-bottom:8px">💬</div>
-          <div>${t('select_chat')}</div>
+    <div class="chat-layout show-list" id="chat-layout">
+      <aside class="chat-side">
+        <div class="chat-side-head">
+          <div class="chat-side-title"><span>${t('chat')}</span><button class="mini" id="chat-refresh" title="${t('refresh')}">⟳</button></div>
+          <div class="chat-search">🔎<input id="chat-search-input" placeholder="${t('search_user')}"></div>
         </div>
-      </div>
+        <div id="chat-list" class="chat-list"><div class="loading"><div class="spinner"></div></div></div>
+      </aside>
+      <section class="chat-pane">
+        <div id="chat-messages" class="chat-messages">
+          <div class="empty"><div class="empty-icon">💬</div><div class="empty-text">${t('select_chat')}</div></div>
+        </div>
+      </section>
     </div>`;
   try {
     const data = await api(`/chat/api/chats?session_token=${encodeURIComponent(STATE.token)}`);
@@ -494,8 +499,13 @@ async function renderChat() {
         const parts = displayTitle.split(' & ');
         displayTitle = parts.filter(p => p !== STATE.user?.login).join(' & ') || displayTitle;
       }
-      item.innerHTML = `<div class="chat-item-title">${esc(displayTitle)} <span style="color:var(--text2);font-size:11px">#${chat.chat_id}</span></div>
-        <div class="chat-item-desc">${chat.description ? esc(chat.description) : 'No description'}</div>`;
+      const cav = chatAvaFor(displayTitle, chat.chat_id);
+      item.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${esc(cav.initials)}</div>
+        <div class="chat-item-main">
+          <div class="chat-item-title">${esc(displayTitle)}</div>
+          <div class="chat-item-desc">${chat.description ? esc(chat.description) : '#' + chat.chat_id}</div>
+        </div>`;
+      item.dataset.search = (displayTitle + ' ' + (chat.description || '')).toLowerCase();
       item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item);
       list.append(item);
     });
@@ -505,9 +515,19 @@ async function renderChat() {
     if (data.items.length && list.firstChild) {
       list.firstChild.click();
     }
+    $('#chat-layout').classList.add('show-list');
   } catch(e) {
     $('#chat-list').innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
+  const chatSearchEl = $('#chat-search-input');
+  if (chatSearchEl) chatSearchEl.oninput = () => {
+    const q = chatSearchEl.value.trim().toLowerCase();
+    $$('#chat-list .chat-item').forEach(it => {
+      it.style.display = (!q || (it.dataset.search || '').includes(q)) ? '' : 'none';
+    });
+  };
+  const chatRefreshEl = $('#chat-refresh');
+  if (chatRefreshEl) chatRefreshEl.onclick = () => renderChat();
   $('#create-chat-btn').onclick = () => show('#create-chat-modal');
   $('#chat-create-cancel').onclick = () => { hide('#create-chat-modal'); $('#chat-title').value=''; $('#chat-desc').value=''; };
   $('#chat-create-submit').onclick = async () => { 
@@ -566,6 +586,7 @@ async function renderChat() {
 
 let currentChatId = null;
 let currentChatTitle = '';
+let currentChatDesc = '';
 let messagesPollTimer = null;
 let pendingFiles = [];
 const MAX_ATTACH_FILES = 8;
@@ -615,6 +636,9 @@ async function loadChatMessages(chatId, title, itemEl) {
   if (itemEl) itemEl.classList.add('active');
   currentChatId = chatId;
   currentChatTitle = title;
+  currentChatDesc = itemEl ? ((itemEl.querySelector('.chat-item-desc') || {}).textContent || '') : '';
+  const lay = $('#chat-layout');
+  if (lay) lay.classList.remove('show-list');
   msgLoadOffset = 0;
   if (messagesPollTimer) clearInterval(messagesPollTimer);
   await doLoadMessages({force:true});
@@ -628,17 +652,21 @@ function buildMessageEl(m) {
   var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯','🐙','🦄','🐳','🐧','🐤'];
   var uemoji = emojis[(m.author_user_id||0) % emojis.length];
   var initial = m.author_avatar_emoji || uemoji;
-  const div = el('div',{class:'msg',style:{flexDirection:isMe?'row-reverse':undefined}});
+  const div = el('div',{class:'msg' + (isMe ? ' out' : '')});
+  div.dataset.mid = m.message_id;
+  div.dataset.day = fmtDayKey(m.created_at_ms);
   const authorName = isMe ? esc(STATE.user?.login||'You') : esc(m.author_login || userName(m.author_user_id));
   div.innerHTML = `
-    <div class="msg-avatar" style="cursor:pointer;${isMe?'background:var(--accent2)':''}" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${esc(initial)}</div>
-    <div class="msg-body" style="text-align:${isMe?'right':'left'}">
-      <div class="msg-header" style="justify-content:${isMe?'flex-end':'flex-start'}">
-        <span class="msg-author">${authorName}</span>
+    <div class="msg-avatar" style="cursor:pointer" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${esc(initial)}</div>
+    <div class="msg-body">
+      ${isMe ? '' : `<div class="msg-header"><span class="msg-author">${authorName}</span></div>`}
+      <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span class="edited">(edited)</span>' : ''}</div>
+      ${renderAttachments(m.attachments)}
+      <div class="msg-meta">
         <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
+        ${isMe ? '<span class="msg-tick" title="отправлено">✓</span>' : ''}
+        ${isMe ? '<span class="msg-actions"><button title="Edit" onclick="editMsg(' + m.message_id + ',this)">✏️</button><button title="Delete" onclick="confirmDel(' + m.message_id + ')">🗑️</button></span>' : ''}
       </div>
-      <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span style=font-size:10px;color:var(--text2)>(edited)</span>' : ''}</div>${isMe ? '<div class=msg-actions style=text-align:right;margin-top:4px;opacity:0.6><button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Edit" onclick="editMsg(' + m.message_id + ',this)">✏️</button> <button class=btn-sm style=background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px 6px title="Delete" onclick="confirmDel(' + m.message_id + ')">🗑️</button></div>' : ''}
-    ${renderAttachments(m.attachments)}
     </div>`;
   return div;
 }
@@ -666,8 +694,16 @@ async function doLoadMessages(opts) {
         const prevTop = list.scrollTop;
         const anchor = list.querySelector('.load-older');
         const fragment = document.createDocumentFragment();
-        older.forEach(m => fragment.append(buildMessageEl(m)));
-        list.insertBefore(fragment, anchor ? anchor.nextSibling : list.firstChild);
+        let lastDay = null;
+        older.forEach(m => {
+          const day = fmtDayKey(m.created_at_ms);
+          if (day !== lastDay) { fragment.append(daySepEl(m.created_at_ms)); lastDay = day; }
+          fragment.append(buildMessageEl(m));
+        });
+        const nextEl = anchor ? anchor.nextSibling : list.firstChild;
+        const nextDay = nextEl && nextEl.dataset ? nextEl.dataset.day : null;
+        list.insertBefore(fragment, nextEl);
+        if (nextDay && lastDay && nextDay !== lastDay) list.insertBefore(daySepEl(older[older.length - 1].created_at_ms), nextEl);
         msgLoadOffset += older.length;
         if (older.length < limit && anchor) anchor.remove();
         list.scrollTop = prevTop + (list.scrollHeight - prevHeight);
@@ -681,36 +717,68 @@ async function doLoadMessages(opts) {
     var oldList = document.getElementById("msg-list");
     var wasAtBottom = !oldList || (oldList.scrollHeight - oldList.scrollTop - oldList.clientHeight < 50);
     var oldScrollTop = oldList ? oldList.scrollTop : 0;
+    const cav = chatAvaFor(currentChatTitle, currentChatId);
     container.innerHTML = `
-      <div class="card" style="padding:16px">
-        <div class="card-title" style="font-size:16px">${esc(currentChatTitle)}</div>
-        <div id="msg-list" style="max-height:60vh;overflow-y:auto;margin-bottom:12px"></div>
-        <div class="send-area">
-          <input id="msg-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
-          <button class="btn btn-sm btn-outline" id="attach-btn" title="${t('attach')}">📎</button>
-          <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
-          <button class="btn btn-primary btn-sm" id="send-btn">${t('send')}</button>
+      <div class="chead">
+        <button class="chat-back" id="chat-back" title="${t('back_login')}">←</button>
+        <div class="chat-ava" style="background:${cav.color}">${esc(cav.initials)}</div>
+        <div class="chead-info">
+          <div class="t1">${esc(currentChatTitle)}</div>
+          <div class="t2">${esc(currentChatDesc || '#' + currentChatId)}</div>
         </div>
+        <span class="spacer"></span>
+        <button class="icon-btn" id="chat-reload" title="${t('refresh')}">⟳</button>
+        <button class="icon-btn" id="chat-more" title="${t('description')}">⋮</button>
+      </div>
+      <div id="msg-list" class="msg-list"></div>
+      <div class="comp">
         <div id="attach-preview" class="attach-preview"></div>
+        <div class="comp-field">
+          <input id="msg-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
+          <button class="comp-btn" id="emoji-btn" title="😊">😊</button>
+          <button class="comp-btn" id="attach-btn" title="${t('attach')}">📎</button>
+          <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
+          <button class="comp-btn send" id="send-btn" title="${t('send')}">➤</button>
+        </div>
       </div>`;
     const list = $('#msg-list');
     if (msgs.length >= limit) {
-      const olderBtn = el('button',{class:'btn btn-sm btn-outline load-older',style:'width:100%;margin-bottom:8px'},t('load_older'));
+      const olderBtn = el('button',{class:'btn btn-sm btn-outline load-older'},t('load_older'));
       olderBtn.onclick = () => doLoadMessages({older:true});
       list.append(olderBtn);
     }
-    msgs.forEach(m => list.append(buildMessageEl(m)));
+    let firstDay = null;
+    msgs.forEach(m => {
+      const day = fmtDayKey(m.created_at_ms);
+      if (day !== firstDay) { list.append(daySepEl(m.created_at_ms)); firstDay = day; }
+      list.append(buildMessageEl(m));
+    });
     msgLoadOffset = msgs.length;
     if (opts.force || wasAtBottom) { requestAnimationFrame(function() { if (list) list.scrollTop = list.scrollHeight; }); } else { list.scrollTop = oldScrollTop; }
+    list._stickBottom = opts.force || wasAtBottom;
+    list.querySelectorAll('img').forEach(im => {
+      im.onload = () => { if (list._stickBottom) list.scrollTop = list.scrollHeight; };
+    });
     list.onscroll = function() {
+      list._stickBottom = (list.scrollHeight - list.scrollTop - list.clientHeight < 60);
       if (list.scrollTop < 40 && list.querySelector('.load-older')) doLoadMessages({older:true});
     };
+    const backEl = $('#chat-back');
+    if (backEl) backEl.onclick = () => { const lay = $('#chat-layout'); if (lay) lay.classList.add('show-list'); };
+    const reloadEl = $('#chat-reload');
+    if (reloadEl) reloadEl.onclick = () => doLoadMessages({force:true});
+    const moreEl = $('#chat-more');
+    if (moreEl) moreEl.onclick = showChatInfo;
+    const emojiEl = $('#emoji-btn');
+    if (emojiEl) emojiEl.onclick = (ev) => { ev.stopPropagation(); toggleEmojiPicker(); };
     $('#send-btn').onclick = sendMessage;
     const msgFile = $('#msg-file');
     if ($('#attach-btn')) $('#attach-btn').onclick = () => msgFile && msgFile.click();
     if (msgFile) msgFile.onchange = () => { addPendingFiles(msgFile.files); msgFile.value = ''; };
     renderAttachPreview();
-    $('#msg-input').onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
+    const miEl = $('#msg-input');
+    miEl.onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
+    miEl.oninput = () => { miEl.style.height = 'auto'; miEl.style.height = Math.min(miEl.scrollHeight, 120) + 'px'; };
   } catch(e) {
     if (container) container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
@@ -724,8 +792,9 @@ async function sendMessage() {
   const files = pendingFiles.slice();
   const sendBtn = $('#send-btn');
   const attachBtn = $('#attach-btn');
-  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = files.length ? t('uploading') : t('sending'); }
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.classList.add('busy'); }
   if (attachBtn) attachBtn.disabled = true;
+  if (files.length) toast(t('uploading'), 'info');
   try {
     const ids = [];
     for (const f of files) {
@@ -743,10 +812,84 @@ async function sendMessage() {
   } catch(e) {
     toast(e.message, 'error');
   } finally {
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = t('send'); }
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.classList.remove('busy'); }
     if (attachBtn) attachBtn.disabled = false;
     renderAttachPreview();
   }
+}
+
+const AVA_COLORS = ["#e17076","#7bc862","#e5ca77","#a695e7","#6ec9cb","#ee7aae","#65aadd"];
+function chatAvaFor(title, id) {
+  const src = (title || '') + '#' + (id || 0);
+  let h = 0;
+  for (let i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) >>> 0;
+  const words = (title || '').trim().split(/\s+/).filter(Boolean);
+  const initials = words.length ? words.map(w => w[0]).slice(0, 2).join('').toUpperCase() : 'Ч';
+  return { color: AVA_COLORS[h % AVA_COLORS.length], initials };
+}
+
+function fmtDayKey(ms) {
+  const d = new Date(ms || Date.now());
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dayLabel(ms) {
+  const d = new Date(ms || Date.now());
+  const today = new Date();
+  const yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (fmtDayKey(ms) === fmtDayKey(today.getTime())) return 'Сегодня';
+  if (fmtDayKey(ms) === fmtDayKey(yest.getTime())) return 'Вчера';
+  const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  return d.getDate() + ' ' + months[d.getMonth()] + (d.getFullYear() !== today.getFullYear() ? ' ' + d.getFullYear() : '');
+}
+function daySepEl(ms) {
+  return el('div',{class:'day-sep'}, dayLabel(ms));
+}
+
+const EMOJIS = ['😀','😄','😂','🤣','😊','😉','😍','🤔','😎','😢','😡','👍','👎','👌','🙏','👏','💪','🔥','❤️','💔','✨','🎉','🎂','☕','🍕','⚽','🎮','📚','📎','📄','📷','🎵','✅','❌','⚠️','💡','🚀','🌙','☀️','🌧️'];
+function toggleEmojiPicker() {
+  const field = document.querySelector('.comp-field');
+  if (!field) return;
+  let pop = document.getElementById('emoji-pop');
+  if (!pop) {
+    pop = el('div',{class:'emoji-pop',id:'emoji-pop'});
+    EMOJIS.forEach(sym => {
+      const b = el('button',{type:'button'},sym);
+      b.onclick = () => {
+        const inp = $('#msg-input');
+        if (!inp) return;
+        const s = inp.selectionStart ?? inp.value.length;
+        const en = inp.selectionEnd ?? inp.value.length;
+        inp.value = inp.value.slice(0, s) + sym + inp.value.slice(en);
+        inp.focus();
+        inp.selectionStart = inp.selectionEnd = s + sym.length;
+      };
+      pop.append(b);
+    });
+    field.append(pop);
+    document.addEventListener('click', (ev) => {
+      if (!pop.contains(ev.target) && ev.target.id !== 'emoji-btn') pop.classList.remove('open');
+    });
+  }
+  pop.classList.toggle('open');
+}
+function showChatInfo() {
+  const old = document.getElementById('chat-info-modal');
+  if (old) old.remove();
+  const ov = el('div',{class:'overlay',id:'chat-info-modal'});
+  ov.innerHTML = `<div class="modal">
+    <h3>${esc(currentChatTitle || t('chat'))}</h3>
+    <div class="chat-info-row"><span class="k">ID</span><span>#${esc(String(currentChatId || ''))}</span></div>
+    <div class="chat-info-row"><span class="k">${t('description')}</span><span>${esc(currentChatDesc || '—')}</span></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-outline" id="chat-info-close">${t('close')}</button>
+      <button class="btn btn-primary" id="chat-info-reload">${t('refresh')}</button>
+    </div>
+  </div>`;
+  document.body.append(ov);
+  const close = () => ov.remove();
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  ov.querySelector('#chat-info-close').onclick = close;
+  ov.querySelector('#chat-info-reload').onclick = () => { close(); doLoadMessages({force:true}); };
 }
 
 async function renderDevices() {
@@ -1767,6 +1910,8 @@ async function handleRoute() {
   if (!publicRoutes.includes(hash.split('?')[0]) && !STATE.token) {window.location.hash = '#/login'; return}
   updateNav();
   checkWarnings();
+  const contentEl = document.getElementById('content');
+  if (contentEl) contentEl.classList.toggle('chat-wide', hash.split('?')[0] === '#/chat');
   try {
     switch(hash.split('?')[0]) {
       case '#/login': await renderLogin(); break;
@@ -1987,6 +2132,7 @@ var T = {
 "restart":{rus:"Перезапуск",eng:"Restart"},
 "reboot":{rus:"Перезагрузить RPi",eng:"Reboot RPi"},
 "reply":{rus:"Ответить",eng:"Reply"},"close":{rus:"Закрыть",eng:"Close"},
+"refresh":{rus:"Обновить",eng:"Refresh"},
 "view":{rus:"Смотреть",eng:"View"},"login_btn":{rus:"Войти",eng:"Login"},
 "about_text":{rus:"Local Chat — локальный чат-сервер на Raspberry Pi 5. Автономная система без интернета. Чат, блог, тикеты, админ-панель.",eng:"Local Chat — self-hosted chat on Raspberry Pi 5. Works offline. Chat, blog, tickets, admin panel."},
 "sign_in_portal":{rus:"Войдите для доступа",eng:"Sign in to access internet"},
