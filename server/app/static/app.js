@@ -570,6 +570,7 @@ let messagesPollTimer = null;
 let pendingFiles = [];
 const MAX_ATTACH_FILES = 8;
 const MAX_UPLOAD_MB = 10;
+const FILE_ACCEPT = "image/*,audio/*,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg,video/3gpp,.flac,.aac,.opus,.mid,.bmp,.tiff,.avif,.ico,.avi,.mkv,.mpeg,.3gp,.pdf,.txt,.md,.zip,.rar,.7z,.gz,.tar,.bz2,.xz,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.epub,.csv,.json,.yaml,.toml,.vtt,.srt";
 
 function fmtBytes(n) {
   if (n < 1024) return n + ' B';
@@ -685,7 +686,7 @@ async function doLoadMessages(opts) {
         <div class="card-title" style="font-size:16px">${esc(currentChatTitle)}</div>
         <div id="msg-list" style="max-height:60vh;overflow-y:auto;margin-bottom:12px"></div>
         <div class="send-area">
-          <input id="msg-file" type="file" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">
+          <input id="msg-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
           <button class="btn btn-sm btn-outline" id="attach-btn" title="${t('attach')}">📎</button>
           <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
           <button class="btn btn-primary btn-sm" id="send-btn">${t('send')}</button>
@@ -1004,7 +1005,7 @@ async function renderSupport() {
         <h3>New Ticket</h3>
         <div class="form-group"><label>${t('title')}</label><input class="form-input" id="ticket-title"></div>
         <div class="form-group"><label>${t('description')}</label><textarea class="form-input" id="ticket-body" rows="4"></textarea></div>
-        <div class="form-group"><label>${t('attachments')}</label><input class="form-input" id="ticket-file" type="file" multiple></div>
+        <div class="form-group"><label>${t('attachments')}</label><input class="form-input" id="ticket-file" type="file" multiple accept="${FILE_ACCEPT}"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-outline" id="ticket-cancel">${t('cancel')}</button>
           <button class="btn btn-primary" id="ticket-submit">${t('submit')}</button>
@@ -1104,7 +1105,7 @@ async function loadTicketDetail(ticketId, title, itemEl) {
         <div class="send-area">
           <textarea id="support-input" placeholder="Reply..." rows="1"></textarea>
           
-          <input id="support-file" type="file" multiple accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json" style="max-width:180px">
+          <input id="support-file" type="file" multiple accept="${FILE_ACCEPT}" style="max-width:180px">
           <button class="btn btn-primary btn-sm" id="support-send">Send</button>
         </div>
         
@@ -1435,7 +1436,7 @@ async function renderAdminSupport() {
         <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? '🚩 report · ' : ''}User #${t.user_id} · ${fmtTime(t.created_at_ms)}</div>
         <div id="admin-ticket-${t.ticket_id}-msgs" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px"></div>
         <div id="admin-ticket-${t.ticket_id}-reply" style="display:none;margin-top:8px" class="send-area">
-          <input id="admin-ticket-${t.ticket_id}-file" type="file" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">
+          <input id="admin-ticket-${t.ticket_id}-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
           <button class="btn btn-sm btn-outline att-btn" data-tid="${t.ticket_id}" title="${_attachTitle}">📎</button>
           <textarea id="admin-ticket-${t.ticket_id}-input" placeholder="Reply as admin..." rows="1"></textarea>
           <button class="btn btn-primary btn-sm" data-tid="${t.ticket_id}">Send</button>
@@ -1509,7 +1510,7 @@ async function renderAdminBlog() {
         <div class="form-group"><label>Title</label><input class="form-input" id="blog-post-title"></div>
         <div class="form-group"><label>Body</label><textarea class="form-input" id="blog-post-body" rows="6"></textarea></div>
         <div class="form-group"><label>${t('attachments')}</label>
-          <input id="blog-post-file" type="file" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">
+          <input id="blog-post-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
           <button type="button" class="btn btn-sm btn-outline" id="blog-post-attach">📎 ${t('attach')}</button>
           <div id="blog-post-preview" class="attach-preview" style="margin-top:8px"></div>
         </div>
@@ -2127,7 +2128,7 @@ function openReportModal(uid, name, emoji) {
         <textarea class="form-input" id="report-comment" rows="3" maxlength="1000" placeholder="${t('report_comment_ph')}"></textarea>
       </div>
       <div class="form-group"><label>${t('attachments')} (${t('optional')})</label>
-        <input id="report-file" type="file" multiple style="display:none" accept="image/*,.pdf,.txt,.zip">
+        <input id="report-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
         <button type="button" class="btn btn-sm btn-outline" id="report-attach">📎 ${t('attach')}</button>
         <div id="report-preview" class="attach-preview" style="margin-top:8px"></div>
       </div>

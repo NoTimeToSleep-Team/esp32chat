@@ -393,7 +393,7 @@ async function loadSupport() {
       h += '<div style="margin-top:6px"><select id="sts' + t.ticket_id + '"><option value="open" ' + (t.status === "open" ? "selected" : "") + '>open</option><option value="in_progress" ' + (t.status === "in_progress" ? "selected" : "") + '>in progress</option><option value="resolved" ' + (t.status === "resolved" ? "selected" : "") + '>resolved</option><option value="closed" ' + (t.status === "closed" ? "selected" : "") + '>closed</option></select> ';
       h += '<button class="btn-outline" onclick="suppStatus(' + t.ticket_id + ')">Update</button>';
       h += '<textarea id="sti' + t.ticket_id + '" placeholder="Reply..." rows="2" style="width:100%;margin-top:4px"></textarea>';
-      h += '<input type="file" id="stf' + t.ticket_id + '" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.csv,.json">';
+      h += '<input type="file" id="stf' + t.ticket_id + '" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg,video/3gpp,.flac,.aac,.opus,.mid,.bmp,.tiff,.avif,.ico,.avi,.mkv,.mpeg,.3gp,.pdf,.txt,.md,.zip,.rar,.7z,.gz,.tar,.bz2,.xz,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.epub,.csv,.json,.yaml,.toml,.vtt,.srt">';
       h += '<button class="btn-outline" onclick="document.getElementById(\'stf' + t.ticket_id + '\').click()">\ud83d\udcce Attach</button> ';
       h += '<button class="btn-green" onclick="suppReply(' + t.ticket_id + ')">Send Reply</button></div></div>';
     });
