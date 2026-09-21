@@ -2010,6 +2010,19 @@ window.onload = async () => {
   };
 };
 
+// iOS-safe app height: use the real visible viewport (visualViewport), not vh/dvh.
+// Otherwise on iPhone the document has extra scrollable height and the whole page
+// (including the top bar) drifts up and stays there.
+function setAppHeight() {
+  var vv = window.visualViewport;
+  var h = (vv && vv.height) ? vv.height : window.innerHeight;
+  if (h) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+}
+setAppHeight();
+if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight, 250); });
+
 
 
 

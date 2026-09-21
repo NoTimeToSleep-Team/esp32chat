@@ -27,8 +27,9 @@ a:hover{text-decoration:underline}
 
 /* ===== Main ===== */
 .main{padding-top:72px;max-width:960px;margin:0 auto;padding-left:16px;padding-right:16px;padding-bottom:40px}
-.main.chat-wide{max-width:1240px;padding-top:66px;padding-bottom:10px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
-body.chat-mode{overflow:hidden;overscroll-behavior:none}
+.main.chat-wide{max-width:1240px;padding-top:66px;padding-bottom:10px;height:100vh;height:100dvh;height:var(--app-h,100dvh);display:flex;flex-direction:column;overflow:hidden}
+body.chat-mode{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;min-height:0;overflow:hidden;overscroll-behavior:none}
+html:has(body.chat-mode){overflow:hidden}
 
 /* Cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:16px}
