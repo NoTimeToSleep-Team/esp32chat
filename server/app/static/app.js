@@ -809,6 +809,10 @@ async function doLoadMessages(opts) {
     const miEl = $('#msg-input');
     miEl.onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
     miEl.oninput = () => { miEl.style.height = 'auto'; miEl.style.height = Math.min(miEl.scrollHeight, 120) + 'px'; };
+    miEl.onfocus = () => {
+      list._stickBottom = true;
+      setTimeout(function(){ if (list) list.scrollTop = list.scrollHeight; }, 300);
+    };
   } catch(e) {
     if (container) container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
@@ -2010,16 +2014,27 @@ window.onload = async () => {
   };
 };
 
-// iOS-safe app height: use the real visible viewport (visualViewport), not vh/dvh.
-// Otherwise on iPhone the document has extra scrollable height and the whole page
-// (including the top bar) drifts up and stays there.
+// iOS-safe app viewport: keep the app glued to the real visible area
+// (visualViewport), so on iPhone the page cannot drift and the keyboard
+// does not push the composer/input off-screen.
 function setAppHeight() {
   var vv = window.visualViewport;
-  var h = (vv && vv.height) ? vv.height : window.innerHeight;
-  if (h) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+  var root = document.documentElement;
+  if (vv) {
+    root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
+    root.style.setProperty('--app-top', Math.round(vv.offsetTop) + 'px');
+  } else {
+    root.style.setProperty('--app-h', Math.round(window.innerHeight) + 'px');
+    root.style.setProperty('--app-top', '0px');
+  }
+  var l = document.getElementById('msg-list');
+  if (l && l._stickBottom) l.scrollTop = l.scrollHeight;
 }
 setAppHeight();
-if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', setAppHeight);
+  window.visualViewport.addEventListener('scroll', setAppHeight);
+}
 window.addEventListener('resize', setAppHeight);
 window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight, 250); });
 
