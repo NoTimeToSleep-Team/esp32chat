@@ -754,7 +754,17 @@ async function doLoadMessages(opts) {
       list.append(buildMessageEl(m));
     });
     msgLoadOffset = msgs.length;
-    if (opts.force || wasAtBottom) { requestAnimationFrame(function() { if (list) list.scrollTop = list.scrollHeight; }); } else { list.scrollTop = oldScrollTop; }
+    if (opts.newMid) {
+      const newEl = list.querySelector('.msg[data-mid="' + opts.newMid + '"]');
+      if (newEl) newEl.classList.add('new');
+    }
+    if (opts.force || wasAtBottom) {
+      requestAnimationFrame(function() {
+        if (!list) return;
+        if (opts.smooth) list.scrollTo({top: list.scrollHeight, behavior: 'smooth'});
+        else list.scrollTop = list.scrollHeight;
+      });
+    } else { list.scrollTop = oldScrollTop; }
     list._stickBottom = opts.force || wasAtBottom;
     list.querySelectorAll('img').forEach(im => {
       im.onload = () => { if (list._stickBottom) list.scrollTop = list.scrollHeight; };
@@ -803,12 +813,13 @@ async function sendMessage() {
       const idx = pendingFiles.indexOf(f);
       if (idx >= 0) pendingFiles.splice(idx, 1);
     }
-    await api(`/chat/api/chats/${currentChatId}/messages`, {
+    const sent = await api(`/chat/api/chats/${currentChatId}/messages`, {
       method:'POST',
       body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:ids})
     });
     input.value = '';
-    await doLoadMessages({force:true});
+    const newMid = sent && sent.message ? sent.message.message_id : null;
+    await doLoadMessages({force:true, newMid: newMid, smooth:true});
   } catch(e) {
     toast(e.message, 'error');
   } finally {
@@ -1911,7 +1922,9 @@ async function handleRoute() {
   updateNav();
   checkWarnings();
   const contentEl = document.getElementById('content');
-  if (contentEl) contentEl.classList.toggle('chat-wide', hash.split('?')[0] === '#/chat');
+  const isChat = hash.split('?')[0] === '#/chat';
+  if (contentEl) contentEl.classList.toggle('chat-wide', isChat);
+  document.body.classList.toggle('chat-mode', isChat);
   try {
     switch(hash.split('?')[0]) {
       case '#/login': await renderLogin(); break;
