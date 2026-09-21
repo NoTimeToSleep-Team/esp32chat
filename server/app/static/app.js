@@ -2177,6 +2177,7 @@ var T = {
 "type_msg":{rus:"Введите сообщение...",eng:"Type a message..."},
 "new_chat":{rus:"Новый чат",eng:"New Chat"},"dm":{rus:"Личка",eng:"DM"},
 "menu":{rus:"Меню",eng:"Menu"},
+"edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
 "no_chats":{rus:"Нет чатов",eng:"No chats"},
 "select_chat":{rus:"Выберите чат",eng:"Select a chat"},
 "search_user":{rus:"Поиск по логину...",eng:"Search by login..."},
@@ -2462,14 +2463,32 @@ async function editMsg(mid, btn) {
     var textEl = body ? body.querySelector('.msg-text') : null;
     current = textEl ? textEl.textContent.replace(/\s*\(edited\)\s*$/,'') : "";
   }
-  var newText = prompt("Edit message:", current);
-  if (newText === null) return;
-  newText = newText.trim();
-  if (!newText || newText === current) return;
-  try {
-    await api("/chat/api/chats/" + currentChatId + "/messages/" + mid, {method:"PUT", body:JSON.stringify({session_token:STATE.token, body_text:newText})});
-    doLoadMessages({force:true});
-  } catch(e) { toast(e.message, "error"); }
+  // native prompt() does not work in iOS captive portal / in-app browsers
+  var overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `<div class="modal edit-modal">
+    <h3>${t('edit_msg')}</h3>
+    <textarea class="form-input" id="edit-text" rows="4"></textarea>
+    <div class="confirm-actions">
+      <button class="btn btn-primary" id="edit-save">${t('save')}</button>
+      <button class="btn btn-outline" id="edit-cancel">${t('cancel')}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  var ta = overlay.querySelector('#edit-text');
+  ta.value = current;
+  var close = function() { overlay.remove(); };
+  overlay.querySelector('#edit-cancel').onclick = close;
+  overlay.querySelector('#edit-save').onclick = async function() {
+    var newText = ta.value.trim();
+    if (!newText || newText === current) { close(); return; }
+    try {
+      await api("/chat/api/chats/" + currentChatId + "/messages/" + mid, {method:"PUT", body:JSON.stringify({session_token:STATE.token, body_text:newText})});
+      close();
+      doLoadMessages({force:true});
+    } catch(e) { toast(e.message, "error"); }
+  };
+  setTimeout(function(){ ta.focus(); }, 60);
 }
 
 function confirmDel(mid) {

@@ -92,12 +92,12 @@ html:has(body.chat-mode){overflow:hidden}
 .chat-side{width:330px;flex:0 0 auto;background:var(--bg2);border-radius:14px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .chat-side-head{padding:10px 12px 6px}
 .chat-top{display:block}
-.only-mobile{display:none}
 .chat-side-title{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;color:var(--text);padding:0 4px 9px}
 .mini{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--text2);font-size:15px;background:transparent;border:none;cursor:pointer;flex:0 0 auto;transition:.15s}
 .mini:hover{background:var(--hover);color:var(--text)}
 .chat-side-title .mini{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--text2);font-size:15px;background:transparent;border:none;cursor:pointer}
 .chat-side-title .mini:hover{background:var(--hover);color:var(--text)}
+.only-mobile{display:none}
 .chat-search{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:18px;padding:8px 12px;color:var(--text2);font-size:13px}
 .chat-search input{flex:1;background:none;border:0;outline:0;color:var(--text);font:inherit;min-width:0}
 .chat-list{flex:1;min-height:0;overflow-y:auto;padding:8px 6px 8px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
@@ -282,7 +282,7 @@ html:has(body.chat-mode){overflow:hidden}
 .hidden{display:none!important}
 
 /* Overlay / Modal */
-.overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay{position:fixed;top:var(--app-top,0);left:0;right:0;height:var(--app-h,100vh);z-index:300;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:26px;width:90%;max-width:480px;box-shadow:var(--shadow);max-height:90vh;overflow-y:auto}
 .modal h3{margin-bottom:16px;font-size:18px}
 
@@ -393,6 +393,8 @@ html:has(body.chat-mode){overflow:hidden}
   .chat-top .mini-pill .mi-lbl{font-size:12.5px;font-weight:600;line-height:1}
   .chead{padding:6px 8px;gap:8px}
   .chead .t2{font-size:11.5px}
+  .msg-actions{opacity:.85}
+  .msg-actions button{font-size:16px;padding:4px 8px}
 
   /* chat: list and pane are separate screens (normal flex flow, no absolute) */
   .chat-layout{gap:0;display:flex;flex-direction:column;flex:1;min-height:0}
