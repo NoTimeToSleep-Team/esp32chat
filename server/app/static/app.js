@@ -474,8 +474,14 @@ async function renderChat() {
     <div class="chat-layout show-list" id="chat-layout">
       <aside class="chat-side">
         <div class="chat-side-head">
-          <div class="chat-side-title"><span>${t('chat')}</span><button class="mini" id="chat-refresh" title="${t('refresh')}">⟳</button></div>
-          <div class="chat-search">🔎<input id="chat-search-input" placeholder="${t('search_user')}"></div>
+          <div class="chat-side-title only-desktop"><span>${t('chat')}</span><button class="mini" id="chat-refresh" title="${t('refresh')}">⟳</button></div>
+          <div class="chat-top">
+            <button class="mini only-mobile" id="chat-menu-btn">☰</button>
+            <div class="chat-search">🔎<input id="chat-search-input" placeholder="${t('search_user')}"></div>
+            <button class="mini only-mobile" id="chat-dm-btn" title="${t('dm')}">✉</button>
+            <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}">⟳</button>
+            <button class="mini only-mobile" id="chat-new-btn" title="${t('new_chat')}">＋</button>
+          </div>
         </div>
         <div id="chat-list" class="chat-list"><div class="loading"><div class="spinner"></div></div></div>
       </aside>
@@ -528,6 +534,18 @@ async function renderChat() {
   };
   const chatRefreshEl = $('#chat-refresh');
   if (chatRefreshEl) chatRefreshEl.onclick = () => renderChat();
+  const chatRefreshM = $('#chat-refresh-m');
+  if (chatRefreshM) chatRefreshM.onclick = () => renderChat();
+  const chatMenuBtn = $('#chat-menu-btn');
+  if (chatMenuBtn) chatMenuBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    document.body.classList.add('menu-open');
+    $('#nav-links').classList.add('open');
+  };
+  const chatDmBtn = $('#chat-dm-btn');
+  if (chatDmBtn) chatDmBtn.onclick = () => { const b = $('#dm-chat-btn'); if (b) b.click(); };
+  const chatNewBtn = $('#chat-new-btn');
+  if (chatNewBtn) chatNewBtn.onclick = () => { const b = $('#create-chat-btn'); if (b) b.click(); };
   $('#create-chat-btn').onclick = () => show('#create-chat-modal');
   $('#chat-create-cancel').onclick = () => { hide('#create-chat-modal'); $('#chat-title').value=''; $('#chat-desc').value=''; };
   $('#chat-create-submit').onclick = async () => { 
@@ -1973,9 +1991,17 @@ window.onload = async () => {
   if (messagesPollTimer) clearInterval(messagesPollTimer);
   handleRoute();
   // hamburger
-  $('#hamburger').onclick = () => $('#nav-links').classList.toggle('open');
+  const closeNav = () => { const nl = $('#nav-links'); if (nl) nl.classList.remove('open'); document.body.classList.remove('menu-open'); };
+  $('#hamburger').onclick = (ev) => {
+    ev.stopPropagation();
+    const open = $('#nav-links').classList.toggle('open');
+    document.body.classList.toggle('menu-open', open);
+  };
   // close nav on link click (mobile)
-  $$('.nav-links a').forEach(a => a.onclick = () => $('#nav-links').classList.remove('open'));
+  $$('.nav-links a').forEach(a => a.onclick = closeNav);
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('.nav') && !ev.target.closest('#chat-menu-btn') && !ev.target.closest('#hamburger')) closeNav();
+  });
   $('#logout-btn').onclick = async () => { 
     if (STATE.token) {
       try { await api('/auth/logout', {method:'POST',body:JSON.stringify({session_token:STATE.token})}) } catch(e) {}
