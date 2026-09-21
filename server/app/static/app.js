@@ -111,7 +111,10 @@ async function api(url, opts={}) {
     if (!r.ok) {
       const errMsg = apiErrorMessage(d, r.status);
       debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, status: r.status, stages_done: 2, error: errMsg, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
-      throw new Error(errMsg);
+      const err = new Error(errMsg);
+      err.status = r.status;
+      err.code = (d && d.detail && d.detail.code) ? String(d.detail.code) : null;
+      throw err;
     }
     debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
     return d;
@@ -927,97 +930,165 @@ function showChatInfo() {
   ov.querySelector('#chat-info-reload').onclick = () => { close(); doLoadMessages({force:true}); };
 }
 
+// ===== Devices =====
+function pairErrorText(e) {
+  var map = {
+    code_not_found: t('pair_err_not_found'),
+    code_expired: t('pair_err_expired'),
+    already_paired: t('pair_err_already'),
+    guest_blocked: t('pair_err_guest')
+  };
+  var code = e && e.code;
+  if (code && map[code]) return map[code];
+  if (e && e.status === 404 && !code) return t('pair_err_unavailable');
+  return (e && e.message) || 'Error';
+}
+
 async function renderDevices() {
   if (!requireAuth()) return;
   const c = $('#content');
   c.innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Devices</div><div class="page-subtitle">Supported hardware catalog</div></div>
+      <div><div class="page-title">${t('devices')}</div><div class="page-subtitle">${t('devices_subtitle')}</div></div>
     </div>
+    <div class="card">
+      <div class="card-title">${t('pair_by_code')}</div>
+      <div class="card-subtitle">${t('pair_hint')}</div>
+      <div class="pair-row">
+        <input id="pair-code" class="form-input pair-code-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="${t('pair_by_code')}">
+        <button id="pair-claim-btn" class="btn btn-primary" disabled>${t('pair_btn')}</button>
+      </div>
+      <div id="pair-msg" class="pair-msg"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">${t('my_devices')}</div>
+      <div id="paired-list"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+    <div class="card-title" style="margin-bottom:12px">${t('catalog')}</div>
     <div id="device-grid" class="grid-3"><div class="loading"><div class="spinner"></div></div></div>`;
-  try {
-    const data = await api(`/devices/api/catalog?session_token=${encodeURIComponent(STATE.token)}`);
-    const grid = $('#device-grid');
-    grid.innerHTML = '';
-    if (!data.items?.length) {
-      grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-text">No devices found</div></div>';
-      return;
+
+  const codeInput = $('#pair-code');
+  const claimBtn = $('#pair-claim-btn');
+  const msgBox = $('#pair-msg');
+  const setMsg = (text, kind) => { msgBox.className = 'pair-msg' + (kind ? ' ' + kind : ''); msgBox.textContent = text || ''; };
+  const syncBtn = () => { claimBtn.disabled = codeInput.value.length !== 6; };
+
+  async function claim() {
+    const code = codeInput.value.trim();
+    if (code.length !== 6) { setMsg(t('pair_err_not_found'), 'err'); return; }
+    claimBtn.disabled = true;
+    claimBtn.textContent = t('pairing');
+    setMsg('');
+    try {
+      const res = await api('/devices/api/pair/claim', {method:'POST', body:JSON.stringify({session_token:STATE.token, code})});
+      const dev = (res && res.device) || {};
+      const label = dev.name || dev.device_type || dev.device_id || '';
+      codeInput.value = '';
+      setMsg(label ? t('device_paired_ok') + ': ' + label : t('device_paired_ok'), 'ok');
+      toast(t('device_paired_ok'), 'success');
+      loadPaired();
+    } catch(e) {
+      setMsg(pairErrorText(e), 'err');
+    } finally {
+      claimBtn.textContent = t('pair_btn');
+      syncBtn();
     }
-    data.items.forEach(d => {
-      const card = el('div',{class:'device-card'});
-      const tags = [];
-      if (d.is_published) tags.push('<span class="device-tag published">Published</span>');
-      if (d.has_device) tags.push('<span class="device-tag owned">Owned</span>');
-      card.innerHTML = `
-        <h3>${esc(d.title)}</h3>
-        <p>${esc(d.short_description||'No description')}</p>
-        <div style="margin-bottom:8px">${tags.join(' ')}</div>
-        ${d.firmware_archive_url ? `<a href="${esc(d.firmware_archive_url)}" target="_blank" class="btn btn-sm btn-outline" style="margin-bottom:8px;width:100%;display:block;text-align:center;text-decoration:none">Download Firmware</a>` : ''}
-        <details><summary style="cursor:pointer;font-size:13px;color:var(--accent)">Guides</summary>
-          <div style="font-size:13px;color:var(--text2);margin-top:8px">
-            <p><strong>Install:</strong> ${esc(d.install_guide||'N/A')}</p>
-            <p><strong>Pairing:</strong> ${esc(d.pairing_guide||'N/A')}</p>
-            <p><strong>Reset:</strong> ${esc(d.combo_reset_guide||'N/A')}</p>
-          </div>
-        </details>
-        <button class="btn btn-sm ${d.has_device?'btn-danger':'btn-success'}" data-device-id="${d.device_id}" style="margin-top:8px;width:100%">
-          ${d.has_device?'Release':'Claim'}
-        </button>`;
-      card.querySelector('button').onclick = async () => { 
-        const owned = !!d.has_device;
-        try {
-          await api(`/devices/api/catalog/${d.device_id}/ownership`, {
-            method:'POST',
-            body:JSON.stringify({session_token:STATE.token, has_device:!owned})
-          });
-          toast(owned?'Device released':'Device claimed!', 'success');
-          renderDevices();
-        } catch(e) { toast(e.message, 'error'); }
-      };
-      grid.append(card);
-    });
-  } catch(e) {
-    $('#device-grid').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
 
-  // Pair device section
-  try {
-    const pairings = await api(`/devices/api/pair/list?session_token=${encodeURIComponent(STATE.token)}`);
-    const pairDiv = el('div',{style:'margin-top:24px;padding:16px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)'});
-    pairDiv.innerHTML = `
-      <h3 style="margin:0 0 12px">Pair New Device</h3>
-      <p style="color:var(--text2);font-size:13px;margin-bottom:12px">Enter the Device ID shown on your device screen</p>
-      <div style="display:flex;gap:8px">
-        <input id="pair-device-id" placeholder="Device ID (e.g. m5stickc-...)" style="flex:1;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px">
-        <button id="pair-btn" class="btn btn-success" style="white-space:nowrap">Pair Device</button>
-      </div>
-      <div id="pair-msg" style="margin-top:8px;font-size:13px"></div>
-      ${pairings.items?.length ? `<div style="margin-top:16px"><h4 style="margin:0 0 8px;font-size:14px">Paired Devices</h4>${pairings.items.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span>${esc(p.device_id)}</span><button class="btn btn-sm btn-danger" data-id="${esc(p.device_id)}">Unpair</button></div>`).join('')}</div>` : ''}
-    `;
-    c.append(pairDiv);
+  codeInput.oninput = () => {
+    codeInput.value = codeInput.value.replace(/\D/g, '').slice(0, 6);
+    setMsg('');
+    syncBtn();
+  };
+  codeInput.onkeydown = (e) => { if (e.key === 'Enter' && codeInput.value.length === 6) claim(); };
+  claimBtn.onclick = claim;
+  syncBtn();
 
-    $('#pair-btn').onclick = async () => { 
-      const did = $('#pair-device-id').value.trim();
-      if(!did) return;
-      $('#pair-btn').disabled = true; $('#pair-btn').textContent = 'Pairing...';
-      try {
-        await api('/devices/api/pair', {method:'POST',body:JSON.stringify({session_token:STATE.token,device_id:did})});
-        $('#pair-msg').innerHTML = '<span style="color:var(--success)">Device paired! It will connect automatically.</span>';
-        $('#pair-device-id').value = '';
-      } catch(e) { $('#pair-msg').innerHTML = `<span style="color:var(--danger)">${esc(e.message)}</span>`; }
-      $('#pair-btn').disabled = false; $('#pair-btn').textContent = 'Pair Device';
-    };
+  async function loadPaired() {
+    const box = $('#paired-list');
+    if (!box) return;
+    try {
+      const data = await api(`/devices/api/pair/list?session_token=${encodeURIComponent(STATE.token)}`);
+      const items = data.items || [];
+      if (!items.length) {
+        box.innerHTML = `<div class="empty"><div class="empty-text">${t('no_devices')}</div></div>`;
+        return;
+      }
+      box.innerHTML = '';
+      items.forEach(p => {
+        const row = el('div', {class:'paired-row'});
+        const when = p.paired_at_ms ? new Date(p.paired_at_ms).toLocaleString() : '';
+        const meta = [p.device_type, when].filter(Boolean).join(' · ');
+        row.innerHTML = `<div class="paired-main">
+            <div class="paired-id">${esc(p.device_id)}</div>
+            <div class="paired-meta">${esc(meta)}</div>
+          </div>
+          <button class="btn btn-sm btn-outline">${t('unpair')}</button>`;
+        const btn = row.querySelector('button');
+        btn.onclick = async () => {
+          btn.disabled = true;
+          try {
+            await api('/devices/api/unpair', {method:'POST', body:JSON.stringify({session_token:STATE.token, device_id:p.device_id})});
+            loadPaired();
+          } catch(e) { toast(e.message, 'error'); btn.disabled = false; }
+        };
+        box.append(row);
+      });
+    } catch(e) {
+      box.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
+    }
+  }
 
-    // Unpair buttons
-    pairDiv.querySelectorAll('[data-id]').forEach(btn => {
-      btn.onclick = async () => { 
-        try {
-          await api('/devices/api/unpair', {method:'POST',body:JSON.stringify({session_token:STATE.token,device_id:btn.dataset.id})});
-          renderDevices();
-        } catch(e) { toast(e.message,'error'); }
-      };
-    });
-  } catch(e) { /* pair list may not be available */ }
+  async function loadCatalog() {
+    const grid = $('#device-grid');
+    if (!grid) return;
+    try {
+      const data = await api(`/devices/api/catalog?session_token=${encodeURIComponent(STATE.token)}`);
+      grid.innerHTML = '';
+      if (!data.items || !data.items.length) {
+        grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-text">No devices found</div></div>';
+        return;
+      }
+      data.items.forEach(d => {
+        const card = el('div',{class:'device-card'});
+        const tags = [];
+        if (d.is_published) tags.push('<span class="device-tag published">Published</span>');
+        if (d.has_device) tags.push('<span class="device-tag owned">Owned</span>');
+        card.innerHTML = `
+          <h3>${esc(d.title)}</h3>
+          <p>${esc(d.short_description||'No description')}</p>
+          <div style="margin-bottom:8px">${tags.join(' ')}</div>
+          ${d.firmware_archive_url ? `<a href="${esc(d.firmware_archive_url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline" style="margin-bottom:8px;width:100%;display:flex;justify-content:center;text-decoration:none">Download Firmware</a>` : ''}
+          <details><summary style="cursor:pointer;font-size:13px;color:var(--accent)">Guides</summary>
+            <div style="font-size:13px;color:var(--text2);margin-top:8px">
+              <p><strong>Install:</strong> ${esc(d.install_guide||'N/A')}</p>
+              <p><strong>Pairing:</strong> ${esc(d.pairing_guide||'N/A')}</p>
+              <p><strong>Reset:</strong> ${esc(d.combo_reset_guide||'N/A')}</p>
+            </div>
+          </details>
+          <button class="btn btn-sm ${d.has_device?'btn-danger':'btn-success'}" style="margin-top:8px;width:100%;justify-content:center">
+            ${d.has_device?'Release':'Claim'}
+          </button>`;
+        card.querySelector('button').onclick = async () => {
+          const owned = !!d.has_device;
+          try {
+            await api(`/devices/api/catalog/${d.device_id}/ownership`, {
+              method:'POST',
+              body:JSON.stringify({session_token:STATE.token, has_device:!owned})
+            });
+            toast(owned?'Device released':'Device claimed!', 'success');
+            loadCatalog();
+          } catch(e) { toast(e.message, 'error'); }
+        };
+        grid.append(card);
+      });
+    } catch(e) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-text">${esc(e.message)}</div></div>`;
+    }
+  }
+
+  loadPaired();
+  loadCatalog();
 }
 
 async function renderAccount() {
@@ -1953,7 +2024,7 @@ async function handleRoute() {
     switch(hash.split('?')[0]) {
       case '#/login': await renderLogin(); break;
       case '#/chat': await renderChat(); break;
-      case '#/devices': window.location.hash = '#/chat'; break; // Devices direction paused; renderDevices kept for later
+      case '#/devices': await renderDevices(); break;
       case '#/account': await renderAccount(); break;
       case '#/blog': await renderBlog(); break;
       case '#/support': await renderSupport(); break;
@@ -2178,6 +2249,21 @@ var T = {
 "new_chat":{rus:"Новый чат",eng:"New Chat"},"dm":{rus:"Личка",eng:"DM"},
 "menu":{rus:"Меню",eng:"Menu"},
 "edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
+"devices_subtitle":{rus:"Сопряжение и управление устройствами",eng:"Pair and manage devices"},
+"pair_by_code":{rus:"Сопряжение по коду",eng:"Pair by code"},
+"pair_hint":{rus:"Включите устройство и введите 6-значный код с его экрана. Код действует 5 минут и срабатывает один раз.",eng:"Turn on the device and enter the 6-digit code from its screen. The code is valid for 5 minutes and works once."},
+"pair_btn":{rus:"Сопрячь",eng:"Pair"},
+"pairing":{rus:"Сопряжение...",eng:"Pairing..."},
+"my_devices":{rus:"Мои устройства",eng:"My devices"},
+"no_devices":{rus:"Нет сопряжённых устройств",eng:"No paired devices"},
+"unpair":{rus:"Отвязать",eng:"Unpair"},
+"catalog":{rus:"Каталог устройств",eng:"Device catalog"},
+"device_paired_ok":{rus:"Устройство сопряжено",eng:"Device paired"},
+"pair_err_not_found":{rus:"Код не найден — проверьте цифры",eng:"Code not found — check the digits"},
+"pair_err_expired":{rus:"Код истёк — запросите новый на устройстве",eng:"Code expired — get a new one on the device"},
+"pair_err_already":{rus:"Это устройство уже сопряжено",eng:"This device is already paired"},
+"pair_err_guest":{rus:"Гостям сопряжение недоступно",eng:"Guest accounts cannot pair devices"},
+"pair_err_unavailable":{rus:"Сопряжение по коду пока недоступно на сервере",eng:"Pairing by code is not available on the server yet"},
 "no_chats":{rus:"Нет чатов",eng:"No chats"},
 "select_chat":{rus:"Выберите чат",eng:"Select a chat"},
 "search_user":{rus:"Поиск по логину...",eng:"Search by login..."},

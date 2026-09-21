@@ -198,6 +198,19 @@ html:has(body.chat-mode){overflow:hidden}
 .device-tag.published{background:rgba(79,178,134,.15);color:var(--accent2)}
 .device-tag.owned{background:rgba(94,181,247,.15);color:var(--accent)}
 
+/* Device pairing */
+.pair-row{display:flex;gap:10px;align-items:stretch}
+.pair-code-input{flex:1;min-width:0;font-size:24px;letter-spacing:8px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700;padding:12px 6px 12px 14px}
+.pair-row .btn{flex:0 0 auto;justify-content:center}
+.pair-msg{margin-top:10px;font-size:13.5px;min-height:20px;color:var(--text2)}
+.pair-msg.ok{color:var(--accent2)}
+.pair-msg.err{color:var(--accent4)}
+.paired-row{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--border)}
+.paired-row:last-child{border-bottom:none}
+.paired-main{flex:1;min-width:0}
+.paired-id{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.paired-meta{font-size:12.5px;color:var(--text2);margin-top:2px}
+
 /* Blog */
 .blog-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:12px}
 .blog-card h3{font-size:16px;margin-bottom:6px}
@@ -395,6 +408,10 @@ html:has(body.chat-mode){overflow:hidden}
   .chead .t2{font-size:11.5px}
   .msg-actions{opacity:.85}
   .msg-actions button{font-size:16px;padding:4px 8px}
+  .pair-row{flex-direction:column}
+  .pair-row .btn{height:48px}
+  .pair-code-input{font-size:26px;letter-spacing:12px;padding:14px 8px 14px 20px}
+  .paired-row{padding:12px 2px}
 
   /* chat: list and pane are separate screens (normal flex flow, no absolute) */
   .chat-layout{gap:0;display:flex;flex-direction:column;flex:1;min-height:0}

@@ -1,0 +1,10 @@
+.pio/build/cardputer/lib529/M5GFX/lgfx/v1/platforms/esp32p4/Panel_LT8912B.cpp.o: \
+ .pio/libdeps/cardputer/M5GFX/src/lgfx/v1/platforms/esp32p4/Panel_LT8912B.cpp \
+ .pio/libdeps/cardputer/M5GFX/src/lgfx/v1/platforms/esp32p4/Panel_LT8912B.hpp \
+ C:/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/soc_caps.h \
+ C:/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/brownout_caps.h \
+ C:/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/cpu_caps.h \
+ C:/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/i2c_caps.h \
+ C:/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/ledc_caps.h \
+ C:/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/mpu_caps.h \
+ C:/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/twai_caps.h
