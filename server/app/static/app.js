@@ -476,11 +476,11 @@ async function renderChat() {
         <div class="chat-side-head">
           <div class="chat-side-title only-desktop"><span>${t('chat')}</span><button class="mini" id="chat-refresh" title="${t('refresh')}">⟳</button></div>
           <div class="chat-top">
-            <button class="mini only-mobile" id="chat-menu-btn">☰</button>
+            <button class="mini only-mobile" id="chat-menu-btn" title="${t('menu')}" aria-label="${t('menu')}">☰</button>
             <div class="chat-search">🔎<input id="chat-search-input" placeholder="${t('search_user')}"></div>
-            <button class="mini only-mobile" id="chat-dm-btn" title="${t('dm')}">✉</button>
-            <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}">⟳</button>
-            <button class="mini only-mobile" id="chat-new-btn" title="${t('new_chat')}">＋</button>
+            <button class="mini only-mobile mini-pill" id="chat-dm-btn" title="${t('dm')}" aria-label="${t('dm')}"><span class="mi-ico">✉</span><span class="mi-lbl">${t('dm')}</span></button>
+            <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}" aria-label="${t('refresh')}">↻</button>
+            <button class="mini only-mobile" id="chat-new-btn" title="${t('new_chat')}" aria-label="${t('new_chat')}">＋</button>
           </div>
         </div>
         <div id="chat-list" class="chat-list"><div class="loading"><div class="spinner"></div></div></div>
@@ -2148,6 +2148,7 @@ var T = {
 "logout":{rus:"Выйти",eng:"Logout"},"send":{rus:"Отправить",eng:"Send"},
 "type_msg":{rus:"Введите сообщение...",eng:"Type a message..."},
 "new_chat":{rus:"Новый чат",eng:"New Chat"},"dm":{rus:"Личка",eng:"DM"},
+"menu":{rus:"Меню",eng:"Menu"},
 "no_chats":{rus:"Нет чатов",eng:"No chats"},
 "select_chat":{rus:"Выберите чат",eng:"Select a chat"},
 "search_user":{rus:"Поиск по логину...",eng:"Search by login..."},
