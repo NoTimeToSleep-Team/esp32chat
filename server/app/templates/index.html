@@ -5,22 +5,25 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="theme-color" content="#0e1621">
 <title>Local Chat</title>
-<link rel="stylesheet" href="/static/app.css?v=1789901800">
+<link rel="stylesheet" href="/static/app.css?v=1789901900">
 </head>
 <body>
-<div id="static-login" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0e1621;padding:20px">
-  <div style="background:#17212b;border:1px solid #24313d;border-radius:16px;padding:24px;width:100%;max-width:380px">
-    <div style="color:#5eb5f7;font:20px monospace;margin-bottom:4px">Local Chat</div>
-    <div style="color:#7f8b98;font:13px monospace;margin-bottom:20px"><span id="static-subtitle" data-t="sign_in">Sign in</span> · <a href="#" class="lang-btn" style="color:#5eb5f7;text-decoration:none;font:13px monospace">🇬🇧 ENG</a></div>
+<div id="static-login" class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="auth-mark">LC</span>
+      <span class="auth-title">Local Chat</span>
+    </div>
+    <div class="auth-sub"><span id="static-subtitle" data-t="sign_in">Sign in</span> · <a href="#" class="lang-btn">🇬🇧 ENG</a></div>
     <form onsubmit="return false">
-      <input id="sl" data-t-placeholder="enter_login" style="width:100%;background:#0e1621;color:#f1f5f9;border:1px solid #24313d;padding:10px 12px;border-radius:10px;font:14px monospace;margin-bottom:10px" placeholder="Login" autocomplete="username">
-      <input id="sp" data-t-placeholder="enter_pass" type="password" style="width:100%;background:#0e1621;color:#f1f5f9;border:1px solid #24313d;padding:10px 12px;border-radius:10px;font:14px monospace;margin-bottom:10px" placeholder="Password" autocomplete="current-password">
-      <input id="sphone" data-t-placeholder="phone" type="tel" style="display:none;width:100%;background:#0e1621;color:#f1f5f9;border:1px solid #24313d;padding:10px 12px;border-radius:10px;font:14px monospace;margin-bottom:10px" placeholder="+79991234567" autocomplete="tel">
-      <div id="serr" style="color:#f85149;font:12px monospace;margin-bottom:8px;display:none"></div>
-      <button type="submit" id="sbtn" data-t="login_btn" onclick="staticSubmit()" style="width:100%;background:#4fb286;color:#0e1621;border:none;padding:10px;border-radius:10px;font:14px monospace;font-weight:700;cursor:pointer">Sign In</button>
+      <input id="sl" class="auth-input" data-t-placeholder="enter_login" placeholder="Login" autocomplete="username">
+      <input id="sp" class="auth-input" data-t-placeholder="enter_pass" type="password" placeholder="Password" autocomplete="current-password">
+      <input id="sphone" class="auth-input" data-t-placeholder="phone" type="tel" style="display:none" placeholder="+79991234567" autocomplete="tel">
+      <div id="serr" class="auth-error"></div>
+      <button type="submit" id="sbtn" class="auth-btn" data-t="login_btn" onclick="staticSubmit()">Sign In</button>
     </form>
-    <div style="text-align:center;margin-top:12px;font-size:13px"><a href="#" id="stoggle" onclick="toggleStaticMode();return false" style="color:#5eb5f7;text-decoration:none" data-t="register_link">No account? Register</a></div>
-    <button onclick="doStaticGuest()" data-t="continue_guest" style="width:100%;background:#24313d;color:#f1f5f9;border:none;padding:10px;border-radius:10px;font:14px monospace;cursor:pointer;margin-top:12px">Continue as guest</button>
+    <a href="#" id="stoggle" class="auth-link" onclick="toggleStaticMode();return false" data-t="register_link">No account? Register</a>
+    <button onclick="doStaticGuest()" class="auth-guest" data-t="continue_guest">Continue as guest</button>
   </div>
 </div>
 
@@ -56,7 +59,7 @@
   </noscript>
 </main>
 
-<script src="/static/app.js?v=1789901800"></script>
+<script src="/static/app.js?v=1789901900"></script>
 
 <script>
 var _st = localStorage.getItem("lc_session_token");

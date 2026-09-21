@@ -49,7 +49,7 @@ function toast(msg, type='info') {
   if (persistent) {
     const existing = document.querySelectorAll('.toast').length;
     t.style.bottom = (24 + existing * 56) + 'px';
-    const ok = el('button',{style:'margin-left:12px;background:#30363d;color:#e6edf3;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:13px'},'OK');
+    const ok = el('button',{class:'toast-btn'},'OK');
     ok.onclick = () => t.remove();
     t.append(ok);
     debugReport({stage:'toast', action:'ui-toast', ok:false, stages_done:3, error:String(msg), t3_ms:Date.now()});
@@ -565,7 +565,7 @@ async function renderChat() {
       data.items.forEach(u => {
         if (u.user_id === STATE.user?.id) return;
         const item = el('div',{class:'dm-user-item',style:'padding:10px;cursor:pointer;border-bottom:1px solid var(--border);border-radius:4px'});
-        item.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${u.status==='banned'?'#f85149':u.status==='blocked'?'#d29922':'#30363d'};margin-right:6px"></span><strong>${esc(u.login)}</strong> <span style="color:var(--text2);font-size:12px">#${u.user_id}</span>`;
+        item.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${u.status==='banned'?'#f85149':u.status==='blocked'?'#d29922':'var(--border)'};margin-right:6px"></span><strong>${esc(u.login)}</strong> <span style="color:var(--text2);font-size:12px">#${u.user_id}</span>`;
         item.onmouseenter = () => item.style.background = 'var(--bg3)';
         item.onmouseleave = () => item.style.background = '';
         item.onclick = async () => { 
@@ -639,6 +639,8 @@ async function loadChatMessages(chatId, title, itemEl) {
   currentChatDesc = itemEl ? ((itemEl.querySelector('.chat-item-desc') || {}).textContent || '') : '';
   const lay = $('#chat-layout');
   if (lay) lay.classList.remove('show-list');
+  const cm = $('#chat-messages');
+  if (cm) { cm.classList.remove('fade-switch'); void cm.offsetWidth; cm.classList.add('fade-switch'); }
   msgLoadOffset = 0;
   if (messagesPollTimer) clearInterval(messagesPollTimer);
   await doLoadMessages({force:true});
@@ -1033,7 +1035,7 @@ async function renderAccount() {
         <button class="btn btn-success" id="acct-save">${t('save_changes')}</button>
         <div class="card" style="margin-top:12px;text-align:center">
           <div style="font-size:36px;margin-bottom:4px" id="my-emoji-display"></div>
-          <div style="color:#8b949e;font-size:11px;margin-bottom:6px">${t('avatar_emoji')}</div>
+          <div style="color:var(--text2);font-size:11px;margin-bottom:6px">${t('avatar_emoji')}</div>
           <div id="emoji-grid" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;max-width:280px;margin:0 auto"></div>
         </div>
         
@@ -1048,13 +1050,13 @@ async function renderAccount() {
       var emojis = ["🐱","🐶","🐼","🦊","🐸","🐵","🦁","🐮","🐷","🐭","🐹","🐰","🐻","🐨","🐯","🐙","🦄","🐳","🐧","🐤","👻","🤖","👽","🐲","🦋","🐞","🐝","🦉","🐺","🐴"];
       emojis.forEach(function(e) {
         var d = document.createElement("div");
-        d.textContent = e; d.style.cssText = "font-size:24px;cursor:pointer;padding:2px;border-radius:4px;width:36px;text-align:center";
-        if (e === myEmoji) d.style.background = "#238636";
+        d.textContent = e;
+        if (e === myEmoji) d.classList.add('sel');
         d.onclick = async function() {
           localStorage.setItem("lc_my_emoji", e);
           document.getElementById("my-emoji-display").textContent = e;
-          document.querySelectorAll("#emoji-grid div").forEach(function(x) { x.style.background = ""; });
-          d.style.background = "#238636";
+          document.querySelectorAll("#emoji-grid div").forEach(function(x) { x.classList.remove("sel"); });
+          d.classList.add("sel");
           try {
             await api('/account/api/profile', {method:'POST', body:JSON.stringify({session_token: STATE.token, avatar_emoji: e})});
             if (STATE.user) STATE.user.avatar_emoji = e;
@@ -1458,7 +1460,7 @@ async function renderAdminUsers() {
       ${items.map(u => `
         <div class="user-row">
           <div style="flex:1">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${u.status==='banned'?'#f85149':u.status==='blocked'?'#d29922':onlineIds.includes(u.user_id)?'#238636':'#30363d'};margin-right:6px"></span><strong>${esc(u.login)}</strong>
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${u.status==='banned'?'#f85149':u.status==='blocked'?'#d29922':onlineIds.includes(u.user_id)?'#4fb286':'var(--border)'};margin-right:6px"></span><strong>${esc(u.login)}</strong>
             <span class="user-role ${u.role}">${u.role}</span>
             <span class="user-status ${u.status}" style="margin-left:8px">${u.status}</span>${u.blocked_until_ms ? ' <span class="blocked-until" data-until="' + u.blocked_until_ms + '" style="font-size:11px;color:var(--accent3);margin-left:6px">(unblocks in ...)</span>' : ''}
             ${u.device_blacklisted ? '<span class="device-tag owned" style="font-size:10px">blacklisted</span>' : ''}
@@ -2212,7 +2214,7 @@ function showProfileModal(html) {
   if (!m) {
     m = document.createElement("div");
     m.id = "profile-modal";
-    m.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px";
+    m.className = "overlay";
     m.onclick = function(e) { if (e.target === m) { m.style.animation="fadeOut .15s"; setTimeout(function(){m.remove()},140); } };
     document.body.appendChild(m);
   }
@@ -2226,17 +2228,17 @@ async function viewUserProfile(uid) {
     var emojis = ["🐱","🐶","🐼","🦊","🐸","🐵","🦁","🐮","🐷","🐭","🐹","🐰","🐻","🐨","🐯"];
     var emoji = p.avatar_emoji || emojis[uid % emojis.length];
     var isGuest = STATE.user?.role === 'guest';
-    var h = "<div style=background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:340px;width:100%;position:relative>";
-    h += "<button onclick=document.getElementById(\"profile-modal\").remove() style=position:absolute;top:8px;right:8px;background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer>&times;</button>";
-    h += "<div style=text-align:center;font-size:48px;margin-bottom:8px>" + esc(emoji) + "</div>";
-    h += "<h2 style=color:#58a6ff;text-align:center;margin:8px 0;font-size:18px>" + esc(p.display_name || p.login) + "</h2>";
-    h += "<div style=text-align:center;color:#8b949e;font-size:13px>@" + esc(p.login) + "</div>";
-    h += "<div style=text-align:center;color:#8b949e;font-size:12px;margin-bottom:12px>" + esc(p.role) + "</div>";
-    if (p.phone) h += "<div style=margin:6px 0;font-size:13px>📞 " + esc(p.phone) + "</div>";
-    if (p.profile_bio) h += "<div style=margin-top:8px;font-size:13px;white-space:pre-wrap;background:#0d1117;padding:10px;border-radius:6px;line-height:1.4>" + esc(p.profile_bio) + "</div>";
-    h += "<div style='display:flex;gap:8px;margin-top:14px;justify-content:center'>";
-    h += "<button id=pm-dm style=background:#238636;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer>✉ DM</button>";
-    if (!isGuest) h += "<button id=pm-report style=background:#da3633;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer>🚩 Report</button>";
+    var h = "<div class='modal profile-modal'>";
+    h += "<button class='pm-close' onclick=\"document.getElementById('profile-modal').remove()\">&times;</button>";
+    h += "<div class='pm-avatar'>" + esc(emoji) + "</div>";
+    h += "<h2 class='pm-name'>" + esc(p.display_name || p.login) + "</h2>";
+    h += "<div class='pm-login'>@" + esc(p.login) + "</div>";
+    h += "<div class='pm-role'>" + esc(p.role) + "</div>";
+    if (p.phone) h += "<div class='pm-phone'>📞 " + esc(p.phone) + "</div>";
+    if (p.profile_bio) h += "<div class='pm-bio'>" + esc(p.profile_bio) + "</div>";
+    h += "<div class='pm-actions'>";
+    h += "<button id='pm-dm' class='btn btn-success'>✉ DM</button>";
+    if (!isGuest) h += "<button id='pm-report' class='btn btn-danger'>🚩 Report</button>";
     h += "</div></div>";
     showProfileModal(h);
     var dmBtn = document.getElementById("pm-dm");
@@ -2417,8 +2419,15 @@ async function editMsg(mid, btn) {
 
 function confirmDel(mid) {
   var overlay = document.createElement("div");
-  overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:99999;display:flex;align-items:center;justify-content:center";
-  overlay.innerHTML = "<div style=background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:320px;text-align:center><div style=font-size:40px;margin-bottom:8px>🗑️</div><h3 style=color:#e6edf3;margin:0 0 16px>Delete this message?</h3><div style=display:flex;gap:8px;justify-content:center><button id=cfm-yes style=background:#da3633;color:#fff;border:none;padding:8px 24px;border-radius:6px;cursor:pointer;font:14px monospace>Yes, delete</button><button id=cfm-no style=background:#30363d;color:#e6edf3;border:none;padding:8px 24px;border-radius:6px;cursor:pointer;font:14px monospace>No, keep it</button></div></div>";
+  overlay.className = "overlay";
+  overlay.innerHTML = `<div class="modal confirm-modal">
+    <div class="confirm-icon">🗑️</div>
+    <h3>Delete this message?</h3>
+    <div class="confirm-actions">
+      <button id="cfm-yes" class="btn btn-danger">Yes, delete</button>
+      <button id="cfm-no" class="btn btn-outline">No, keep it</button>
+    </div>
+  </div>`;
   document.body.appendChild(overlay);
   document.getElementById("cfm-yes").onclick = function() { overlay.remove(); delMsg(mid); };
   document.getElementById("cfm-no").onclick = function() { overlay.remove(); };
