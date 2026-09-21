@@ -20,3 +20,6 @@ server/data/logs/
 
 # Logs
 *.log
+
+# PlatformIO build artifacts
+.pio/
