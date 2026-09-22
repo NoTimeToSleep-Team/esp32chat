@@ -8,6 +8,8 @@
 #include <mbedtls/md.h>
 #include <esp_random.h>
 #include <ArduinoJson.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
 
 #include "lc_font_10.h"
 
@@ -99,6 +101,7 @@ static int setting_led_color = 0;
 static bool setting_clock = true;
 static int setting_tz = 3;
 static bool setting_wifi_sleep = false;
+static int setting_link = 0;  // 0=auto, 1=wifi, 2=espnow
 static bool screen_off = false;
 static uint32_t last_activity_ms = 0;
 static int64_t clock_offset_ms = 0;
@@ -115,20 +118,21 @@ enum SettingId {
     SET_CLOCK,
     SET_TZ,
     SET_WIFI_SLEEP,
+    SET_LINK,
     SET_RESET,
     SET_REBOOT,
 };
 static const int SETTINGS_ORDER[] = {
     SET_BRIGHT, SET_SOUND, SET_VOLUME, SET_SLEEP, SET_NOTIFY,
-    SET_CLOCK, SET_TZ, SET_WIFI_SLEEP,
+    SET_CLOCK, SET_TZ, SET_WIFI_SLEEP, SET_LINK,
     SET_RESET, SET_REBOOT,
 };
 static const char *SETTINGS_LABELS[] = {
     "Яркость", "Звук", "Громкость", "Гашение экрана", "Уведомления",
     "LED подсветка", "Цвет LED", "Часы", "Часовой пояс", "Wi-Fi сон",
-    "Сброс настроек", "Перезагрузка",
+    "Режим связи", "Сброс настроек", "Перезагрузка",
 };
-static const int SETTINGS_COUNT = 10;
+static const int SETTINGS_COUNT = 11;
 static const int SETTINGS_VISIBLE = 5;
 static int settings_sel = 0;
 static int settings_scroll = 0;
@@ -145,9 +149,32 @@ static int ticket_sel = 0;
 static long current_ticket_id = 0;
 static String current_ticket_title;
 
-static const char *FW_VERSION = "0.3.0";
+static const char *FW_VERSION = "0.4.0";
 static std::vector<String> about_lines;
 static int about_scroll = 0;
+
+// --- link transport (Wi-Fi / ESP-NOW bridge) ---
+static const uint8_t ESPNOW_MAGIC = 0x4C;
+static const uint8_t ESPNOW_CHANNEL = 1;
+static const size_t ESPNOW_FRAG = 200;
+static const size_t ESPNOW_RX_BUF = 4096;
+static const uint8_t ESPNOW_BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+static bool espnow_ready = false;
+static bool link_via_espnow = false;
+static uint32_t espnow_tx_id = 1;
+static uint32_t espnow_wait_id = 0;
+static bool espnow_rx_done = false;
+static int espnow_rx_status = 0;
+static String espnow_rx_body;
+
+static uint8_t espnow_asm_buf[ESPNOW_RX_BUF];
+static size_t espnow_asm_len = 0;
+static uint8_t espnow_asm_next = 0;
+static uint8_t espnow_asm_count = 0;
+static volatile bool espnow_asm_complete = false;
+static uint32_t espnow_requests = 0;
+static uint32_t espnow_failures = 0;
 
 // --- helpers ---
 
@@ -211,7 +238,165 @@ static String clip(const String &s, int max_chars) {
     return s.substring(0, max_chars - 1) + "~";
 }
 
+// --- ESP-NOW transport (bridge) ---
+
+static void onEspnowRecv(const uint8_t *mac, const uint8_t *data, int len) {
+    if (len < 4 || data[0] != ESPNOW_MAGIC) {
+        return;
+    }
+    uint8_t type = data[1];
+    uint8_t frag = data[2];
+    uint8_t count = data[3];
+    if (type != 0x02) {
+        return;
+    }
+    if (frag == 0) {
+        espnow_asm_len = 0;
+        espnow_asm_next = 0;
+        espnow_asm_count = count;
+    }
+    if (frag != espnow_asm_next) {
+        return;
+    }
+    size_t chunk = (size_t)(len - 4);
+    if (espnow_asm_len + chunk <= ESPNOW_RX_BUF) {
+        memcpy(espnow_asm_buf + espnow_asm_len, data + 4, chunk);
+        espnow_asm_len += chunk;
+    }
+    espnow_asm_next++;
+    if ((uint8_t)(frag + 1) >= espnow_asm_count) {
+        espnow_asm_complete = true;
+    }
+}
+
+static void espnowInit() {
+    if (esp_now_init() != ESP_OK) {
+        Serial.println("espnow: init failed");
+        return;
+    }
+    esp_now_register_recv_cb(onEspnowRecv);
+    esp_now_peer_info_t peer = {};
+    memcpy(peer.peer_addr, ESPNOW_BROADCAST, 6);
+    peer.channel = ESPNOW_CHANNEL;
+    peer.encrypt = false;
+    if (!esp_now_is_peer_exist(ESPNOW_BROADCAST)) {
+        esp_now_add_peer(&peer);
+    }
+    espnow_ready = true;
+    if (WiFi.status() != WL_CONNECTED) {
+        esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    }
+    Serial.println("espnow: ready");
+}
+
+static void espnowParseResponse() {
+    espnow_asm_complete = false;
+    JsonDocument doc;
+    if (deserializeJson(doc, espnow_asm_buf, espnow_asm_len)) {
+        return;
+    }
+    uint32_t id = doc["id"].as<uint32_t>();
+    if (id != espnow_wait_id) {
+        return;
+    }
+    espnow_rx_status = doc["s"].as<int>();
+    espnow_rx_body = String((const char *)(doc["b"] | ""));
+    espnow_rx_done = true;
+}
+
+static int espnowRequest(const String &method, const String &path, const String &body, String &response) {
+    if (!espnow_ready) {
+        return -1000;
+    }
+    uint32_t id = espnow_tx_id++;
+    String payload = String("{\"id\":") + id +
+                     ",\"m\":\"" + method +
+                     "\",\"p\":\"" + escapeJson(path) +
+                     "\",\"b\":\"" + escapeJson(body) + "\"}";
+
+    size_t len = payload.length();
+    uint8_t count = (uint8_t)((len + ESPNOW_FRAG - 1) / ESPNOW_FRAG);
+    if (count == 0) {
+        count = 1;
+    }
+
+    espnow_rx_done = false;
+    espnow_rx_status = 0;
+    espnow_rx_body = "";
+    espnow_wait_id = id;
+    espnow_asm_len = 0;
+    espnow_asm_next = 0;
+    espnow_asm_complete = false;
+
+    for (uint8_t i = 0; i < count; i++) {
+        size_t off = (size_t)i * ESPNOW_FRAG;
+        size_t chunk = len - off;
+        if (chunk > ESPNOW_FRAG) {
+            chunk = ESPNOW_FRAG;
+        }
+        uint8_t frame[4 + ESPNOW_FRAG];
+        frame[0] = ESPNOW_MAGIC;
+        frame[1] = 0x01;
+        frame[2] = i;
+        frame[3] = count;
+        memcpy(frame + 4, payload.c_str() + off, chunk);
+        esp_now_send(ESPNOW_BROADCAST, frame, 4 + chunk);
+        delay(4);
+    }
+
+    uint32_t start = millis();
+    while (millis() - start < 12000) {
+        if (espnow_asm_complete) {
+            espnowParseResponse();
+        }
+        if (espnow_rx_done) {
+            break;
+        }
+        delay(5);
+        M5Cardputer.update();
+    }
+
+    espnow_requests++;
+    if (!espnow_rx_done) {
+        espnow_failures++;
+        Serial.printf("espnow: timeout id=%lu\n", (unsigned long)id);
+        return -1001;
+    }
+    response = espnow_rx_body;
+    return espnow_rx_status;
+}
+
+static void updateLinkMode() {
+    if (!espnow_ready) {
+        link_via_espnow = false;
+        return;
+    }
+    if (setting_link == 1) {
+        link_via_espnow = false;
+        return;
+    }
+    if (setting_link == 2) {
+        link_via_espnow = true;
+        return;
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+        link_via_espnow = true;
+        return;
+    }
+    int rssi = (int)WiFi.RSSI();
+    if (link_via_espnow) {
+        if (rssi > -70) {
+            link_via_espnow = false;
+        }
+    } else if (rssi < -78) {
+        link_via_espnow = true;
+    }
+}
+
 static int httpGet(const String &path, String &response) {
+    if (link_via_espnow) {
+        return espnowRequest("GET", path, "", response);
+    }
     HTTPClient http;
     http.setTimeout(6000);
     if (!http.begin(String(SERVER_BASE) + path)) {
@@ -225,6 +410,9 @@ static int httpGet(const String &path, String &response) {
 }
 
 static int httpPostJson(const String &path, const String &body, String &response) {
+    if (link_via_espnow) {
+        return espnowRequest("POST", path, body, response);
+    }
     HTTPClient http;
     http.setTimeout(6000);
     if (!http.begin(String(SERVER_BASE) + path)) {
@@ -586,6 +774,9 @@ static void drawTopBar(const String &title) {
         d.setCursor(240 - 30 - (int)clk.length() * 6, 3);
         d.print(clk);
     }
+    d.setTextColor(link_via_espnow ? TFT_YELLOW : TFT_GREEN, COL_HEADER);
+    d.setCursor(132, 3);
+    d.print(link_via_espnow ? "E" : "W");
 }
 
 static void drawHint(const String &text) {
@@ -1248,6 +1439,10 @@ static String settingValueText(int id) {
         }
         case SET_WIFI_SLEEP:
             return setting_wifi_sleep ? "Вкл" : "Выкл";
+        case SET_LINK: {
+            static const char *link_labels[3] = {"Авто", "Wi-Fi", "ESP-NOW"};
+            return link_labels[setting_link];
+        }
         case SET_RESET:
             return "Enter";
         case SET_REBOOT:
@@ -1832,6 +2027,11 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
                     applyWifiSleep();
                     prefs.putBool("wifi_sleep", setting_wifi_sleep);
                     break;
+                case SET_LINK:
+                    setting_link = (setting_link + dir + 3) % 3;
+                    prefs.putInt("link", setting_link);
+                    updateLinkMode();
+                    break;
                 default:
                     break;
             }
@@ -2062,6 +2262,7 @@ void setup() {
     setting_clock = prefs.getBool("clock", true);
     setting_tz = prefs.getInt("tz", 3);
     setting_wifi_sleep = prefs.getBool("wifi_sleep", false);
+    setting_link = prefs.getInt("link", 0);
     if (setting_bright < 0 || setting_bright > 3) {
         setting_bright = 3;
     }
@@ -2077,11 +2278,15 @@ void setup() {
     if (setting_tz < -12 || setting_tz > 14) {
         setting_tz = 3;
     }
+    if (setting_link < 0 || setting_link > 2) {
+        setting_link = 0;
+    }
     M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
     applySound();
     applyLed();
 
     WiFi.mode(WIFI_STA);
+    espnowInit();
     uint8_t mac[6];
     WiFi.macAddress(mac);
     char idbuf[24];
@@ -2152,6 +2357,12 @@ void loop() {
     if (session_token.length() > 0 && millis() - last_updates_poll > 8000) {
         last_updates_poll = millis();
         pollUpdates();
+    }
+
+    static uint32_t last_link_check = 0;
+    if (millis() - last_link_check > 5000) {
+        last_link_check = millis();
+        updateLinkMode();
     }
 
     static uint32_t last_msg_poll = 0;
