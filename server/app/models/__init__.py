@@ -16,6 +16,7 @@ from app.models.device_catalog import (
     DeviceProfileDraft,
     DeviceProfileView,
 )
+from app.models.device_pairing import DevicePairRequest, PairedDevice
 from app.models.device_runtime import DeviceNodeRecord
 from app.models.internet_access import InternetAccessRecord, WiFiNetwork, WiFiUplinkStatus
 from app.models.media import MediaAttachment, MediaDownload, MediaKind
@@ -81,10 +82,12 @@ __all__ = [
     "ChatMessage",
     "ChatRoom",
     "DeviceOwnership",
+    "DevicePairRequest",
     "DeviceProfile",
     "DeviceProfileDraft",
     "DeviceProfileView",
     "DeviceNodeRecord",
+    "PairedDevice",
     "MediaAttachment",
     "MediaDownload",
     "MediaKind",

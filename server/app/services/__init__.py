@@ -9,6 +9,7 @@ from app.services.blog import BlogError, BlogService
 from app.services.chat import ChatError, ChatService
 from app.services.chat_limits import ChatLimitDecision, ChatLimitsService
 from app.services.devices import DeviceCatalogError, DeviceCatalogService
+from app.services.device_pairing import DevicePairingError, DevicePairingService
 from app.services.device_runtime import DeviceRuntimeError, DeviceRuntimeService
 from app.services.incidents import IncidentError, IncidentService
 from app.services.mode import ModeError, ModeService
@@ -36,6 +37,8 @@ __all__ = [
     "ChatService",
     "DeviceCatalogError",
     "DeviceCatalogService",
+    "DevicePairingError",
+    "DevicePairingService",
     "DeviceRuntimeError",
     "DeviceRuntimeService",
     "IncidentError",

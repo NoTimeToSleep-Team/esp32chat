@@ -5,6 +5,7 @@ from app.models import ClientKind
 from app.security import BruteForceGuard, SecurityAuditService
 from app.services.activity_log import ActivityLogService
 from app.services.auth import AuthError, AuthResult, AuthService
+from app.services.device_pairing import DevicePairingError, DevicePairingService
 from app.services.registration import RegistrationError, RegistrationService
 
 
@@ -173,25 +174,62 @@ async def login(payload: LoginRequest, request: Request) -> dict[str, object]:
     return _auth_result_payload(result)
 
 
+class DeviceChallengeRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=256)
+
+
 class DeviceSessionRequest(BaseModel):
     device_id: str = Field(min_length=1, max_length=256)
+    challenge: str | None = Field(default=None, max_length=128)
+    proof: str | None = Field(default=None, max_length=128)
+
+
+def _device_pairing_service(request: Request) -> DevicePairingService:
+    data_layer = request.app.state.data_layer
+    return DevicePairingService(db_path=data_layer.database_path)
+
+
+@router.post("/device-challenge")
+async def device_challenge(request: Request, payload: DeviceChallengeRequest) -> dict[str, object]:
+    service = _device_pairing_service(request)
+    try:
+        challenge, expires_in_ms = service.issue_challenge(payload.device_id)
+    except DevicePairingError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+    return {
+        "status": "ok",
+        "challenge": challenge,
+        "expires_in_ms": expires_in_ms,
+    }
 
 
 @router.post("/device-session")
 async def device_session(request: Request, payload: DeviceSessionRequest) -> dict[str, object]:
-    import sqlite3
-    db = request.app.state.data_layer.database_path
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT user_id FROM device_pairings WHERE device_id = ? AND status = 'active'",
-        (payload.device_id,)
-    ).fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail={"code": "not_paired", "message": "Device not paired with any user"})
-    user_id = row["user_id"]
-    conn.close()
+    if not payload.challenge or not payload.proof:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "device_proof_required",
+                "message": "Device challenge and proof are required",
+            },
+        )
+
+    pairing_service = _device_pairing_service(request)
+    try:
+        user_id = pairing_service.verify_session_proof(
+            device_id=payload.device_id,
+            challenge=payload.challenge,
+            proof=payload.proof,
+        )
+    except DevicePairingError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
     service = _auth_service(request)
     try:
         result = service.login_by_user_id(user_id=user_id)

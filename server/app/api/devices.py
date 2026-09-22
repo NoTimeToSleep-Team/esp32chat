@@ -6,8 +6,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from app.models import DeviceOwnership, DeviceProfileDraft, DeviceProfileView, ClientKind, UserRole
+from app.models import ClientKind, DeviceOwnership, DeviceProfileDraft, DeviceProfileView, PairedDevice, UserRole
 from app.services.auth import AuthError, AuthService
+from app.services.device_pairing import DevicePairingError, DevicePairingService
 from app.services.devices import DeviceCatalogError, DeviceCatalogService
 
 
@@ -288,8 +289,30 @@ async def unpair_device(request: Request, payload: UnpairDeviceRequest) -> dict[
 @router.get("/devices/api/pair/status")
 async def pair_status(
     request: Request,
-    device_id: str = Query(..., min_length=1, max_length=256),
+    device_id: str | None = Query(default=None, min_length=1, max_length=256),
+    pairing_id: str | None = Query(default=None, min_length=1, max_length=128),
 ) -> dict[str, object]:
+    if pairing_id:
+        service = _pairing_service(request)
+        try:
+            pairing_status = service.get_status(pairing_id)
+        except DevicePairingError as exc:
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+        return {
+            "status": "ok",
+            "pairing_status": pairing_status,
+            "paired": pairing_status == "claimed",
+        }
+
+    if not device_id:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "missing_query", "message": "device_id or pairing_id is required"},
+        )
+
     import sqlite3
     db = request.app.state.data_layer.database_path
     conn = sqlite3.connect(db)
@@ -302,6 +325,88 @@ async def pair_status(
     if row:
         return {"status": "ok", "paired": True, "user_id": row["user_id"]}
     return {"status": "ok", "paired": False}
+
+
+# --- Pairing by code (device <-> web) ---
+
+class PairRequestDeviceRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=128)
+    device_type: str = Field(min_length=1, max_length=64)
+    name: str = Field(default="", max_length=64)
+    device_secret_hash: str = Field(min_length=64, max_length=64)
+
+
+class PairClaimRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    code: str = Field(min_length=6, max_length=6)
+
+
+def _pairing_service(request: Request) -> DevicePairingService:
+    data_layer = request.app.state.data_layer
+    return DevicePairingService(db_path=data_layer.database_path)
+
+
+def _paired_device_payload(device: PairedDevice) -> dict[str, object]:
+    return {
+        "device_id": device.device_id,
+        "device_type": device.device_type,
+        "name": device.name,
+        "paired_at_ms": device.paired_at_ms,
+    }
+
+
+@router.post("/devices/api/pair/request")
+async def request_pairing_code(
+    request: Request,
+    payload: PairRequestDeviceRequest,
+) -> dict[str, object]:
+    service = _pairing_service(request)
+    try:
+        item = service.create_request(
+            device_id=payload.device_id,
+            device_type=payload.device_type,
+            name=payload.name,
+            device_secret_hash=payload.device_secret_hash,
+        )
+    except DevicePairingError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+    return {
+        "status": "ok",
+        "pairing_id": item.pairing_id,
+        "code": item.code,
+        "expires_at_ms": item.expires_at_ms,
+    }
+
+
+@router.post("/devices/api/pair/claim")
+async def claim_pairing_code(
+    request: Request,
+    payload: PairClaimRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+
+    auth_service = _auth_service(request)
+    session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
+    if session.user.role == UserRole.GUEST:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "guest_blocked", "message": "Guest accounts cannot pair devices"},
+        )
+
+    service = _pairing_service(request)
+    try:
+        device = service.claim(user_id=user_id, code=payload.code)
+    except DevicePairingError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+    return {"status": "ok", "device": _paired_device_payload(device)}
 
 
 @router.post("/devices/api/catalog/{device_id}/ownership")

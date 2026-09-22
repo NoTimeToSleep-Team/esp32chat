@@ -41,5 +41,6 @@
 
 - bringup собран и залит на устройство (PlatformIO, espressif32 6.13.0, Arduino core 3.2.0 / IDF 5.4).
 - Подтверждено на железе: экран, ввод (буквы, Enter, Del, Tab, Fn), модификаторы SHIFT/CTRL/OPT/ALT, serial-лог, heartbeat, свободный heap ~360 КБ.
-- `net` подтверждён на железе: подключение к Wi-Fi `local-chat`, IP по DHCP `192.168.4.16`, RSSI −44 dBm, `GET /health` → HTTP 200 (`local-chat-server`, prod), heap ~271 КБ.
-- Следующий этап: `pair` — сопряжение по 6-значному коду (требует доработки сервера).
+- `net` подтверждён на железе: подключение к Wi-Fi `local-chat`, IP по DHCP, `GET /health` → HTTP 200, heap ~271 КБ.
+- `pair` подтверждён на железе (полный цикл): генерация секрета (NVS) → 6-значный код на экране → claim в вебе → challenge → HMAC-SHA256 proof → session_token. Устройство `cp-48ca433b5304` привязано, `status=session ok`.
+- Следующий этап: `chat` — список чатов, лента, отправка и приём по WebSocket.
