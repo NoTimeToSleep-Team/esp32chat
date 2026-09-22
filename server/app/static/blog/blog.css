@@ -1,22 +1,24 @@
 :root {
-  --bg-a:#f3f0e8;
-  --bg-b:#dbe8e1;
-  --card:#fffdf8;
-  --ink:#1c1f1c;
-  --muted:#4e5b54;
-  --accent:#1f6f5f;
-  --accent-2: #9c5c2d;
-  --line:#d8d4ca;
+  --bg-a: #0e1621;
+  --bg-b: #17212b;
+  --card: #17212b;
+  --ink: #f1f5f9;
+  --muted: #7f8b98;
+  --accent: #5eb5f7;
+  --accent-2: #d29922;
+  --line: rgba(36,49,61,.9);
 }
 
 * {
   box-sizing: border-box;
-}body {
-  margin:0;
-  font-family:"Segoe UI", Tahoma, sans-serif;
-  color:var(--ink);
-  background:linear-gradient(135deg, var(--bg-a), var(--bg-b));
-  min-height:100vh;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--bg-a), var(--bg-b));
+  min-height: 100vh;
 }
 
 .blog-shell {

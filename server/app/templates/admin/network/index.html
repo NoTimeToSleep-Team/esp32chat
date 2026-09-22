@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Network Admin</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}body{background:#5eb5f7;color:#f1f5f9;font:14px monospace;padding:16px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0e1621;color:#f1f5f9;font:14px monospace;padding:16px}
 h2{color:#5eb5f7;margin:16px 0 8px;font-size:16px}
-.section{background:#5eb5f7;border:1px solid #24313d;border-radius:6px;padding:12px;margin-bottom:12px}
+.section{background:#17212b;border:1px solid #24313d;border-radius:6px;padding:12px;margin-bottom:12px}
 .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #24313d}
 .row:last-child{border-bottom:none}
 label{color:#7f8b98}
-select,input,button{background:#5eb5f7;color:#f1f5f9;border:1px solid #24313d;padding:6px 10px;border-radius:4px;font:14px monospace}
+select,input,button{background:#17212b;color:#f1f5f9;border:1px solid #24313d;padding:6px 10px;border-radius:4px;font:14px monospace}
 button{cursor:pointer;background:#2f9e6b;border-color:#24313d;color:#f1f5f9;white-space:nowrap}
 button.danger{background:#f85149;border-color:#24313d}
 button.small{padding:2px 8px;font-size:12px}
@@ -20,10 +21,10 @@ button:hover{opacity:0.85}
 .signal{display:inline-block;width:40px;text-align:right;color:#d29922}
 .open{color:#4fb286}.wpa{color:#d29922}
 .toggle{width:48px;height:24px;border-radius:12px;border:none;cursor:pointer;transition:background 0.2s}
-.toggle.off{background:#1d2a36}.toggle.on{background:#2f9e6b}
+.toggle.off{background:#17212b}.toggle.on{background:#2f9e6b}
 .connected{color:#4fb286}.disconnected{color:#f85149}
 .badge{display:inline-block;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:bold}
-.badge.ap{background:#5eb5f7;color:#f1f5f9}.badge.uplink{background:#2f9e6b;color:#f1f5f9}.badge.none{background:#1d2a36;color:#7f8b98}
+.badge.ap{background:#5eb5f7;color:#f1f5f9}.badge.uplink{background:#2f9e6b;color:#f1f5f9}.badge.none{background:#17212b;color:#7f8b98}
 .pwd{display:flex;gap:8px;margin:8px 0;align-items:center}
 #status-msg{padding:4px 0;font-size:12px;min-height:18px}
 .iface-row{display:grid;grid-template-columns:1fr 70px 140px 130px;gap:8px;align-items:center;padding:4px 0}

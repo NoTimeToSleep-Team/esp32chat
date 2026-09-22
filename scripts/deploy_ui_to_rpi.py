@@ -23,7 +23,27 @@ LOCAL_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__fil
 FILES = [
     "app/static/app.js",
     "app/static/app.css",
+    "app/static/captive_login.html",
     "app/templates/index.html",
+    "app/templates/admin/network/index.html",
+    "app/static/account/account.css",
+    "app/templates/account/index.html",
+    "app/static/blog/blog.css",
+    "app/templates/blog/index.html",
+    "app/static/chat/chat.css",
+    "app/templates/chat/index.html",
+    "app/static/devices/devices.css",
+    "app/templates/devices/index.html",
+    "app/static/rfid/rfid.css",
+    "app/templates/rfid/index.html",
+    "app/static/support/support.css",
+    "app/templates/support/index.html",
+    "app/static/admin/content/content.css",
+    "app/templates/admin/content/index.html",
+    "app/static/admin/mode/mode.css",
+    "app/templates/admin/mode/index.html",
+    "app/static/admin/users/users.css",
+    "app/templates/admin/users/index.html",
 ]
 
 

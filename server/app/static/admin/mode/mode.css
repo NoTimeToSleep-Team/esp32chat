@@ -1,23 +1,25 @@
 :root {
-  --bg-1: #f2ede5;
-  --bg-2: #dce6ef;
-  --card:#fffefb;
-  --ink:#20262a;
-  --muted:#5f6871;
-  --line:#d9dde3;
-  --accent:#1d6374;
-  --error:#9b3e3e;
-  --ok:#2f7a44;
+  --bg-1: #0e1621;
+  --bg-2: #17212b;
+  --card: #17212b;
+  --ink: #f1f5f9;
+  --muted: #7f8b98;
+  --line: rgba(36,49,61,.9);
+  --accent: #5eb5f7;
+  --error: #f85149;
+  --ok: #4fb286;
 }
 
 * {
   box-sizing: border-box;
-}body {
-  margin:0;
-  min-height:100vh;
-  color:var(--ink);
-  font-family:"Segoe UI", Tahoma, sans-serif;
-  background:linear-gradient(148deg, var(--bg-1), var(--bg-2));
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: linear-gradient(148deg, var(--bg-1), var(--bg-2));
 }
 
 .mode-shell {
