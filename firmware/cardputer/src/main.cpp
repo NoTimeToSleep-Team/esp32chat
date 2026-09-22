@@ -85,14 +85,53 @@ static const int VOLUME_LEVELS[5] = {0, 64, 128, 191, 255};
 static const char *VOLUME_LABELS[5] = {"Выкл", "25%", "50%", "75%", "100%"};
 static const int SLEEP_MS[4] = {0, 30000, 60000, 300000};
 static const char *SLEEP_LABELS[4] = {"Выкл", "30 сек", "1 мин", "5 мин"};
+static const uint8_t LED_COLORS[6][3] = {
+    {255, 255, 255}, {255, 0, 0}, {0, 255, 0}, {0, 0, 255}, {255, 160, 0}, {170, 0, 255}};
+static const char *LED_COLOR_LABELS[6] = {"Белый", "Красный", "Зелёный", "Синий", "Жёлтый", "Фиолетовый"};
+
 static int setting_bright = 3;
+static bool setting_sound = true;
 static int setting_volume = 1;
 static int setting_sleep = 0;
 static bool setting_notify = true;
+static bool setting_led = false;
+static int setting_led_color = 0;
+static bool setting_clock = true;
+static int setting_tz = 3;
+static bool setting_wifi_sleep = false;
 static bool screen_off = false;
 static uint32_t last_activity_ms = 0;
-static const int SETTINGS_ITEMS = 4;
+static int64_t clock_offset_ms = 0;
+static bool clock_valid = false;
+
+enum SettingId {
+    SET_BRIGHT,
+    SET_SOUND,
+    SET_VOLUME,
+    SET_SLEEP,
+    SET_NOTIFY,
+    SET_LED,
+    SET_LED_COLOR,
+    SET_CLOCK,
+    SET_TZ,
+    SET_WIFI_SLEEP,
+    SET_RESET,
+    SET_REBOOT,
+};
+static const int SETTINGS_ORDER[] = {
+    SET_BRIGHT, SET_SOUND, SET_VOLUME, SET_SLEEP, SET_NOTIFY,
+    SET_LED, SET_LED_COLOR, SET_CLOCK, SET_TZ, SET_WIFI_SLEEP,
+    SET_RESET, SET_REBOOT,
+};
+static const char *SETTINGS_LABELS[] = {
+    "Яркость", "Звук", "Громкость", "Гашение экрана", "Уведомления",
+    "LED подсветка", "Цвет LED", "Часы", "Часовой пояс", "Wi-Fi сон",
+    "Сброс настроек", "Перезагрузка",
+};
+static const int SETTINGS_COUNT = 12;
+static const int SETTINGS_VISIBLE = 5;
 static int settings_sel = 0;
+static int settings_scroll = 0;
 
 static const int MAX_TICKETS = 12;
 struct TicketItem {
@@ -204,6 +243,7 @@ static int httpPostJson(const String &path, const String &body, String &response
 static void drawScreen();
 static void drawPairScreen();
 static void drawMenu();
+static String formatClock();
 static void runDeviceSession();
 static void initUpdatesCursor();
 static void pollUpdates();
@@ -269,8 +309,7 @@ static void connectWifi() {
     }
     WiFi.mode(WIFI_STA);
     WiFi.setSleep(false);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    uint32_t start = millis();
+    WiFi.begin(WIFI_SSID, WIFI_PASS);    uint32_t start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
         delay(250);
         M5Cardputer.update();
@@ -278,6 +317,7 @@ static void connectWifi() {
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("wifi: ip=%s rssi=%d\n", WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
         pair_status = "wifi ok";
+        WiFi.setSleep(setting_wifi_sleep);
     } else {
         pair_status = "wifi failed";
     }
@@ -427,6 +467,8 @@ static void initUpdatesCursor() {
         return;
     }
     last_seen_ms = doc["server_time_ms"].as<uint64_t>();
+    clock_offset_ms = (int64_t)last_seen_ms - (int64_t)millis();
+    clock_valid = true;
     Serial.printf("updates cursor: %llu\n", (unsigned long long)last_seen_ms);
 }
 
@@ -444,6 +486,11 @@ static void pollUpdates() {
     JsonDocument doc;
     if (deserializeJson(doc, response)) {
         return;
+    }
+    uint64_t server_now = doc["server_time_ms"].as<uint64_t>();
+    if (server_now > 0) {
+        clock_offset_ms = (int64_t)server_now - (int64_t)millis();
+        clock_valid = true;
     }
     JsonArray items = doc["items"].as<JsonArray>();
     if (items.isNull() || items.size() == 0) {
@@ -503,6 +550,9 @@ static void drawChatList() {
     d.setTextColor(TFT_WHITE, COL_HEADER);
     d.setCursor(4, 4);
     d.printf("Chats (%d)", chat_count);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(150, 4);
+    d.print(formatClock());
     int lvl = (int)M5Cardputer.Power.getBatteryLevel();
     d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
     d.setCursor(198, 4);
@@ -543,6 +593,9 @@ static void drawChatView() {
     d.setTextColor(COL_ACCENT, COL_HEADER);
     d.setCursor(4, 4);
     d.printf("#%s", clip(current_chat_title, 16).c_str());
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(152, 4);
+    d.print(formatClock());
 
     int lvl = (int)M5Cardputer.Power.getBatteryLevel();
     d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
@@ -615,6 +668,9 @@ static void drawMenu() {
     d.setTextColor(TFT_WHITE, COL_HEADER);
     d.setCursor(28, 2);
     d.printf("%s", clip(session_login, 10).c_str());
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(150, 2);
+    d.print(formatClock());
     int lvl = (int)M5Cardputer.Power.getBatteryLevel();
     d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
     d.setCursor(198, 2);
@@ -1123,6 +1179,117 @@ static void drawSupportNew() {
     d.printf("> %s_", clip(input_text, 35).c_str());
 }
 
+static void applyLed() {
+    if (!M5.Led.isEnabled()) {
+        return;
+    }
+    if (setting_led) {
+        M5.Led.setAllColor(LED_COLORS[setting_led_color][0],
+                           LED_COLORS[setting_led_color][1],
+                           LED_COLORS[setting_led_color][2]);
+    } else {
+        M5.Led.setAllColor(0, 0, 0);
+    }
+}
+
+static void applySound() {
+    M5Cardputer.Speaker.setVolume(setting_sound ? VOLUME_LEVELS[setting_volume] : 0);
+}
+
+static void applyWifiSleep() {
+    if (WiFi.status() == WL_CONNECTED) {
+        WiFi.setSleep(setting_wifi_sleep);
+    }
+}
+
+static String formatClock() {
+    if (!setting_clock || !clock_valid) {
+        return "";
+    }
+    int64_t now_ms = (int64_t)millis() + clock_offset_ms + (int64_t)setting_tz * 3600000LL;
+    time_t t = (time_t)(now_ms / 1000);
+    struct tm tm_info;
+    gmtime_r(&t, &tm_info);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%02d:%02d", tm_info.tm_hour, tm_info.tm_min);
+    return String(buf);
+}
+
+static void resetSettings() {
+    setting_bright = 3;
+    setting_sound = true;
+    setting_volume = 1;
+    setting_sleep = 0;
+    setting_notify = true;
+    setting_led = false;
+    setting_led_color = 0;
+    setting_clock = true;
+    setting_tz = 3;
+    setting_wifi_sleep = false;
+    prefs.putInt("bright", setting_bright);
+    prefs.putBool("sound", setting_sound);
+    prefs.putInt("volume", setting_volume);
+    prefs.putInt("sleep", setting_sleep);
+    prefs.putBool("notify", setting_notify);
+    prefs.putBool("led", setting_led);
+    prefs.putInt("led_color", setting_led_color);
+    prefs.putBool("clock", setting_clock);
+    prefs.putInt("tz", setting_tz);
+    prefs.putBool("wifi_sleep", setting_wifi_sleep);
+    M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
+    applySound();
+    applyLed();
+    applyWifiSleep();
+}
+
+static void settingsAdjustScroll() {
+    if (settings_sel < settings_scroll) {
+        settings_scroll = settings_sel;
+    }
+    if (settings_sel >= settings_scroll + SETTINGS_VISIBLE) {
+        settings_scroll = settings_sel - SETTINGS_VISIBLE + 1;
+    }
+    if (settings_scroll < 0) {
+        settings_scroll = 0;
+    }
+    if (settings_scroll > SETTINGS_COUNT - SETTINGS_VISIBLE) {
+        settings_scroll = SETTINGS_COUNT - SETTINGS_VISIBLE;
+    }
+}
+
+static String settingValueText(int id) {
+    switch (id) {
+        case SET_BRIGHT:
+            return BRIGHT_LABELS[setting_bright];
+        case SET_SOUND:
+            return setting_sound ? "Вкл" : "Выкл";
+        case SET_VOLUME:
+            return VOLUME_LABELS[setting_volume];
+        case SET_SLEEP:
+            return SLEEP_LABELS[setting_sleep];
+        case SET_NOTIFY:
+            return setting_notify ? "Вкл" : "Выкл";
+        case SET_LED:
+            return setting_led ? "Вкл" : "Выкл";
+        case SET_LED_COLOR:
+            return LED_COLOR_LABELS[setting_led_color];
+        case SET_CLOCK:
+            return setting_clock ? "Вкл" : "Выкл";
+        case SET_TZ: {
+            char buf[12];
+            snprintf(buf, sizeof(buf), "UTC%+d", setting_tz);
+            return String(buf);
+        }
+        case SET_WIFI_SLEEP:
+            return setting_wifi_sleep ? "Вкл" : "Выкл";
+        case SET_RESET:
+            return "Enter";
+        case SET_REBOOT:
+            return "Enter";
+    }
+    return "";
+}
+
 static void drawSettings() {
     auto &d = M5Cardputer.Display;
     d.fillScreen(TFT_BLACK);
@@ -1131,45 +1298,33 @@ static void drawSettings() {
     d.fillRect(0, 0, 240, 16, COL_HEADER);
     d.setTextColor(COL_ACCENT, COL_HEADER);
     d.setCursor(4, 2);
-    d.print("Настройки");
+    d.printf("Настройки %d/%d", settings_sel + 1, SETTINGS_COUNT);
 
-    int y = 26;
-    for (int i = 0; i < SETTINGS_ITEMS; i++) {
-        bool sel = (i == settings_sel);
+    int y = 24;
+    for (int row = 0; row < SETTINGS_VISIBLE; row++) {
+        int index = settings_scroll + row;
+        if (index >= SETTINGS_COUNT) {
+            break;
+        }
+        int id = SETTINGS_ORDER[index];
+        bool sel = (index == settings_sel);
         uint16_t bg = sel ? COL_SEL : TFT_BLACK;
         if (sel) {
-            d.fillRect(0, y - 3, 240, 18, bg);
+            d.fillRect(0, y - 3, 240, 19, bg);
         }
         d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
         d.setCursor(6, y);
-        if (i == 0) {
-            d.print("Яркость");
-            d.setCursor(150, y);
-            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
-            d.print(BRIGHT_LABELS[setting_bright]);
-        } else if (i == 1) {
-            d.print("Громкость");
-            d.setCursor(150, y);
-            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
-            d.print(VOLUME_LABELS[setting_volume]);
-        } else if (i == 2) {
-            d.print("Гашение экрана");
-            d.setCursor(150, y);
-            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
-            d.print(SLEEP_LABELS[setting_sleep]);
-        } else {
-            d.print("Уведомления");
-            d.setCursor(150, y);
-            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
-            d.print(setting_notify ? "Вкл" : "Выкл");
-        }
-        y += 22;
+        d.print(SETTINGS_LABELS[id]);
+        d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
+        d.setCursor(160, y);
+        d.print(settingValueText(id));
+        y += 20;
     }
 
     d.fillRect(0, 122, 240, 13, COL_HEADER);
     d.setTextColor(COL_DIM, COL_HEADER);
     d.setCursor(4, 122);
-    d.print("↑↓ move  ←→ change  Esc back");
+    d.print("↑↓ move  ←→ change  Enter ok  Esc");
 }
 
 static void drawScreen() {
@@ -1626,55 +1781,115 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
     }
 
     if (screen == Screen::SETTINGS) {
+        int id = SETTINGS_ORDER[settings_sel];
         if (k.up) {
             if (settings_sel > 0) {
                 settings_sel--;
             }
+            settingsAdjustScroll();
             drawSettings();
             return;
         }
         if (k.down) {
-            if (settings_sel + 1 < SETTINGS_ITEMS) {
+            if (settings_sel + 1 < SETTINGS_COUNT) {
                 settings_sel++;
             }
+            settingsAdjustScroll();
             drawSettings();
+            return;
+        }
+        if (k.enter) {
+            if (id == SET_RESET) {
+                resetSettings();
+                drawSettings();
+            } else if (id == SET_REBOOT) {
+                Serial.println("reboot requested");
+                delay(200);
+                ESP.restart();
+            }
             return;
         }
         if (k.left || k.right) {
             int dir = k.right ? 1 : -1;
-            if (settings_sel == 0) {
-                setting_bright += dir;
-                if (setting_bright < 0) {
-                    setting_bright = 0;
-                }
-                if (setting_bright > 3) {
-                    setting_bright = 3;
-                }
-                M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
-                prefs.putInt("bright", setting_bright);
-            } else if (settings_sel == 1) {
-                setting_volume += dir;
-                if (setting_volume < 0) {
-                    setting_volume = 0;
-                }
-                if (setting_volume > 4) {
-                    setting_volume = 4;
-                }
-                M5Cardputer.Speaker.setVolume(VOLUME_LEVELS[setting_volume]);
-                M5Cardputer.Speaker.tone(1800, 80);
-                prefs.putInt("volume", setting_volume);
-            } else if (settings_sel == 2) {
-                setting_sleep += dir;
-                if (setting_sleep < 0) {
-                    setting_sleep = 0;
-                }
-                if (setting_sleep > 3) {
-                    setting_sleep = 3;
-                }
-                prefs.putInt("sleep", setting_sleep);
-            } else {
-                setting_notify = !setting_notify;
-                prefs.putBool("notify", setting_notify);
+            switch (id) {
+                case SET_BRIGHT:
+                    setting_bright += dir;
+                    if (setting_bright < 0) {
+                        setting_bright = 0;
+                    }
+                    if (setting_bright > 3) {
+                        setting_bright = 3;
+                    }
+                    M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
+                    prefs.putInt("bright", setting_bright);
+                    break;
+                case SET_SOUND:
+                    setting_sound = !setting_sound;
+                    applySound();
+                    prefs.putBool("sound", setting_sound);
+                    if (setting_sound) {
+                        M5Cardputer.Speaker.tone(1800, 80);
+                    }
+                    break;
+                case SET_VOLUME:
+                    setting_volume += dir;
+                    if (setting_volume < 0) {
+                        setting_volume = 0;
+                    }
+                    if (setting_volume > 4) {
+                        setting_volume = 4;
+                    }
+                    applySound();
+                    prefs.putInt("volume", setting_volume);
+                    M5Cardputer.Speaker.tone(1800, 80);
+                    break;
+                case SET_SLEEP:
+                    setting_sleep += dir;
+                    if (setting_sleep < 0) {
+                        setting_sleep = 0;
+                    }
+                    if (setting_sleep > 3) {
+                        setting_sleep = 3;
+                    }
+                    prefs.putInt("sleep", setting_sleep);
+                    break;
+                case SET_NOTIFY:
+                    setting_notify = !setting_notify;
+                    prefs.putBool("notify", setting_notify);
+                    break;
+                case SET_LED:
+                    setting_led = !setting_led;
+                    applyLed();
+                    prefs.putBool("led", setting_led);
+                    break;
+                case SET_LED_COLOR:
+                    setting_led_color = (setting_led_color + dir + 6) % 6;
+                    if (setting_led) {
+                        applyLed();
+                    }
+                    prefs.putInt("led_color", setting_led_color);
+                    break;
+                case SET_CLOCK:
+                    setting_clock = !setting_clock;
+                    prefs.putBool("clock", setting_clock);
+                    break;
+                case SET_TZ:
+                    setting_tz += dir;
+                    if (setting_tz < -12) {
+                        setting_tz = -12;
+                    }
+                    if (setting_tz > 14) {
+                        setting_tz = 14;
+                    }
+                    prefs.putInt("tz", setting_tz);
+                    break;
+                case SET_WIFI_SLEEP:
+                    setting_wifi_sleep = !setting_wifi_sleep;
+                    applyWifiSleep();
+                    prefs.putBool("wifi_sleep", setting_wifi_sleep);
+                    break;
+                default:
+                    break;
             }
             drawSettings();
             return;
@@ -1894,9 +2109,15 @@ void setup() {
     sha256(device_secret, sizeof(device_secret), device_secret_hash);
 
     setting_bright = prefs.getInt("bright", 3);
+    setting_sound = prefs.getBool("sound", true);
     setting_volume = prefs.getInt("volume", 1);
     setting_sleep = prefs.getInt("sleep", 0);
     setting_notify = prefs.getBool("notify", true);
+    setting_led = prefs.getBool("led", false);
+    setting_led_color = prefs.getInt("led_color", 0);
+    setting_clock = prefs.getBool("clock", true);
+    setting_tz = prefs.getInt("tz", 3);
+    setting_wifi_sleep = prefs.getBool("wifi_sleep", false);
     if (setting_bright < 0 || setting_bright > 3) {
         setting_bright = 3;
     }
@@ -1906,8 +2127,15 @@ void setup() {
     if (setting_sleep < 0 || setting_sleep > 3) {
         setting_sleep = 0;
     }
+    if (setting_led_color < 0 || setting_led_color > 5) {
+        setting_led_color = 0;
+    }
+    if (setting_tz < -12 || setting_tz > 14) {
+        setting_tz = 3;
+    }
     M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
-    M5Cardputer.Speaker.setVolume(VOLUME_LEVELS[setting_volume]);
+    applySound();
+    applyLed();
 
     WiFi.mode(WIFI_STA);
     uint8_t mac[6];
