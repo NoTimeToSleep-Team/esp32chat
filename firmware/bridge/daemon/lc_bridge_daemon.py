@@ -130,10 +130,14 @@ def run_session(fd: int) -> None:
                     break
                 del buf[:idx]
                 continue
+            ftype = buf[1]
             length = buf[2] | (buf[3] << 8)
+            if ftype not in (0x01, 0x02, 0x03) or length > 16384:
+                # Not a valid frame header (likely text output): resync.
+                del buf[:1]
+                continue
             if len(buf) < 10 + length:
                 break
-            ftype = buf[1]
             mac = bytes(buf[4:10])
             payload = bytes(buf[10 : 10 + length])
             del buf[: 10 + length]

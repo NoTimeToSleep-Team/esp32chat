@@ -35,6 +35,8 @@ static uint8_t assembly_data[RX_BUF];
 
 static uint32_t rx_requests = 0;
 static uint32_t tx_responses = 0;
+static volatile bool pending_pong = false;
+static uint8_t pending_pong_mac[6];
 
 static void send_usb_frame(uint8_t type, const uint8_t *mac, const uint8_t *data, size_t len) {
     uint8_t header[10];
@@ -96,9 +98,9 @@ static void on_espnow_recv(const uint8_t *mac, const uint8_t *data, int len) {
     size_t payload_len = (size_t)(len - 4);
 
     if (type == 0x03) {
-        uint8_t pong[4] = {ESPNOW_MAGIC, 0x04, 0, 1};
-        ensure_peer(mac);
-        esp_now_send(mac, pong, sizeof(pong));
+        // Ping: reply from the main loop, not from the Wi-Fi callback.
+        pending_pong = true;
+        memcpy(pending_pong_mac, mac, 6);
         return;
     }
 
@@ -174,6 +176,7 @@ static void poll_usb() {
 
 void setup() {
     Serial.begin(115200);
+    Serial.setTxTimeoutMs(0);  // never block if the host is not reading the port
     delay(300);
 
     WiFi.mode(WIFI_STA);
@@ -202,8 +205,15 @@ void setup() {
 void loop() {
     poll_usb();
 
+    if (pending_pong) {
+        pending_pong = false;
+        uint8_t pong[4] = {ESPNOW_MAGIC, 0x04, 0, 1};
+        ensure_peer(pending_pong_mac);
+        esp_now_send(pending_pong_mac, pong, sizeof(pong));
+    }
+
     static uint32_t last_status = 0;
-    if (millis() - last_status > 30000) {
+    if (millis() - last_status > 120000) {
         last_status = millis();
         Serial.printf("LOG:bridge rx=%lu tx=%lu heap=%lu\n",
                       (unsigned long)rx_requests, (unsigned long)tx_responses,
