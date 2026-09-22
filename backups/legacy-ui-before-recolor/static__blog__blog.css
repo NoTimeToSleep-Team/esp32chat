@@ -1,0 +1,159 @@
+:root {
+  --bg-a: #f3f0e8;
+  --bg-b: #dbe8e1;
+  --card: #fffdf8;
+  --ink: #1c1f1c;
+  --muted: #4e5b54;
+  --accent: #1f6f5f;
+  --accent-2: #9c5c2d;
+  --line: #d8d4ca;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--bg-a), var(--bg-b));
+  min-height: 100vh;
+}
+
+.blog-shell {
+  width: min(980px, 94vw);
+  margin: 0 auto;
+  padding: 28px 0 40px;
+}
+
+.hero,
+.controls,
+.publish-card,
+.post-item article {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(23, 40, 34, 0.08);
+}
+
+.hero {
+  padding: 18px 20px;
+}
+
+.hero h1 {
+  margin: 0 0 6px;
+}
+
+.hero p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.controls {
+  margin-top: 14px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.publish-card {
+  margin-top: 14px;
+  padding: 14px;
+}
+
+.publish-card h2 {
+  margin: 0 0 10px;
+}
+
+#publishPostForm {
+  display: grid;
+  gap: 10px;
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.06);
+}
+
+.hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.hint.error {
+  color: #8f2f2f;
+}
+
+.hint.ok {
+  color: var(--accent-2);
+}
+
+.post-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.post-item article {
+  padding: 14px;
+}
+
+.post-title {
+  margin: 0;
+}
+
+.post-meta {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.post-body {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}

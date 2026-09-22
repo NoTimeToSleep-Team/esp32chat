@@ -120,7 +120,7 @@ enum SettingId {
 };
 static const int SETTINGS_ORDER[] = {
     SET_BRIGHT, SET_SOUND, SET_VOLUME, SET_SLEEP, SET_NOTIFY,
-    SET_LED, SET_LED_COLOR, SET_CLOCK, SET_TZ, SET_WIFI_SLEEP,
+    SET_CLOCK, SET_TZ, SET_WIFI_SLEEP,
     SET_RESET, SET_REBOOT,
 };
 static const char *SETTINGS_LABELS[] = {
@@ -128,7 +128,7 @@ static const char *SETTINGS_LABELS[] = {
     "LED подсветка", "Цвет LED", "Часы", "Часовой пояс", "Wi-Fi сон",
     "Сброс настроек", "Перезагрузка",
 };
-static const int SETTINGS_COUNT = 12;
+static const int SETTINGS_COUNT = 10;
 static const int SETTINGS_VISIBLE = 5;
 static int settings_sel = 0;
 static int settings_scroll = 0;
@@ -526,10 +526,13 @@ static void pollUpdates() {
 
 // --- chat ---
 
-static const uint16_t COL_HEADER = 0x18E3;
+static const uint16_t COL_BG = 0x0861;
+static const uint16_t COL_HEADER = 0x10C3;
 static const uint16_t COL_ACCENT = 0x07FF;
-static const uint16_t COL_SEL = 0x035F;
-static const uint16_t COL_DIM = 0x8410;
+static const uint16_t COL_SEL = 0x1C9F;
+static const uint16_t COL_CARD = 0x18E3;
+static const uint16_t COL_TEXT = 0xEF5D;
+static const uint16_t COL_DIM = 0x7BEF;
 
 static const uint16_t AUTHOR_COLORS[] = {0x07FF, 0xFD20, 0x07E0, 0xF81F, 0xFFE0, 0x5D9F};
 
@@ -541,80 +544,105 @@ static uint16_t authorColor(const String &name) {
     return AUTHOR_COLORS[h % (sizeof(AUTHOR_COLORS) / sizeof(AUTHOR_COLORS[0]))];
 }
 
-static void drawChatList() {
+static String formatTimeMs(uint64_t ms) {
+    if (ms == 0 || !clock_valid) {
+        return "";
+    }
+    int64_t local_ms = (int64_t)ms + (int64_t)setting_tz * 3600000LL;
+    time_t t = (time_t)(local_ms / 1000);
+    struct tm tm_info;
+    gmtime_r(&t, &tm_info);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%02d:%02d", tm_info.tm_hour, tm_info.tm_min);
+    return String(buf);
+}
+
+static void drawBatteryIcon(int x, int y, int pct) {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
-    d.setTextSize(1);
-
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(TFT_WHITE, COL_HEADER);
-    d.setCursor(4, 4);
-    d.printf("Chats (%d)", chat_count);
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(150, 4);
-    d.print(formatClock());
-    int lvl = (int)M5Cardputer.Power.getBatteryLevel();
-    d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
-    d.setCursor(198, 4);
-    if (lvl < 0) {
-        d.print("--");
-    } else {
-        d.printf("%d%%", lvl);
-    }
-
-    int y = 20;
-    for (int i = 0; i < chat_count && i < 7; i++) {
-        bool sel = (i == chat_sel);
-        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
-        if (sel) {
-            d.fillRect(0, y - 2, 240, 14, bg);
+    uint16_t color = pct < 0 ? COL_DIM : (pct > 20 ? 0x07E0 : 0xF800);
+    d.drawRect(x, y, 18, 9, COL_TEXT);
+    d.fillRect(x + 18, y + 2, 2, 5, COL_TEXT);
+    if (pct > 0) {
+        int w = (pct > 100 ? 100 : pct) * 14 / 100;
+        if (w < 2) {
+            w = 2;
         }
-        d.setTextColor(COL_DIM, bg);
-        d.setCursor(4, y);
-        d.printf("%d", i + 1);
-        d.setTextColor(sel ? TFT_WHITE : authorColor(chats[i].title), bg);
-        d.setCursor(16, y);
-        d.print(clip(chats[i].title, 38));
-        y += 14;
+        d.fillRect(x + 2, y + 2, w, 5, color);
     }
+}
 
+static void drawTopBar(const String &title) {
+    auto &d = M5Cardputer.Display;
+    d.fillRect(0, 0, 240, 18, COL_HEADER);
+    d.fillRect(0, 18, 240, 1, COL_ACCENT);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(6, 3);
+    d.print(clip(title, 20));
+
+    drawBatteryIcon(240 - 22, 4, (int)M5Cardputer.Power.getBatteryLevel());
+    String clk = formatClock();
+    if (clk.length() > 0) {
+        d.setTextColor(COL_TEXT, COL_HEADER);
+        d.setCursor(240 - 30 - (int)clk.length() * 6, 3);
+        d.print(clk);
+    }
+}
+
+static void drawHint(const String &text) {
+    auto &d = M5Cardputer.Display;
     d.fillRect(0, 122, 240, 13, COL_HEADER);
     d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(4, 122);
-    d.print("↑↓ move   →/Enter open");
+    d.setCursor(6, 122);
+    d.print(clip(text, 38));
+}
+
+static void drawCardRow(int y, const String &left, const String &right, bool sel, uint16_t leftColor) {
+    auto &d = M5Cardputer.Display;
+    uint16_t bg = sel ? COL_SEL : COL_CARD;
+    d.fillRoundRect(2, y, 236, 17, 3, bg);
+    if (sel) {
+        d.fillRoundRect(2, y, 6, 17, 3, COL_ACCENT);
+    }
+    d.setTextColor(leftColor, bg);
+    d.setCursor(12, y + 4);
+    d.print(left);
+    if (right.length() > 0) {
+        d.setTextColor(sel ? COL_TEXT : COL_DIM, bg);
+        d.setCursor(238 - 6 - (int)right.length() * 6, y + 4);
+        d.print(right);
+    }
+}
+
+static void drawChatList() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(COL_BG);
+    d.setTextSize(1);
+
+    drawTopBar(String("Чаты (") + chat_count + ")");
+
+    int y = 22;
+    for (int i = 0; i < chat_count && i < 5; i++) {
+        bool sel = (i == chat_sel);
+        drawCardRow(y, clip(chats[i].title, 24), "", sel, sel ? TFT_WHITE : COL_TEXT);
+        y += 20;
+    }
+    if (chat_count == 0) {
+        d.setTextColor(COL_DIM, COL_BG);
+        d.setCursor(8, 50);
+        d.print("Чатов пока нет");
+    }
+
+    drawHint("↑↓ move  →/Enter open  Esc back");
 }
 
 static void drawChatView() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 4);
-    d.printf("#%s", clip(current_chat_title, 16).c_str());
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(152, 4);
-    d.print(formatClock());
+    drawTopBar(String("#") + clip(current_chat_title, 16));
 
-    int lvl = (int)M5Cardputer.Power.getBatteryLevel();
-    d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
-    d.setCursor(198, 4);
-    if (lvl < 0) {
-        d.print("--");
-    } else {
-        d.printf("%d%%", lvl);
-    }
-    d.setTextColor(WiFi.status() == WL_CONNECTED ? TFT_GREEN : TFT_RED, COL_HEADER);
-    d.setCursor(228, 4);
-    d.print("w");
-
-    int pos = msg_count > 0 ? (msg_count - msg_scroll) : 0;
-    d.setTextColor(COL_DIM, TFT_BLACK);
-    d.setCursor(206, 19);
-    d.printf("%d/%d", pos, msg_count);
-
-    const int visible = 8;
+    const int visible = 7;
     int end = msg_count - msg_scroll;
     int start = end - visible;
     if (start < 0) {
@@ -624,81 +652,63 @@ static void drawChatView() {
         end = msg_count;
     }
 
-    int y = 17;
+    int y = 23;
     for (int i = start; i < end && y < 104; i++) {
-        d.setTextColor(authorColor(msgs[i].author), TFT_BLACK);
-        d.setCursor(4, y);
-        d.print(clip(msgs[i].author, 9));
-        d.setCursor(64, y);
-        if (msgs[i].text.length() > 0) {
-            d.setTextColor(TFT_WHITE, TFT_BLACK);
-            d.print(clip(msgs[i].text, 30));
-        } else if (msgs[i].file.length() > 0) {
-            d.setTextColor(TFT_YELLOW, TFT_BLACK);
-            d.print(clip("[file] " + msgs[i].file, 30));
+        bool mine = (msgs[i].author == session_login);
+        uint16_t bg = mine ? COL_CARD : COL_BG;
+        if (mine) {
+            d.fillRoundRect(2, y - 3, 236, 15, 3, COL_CARD);
         }
-        y += 13;
+        d.setTextColor(authorColor(msgs[i].author), bg);
+        d.setCursor(6, y);
+        d.print(clip(msgs[i].author, 9));
+        d.setCursor(66, y);
+        if (msgs[i].text.length() > 0) {
+            d.setTextColor(COL_TEXT, bg);
+            d.print(clip(msgs[i].text, 28));
+        } else if (msgs[i].file.length() > 0) {
+            d.setTextColor(TFT_YELLOW, bg);
+            d.print(clip("[файл] " + msgs[i].file, 28));
+        }
+        y += 14;
         if (msgs[i].file.length() > 0 && msgs[i].text.length() > 0 && y < 104) {
-            d.setTextColor(TFT_YELLOW, TFT_BLACK);
-            d.setCursor(64, y);
-            d.print(clip("[file] " + msgs[i].file, 30));
-            y += 13;
+            d.setTextColor(TFT_YELLOW, bg);
+            d.setCursor(66, y);
+            d.print(clip("[файл] " + msgs[i].file, 28));
+            y += 14;
         }
     }
 
-    d.fillRect(0, 116, 240, 19, COL_HEADER);
-    d.setTextColor(TFT_WHITE, COL_HEADER);
-    d.setCursor(4, 122);
+    d.fillRect(0, 108, 240, 27, COL_HEADER);
+    d.fillRect(0, 108, 240, 1, COL_ACCENT);
+    d.setTextColor(COL_TEXT, COL_HEADER);
+    d.setCursor(6, 112);
     if (screen == Screen::CHAT_INPUT) {
-        d.printf("> %s_", clip(input_text, 35).c_str());
+        d.printf("> %s_", clip(input_text, 34).c_str());
     } else {
-        d.print("↑↓ scroll  → write  Esc back");
+        d.printf("%d/%d  ↑↓ scroll  → write", msg_count - msg_scroll, msg_count);
     }
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(6, 124);
+    d.print("Esc back    Fn+↑↓ page");
 }
 
 static void drawMenu() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.print("LC");
-    d.setTextColor(TFT_WHITE, COL_HEADER);
-    d.setCursor(28, 2);
-    d.printf("%s", clip(session_login, 10).c_str());
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(150, 2);
-    d.print(formatClock());
-    int lvl = (int)M5Cardputer.Power.getBatteryLevel();
-    d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
-    d.setCursor(198, 2);
-    if (lvl < 0) {
-        d.print("--");
-    } else {
-        d.printf("%d%%", lvl);
-    }
+    drawTopBar(String("Local Chat   ") + session_login);
 
     int y = 24;
     for (int i = 0; i < MENU_ITEMS; i++) {
         bool sel = (i == menu_sel);
-        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
-        if (sel) {
-            d.fillRect(0, y - 3, 240, 20, bg);
-        }
-        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
-        d.setCursor(10, y);
-        d.print(sel ? ">" : " ");
-        d.setCursor(24, y);
-        d.print(menu_titles[i]);
-        y += 22;
+        drawCardRow(y, String(sel ? "▶ " : "   ") + menu_titles[i], "", sel,
+                    sel ? TFT_WHITE : COL_TEXT);
+        y += 19;
     }
 
-    d.fillRect(0, 122, 240, 13, COL_HEADER);
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(4, 122);
-    d.print("↑↓ move   →/Enter open");
+    drawHint("↑↓ move   →/Enter open");
 }
 
 static void buildAbout() {
@@ -750,102 +760,78 @@ static void buildAbout() {
 
 static void drawAbout() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.print("О проекте");
+    drawTopBar("О проекте");
 
     int total = (int)about_lines.size();
-    int visible = 8;
+    int visible = 7;
     int max_scroll = total > visible ? total - visible : 0;
     if (about_scroll > max_scroll) {
         about_scroll = max_scroll;
     }
-    int y = 20;
-    for (int i = about_scroll; i < total && y < 116; i++) {
-        uint16_t color = TFT_WHITE;
+    int y = 24;
+    for (int i = about_scroll; i < total && y < 118; i++) {
+        uint16_t color = COL_TEXT;
         if (about_lines[i].startsWith("—")) {
             color = COL_ACCENT;
         } else if (about_lines[i].startsWith("  ")) {
-            color = TFT_LIGHTGREY;
+            color = COL_DIM;
         }
-        d.setTextColor(color, TFT_BLACK);
-        d.setCursor(6, y);
+        d.setTextColor(color, COL_BG);
+        d.setCursor(8, y);
         d.print(about_lines[i]);
-        y += 12;
+        y += 13;
     }
 
-    d.fillRect(0, 122, 240, 13, COL_HEADER);
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(4, 122);
-    d.printf("↑↓ scroll  %d/%d  Esc back", about_scroll, max_scroll);
+    drawHint(String("↑↓ scroll  ") + about_scroll + "/" + max_scroll + "  Esc back");
 }
 
 static void drawBlogList() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.printf("Блог (%d)", blog_count);
+    drawTopBar(String("Блог (") + blog_count + ")");
 
-    int y = 22;
-    for (int i = 0; i < blog_count && i < 7; i++) {
+    int y = 23;
+    for (int i = 0; i < blog_count && i < 5; i++) {
         bool sel = (i == blog_sel);
-        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
-        if (sel) {
-            d.fillRect(0, y - 2, 240, 15, bg);
-        }
-        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
-        d.setCursor(6, y);
-        d.print(clip(blog[i].title, 38));
-        y += 15;
+        drawCardRow(y, clip(blog[i].title, 30), "", sel, sel ? TFT_WHITE : COL_TEXT);
+        y += 19;
     }
     if (blog_count == 0) {
-        d.setTextColor(COL_DIM, TFT_BLACK);
-        d.setCursor(6, 40);
+        d.setTextColor(COL_DIM, COL_BG);
+        d.setCursor(8, 50);
         d.print("Постов пока нет");
     }
 
-    d.fillRect(0, 122, 240, 13, COL_HEADER);
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(4, 122);
-    d.print("↑↓ move  → open  Esc back");
+    drawHint("↑↓ move  →/Enter open  Esc back");
 }
 
 static void drawBlogView() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.print(clip(post_title, 36));
+    drawTopBar(clip(post_title, 20));
 
     int total = (int)post_lines.size();
-    int visible = 8;
+    int visible = 7;
     int max_scroll = total > visible ? total - visible : 0;
     if (post_scroll > max_scroll) {
         post_scroll = max_scroll;
     }
-    int y = 20;
-    for (int i = post_scroll; i < total && y < 116; i++) {
-        d.setTextColor(TFT_WHITE, TFT_BLACK);
-        d.setCursor(6, y);
+    int y = 24;
+    for (int i = post_scroll; i < total && y < 118; i++) {
+        d.setTextColor(COL_TEXT, COL_BG);
+        d.setCursor(8, y);
         d.print(post_lines[i]);
-        y += 12;
+        y += 13;
     }
 
-    d.fillRect(0, 122, 240, 13, COL_HEADER);
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(4, 122);
-    d.printf("↑↓ scroll  %d/%d  Esc back", post_scroll, max_scroll);
+    drawHint(String("↑↓ scroll  ") + post_scroll + "/" + max_scroll + "  Esc back");
 }
 
 static void wrapPost(const String &text, int width) {
@@ -944,58 +930,36 @@ static void openPost(int index) {
 
 static void drawSupportList() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.printf("Поддержка (%d)", ticket_count);
+    drawTopBar(String("Поддержка (") + ticket_count + ")");
 
-    int y = 22;
-    for (int i = 0; i < ticket_count && i < 7; i++) {
+    int y = 23;
+    for (int i = 0; i < ticket_count && i < 5; i++) {
         bool sel = (i == ticket_sel);
-        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
-        if (sel) {
-            d.fillRect(0, y - 2, 240, 15, bg);
-        }
         bool closed = tickets[i].status == "closed" || tickets[i].status == "resolved";
-        d.setTextColor(closed ? COL_DIM : TFT_GREEN, bg);
-        d.setCursor(4, y);
-        d.print(closed ? "o" : "*");
-        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
-        d.setCursor(14, y);
-        d.print(clip(tickets[i].title, 34));
-        y += 15;
+        String left = String(closed ? "○ " : "● ") + clip(tickets[i].title, 26);
+        drawCardRow(y, left, "", sel, sel ? TFT_WHITE : (closed ? COL_DIM : TFT_GREEN));
+        y += 19;
     }
     if (ticket_count == 0) {
-        d.setTextColor(COL_DIM, TFT_BLACK);
-        d.setCursor(6, 40);
+        d.setTextColor(COL_DIM, COL_BG);
+        d.setCursor(8, 50);
         d.print("Обращений пока нет");
     }
 
-    d.fillRect(0, 122, 240, 13, COL_HEADER);
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(4, 122);
-    d.print("↑↓ move  → open  Fn+N new  Esc");
+    drawHint("↑↓ move  → open  Fn+N new  Esc");
 }
 
 static void drawSupportView() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.print(clip(current_ticket_title, 34));
+    drawTopBar(String("#") + clip(current_ticket_title, 18));
 
-    int pos = msg_count > 0 ? (msg_count - msg_scroll) : 0;
-    d.setTextColor(COL_DIM, TFT_BLACK);
-    d.setCursor(206, 19);
-    d.printf("%d/%d", pos, msg_count);
-
-    const int visible = 8;
+    const int visible = 7;
     int end = msg_count - msg_scroll;
     int start = end - visible;
     if (start < 0) {
@@ -1005,36 +969,40 @@ static void drawSupportView() {
         end = msg_count;
     }
 
-    int y = 19;
-    for (int i = start; i < end && y < 112; i++) {
-        d.setTextColor(COL_ACCENT, TFT_BLACK);
-        d.setCursor(4, y);
+    int y = 23;
+    for (int i = start; i < end && y < 104; i++) {
+        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setCursor(6, y);
         d.print(clip(msgs[i].author, 9));
-        d.setCursor(64, y);
+        d.setCursor(66, y);
         if (msgs[i].text.length() > 0) {
-            d.setTextColor(TFT_WHITE, TFT_BLACK);
-            d.print(clip(msgs[i].text, 30));
+            d.setTextColor(COL_TEXT, COL_BG);
+            d.print(clip(msgs[i].text, 28));
         } else if (msgs[i].file.length() > 0) {
-            d.setTextColor(TFT_YELLOW, TFT_BLACK);
-            d.print(clip("[file] " + msgs[i].file, 30));
+            d.setTextColor(TFT_YELLOW, COL_BG);
+            d.print(clip("[файл] " + msgs[i].file, 28));
         }
-        y += 13;
-        if (msgs[i].file.length() > 0 && msgs[i].text.length() > 0 && y < 112) {
-            d.setTextColor(TFT_YELLOW, TFT_BLACK);
-            d.setCursor(64, y);
-            d.print(clip("[file] " + msgs[i].file, 30));
-            y += 13;
+        y += 14;
+        if (msgs[i].file.length() > 0 && msgs[i].text.length() > 0 && y < 104) {
+            d.setTextColor(TFT_YELLOW, COL_BG);
+            d.setCursor(66, y);
+            d.print(clip("[файл] " + msgs[i].file, 28));
+            y += 14;
         }
     }
 
-    d.fillRect(0, 116, 240, 19, COL_HEADER);
-    d.setTextColor(TFT_WHITE, COL_HEADER);
-    d.setCursor(4, 122);
+    d.fillRect(0, 108, 240, 27, COL_HEADER);
+    d.fillRect(0, 108, 240, 1, COL_ACCENT);
+    d.setTextColor(COL_TEXT, COL_HEADER);
+    d.setCursor(6, 112);
     if (screen == Screen::SUPPORT_INPUT) {
-        d.printf("> %s_", clip(input_text, 35).c_str());
+        d.printf("> %s_", clip(input_text, 34).c_str());
     } else {
-        d.print("↑↓ scroll  → write  Esc back");
+        d.printf("%d/%d  ↑↓ scroll  → write", msg_count - msg_scroll, msg_count);
     }
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(6, 124);
+    d.print("Esc back    Fn+↑↓ page");
 }
 
 static void loadTickets() {
@@ -1156,27 +1124,25 @@ static void createSupportTicket() {
 
 static void drawSupportNew() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.print("Новое обращение");
+    drawTopBar("Новое обращение");
 
-    d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    d.setCursor(6, 30);
+    d.setTextColor(COL_TEXT, COL_BG);
+    d.setCursor(8, 40);
     d.print("Опиши проблему текстом.");
-    d.setCursor(6, 44);
+    d.setCursor(8, 56);
     d.print("Enter — отправить, Esc — отмена.");
-    d.setTextColor(COL_DIM, TFT_BLACK);
-    d.setCursor(6, 62);
+    d.setTextColor(COL_DIM, COL_BG);
+    d.setCursor(8, 76);
     d.print("(заголовок создастся сам)");
 
-    d.fillRect(0, 116, 240, 19, COL_HEADER);
-    d.setTextColor(TFT_WHITE, COL_HEADER);
-    d.setCursor(4, 122);
-    d.printf("> %s_", clip(input_text, 35).c_str());
+    d.fillRect(0, 108, 240, 27, COL_HEADER);
+    d.fillRect(0, 108, 240, 1, COL_ACCENT);
+    d.setTextColor(COL_TEXT, COL_HEADER);
+    d.setCursor(6, 118);
+    d.printf("> %s_", clip(input_text, 34).c_str());
 }
 
 static void applyLed() {
@@ -1292,15 +1258,12 @@ static String settingValueText(int id) {
 
 static void drawSettings() {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(TFT_BLACK);
+    d.fillScreen(COL_BG);
     d.setTextSize(1);
 
-    d.fillRect(0, 0, 240, 16, COL_HEADER);
-    d.setTextColor(COL_ACCENT, COL_HEADER);
-    d.setCursor(4, 2);
-    d.printf("Настройки %d/%d", settings_sel + 1, SETTINGS_COUNT);
+    drawTopBar(String("Настройки ") + (settings_sel + 1) + "/" + SETTINGS_COUNT);
 
-    int y = 24;
+    int y = 23;
     for (int row = 0; row < SETTINGS_VISIBLE; row++) {
         int index = settings_scroll + row;
         if (index >= SETTINGS_COUNT) {
@@ -1308,23 +1271,12 @@ static void drawSettings() {
         }
         int id = SETTINGS_ORDER[index];
         bool sel = (index == settings_sel);
-        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
-        if (sel) {
-            d.fillRect(0, y - 3, 240, 19, bg);
-        }
-        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
-        d.setCursor(6, y);
-        d.print(SETTINGS_LABELS[id]);
-        d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
-        d.setCursor(160, y);
-        d.print(settingValueText(id));
-        y += 20;
+        drawCardRow(y, SETTINGS_LABELS[id], settingValueText(id), sel,
+                    sel ? TFT_WHITE : COL_TEXT);
+        y += 19;
     }
 
-    d.fillRect(0, 122, 240, 13, COL_HEADER);
-    d.setTextColor(COL_DIM, COL_HEADER);
-    d.setCursor(4, 122);
-    d.print("↑↓ move  ←→ change  Enter ok  Esc");
+    drawHint("↑↓ move  ←→ change  Enter ok  Esc");
 }
 
 static void drawScreen() {
@@ -1605,16 +1557,12 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
 
     if (screen == Screen::MENU) {
         if (k.up) {
-            if (menu_sel > 0) {
-                menu_sel--;
-            }
+            menu_sel = (menu_sel > 0) ? menu_sel - 1 : MENU_ITEMS - 1;
             drawMenu();
             return;
         }
         if (k.down) {
-            if (menu_sel + 1 < MENU_ITEMS) {
-                menu_sel++;
-            }
+            menu_sel = (menu_sel + 1) % MENU_ITEMS;
             drawMenu();
             return;
         }
@@ -1650,15 +1598,15 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
 
     if (screen == Screen::SUPPORT_LIST) {
         if (k.up) {
-            if (ticket_sel > 0) {
-                ticket_sel--;
+            if (ticket_count > 0) {
+                ticket_sel = (ticket_sel > 0) ? ticket_sel - 1 : ticket_count - 1;
             }
             drawSupportList();
             return;
         }
         if (k.down) {
-            if (ticket_sel + 1 < ticket_count) {
-                ticket_sel++;
+            if (ticket_count > 0) {
+                ticket_sel = (ticket_sel + 1) % ticket_count;
             }
             drawSupportList();
             return;
@@ -1783,17 +1731,13 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
     if (screen == Screen::SETTINGS) {
         int id = SETTINGS_ORDER[settings_sel];
         if (k.up) {
-            if (settings_sel > 0) {
-                settings_sel--;
-            }
+            settings_sel = (settings_sel > 0) ? settings_sel - 1 : SETTINGS_COUNT - 1;
             settingsAdjustScroll();
             drawSettings();
             return;
         }
         if (k.down) {
-            if (settings_sel + 1 < SETTINGS_COUNT) {
-                settings_sel++;
-            }
+            settings_sel = (settings_sel + 1) % SETTINGS_COUNT;
             settingsAdjustScroll();
             drawSettings();
             return;
@@ -1925,15 +1869,15 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
 
     if (screen == Screen::BLOG_LIST) {
         if (k.up) {
-            if (blog_sel > 0) {
-                blog_sel--;
+            if (blog_count > 0) {
+                blog_sel = (blog_sel > 0) ? blog_sel - 1 : blog_count - 1;
             }
             drawBlogList();
             return;
         }
         if (k.down) {
-            if (blog_sel + 1 < blog_count) {
-                blog_sel++;
+            if (blog_count > 0) {
+                blog_sel = (blog_sel + 1) % blog_count;
             }
             drawBlogList();
             return;
@@ -1993,15 +1937,15 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
             return;
         }
         if (k.up) {
-            if (chat_sel > 0) {
-                chat_sel--;
+            if (chat_count > 0) {
+                chat_sel = (chat_sel > 0) ? chat_sel - 1 : chat_count - 1;
             }
             drawChatList();
             return;
         }
         if (k.down) {
-            if (chat_sel + 1 < chat_count) {
-                chat_sel++;
+            if (chat_count > 0) {
+                chat_sel = (chat_sel + 1) % chat_count;
             }
             drawChatList();
             return;

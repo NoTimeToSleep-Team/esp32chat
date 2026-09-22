@@ -1,0 +1,185 @@
+/* DEPRECATED in RPi-Only architecture (v1.00.00) */
+:root {
+  --bg-1: #f2ede5;
+  --bg-2: #dbe6ef;
+  --card: #fffefb;
+  --ink: #1f252a;
+  --muted: #5e6770;
+  --line: #d7dde3;
+  --accent: #1e6576;
+  --danger: #9b3f3f;
+  --ok: #2f7a45;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: linear-gradient(145deg, var(--bg-1), var(--bg-2));
+}
+
+.rfid-shell {
+  width: min(1200px, 96vw);
+  margin: 0 auto;
+  padding: 22px 0 34px;
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(20, 32, 38, 0.08);
+  padding: 13px;
+}
+
+.hero h1 {
+  margin: 0;
+}
+
+.hero p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.session {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.session label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+
+.status-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+}
+
+.status-note.ok {
+  color: var(--ok);
+}
+
+.status-note.error {
+  color: var(--danger);
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fff;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+h2 {
+  margin: 0 0 8px;
+}
+
+form {
+  display: grid;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.checkbox {
+  color: var(--muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+pre {
+  margin: 8px 0 0;
+  background: #f7fbfd;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  overflow: auto;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fbfdfe;
+}
+
+.item p {
+  margin: 3px 0 0;
+  color: var(--muted);
+}
+
+.delete-card-btn {
+  background: var(--danger);
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 10px;
+}
+
+@media (max-width: 980px) {
+  .session {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

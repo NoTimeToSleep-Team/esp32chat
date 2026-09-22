@@ -1,34 +1,86 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>WiFi Login</title>
-<style>body{font:14px monospace;background:#0d1117;color:#e6edf3;padding:20px}
-input,button{padding:8px;margin:4px;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3}
-button{background:#238636;cursor:pointer;border:none}
-.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:12px;max-width:400px}
-</style></head><body>
-<h2>🔑 WiFi Login</h2>
-<div class="card">
-<h3>1. Connect to WiFi</h3>
-<input id="ssid" placeholder="WiFi SSID"><input id="wpass" type="password" placeholder="WiFi Password">
-<button onclick="connectWiFi()">Connect</button>
-<div id="status" style="margin-top:8px;font-size:12px"></div>
-</div>
-<div class="card" id="portal-card" style="display:none">
-<h3>2. Login to Network</h3>
-<p style="font-size:12px;color:#8b949e">This network requires login. Enter your credentials below.</p>
-<input id="plogin" placeholder="Login"><input id="ppass" type="password" placeholder="Password">
-<button onclick="submitPortal()">Login</button>
-<div id="pstatus" style="margin-top:8px;font-size:12px"></div>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0e1621">
+<title>Local Chat — вход в сеть</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0e1621;--bg2:#17212b;--bg3:#1d2a36;--border:#24313d;
+    --text:#f1f5f9;--text2:#7f8b98;--accent:#5eb5f7;--ok:#4fb286;--err:#f85149;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.5}
+  .wrap{width:100%;max-width:420px}
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:18px}
+  .mark{width:40px;height:40px;border-radius:12px;background:var(--accent);color:#0e1621;display:grid;place-items:center;font-weight:800;font-size:15px;letter-spacing:.5px;flex:0 0 auto}
+  .brand-title{font-size:18px;font-weight:800;letter-spacing:.2px}
+  .brand-sub{color:var(--text2);font-size:12.5px;margin-top:1px}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px 20px;margin-bottom:14px;position:relative;overflow:hidden}
+  .card:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--accent),rgba(94,181,247,0))}
+  .card h2{font-size:15px;font-weight:700;margin-bottom:4px}
+  .card p.hint{color:var(--text2);font-size:12.5px;margin-bottom:14px}
+  .step{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:rgba(94,181,247,.16);color:var(--accent);font-size:11.5px;font-weight:700;margin-right:8px;vertical-align:1px}
+  label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin:0 0 6px 2px}
+  input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:13px 14px;border-radius:11px;font-size:15px;margin-bottom:12px;outline:none;font-family:inherit}
+  input::placeholder{color:var(--text2)}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94,181,247,.12)}
+  button{width:100%;background:var(--accent);color:#0e1621;border:none;padding:13px;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.2px}
+  button:active{filter:brightness(1.07)}
+  button:disabled{opacity:.6;cursor:not-allowed}
+  .status{margin-top:10px;font-size:12.5px;color:var(--text2);min-height:18px;word-break:break-word}
+  .status .ok{color:var(--ok)}
+  .status .err{color:var(--err)}
+  .foot{color:var(--text2);font-size:11.5px;text-align:center;margin-top:6px;letter-spacing:.02em}
+  .foot b{color:var(--text);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="mark">LC</div>
+    <div>
+      <div class="brand-title">Local Chat</div>
+      <div class="brand-sub">Подключение к локальной сети</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step">1</span>Wi-Fi сеть</h2>
+    <p class="hint">Введите название и пароль сети, к которой подключается устройство.</p>
+    <label for="ssid">Название сети (SSID)</label>
+    <input id="ssid" placeholder="local-chat" autocomplete="off">
+    <label for="wpass">Пароль Wi-Fi</label>
+    <input id="wpass" type="password" placeholder="••••••••" autocomplete="off">
+    <button onclick="connectWiFi()">Подключиться</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <div class="card" id="portal-card" style="display:none">
+    <h2><span class="step">2</span>Вход в сеть</h2>
+    <p class="hint">Эта сеть требует авторизации. Введите логин и пароль портала.</p>
+    <label for="plogin">Логин</label>
+    <input id="plogin" placeholder="Логин" autocomplete="username">
+    <label for="ppass">Пароль</label>
+    <input id="ppass" type="password" placeholder="••••••••" autocomplete="current-password">
+    <button onclick="submitPortal()">Войти</button>
+    <div id="pstatus" class="status"></div>
+  </div>
+
+  <div class="foot">Соединение работает <b>без интернета</b> — только внутри сети</div>
 </div>
 <script>
 async function connectWiFi() {
   var s=document.getElementById('status');
-  s.textContent='Connecting...';
+  s.textContent='Подключение...';
   var ssid=document.getElementById('ssid').value.trim();
   var pass=document.getElementById('wpass').value.trim();
-  if(!ssid){s.textContent='Enter SSID';return}
+  if(!ssid){s.innerHTML='<span class=err>Введите название сети</span>';return}
   try{
     var r=await fetch('/admin/network/wifi/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_token:localStorage.getItem('lc_session_token')||'',ssid:ssid,password:pass})});
     var d=await r.json();
-    s.innerHTML='<span style=color:#238636>Connected! IP: '+(d.ip_address||'?')+'</span>';
+    s.innerHTML='<span class=ok>Подключено! IP: '+(d.ip_address||'?')+'</span>';
     // Check for internet
     setTimeout(async function(){
       try{
@@ -38,11 +90,11 @@ async function connectWiFi() {
         if(!sd.connected){document.getElementById('portal-card').style.display='block'}
       }catch(e){document.getElementById('portal-card').style.display='block'}
     },3000);
-  }catch(e){s.innerHTML='<span style=color:#f85149>'+e.message+'</span>'}
+  }catch(e){s.innerHTML='<span class=err>'+e.message+'</span>'}
 }
 async function submitPortal(){
   var s=document.getElementById('pstatus');
-  s.textContent='Logging in...';
+  s.textContent='Вход...';
   try{
     var fd=new FormData();
     fd.append('username',document.getElementById('plogin').value);
@@ -50,11 +102,13 @@ async function submitPortal(){
     fd.append('password',document.getElementById('ppass').value);
     var r=await fetch('/captive-proxy',{method:'POST',body:fd});
     if(r.status===200){
-      s.innerHTML='<span style=color:#238636>Portal login submitted</span>';
+      s.innerHTML='<span class=ok>Вход выполнен</span>';
     } else {
       var d=await r.json().catch(function(){return{}});
-      s.innerHTML='<span style=color:#f85149>'+(d.message||('HTTP '+r.status))+'</span>';
+      s.innerHTML='<span class=err>'+(d.message||('HTTP '+r.status))+'</span>';
     }
-  }catch(e){s.innerHTML='<span style=color:#f85149>'+e.message+'</span>'}
+  }catch(e){s.innerHTML='<span class=err>'+e.message+'</span>'}
 }
-</script></body></html>
+</script>
+</body>
+</html>

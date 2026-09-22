@@ -1,27 +1,27 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>LC Admin</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0d1117;color:#e6edf3;font:13px/1.5 monospace;padding:12px}
-h2{color:#58a6ff;margin:0 0 8px}h3{margin:12px 0 6px;color:#58a6ff}
-input,select,textarea,button{padding:6px 10px;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font:13px monospace;margin:2px}
+body{background:#0e1621;color:#f1f5f9;font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:12px}
+h2{color:#5eb5f7;margin:0 0 8px}h3{margin:12px 0 6px;color:#5eb5f7}
+input,select,textarea,button{padding:6px 10px;border-radius:4px;border:1px solid #24313d;background:#17212b;color:#f1f5f9;font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:2px}
 button{cursor:pointer;border:none}button:hover{opacity:.85}
-.btn-danger{background:#da3633;color:#fff}.btn-outline{background:#30363d}.btn-green{background:#238636}.btn-warn{background:#d29922;color:#000}
+.btn-danger{background:#f85149;color:#fff}.btn-outline{background:#24313d}.btn-green{background:#2f9e6b}.btn-warn{background:#d29922;color:#000}
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:16px 0 8px}
-.tab{padding:8px 16px;background:#161b22;border:1px solid #30363d;border-radius:6px 6px 0 0;cursor:pointer;color:#8b949e}
-.tab.active,.tab:hover{background:#238636;color:#fff;border-color:#238636}
+.tab{padding:8px 16px;background:#17212b;border:1px solid #24313d;border-radius:6px 6px 0 0;cursor:pointer;color:#7f8b98}
+.tab.active,.tab:hover{background:#2f9e6b;color:#fff;border-color:#2f9e6b}
 .panel{display:none}.panel.active{display:block}
 table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
-td,th{padding:6px 8px;border-bottom:1px solid #30363d;text-align:left}
-th{color:#8b949e;font-weight:normal}
-.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:12px}
-#msg{color:#58a6ff;margin:8px 0;font-size:12px;min-height:18px}
+td,th{padding:6px 8px;border-bottom:1px solid #24313d;text-align:left}
+th{color:#7f8b98;font-weight:normal}
+.card{background:#17212b;border:1px solid #24313d;border-radius:8px;padding:12px;margin-bottom:12px}
+#msg{color:#5eb5f7;margin:8px 0;font-size:12px;min-height:18px}
 #login{margin-bottom:12px}
-.stat{text-align:center;padding:8px 12px}.stat .n{font-size:22px;font-weight:700}.stat .l{font-size:11px;color:#8b949e}
+.stat{text-align:center;padding:8px 12px}.stat .n{font-size:22px;font-weight:700}.stat .l{font-size:11px;color:#7f8b98}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 </style></head><body>
 <h2>LC Admin Panel</h2>
 <div id="js-status" style="background:#d29922;color:#000;padding:4px 8px;font-size:11px;margin-bottom:8px">JS checking...</div>
-<div id="login"><form onsubmit="doLogin();return false" style="display:inline"><input id="l" placeholder="admin login" size="12" autocomplete="username"><input id="p" type="password" placeholder="admin password" size="12" autocomplete="current-password"><button type="submit" class="btn-green">Login</button></form><span id="loginMsg" style="color:#58a6ff;margin-left:8px;font-size:12px"></span></div>
+<div id="login"><form onsubmit="doLogin();return false" style="display:inline"><input id="l" placeholder="admin login" size="12" autocomplete="username"><input id="p" type="password" placeholder="admin password" size="12" autocomplete="current-password"><button type="submit" class="btn-green">Login</button></form><span id="loginMsg" style="color:#5eb5f7;margin-left:8px;font-size:12px"></span></div>
 <div id="main" style="display:none"><div id="msg"></div>
 <div class="tabs"><div class="tab active" onclick="switchTab('users')">Users</div><div class="tab" onclick="switchTab('cleanup')">Cleanup</div><div class="tab" onclick="switchTab('system')">System</div><div class="tab" onclick="switchTab('passwords')">Passwords</div><div class="tab" onclick="switchTab('support')">Support</div><div class="tab" onclick="switchTab('mode')">Mode</div><div class="tab" onclick="switchTab('activity')">Activity</div><div class="tab" onclick="switchTab('network')">Network</div><div class="tab" onclick="switchTab('reports')">Reports</div>
   <div class="tab" onclick="switchTab('profile')">Profile</div></div>
@@ -30,7 +30,7 @@ th{color:#8b949e;font-weight:normal}
 <script>
 var ST = "";
 var _el = document.getElementById("js-status");
-if (_el) _el.innerHTML = '<span style="color:#238636">JS loaded</span>';
+if (_el) _el.innerHTML = '<span style="color:#4fb286">JS loaded</span>';
 window.onerror = function(m,u,l) {
   var el = document.getElementById("js-status");
   if (el) el.innerHTML = '<span style="color:#f85149">JS ERROR line '+l+': '+m+'</span>';
@@ -50,9 +50,9 @@ function attachmentsHtml(items) {
     var url = attachmentUrl(a);
     var name = esc(a.filename || ("attachment-" + a.attachment_id));
     if (a.media_kind === "image") {
-      h += '<img src="' + url + '" alt="' + name + '" title="' + name + '" style="max-width:140px;max-height:120px;border-radius:6px;border:1px solid #30363d;cursor:zoom-in" onclick="openImg(this.src)">';
+      h += '<img src="' + url + '" alt="' + name + '" title="' + name + '" style="max-width:140px;max-height:120px;border-radius:6px;border:1px solid #24313d;cursor:zoom-in" onclick="openImg(this.src)">';
     } else {
-      h += '<a href="' + url + '" target="_blank" rel="noopener" style="color:#58a6ff;font-size:12px;border:1px solid #30363d;border-radius:6px;padding:4px 8px;text-decoration:none">\ud83d\udcce ' + name + "</a>";
+      h += '<a href="' + url + '" target="_blank" rel="noopener" style="color:#5eb5f7;font-size:12px;border:1px solid #24313d;border-radius:6px;padding:4px 8px;text-decoration:none">\ud83d\udcce ' + name + "</a>";
     }
   });
   return h + "</div>";
@@ -63,11 +63,11 @@ function openImg(src) {
     o = document.createElement("div");
     o.id = "img-overlay";
     o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out";
-    o.innerHTML = '<button id="io-close" style="position:absolute;top:16px;right:16px;background:#30363d;color:#e6edf3;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer">\u2715</button>' +
-      '<button id="io-prev" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#e6edf3;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u2039</button>' +
+    o.innerHTML = '<button id="io-close" style="position:absolute;top:16px;right:16px;background:#24313d;color:#f1f5f9;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer">\u2715</button>' +
+      '<button id="io-prev" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#f1f5f9;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u2039</button>' +
       '<img style="max-width:92vw;max-height:88vh;border-radius:8px">' +
-      '<button id="io-next" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#e6edf3;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u203a</button>' +
-      '<div id="io-counter" style="position:absolute;bottom:18px;color:#8b949e;font-size:12px"></div>';
+      '<button id="io-next" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#f1f5f9;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u203a</button>' +
+      '<div id="io-counter" style="position:absolute;bottom:18px;color:#7f8b98;font-size:12px"></div>';
     document.body.appendChild(o);
     o.onclick = function(e) { if (e.target === o || e.target.id === "io-close") o.remove(); };
     o.querySelector("#io-prev").onclick = function(e) { e.stopPropagation(); stepImg(-1); };
@@ -136,7 +136,7 @@ async function doLogin() {
     ST = d.session.token;
     localStorage.setItem("lc_session_token", ST);
     localStorage.setItem("lc_user", JSON.stringify(d.user));
-    m.textContent = "OK"; m.style.color = "#238636";
+    m.textContent = "OK"; m.style.color = "#4fb286";
     showMain();
   } catch(e) {
     if (e.name === "TypeError") dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
@@ -147,7 +147,7 @@ async function doLogin() {
 function showMain() {
   var me = {};
   try { me = JSON.parse(localStorage.getItem("lc_user") || "{}"); } catch(e) {}
-  document.getElementById("login").innerHTML = '<span style="color:#238636">Logged in as <b>' + (me.login || "") + '</b></span> <button class="btn-outline" onclick="ST=\'\';localStorage.clear();location.reload()">Logout</button>';
+  document.getElementById("login").innerHTML = '<span style="color:#4fb286">Logged in as <b>' + (me.login || "") + '</b></span> <button class="btn-outline" onclick="ST=\'\';localStorage.clear();location.reload()">Logout</button>';
   document.getElementById("main").style.display = "block";
   if (me.role !== "admin") {
     var keep = ["Users", "Reports", "Profile"];
@@ -236,7 +236,7 @@ async function userAction(uid, action, role) {
     var body = { session_token: ST };
     if (role) body.role = role;
     await apiCall("/admin/users/" + uid + "/" + (action === "setrole" ? "set-role" : action), "POST", body);
-    msg('<span style="color:#238636">' + action + " OK</span>");
+    msg('<span style="color:#4fb286">' + action + " OK</span>");
     loadUsers();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
@@ -248,7 +248,7 @@ async function tblk(uid) {
   msg("Blocking...");
   try {
     await apiCall("/admin/users/" + uid + "/temporary-block", "POST", { session_token: ST, duration_minutes: dur });
-    msg('<span style="color:#238636">Blocked ' + dur + "min</span>");
+    msg('<span style="color:#4fb286">Blocked ' + dur + "min</span>");
     loadUsers();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
@@ -260,7 +260,7 @@ async function delUser(uid, btn) {
   msg("Deleting...");
   try {
     await apiCall("/admin/users/" + uid + "?session_token=" + encodeURIComponent(ST), "DELETE");
-    msg('<span style="color:#238636">Deleted ' + esc(login) + "</span>");
+    msg('<span style="color:#4fb286">Deleted ' + esc(login) + "</span>");
     loadUsers();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
@@ -298,7 +298,7 @@ async function cleanupAction(action) {
   try {
     var body = action === "full-reset" ? { session_token: ST, confirm: true } : { session_token: ST };
     var r = await apiCall(a[0], a[1], body);
-    msg('<span style="color:#238636">OK: ' + (r.deleted_count != null ? r.deleted_count + " items" : "done") + "</span>");
+    msg('<span style="color:#4fb286">OK: ' + (r.deleted_count != null ? r.deleted_count + " items" : "done") + "</span>");
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
@@ -310,12 +310,12 @@ async function loadSystem() {
     var h = await apiCall("/ops/api/system-health?session_token=" + ST);
     var s = await apiCall("/ops/api/services?session_token=" + ST);
     var html = '<div class="card"><h3>RPi System</h3><div class="row">';
-    html += '<div class="stat"><div class="n" style="color:#238636">' + (h.health.cpu_temp || "?") + '</div><div class="l">CPU</div></div>';
+    html += '<div class="stat"><div class="n" style="color:#4fb286">' + (h.health.cpu_temp || "?") + '</div><div class="l">CPU</div></div>';
     html += '<div class="stat"><div class="n">' + h.health.ram_used + '</div><div class="l">RAM / ' + h.health.ram_total + "</div></div>";
     html += '<div class="stat"><div class="n">' + h.health.disk_used + '</div><div class="l">Disk ' + h.health.disk_pct + "</div></div>";
     html += '</div><h3>Services</h3><table><tr><th>Service</th><th>State</th><th>Action</th></tr>';
     s.services.forEach(function(svc) {
-      var c = svc.active === "active" ? "#238636" : "#f85149";
+      var c = svc.active === "active" ? "#4fb286" : "#f85149";
       html += '<tr><td>' + svc.name + '</td><td style="color:' + c + '">' + svc.active + '</td><td><button class="btn-outline" onclick="sysRestart(\'' + svc.name + '\')">Restart</button></td></tr>';
     });
     html += '</table><button class="btn-warn" onclick="sysRestart(\'reboot\')">Reboot RPi</button> <span id="sysMsg" style="font-size:12px"></span></div>';
@@ -332,11 +332,11 @@ async function loadDebugLog() {
     var d = await apiCall("/debug/api/events?session_token=" + encodeURIComponent(ST) + "&limit=100");
     var h = '<table><tr><th>Time</th><th>Stage</th><th>Action</th><th>Status</th><th>OK</th><th>Stages</th><th>Error</th><th>Trace</th></tr>';
     (d.items || []).forEach(function(e) {
-      var color = e.ok === 1 ? "#238636" : "#f85149";
+      var color = e.ok === 1 ? "#4fb286" : "#f85149";
       h += "<tr><td style=font-size:11px>" + new Date(e.created_at_ms).toLocaleTimeString() + "</td>";
       h += "<td>" + esc(e.stage) + "</td><td style=font-size:11px>" + esc(e.action || "") + " " + esc(e.method || "") + "</td>";
       h += "<td>" + (e.status == null ? "-" : e.status) + "</td><td style=color:" + color + ">" + (e.ok === 1 ? "ok" : "FAIL") + "</td>";
-      h += "<td>" + (e.stages_done == null ? "-" : e.stages_done) + "/3</td><td style=font-size:11px;color:#f85149>" + esc(e.error || "") + "</td><td style=font-size:10px;color:#8b949e>" + esc(e.trace_id || "") + "</td></tr>";
+      h += "<td>" + (e.stages_done == null ? "-" : e.stages_done) + "/3</td><td style=font-size:11px;color:#f85149>" + esc(e.error || "") + "</td><td style=font-size:10px;color:#7f8b98>" + esc(e.trace_id || "") + "</td></tr>";
     });
     h += "</table>";
     box.innerHTML = h;
@@ -348,7 +348,7 @@ async function sysRestart(svc) {
   if (svc === "reboot") { if (m) m.textContent = "Rebooting..."; }
   try {
     await apiCall("/ops/api/restart-service", "POST", { session_token: ST, service: svc });
-    if (m) { m.innerHTML = '<span style="color:#238636">OK</span>'; setTimeout(function() { m.textContent = ""; }, 3000); }
+    if (m) { m.innerHTML = '<span style="color:#4fb286">OK</span>'; setTimeout(function() { m.textContent = ""; }, 3000); }
   } catch(e) { if (m) m.innerHTML = '<span style="color:#f85149">' + e.message + "</span>"; }
 }
 
@@ -375,7 +375,7 @@ async function pwReset(uid) {
   if (pw.length < 8) { m.textContent = "Min 8 chars"; return; }
   try {
     await apiCall("/admin/users/" + uid + "/reset-password", "POST", { session_token: ST, new_password: pw });
-    m.textContent = "OK"; m.style.color = "#238636";
+    m.textContent = "OK"; m.style.color = "#4fb286";
   } catch(e) { m.textContent = e.message; m.style.color = "#f85149"; }
 }
 
@@ -386,10 +386,10 @@ async function loadSupport() {
   try {
     var d = await apiCall("/admin/content/support/tickets?session_token=" + ST);
     var h = '<div class="card"><h3>Support Tickets (' + d.count + ')</h3>';
-    if (!d.items || !d.items.length) { h += '<p style="color:#8b949e">No tickets</p>'; }
+    if (!d.items || !d.items.length) { h += '<p style="color:#7f8b98">No tickets</p>'; }
     d.items.forEach(function(t) {
-      h += '<div class="card"><strong>#' + t.ticket_id + " " + esc(t.title) + '</strong> <span style="color:#8b949e">' + t.status + "</span><br>";
-      h += '<span style="font-size:11px;color:#8b949e">User #' + t.user_id + "</span>";
+      h += '<div class="card"><strong>#' + t.ticket_id + " " + esc(t.title) + '</strong> <span style="color:#7f8b98">' + t.status + "</span><br>";
+      h += '<span style="font-size:11px;color:#7f8b98">User #' + t.user_id + "</span>";
       h += '<div style="margin-top:6px"><select id="sts' + t.ticket_id + '"><option value="open" ' + (t.status === "open" ? "selected" : "") + '>open</option><option value="in_progress" ' + (t.status === "in_progress" ? "selected" : "") + '>in progress</option><option value="resolved" ' + (t.status === "resolved" ? "selected" : "") + '>resolved</option><option value="closed" ' + (t.status === "closed" ? "selected" : "") + '>closed</option></select> ';
       h += '<button class="btn-outline" onclick="suppStatus(' + t.ticket_id + ')">Update</button>';
       h += '<textarea id="sti' + t.ticket_id + '" placeholder="Reply..." rows="2" style="width:100%;margin-top:4px"></textarea>';
@@ -404,7 +404,7 @@ async function loadSupport() {
 
 async function suppStatus(tid) {
   var sel = document.getElementById("sts" + tid); if (!sel) return;
-  try { await apiCall("/admin/content/support/tickets/" + tid + "/status", "POST", { session_token: ST, status: sel.value }); msg('<span style="color:#238636">Status: ' + sel.value + "</span>"); }
+  try { await apiCall("/admin/content/support/tickets/" + tid + "/status", "POST", { session_token: ST, status: sel.value }); msg('<span style="color:#4fb286">Status: ' + sel.value + "</span>"); }
   catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
@@ -420,7 +420,7 @@ async function suppReply(tid) {
     await apiCall("/admin/content/support/tickets/" + tid + "/reply", "POST", { session_token: ST, body_text: text, attachment_ids: ids });
     if (inp) inp.value = "";
     if (fileInput) fileInput.value = "";
-    msg('<span style="color:#238636">Reply sent</span>');
+    msg('<span style="color:#4fb286">Reply sent</span>');
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
@@ -430,12 +430,12 @@ async function loadMode() {
   try {
     var d = await apiCall("/admin/mode/state?session_token=" + ST);
     var newMode = d.access_mode === "open" ? "closed" : "open";
-    p.innerHTML = '<div class="card"><h3>Access Mode: <span style="color:' + (d.access_mode === "open" ? "#238636" : "#d29922") + '">' + d.access_mode + '</span></h3><button class="' + (d.access_mode === "open" ? "btn-danger" : "btn-green") + '" onclick="toggleMode(\'' + newMode + '\')">Switch to ' + newMode + "</button></div>";
+    p.innerHTML = '<div class="card"><h3>Access Mode: <span style="color:' + (d.access_mode === "open" ? "#4fb286" : "#d29922") + '">' + d.access_mode + '</span></h3><button class="' + (d.access_mode === "open" ? "btn-danger" : "btn-green") + '" onclick="toggleMode(\'' + newMode + '\')">Switch to ' + newMode + "</button></div>";
   } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
 }
 
 async function toggleMode(m) {
-  try { await apiCall("/admin/mode/set", "POST", { session_token: ST, access_mode: m, hold_seconds: 5 }); msg('<span style="color:#238636">Mode: ' + m + "</span>"); loadMode(); }
+  try { await apiCall("/admin/mode/set", "POST", { session_token: ST, access_mode: m, hold_seconds: 5 }); msg('<span style="color:#4fb286">Mode: ' + m + "</span>"); loadMode(); }
   catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
@@ -447,9 +447,9 @@ async function loadActivity() {
     var on = { count: 0 };
     try { on = await apiCall("/realtime/online", "POST", { session_token: ST }); } catch(e) {}
     var h = '<div class="card"><h3>Activity</h3><div class="row">';
-    h += '<div class="stat"><div class="n" style="color:#238636">' + r.stats.messages_30d + '</div><div class="l">Messages (30d)</div></div>';
-    h += '<div class="stat"><div class="n" style="color:#58a6ff">' + r.stats.users_30d + '</div><div class="l">New users (30d)</div></div>';
-    h += '<div class="stat"><div class="n" style="color:#58a6ff">' + (on.count || 0) + '</div><div class="l">Online now</div></div>';
+    h += '<div class="stat"><div class="n" style="color:#4fb286">' + r.stats.messages_30d + '</div><div class="l">Messages (30d)</div></div>';
+    h += '<div class="stat"><div class="n" style="color:#5eb5f7">' + r.stats.users_30d + '</div><div class="l">New users (30d)</div></div>';
+    h += '<div class="stat"><div class="n" style="color:#5eb5f7">' + (on.count || 0) + '</div><div class="l">Online now</div></div>';
     h += '<div class="stat"><div class="n">' + r.stats.total_events + '</div><div class="l">Total events</div></div>';
     h += '</div><h3>Recent Activity</h3><table><tr><th>Event</th><th>User</th><th>Time</th></tr>';
     (r.items || []).forEach(function(e) { h += '<tr><td>' + esc(e.event) + '</td><td>' + esc(e.user_login || "") + '</td><td style="font-size:11px">' + new Date(e.time).toLocaleString() + "</td></tr>"; });
@@ -468,11 +468,11 @@ async function loadNetwork() {
     
     // WiFi client mode section
     var h = '<div class="card"><h3>WiFi Client Mode</h3>';
-    h += '<p style="color:#8b949e;font-size:12px;margin-bottom:8px">Connect RPi to an existing WiFi. First assign a wireless interface the <b>Client</b> role below and press <b>Save &amp; Apply</b>, then scan and connect. mDNS: <b>chat.local</b></p>';
+    h += '<p style="color:#7f8b98;font-size:12px;margin-bottom:8px">Connect RPi to an existing WiFi. First assign a wireless interface the <b>Client</b> role below and press <b>Save &amp; Apply</b>, then scan and connect. mDNS: <b>chat.local</b></p>';
     h += '<div style="display:flex;gap:8px;margin-bottom:8px"><input id="wifi-ssid" placeholder="WiFi SSID" size="20"><input id="wifi-pass" type="password" placeholder="Password (leave empty for open)" size="20"><button class="btn-green" onclick="wifiConnect()">Connect</button></div>';
-    h += '<button class="btn-outline" onclick="wifiScan()">Scan Networks</button> <span id="wifi-scan-msg" style="font-size:11px;color:#8b949e"></span>';
+    h += '<button class="btn-outline" onclick="wifiScan()">Scan Networks</button> <span id="wifi-scan-msg" style="font-size:11px;color:#7f8b98"></span>';
     h += '<div id="wifi-scan-results" style="margin-top:8px;max-height:120px;overflow-y:auto"></div>';
-    h += '<div style="margin-top:8px;font-size:12px;color:#8b949e">mDNS: <span id="mdns-status" style="color:#d29922">checking...</span></div>';
+    h += '<div style="margin-top:8px;font-size:12px;color:#7f8b98">mDNS: <span id="mdns-status" style="color:#d29922">checking...</span></div>';
     h += '</div>';
     
     // Interfaces
@@ -489,7 +489,7 @@ async function loadNetwork() {
     // Internet access
     h += '<div class="card"><h3>Internet Access</h3><table><tr><th>User</th><th>Internet</th><th>Toggle</th></tr>';
     users.items.forEach(function(u) {
-      h += '<tr><td>' + esc(u.login) + '</td><td style="color:' + (u.internet_enabled ? "#238636" : "#f85149") + '">' + (u.internet_enabled ? "ON" : "OFF") + '</td>';
+      h += '<tr><td>' + esc(u.login) + '</td><td style="color:' + (u.internet_enabled ? "#4fb286" : "#f85149") + '">' + (u.internet_enabled ? "ON" : "OFF") + '</td>';
       h += '<td><button class="' + (u.internet_enabled ? "btn-danger" : "btn-green") + '" onclick="toggleInternet(' + u.user_id + ',' + (!u.internet_enabled) + ')">' + (u.internet_enabled ? "Disable" : "Enable") + '</button></td></tr>';
     });
     h += '</table></div>';
@@ -499,9 +499,9 @@ async function loadNetwork() {
     // Check mDNS status
     try {
       fetch("http://chat.local:18080/health").then(function() {
-        document.getElementById("mdns-status").innerHTML = '<span style="color:#238636">active (chat.local)</span>';
+        document.getElementById("mdns-status").innerHTML = '<span style="color:#4fb286">active (chat.local)</span>';
       }).catch(function() {
-        document.getElementById("mdns-status").innerHTML = '<span style="color:#8b949e">not active</span>';
+        document.getElementById("mdns-status").innerHTML = '<span style="color:#7f8b98">not active</span>';
       });
     } catch(e) {}
   } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + '</div>'; }
@@ -522,7 +522,7 @@ async function wifiScan() {
       h += '</table>';
       results.innerHTML = h;
     } else {
-      results.innerHTML = '<span style="color:#8b949e">No networks found</span>';
+      results.innerHTML = '<span style="color:#7f8b98">No networks found</span>';
     }
     msg.textContent = "Done (" + (d.interface || "uplink") + ")";
   } catch(e) { msg.textContent = "Error: " + e.message; msg.style.color = "#f85149"; }
@@ -541,7 +541,7 @@ async function wifiConnect() {
       await new Promise(function(r) { setTimeout(r, 3000); });
       var st = await apiCall("/admin/network/wifi/status?session_token=" + ST);
       if (st.ip_address) {
-        msg('<span style="color:#238636">Connected! IP: ' + st.ip_address + '</span>');
+        msg('<span style="color:#4fb286">Connected! IP: ' + st.ip_address + '</span>');
         return;
       }
     }
@@ -562,13 +562,13 @@ async function saveNetworkConfig() {
   if (!Object.keys(config).length) { m.textContent = "No changes to save"; return; }
   try {
     await apiCall("/admin/network/config/save", "POST", { session_token: ST, config: config });
-    m.innerHTML = '<span style="color:#238636">Saved! Restarting network...</span>';
+    m.innerHTML = '<span style="color:#4fb286">Saved! Restarting network...</span>';
     setTimeout(function() { loadNetwork(); }, 3000);
   } catch(e) { m.textContent = "Error: " + e.message; m.style.color = "#f85149"; }
 }
 
 async function toggleInternet(uid, enable) {
-  try { await apiCall("/admin/network/users/internet", "POST", { session_token: ST, user_id: uid, enabled: enable }); msg('<span style="color:#238636">Internet ' + (enable ? "enabled" : "disabled") + "</span>"); loadNetwork(); }
+  try { await apiCall("/admin/network/users/internet", "POST", { session_token: ST, user_id: uid, enabled: enable }); msg('<span style="color:#4fb286">Internet ' + (enable ? "enabled" : "disabled") + "</span>"); loadNetwork(); }
   catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
@@ -584,23 +584,23 @@ async function loadReports() {
 
   var h = '<div class="card"><h3>User Reports <span style="color:#f85149">(' + (user.pending_count||0) + ' pending)</span></h3>';
   if (userErr) { h += '<p style="color:#f85149">' + esc(userErr) + '</p>'; }
-  else if (!user.reports || !user.reports.length) { h += '<p style="color:#8b949e">No reports</p>'; }
+  else if (!user.reports || !user.reports.length) { h += '<p style="color:#7f8b98">No reports</p>'; }
   else {
     user.reports.forEach(function(r) {
-      var sc = r.status === "pending" ? "#f85149" : "#8b949e";
+      var sc = r.status === "pending" ? "#f85149" : "#7f8b98";
       h += '<div class="card" style="border-left:3px solid ' + sc + '">';
-      h += '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><strong>' + esc(r.reporter_login) + ' \u2192 ' + esc(r.target_login || ("User #" + r.target_user_id)) + '</strong><span style="font-size:11px;color:#8b949e">#' + r.id + " " + r.status + "</span></div>";
+      h += '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><strong>' + esc(r.reporter_login) + ' \u2192 ' + esc(r.target_login || ("User #" + r.target_user_id)) + '</strong><span style="font-size:11px;color:#7f8b98">#' + r.id + " " + r.status + "</span></div>";
       h += '<div style="font-size:12px;color:#d29922;margin:4px 0">' + esc(REPORT_REASONS[r.reason] || r.reason) + " \u00b7 " + new Date(r.created_at_ms).toLocaleString();
       if (r.target_reports_count > 1) h += ' \u00b7 reports against: ' + r.target_reports_count;
       h += "</div>";
-      if (r.comment) h += '<div style="font-size:12px;background:#0d1117;padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">' + esc(r.comment) + "</div>";
+      if (r.comment) h += '<div style="font-size:12px;background:#0e1621;padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">' + esc(r.comment) + "</div>";
       if (r.attachments && r.attachments.length) h += attachmentsHtml(r.attachments);
       if (r.status === "pending") {
         h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveUserReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveUserReport(' + r.id + ',\'warn\')">Warn (' + (r.target_warn_count || 0) + '/3)</button> <button class="btn-outline" onclick="resolveUserReport(' + r.id + ',\'dismiss\')">Dismiss</button> <button class="btn-outline" onclick="toggleTargetMessages(' + r.id + ',' + r.target_user_id + ')">Messages</button></div>';
       } else {
-        h += '<div style="font-size:11px;color:#8b949e">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
+        h += '<div style="font-size:11px;color:#7f8b98">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
       }
-      h += '<div id="uevidence-' + r.id + '" style="display:none;margin-top:8px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px"></div>';
+      h += '<div id="uevidence-' + r.id + '" style="display:none;margin-top:8px;background:#0e1621;border:1px solid #24313d;border-radius:6px;padding:8px"></div>';
       h += "</div>";
     });
   }
@@ -608,17 +608,17 @@ async function loadReports() {
 
   h += '<div class="card"><h3>Auto-Moderation <span style="color:#f85149">(' + (auto.pending_count||0) + ' pending)</span></h3>';
   if (autoErr) { h += '<p style="color:#f85149">' + esc(autoErr) + '</p>'; }
-  else if (!auto.reports || !auto.reports.length) { h += '<p style="color:#8b949e">No reports</p>'; }
+  else if (!auto.reports || !auto.reports.length) { h += '<p style="color:#7f8b98">No reports</p>'; }
   else {
     auto.reports.forEach(function(r) {
-      var sc = r.status === "pending" ? "#d29922" : "#8b949e";
-      h += '<div class="card" style="border-left:3px solid ' + sc + '"><div style="display:flex;justify-content:space-between"><strong>' + esc(r.user_login) + '</strong><span style="font-size:11px;color:#8b949e">#' + r.id + " " + r.status + "</span></div>";
-      h += '<div style="font-size:12px;color:#8b949e;margin:4px 0">Words: <span style="color:#f85149">' + esc(r.found_words || "") + "</span></div>";
-      h += '<div style="font-size:12px;background:#0d1117;padding:6px;border-radius:4px;margin:4px 0;max-height:60px;overflow-y:auto">' + esc(r.message_text || "") + "</div>";
+      var sc = r.status === "pending" ? "#d29922" : "#7f8b98";
+      h += '<div class="card" style="border-left:3px solid ' + sc + '"><div style="display:flex;justify-content:space-between"><strong>' + esc(r.user_login) + '</strong><span style="font-size:11px;color:#7f8b98">#' + r.id + " " + r.status + "</span></div>";
+      h += '<div style="font-size:12px;color:#7f8b98;margin:4px 0">Words: <span style="color:#f85149">' + esc(r.found_words || "") + "</span></div>";
+      h += '<div style="font-size:12px;background:#0e1621;padding:6px;border-radius:4px;margin:4px 0;max-height:60px;overflow-y:auto">' + esc(r.message_text || "") + "</div>";
       if (r.status === "pending") {
         h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveReport(' + r.id + ',\'warn\')">Warn (' + (r.user_warn_count || 0) + '/3)</button> <button class="btn-outline" onclick="resolveReport(' + r.id + ',\'dismiss\')">Dismiss</button></div>';
       } else {
-        h += '<div style="font-size:11px;color:#8b949e">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
+        h += '<div style="font-size:11px;color:#7f8b98">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
       }
       h += "</div>";
     });
@@ -636,7 +636,7 @@ async function resolveUserReport(rid, action) {
       if (d.warn.banned) msg('<span style="color:#f85149">Warn 3/3 \u2014 user banned for 3 days</span>');
       else msg('<span style="color:#d29922">Warn ' + d.warn.warn_count + '/' + d.warn.max_warns + '</span>');
     } else {
-      msg('<span style="color:#238636">Report ' + action + "</span>");
+      msg('<span style="color:#4fb286">Report ' + action + "</span>");
     }
     loadReports();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
@@ -651,9 +651,9 @@ async function toggleTargetMessages(rid, uid) {
   try {
     var d = await apiCall("/reports/api/target-messages?session_token=" + encodeURIComponent(ST) + "&target_user_id=" + uid + "&limit=10");
     var items = d.items || [];
-    if (!items.length) { box.innerHTML = '<span style="color:#8b949e;font-size:12px">No messages</span>'; return; }
+    if (!items.length) { box.innerHTML = '<span style="color:#7f8b98;font-size:12px">No messages</span>'; return; }
     box.innerHTML = items.map(function(m) {
-      return '<div style="font-size:12px;margin-bottom:6px;border-bottom:1px solid #30363d;padding-bottom:4px"><span style="color:#8b949e">' + esc(m.chat_title || ("Chat #" + m.chat_id)) + " \u00b7 " + new Date(m.created_at_ms).toLocaleString() + '</span><div style="white-space:pre-wrap">' + esc(m.body_text || "") + "</div></div>";
+      return '<div style="font-size:12px;margin-bottom:6px;border-bottom:1px solid #24313d;padding-bottom:4px"><span style="color:#7f8b98">' + esc(m.chat_title || ("Chat #" + m.chat_id)) + " \u00b7 " + new Date(m.created_at_ms).toLocaleString() + '</span><div style="white-space:pre-wrap">' + esc(m.body_text || "") + "</div></div>";
     }).join("");
   } catch(e) { box.innerHTML = '<span style="color:#f85149;font-size:12px">' + esc(e.message) + "</span>"; }
 }
@@ -662,7 +662,7 @@ async function resolveReport(rid, action) {
   msg("Working...");
   try {
     await apiCall("/moderation/api/admin/reports/resolve", "POST", { session_token: ST, report_id: rid, action: action });
-    msg('<span style="color:#238636">Report ' + action + "</span>");
+    msg('<span style="color:#4fb286">Report ' + action + "</span>");
     loadReports();
   } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
@@ -684,7 +684,7 @@ async function loadProfile() {
     var h = '<div class="card" style="max-width:500px">';
     h += '<div style="text-align:center;font-size:48px;margin-bottom:8px">' + emoji + '</div>';
     h += '<h3 style="text-align:center">' + esc(pr.display_name || pr.login) + '</h3>';
-    h += '<div style="text-align:center;color:#8b949e;margin-bottom:12px">@' + esc(pr.login) + ' · ' + pr.role + '</div>';
+    h += '<div style="text-align:center;color:#7f8b98;margin-bottom:12px">@' + esc(pr.login) + ' · ' + pr.role + '</div>';
     h += '<table><tr><th>Display Name</th><td>' + esc(pr.display_name || '-') + '</td></tr>';
     h += '<tr><th>Role</th><td>' + pr.role + '</td></tr>';
     h += '<tr><th>Status</th><td>' + pr.status + '</td></tr>';
@@ -719,7 +719,7 @@ async function lookupProfile() {
     var emoji = emojis[(pr.user_id||0) % emojis.length];
     var h = '<div style="text-align:center;font-size:36px;margin-bottom:4px">' + emoji + '</div>';
     h += '<h3 style="text-align:center">' + esc(pr.display_name || pr.login) + '</h3>';
-    h += '<div style="text-align:center;color:#8b949e;margin-bottom:8px">@' + esc(pr.login) + ' · ' + pr.role + ' · ' + pr.status + '</div>';
+    h += '<div style="text-align:center;color:#7f8b98;margin-bottom:8px">@' + esc(pr.login) + ' · ' + pr.role + ' · ' + pr.status + '</div>';
     if (pr.phone) h += '<div><b>Phone:</b> ' + esc(pr.phone) + '</div>';
     if (pr.profile_bio) h += '<div style="margin-top:4px"><b>Bio:</b><br>' + esc(pr.profile_bio).replace(/\\n/g,'<br>') + '</div>';
     document.getElementById('lookup-result').innerHTML = '<div class="card" style="margin-top:8px">' + h + '</div>';

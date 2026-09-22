@@ -1,34 +1,29 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
-
 :root {
-  --bg-main: #0f1724;
-  --bg-card: rgba(16, 26, 40, 0.84);
-  --bg-panel: rgba(10, 18, 30, 0.72);
-  --line: rgba(148, 163, 184, 0.24);
-  --text-main: #e8edf5;
-  --text-soft: #9ca9bb;
-  --accent: #18c2a4;
-  --accent-strong: #2de0bf;
-  --danger: #ff6a6a;
+  --bg-main:#0f1724;
+  --bg-card:rgba(16, 26, 40, 0.84);
+  --bg-panel:rgba(10, 18, 30, 0.72);
+  --line:rgba(148, 163, 184, 0.24);
+  --text-main:#e8edf5;
+  --text-soft:#9ca9bb;
+  --accent:#18c2a4;
+  --accent-strong:#2de0bf;
+  --danger:#ff6a6a;
 }
 
 * {
   box-sizing: border-box;
-}
-
-html,
+}html,
 body {
-  margin: 0;
-  min-height: 100%;
+  margin:0;
+  min-height:100%;
 }
-
 body {
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  color: var(--text-main);
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(45, 224, 191, 0.16), transparent 60%),
+  font-family:"IBM Plex Sans", "Segoe UI", sans-serif;
+  color:var(--text-main);
+  background:radial-gradient(1200px 600px at 10% -10%, rgba(45, 224, 191, 0.16), transparent 60%),
     radial-gradient(1000px 500px at 100% 0%, rgba(56, 189, 248, 0.12), transparent 58%),
-    linear-gradient(160deg, #090f1b, #10192a 60%, #0b1220);
+    linear-gradient(160deg, #5eb5f7, #5eb5f7 60%, #5eb5f7);
 }
 
 .page-shell {
@@ -196,9 +191,9 @@ button:disabled {
 }
 
 .status-chip.online {
-  color: #0f1f1a;
+  color:#5eb5f7;
   border-color: rgba(45, 224, 191, 0.8);
-  background: linear-gradient(135deg, #59f0d2, #2dd6ba);
+  background:linear-gradient(135deg, #5eb5f7, #5eb5f7);
 }
 
 .status-chip.offline {

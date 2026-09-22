@@ -2235,6 +2235,13 @@ var LANG = localStorage.getItem("lc_lang") || "rus";
 
 var T = {
 "sign_in":{rus:"Войти",eng:"Sign In"},"create_account":{rus:"Создать аккаунт",eng:"Create Account"},
+"auth_tagline":{rus:"Локальный чат в вашей сети",eng:"Local chat inside your network"},
+"auth_point1":{rus:"Работает без интернета",eng:"Works without internet"},
+"auth_point2":{rus:"Телефон, ноутбук, устройства",eng:"Phone, laptop, devices"},
+"auth_point3":{rus:"Сообщения и файлы остаются внутри сети",eng:"Messages and files stay inside the network"},
+"field_login":{rus:"Логин",eng:"Login"},
+"field_pass":{rus:"Пароль",eng:"Password"},
+"field_phone":{rus:"Телефон",eng:"Phone"},
 "enter_login_pass":{rus:"Введите логин и пароль",eng:"Enter login and password"},
 "min_8_chars":{rus:"Минимум 8 символов",eng:"Min 8 characters"},
 "continue_guest":{rus:"Продолжить как гость",eng:"Continue as guest"},

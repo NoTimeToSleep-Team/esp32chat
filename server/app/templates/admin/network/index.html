@@ -5,26 +5,25 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Network Admin</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0d1117;color:#c9d1d9;font:14px monospace;padding:16px}
-h2{color:#58a6ff;margin:16px 0 8px;font-size:16px}
-.section{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:12px;margin-bottom:12px}
-.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #21262d}
+*{margin:0;padding:0;box-sizing:border-box}body{background:#5eb5f7;color:#f1f5f9;font:14px monospace;padding:16px}
+h2{color:#5eb5f7;margin:16px 0 8px;font-size:16px}
+.section{background:#5eb5f7;border:1px solid #24313d;border-radius:6px;padding:12px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #24313d}
 .row:last-child{border-bottom:none}
-label{color:#8b949e}
-select,input,button{background:#0d1117;color:#c9d1d9;border:1px solid #30363d;padding:6px 10px;border-radius:4px;font:14px monospace}
-button{cursor:pointer;background:#238636;border-color:#238636;color:#fff;white-space:nowrap}
-button.danger{background:#da3633;border-color:#da3633}
+label{color:#7f8b98}
+select,input,button{background:#5eb5f7;color:#f1f5f9;border:1px solid #24313d;padding:6px 10px;border-radius:4px;font:14px monospace}
+button{cursor:pointer;background:#2f9e6b;border-color:#24313d;color:#f1f5f9;white-space:nowrap}
+button.danger{background:#f85149;border-color:#24313d}
 button.small{padding:2px 8px;font-size:12px}
 button:hover{opacity:0.85}
 .network-item{display:flex;align-items:center;gap:8px;padding:4px 0}
-.signal{display:inline-block;width:40px;text-align:right;color:#d2991d}
-.open{color:#3fb950}.wpa{color:#d2991d}
+.signal{display:inline-block;width:40px;text-align:right;color:#d29922}
+.open{color:#4fb286}.wpa{color:#d29922}
 .toggle{width:48px;height:24px;border-radius:12px;border:none;cursor:pointer;transition:background 0.2s}
-.toggle.off{background:#30363d}.toggle.on{background:#238636}
-.connected{color:#3fb950}.disconnected{color:#f85149}
+.toggle.off{background:#1d2a36}.toggle.on{background:#2f9e6b}
+.connected{color:#4fb286}.disconnected{color:#f85149}
 .badge{display:inline-block;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:bold}
-.badge.ap{background:#1f6feb;color:#fff}.badge.uplink{background:#238636;color:#fff}.badge.none{background:#30363d;color:#8b949e}
+.badge.ap{background:#5eb5f7;color:#f1f5f9}.badge.uplink{background:#2f9e6b;color:#f1f5f9}.badge.none{background:#1d2a36;color:#7f8b98}
 .pwd{display:flex;gap:8px;margin:8px 0;align-items:center}
 #status-msg{padding:4px 0;font-size:12px;min-height:18px}
 .iface-row{display:grid;grid-template-columns:1fr 70px 140px 130px;gap:8px;align-items:center;padding:4px 0}
@@ -40,7 +39,7 @@ input[type=range]{width:90px;vertical-align:middle}
   <div id="iface-list">Loading...</div>
   <div style="margin-top:8px">
     <button onclick="restartServices()">Restart Services (hostapd + dnsmasq)</button>
-    <span id="apply-msg" style="font-size:12px;margin-left:8px;color:#8b949e"></span>
+    <span id="apply-msg" style="font-size:12px;margin-left:8px;color:#7f8b98"></span>
   </div>
 </div>
 
@@ -91,7 +90,7 @@ async function loadInterfaces() {
   try {
     const r = await api('/admin/network/interfaces');
     document.getElementById('iface-list').innerHTML = r.items.map(i =>
-      '<div class="iface-row"><span>' + i.ifname + ' <small style="color:#8b949e">' + (i.chipset||'') + '</small></span>' +
+      '<div class="iface-row"><span>' + i.ifname + ' <small style="color:#7f8b98">' + (i.chipset||'') + '</small></span>' +
       '<span class="badge ' + i.role + '">' + i.role.toUpperCase() + '</span>' +
       '<span><input type="range" min="1" max="33" value="' + i.tx_power_dbm + '" onchange="setTxPower(\'' + i.ifname + '\',this)" title="' + i.tx_power_dbm + 'dBm"> <small>' + i.tx_power_dbm + 'dBm</small></span>' +
       '<span>' +
@@ -182,7 +181,7 @@ async function loadUsers() {
   try {
     const r = await api('/admin/network/users');
     document.getElementById('user-list').innerHTML = r.items.map(u =>
-      '<div class="row"><span>' + u.login + ' <small style="color:#8b949e">' + u.role + '</small></span>' +
+      '<div class="row"><span>' + u.login + ' <small style="color:#7f8b98">' + u.role + '</small></span>' +
       '<button class="toggle ' + (u.internet_enabled ? 'on' : 'off') + '" onclick="toggleInternet(' + u.user_id + ',' + !u.internet_enabled + ')"></button></div>'
     ).join('') || 'No users';
   } catch(e) {}

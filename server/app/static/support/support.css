@@ -1,25 +1,23 @@
 :root {
-  --bg-top: #eef2f4;
-  --bg-bottom: #d9e4df;
-  --card: #ffffff;
-  --ink: #172220;
-  --muted: #5b6764;
-  --line: #d7dfdd;
-  --accent: #1d6a7d;
+  --bg-top:#eef2f4;
+  --bg-bottom:#d9e4df;
+  --card:#ffffff;
+  --ink:#172220;
+  --muted:#5b6764;
+  --line:#d7dfdd;
+  --accent:#1d6a7d;
   --accent-2: #8a4b2b;
-  --error: #9d3232;
+  --error:#9d3232;
 }
 
 * {
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: "Segoe UI", Tahoma, sans-serif;
-  background: linear-gradient(150deg, var(--bg-top), var(--bg-bottom));
-  color: var(--ink);
-  min-height: 100vh;
+}body {
+  margin:0;
+  font-family:"Segoe UI", Tahoma, sans-serif;
+  background:linear-gradient(150deg, var(--bg-top), var(--bg-bottom));
+  color:var(--ink);
+  min-height:100vh;
 }
 
 .support-shell {
@@ -81,7 +79,7 @@ select {
   padding: 9px 10px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: #fff;
+  background:#17212b;
 }
 
 textarea {
@@ -92,7 +90,7 @@ button {
   border: none;
   border-radius: 10px;
   padding: 9px 12px;
-  color: #fff;
+  color:#f1f5f9;
   background: var(--accent);
   cursor: pointer;
 }
@@ -119,7 +117,7 @@ button:disabled {
 .ticket-btn {
   width: 100%;
   text-align: left;
-  background: #f6faf8;
+  background:#17212b;
   color: var(--ink);
   border: 1px solid var(--line);
 }
@@ -148,7 +146,7 @@ button:disabled {
   border-radius: 12px;
   padding: 10px;
   overflow: auto;
-  background: #fcfffe;
+  background:#17212b;
 }
 
 .message-item {

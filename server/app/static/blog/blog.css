@@ -1,24 +1,22 @@
 :root {
-  --bg-a: #f3f0e8;
-  --bg-b: #dbe8e1;
-  --card: #fffdf8;
-  --ink: #1c1f1c;
-  --muted: #4e5b54;
-  --accent: #1f6f5f;
+  --bg-a:#f3f0e8;
+  --bg-b:#dbe8e1;
+  --card:#fffdf8;
+  --ink:#1c1f1c;
+  --muted:#4e5b54;
+  --accent:#1f6f5f;
   --accent-2: #9c5c2d;
-  --line: #d8d4ca;
+  --line:#d8d4ca;
 }
 
 * {
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: "Segoe UI", Tahoma, sans-serif;
-  color: var(--ink);
-  background: linear-gradient(135deg, var(--bg-a), var(--bg-b));
-  min-height: 100vh;
+}body {
+  margin:0;
+  font-family:"Segoe UI", Tahoma, sans-serif;
+  color:var(--ink);
+  background:linear-gradient(135deg, var(--bg-a), var(--bg-b));
+  min-height:100vh;
 }
 
 .blog-shell {
@@ -85,7 +83,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px;
-  background: #fff;
+  background:#17212b;
 }
 
 textarea {
@@ -96,7 +94,7 @@ button {
   border: none;
   border-radius: 10px;
   background: var(--accent);
-  color: #fff;
+  color:#f1f5f9;
   padding: 10px 16px;
   cursor: pointer;
 }
@@ -111,7 +109,7 @@ button:hover {
 }
 
 .hint.error {
-  color: #8f2f2f;
+  color:#f85149;
 }
 
 .hint.ok {

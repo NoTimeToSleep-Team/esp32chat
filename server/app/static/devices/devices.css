@@ -1,25 +1,23 @@
 :root {
   --bg-1: #f3eee4;
   --bg-2: #dbe5ee;
-  --card: #fffefb;
-  --ink: #1f2328;
-  --muted: #5f686f;
-  --line: #d8dde1;
-  --accent: #1c6374;
+  --card:#fffefb;
+  --ink:#1f2328;
+  --muted:#5f686f;
+  --line:#d8dde1;
+  --accent:#1c6374;
   --accent-2: #7f4d29;
-  --error: #a33e3e;
+  --error:#a33e3e;
 }
 
 * {
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  color: var(--ink);
-  font-family: "Trebuchet MS", "Gill Sans", "Lucida Sans Unicode", sans-serif;
-  background: radial-gradient(circle at 80% 0%, #fdf7ef, transparent 55%),
+}body {
+  margin:0;
+  min-height:100vh;
+  color:var(--ink);
+  font-family:"Trebuchet MS", "Gill Sans", "Lucida Sans Unicode", sans-serif;
+  background:radial-gradient(circle at 80% 0%, #5eb5f7, transparent 55%),
     linear-gradient(155deg, var(--bg-1), var(--bg-2));
 }
 
@@ -93,7 +91,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 9px 10px;
-  background: #fff;
+  background:#17212b;
 }
 
 textarea {
@@ -104,7 +102,7 @@ button {
   border: none;
   border-radius: 10px;
   background: var(--accent);
-  color: #fff;
+  color:#f1f5f9;
   padding: 9px 12px;
   cursor: pointer;
 }
@@ -152,7 +150,7 @@ button:disabled {
 .device-btn {
   width: 100%;
   text-align: left;
-  background: #f7fbfd;
+  background:#17212b;
   color: var(--ink);
   border: 1px solid var(--line);
 }
@@ -199,7 +197,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 9px;
-  background: #fbfdfd;
+  background:#17212b;
 }
 
 .instructions h3 {
