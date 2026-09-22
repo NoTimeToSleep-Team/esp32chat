@@ -81,13 +81,17 @@ static int menu_sel = 0;
 
 static const int BRIGHT_LEVELS[4] = {64, 128, 191, 255};
 static const char *BRIGHT_LABELS[4] = {"25%", "50%", "75%", "100%"};
+static const int VOLUME_LEVELS[5] = {0, 64, 128, 191, 255};
+static const char *VOLUME_LABELS[5] = {"Выкл", "25%", "50%", "75%", "100%"};
 static const int SLEEP_MS[4] = {0, 30000, 60000, 300000};
 static const char *SLEEP_LABELS[4] = {"Выкл", "30 сек", "1 мин", "5 мин"};
 static int setting_bright = 3;
+static int setting_volume = 1;
 static int setting_sleep = 0;
 static bool setting_notify = true;
 static bool screen_off = false;
-static const int SETTINGS_ITEMS = 3;
+static uint32_t last_activity_ms = 0;
+static const int SETTINGS_ITEMS = 4;
 static int settings_sel = 0;
 
 static const int MAX_TICKETS = 12;
@@ -469,6 +473,7 @@ static void pollUpdates() {
             screen_off = false;
             M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
         }
+        last_activity_ms = millis();
     }
 }
 
@@ -1143,6 +1148,11 @@ static void drawSettings() {
             d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
             d.print(BRIGHT_LABELS[setting_bright]);
         } else if (i == 1) {
+            d.print("Громкость");
+            d.setCursor(150, y);
+            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
+            d.print(VOLUME_LABELS[setting_volume]);
+        } else if (i == 2) {
             d.print("Гашение экрана");
             d.setCursor(150, y);
             d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
@@ -1153,7 +1163,7 @@ static void drawSettings() {
             d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
             d.print(setting_notify ? "Вкл" : "Выкл");
         }
-        y += 26;
+        y += 22;
     }
 
     d.fillRect(0, 122, 240, 13, COL_HEADER);
@@ -1364,6 +1374,7 @@ static void pollNewMessages() {
             screen_off = false;
             M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
         }
+        last_activity_ms = millis();
         if (msg_scroll == 0 && screen != Screen::CHAT_INPUT) {
             drawChatView();
         }
@@ -1642,6 +1653,17 @@ static void handleKeys(const Keyboard_Class::KeysState &status) {
                 M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
                 prefs.putInt("bright", setting_bright);
             } else if (settings_sel == 1) {
+                setting_volume += dir;
+                if (setting_volume < 0) {
+                    setting_volume = 0;
+                }
+                if (setting_volume > 4) {
+                    setting_volume = 4;
+                }
+                M5Cardputer.Speaker.setVolume(VOLUME_LEVELS[setting_volume]);
+                M5Cardputer.Speaker.tone(1800, 80);
+                prefs.putInt("volume", setting_volume);
+            } else if (settings_sel == 2) {
                 setting_sleep += dir;
                 if (setting_sleep < 0) {
                     setting_sleep = 0;
@@ -1852,7 +1874,6 @@ void setup() {
 
     M5Cardputer.Display.setRotation(1);
     bool font_ok = M5Cardputer.Display.loadFont(lc_font_10);
-    M5Cardputer.Speaker.setVolume(180);
     Serial.printf("font loaded: %d\n", font_ok ? 1 : 0);
     drawPairScreen();
 
@@ -1873,15 +1894,20 @@ void setup() {
     sha256(device_secret, sizeof(device_secret), device_secret_hash);
 
     setting_bright = prefs.getInt("bright", 3);
+    setting_volume = prefs.getInt("volume", 1);
     setting_sleep = prefs.getInt("sleep", 0);
     setting_notify = prefs.getBool("notify", true);
     if (setting_bright < 0 || setting_bright > 3) {
         setting_bright = 3;
     }
+    if (setting_volume < 0 || setting_volume > 4) {
+        setting_volume = 1;
+    }
     if (setting_sleep < 0 || setting_sleep > 3) {
         setting_sleep = 0;
     }
     M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
+    M5Cardputer.Speaker.setVolume(VOLUME_LEVELS[setting_volume]);
 
     WiFi.mode(WIFI_STA);
     uint8_t mac[6];
@@ -1909,9 +1935,8 @@ void setup() {
 void loop() {
     M5Cardputer.update();
 
-    static uint32_t last_activity = 0;
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
-        last_activity = millis();
+        last_activity_ms = millis();
         if (screen_off) {
             screen_off = false;
             M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
@@ -1932,7 +1957,7 @@ void loop() {
     }
 
     if (setting_sleep > 0 && !screen_off &&
-        millis() - last_activity > (uint32_t)SLEEP_MS[setting_sleep]) {
+        millis() - last_activity_ms > (uint32_t)SLEEP_MS[setting_sleep]) {
         screen_off = true;
         M5Cardputer.Display.setBrightness(0);
     }
