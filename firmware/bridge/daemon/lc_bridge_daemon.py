@@ -112,6 +112,16 @@ def run_session(fd: int) -> None:
             if chunk:
                 buf.extend(chunk)
 
+        # Log text output from the bridge (diagnostics); frames start with 0xAA.
+        if buf and buf[0] != USB_MAGIC:
+            text = bytes(buf).decode("utf-8", "ignore")
+            if "\n" in text:
+                parts = text.split("\n")
+                for line in parts[:-1]:
+                    if line.strip():
+                        print(f"bridge log: {line.strip()}", flush=True)
+                buf = bytearray(parts[-1].encode("utf-8"))
+
         while len(buf) >= 10:
             if buf[0] != USB_MAGIC:
                 idx = buf.find(bytes([USB_MAGIC]))
