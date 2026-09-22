@@ -139,11 +139,28 @@ html:has(body.chat-mode){overflow:hidden}
 #msg-input{flex:1;background:none;border:0;outline:0;color:var(--text);font:inherit;resize:none;max-height:120px;padding:9px 4px;line-height:1.4;min-width:0}
 #msg-input::placeholder{color:var(--text2)}
 .attach-preview{display:flex;flex-wrap:wrap;gap:6px;padding:0 4px 8px}
-.attach-chip{display:inline-flex;align-items:center;gap:7px;background:var(--bg3);border-radius:10px;padding:6px 10px;font-size:12px;color:var(--text2);max-width:100%}
+.attach-chip{display:inline-flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:5px 10px;font-size:12.5px;color:var(--text)}
+.attach-chip .attach-name{max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attach-chip .attach-size{color:var(--text2)}
+.attach-chip.voice{padding:4px 8px}
+.attach-chip.voice audio{height:34px;max-width:200px}
+.attach-remove{background:none;border:none;color:var(--text2);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:8px}
+.attach-remove:hover{background:var(--hover);color:var(--accent4)}
+
+/* Voice recording bar */
+.voice-rec{display:flex;align-items:center;gap:10px;padding:8px 10px;margin:0 0 8px;background:var(--bg3);border:1px solid var(--border);border-radius:14px}
+.voice-rec.hidden{display:none}
+.voice-rec .spacer{flex:1}
+.rec-dot{width:10px;height:10px;border-radius:50%;background:var(--accent4);animation:recPulse 1.1s ease-in-out infinite;flex:0 0 auto}
+.rec-time{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;letter-spacing:.02em}
+@keyframes recPulse{0%,100%{opacity:1}50%{opacity:.25}}
+.comp-btn.recording{background:var(--accent4);color:#fff;animation:recPulse 1.4s ease-in-out infinite}
+.attachment.audio{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);padding:7px 11px;border-radius:12px}
+.attachment.audio audio{height:36px;max-width:280px}
+.attachment.audio .fname{font-size:12.5px;color:var(--text2);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attachment.audio .voice-ico{font-size:16px;flex:0 0 auto}
 .attach-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
 .attach-size{opacity:.8}
-.attach-remove{background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:12px;padding:0 2px}
-.attach-remove:hover{color:var(--accent4)}
 .emoji-pop{position:absolute;bottom:58px;left:0;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:8px;display:none;grid-template-columns:repeat(8,1fr);gap:2px;z-index:80;box-shadow:var(--shadow);max-height:220px;overflow-y:auto;width:296px}
 .emoji-pop.open{display:grid}
 .emoji-pop button{background:none;border:none;font-size:19px;cursor:pointer;padding:5px;border-radius:8px;line-height:1}

@@ -176,7 +176,8 @@ function renderAttachments(items) {
       return `<a class="attachment image" href="${safeUrl(url)}" data-name="${name}" onclick="openImageLightbox(this.href, this.dataset.name);return false"><img src="${safeUrl(url)}" alt="${name}"><span>${name}</span></a>`;
     }
     if (a.media_kind === 'audio' || mime.startsWith('audio/')) {
-      return `<div class="attachment audio"><div>${name}</div><audio controls preload="none" src="${safeUrl(url)}"></audio></div>`;
+      const isVoice = /^voice-/i.test(String(a.filename || ''));
+      return `<div class="attachment audio">${isVoice ? '<span class="voice-ico">🎤</span>' : ''}<audio controls preload="none" src="${safeUrl(url)}"></audio>${isVoice ? '' : `<div class="fname">${name}</div>`}</div>`;
     }
     return `<a class="attachment file" href="${safeUrl(url)}" target="_blank" rel="noopener">📎 ${name}</a>`;
   }).join('')}</div>`;
@@ -621,9 +622,15 @@ function fmtBytes(n) {
 }
 
 function fileChipsHtml(files) {
-  return files.map((f, i) =>
-    `<span class="attach-chip"><span class="attach-name">📎 ${esc(f.name)}</span><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`
-  ).join('');
+  return files.map((f, i) => {
+    const isAudio = /^audio\//.test(f.type || '') || /\.(m4a|webm|ogg|opus|mp3|wav|aac|flac)$/i.test(f.name || '');
+    if (isAudio) {
+      let url = '';
+      try { url = URL.createObjectURL(f); } catch (e) { url = ''; }
+      return `<span class="attach-chip voice"><audio controls preload="metadata" src="${url}"></audio><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`;
+    }
+    return `<span class="attach-chip"><span class="attach-name">📎 ${esc(f.name)}</span><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`;
+  }).join('');
 }
 
 function wireFileChips(box, files, onRemove) {
@@ -641,6 +648,114 @@ function addPendingFiles(list) {
     if (pendingFiles.some(x => x.name === f.name && x.size === f.size)) continue;
     pendingFiles.push(f);
   }
+  renderAttachPreview();
+}
+
+// ===== Voice messages (MediaRecorder) =====
+// getUserMedia needs a secure context (https or localhost). On the plain-http
+// portal the mic button explains this and suggests attaching an audio file.
+const VOICE_MAX_SEC = 300;
+let voiceRec = null;
+let voiceChunks = [];
+let voiceStream = null;
+let voiceTimer = null;
+let voiceStartMs = 0;
+
+function voiceSupported() {
+  return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext);
+}
+
+function voicePickMime() {
+  const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+  for (const c of candidates) {
+    try { if (MediaRecorder.isTypeSupported(c)) return c; } catch (e) {}
+  }
+  return '';
+}
+
+function voiceExt(mime) {
+  if (/mp4|m4a|aac/.test(mime)) return 'm4a';
+  if (/ogg|opus/.test(mime)) return 'ogg';
+  if (/wav/.test(mime)) return 'wav';
+  return 'webm';
+}
+
+function voiceTick() {
+  const timer = $('#voice-timer');
+  const sec = Math.floor((Date.now() - voiceStartMs) / 1000);
+  if (timer) timer.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  if (sec >= VOICE_MAX_SEC) voiceStop();
+}
+
+function voiceCleanup() {
+  if (voiceTimer) { clearInterval(voiceTimer); voiceTimer = null; }
+  if (voiceStream) { voiceStream.getTracks().forEach(tr => tr.stop()); voiceStream = null; }
+  voiceRec = null;
+  const rec = $('#voice-rec');
+  const mic = $('#mic-btn');
+  if (rec) rec.classList.add('hidden');
+  if (mic) mic.classList.remove('recording');
+}
+
+async function voiceStart() {
+  if (!voiceSupported()) { toast(t('voice_need_https'), 'error'); return; }
+  if (voiceRec) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({audio: true});
+  } catch (e) {
+    toast(t('voice_no_mic'), 'error');
+    return;
+  }
+  voiceStream = stream;
+  voiceChunks = [];
+  const mime = voicePickMime();
+  try {
+    voiceRec = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+  } catch (e) {
+    voiceRec = new MediaRecorder(stream);
+  }
+  const actualMime = voiceRec.mimeType || mime || 'audio/webm';
+  voiceRec.ondataavailable = (e) => { if (e.data && e.data.size) voiceChunks.push(e.data); };
+  voiceRec.onstop = () => {
+    const blob = new Blob(voiceChunks, {type: actualMime});
+    voiceChunks = [];
+    voiceCleanup();
+    if (blob.size > 0) voiceAttach(blob, actualMime);
+  };
+  voiceStartMs = Date.now();
+  try { voiceRec.start(250); } catch (e) { voiceCleanup(); toast(t('voice_no_mic'), 'error'); return; }
+  const rec = $('#voice-rec');
+  const mic = $('#mic-btn');
+  const timer = $('#voice-timer');
+  if (rec) rec.classList.remove('hidden');
+  if (mic) mic.classList.add('recording');
+  if (timer) timer.textContent = '0:00';
+  voiceTimer = setInterval(voiceTick, 250);
+}
+
+function voiceStop() {
+  if (voiceRec && voiceRec.state !== 'inactive') {
+    try { voiceRec.stop(); return; } catch (e) {}
+  }
+  voiceCleanup();
+}
+
+function voiceCancel() {
+  if (voiceRec && voiceRec.state !== 'inactive') {
+    voiceRec.onstop = null;
+    try { voiceRec.stop(); } catch (e) {}
+  }
+  voiceChunks = [];
+  voiceCleanup();
+}
+
+function voiceAttach(blob, mime) {
+  if (blob.size > MAX_UPLOAD_MB * 1024 * 1024) { toast(t('file_too_large'), 'error'); return; }
+  if (pendingFiles.length >= MAX_ATTACH_FILES) { toast(t('too_many_files'), 'error'); return; }
+  const file = new File([blob], 'voice-' + Date.now() + '.' + voiceExt(mime), {type: mime});
+  pendingFiles.push(file);
   renderAttachPreview();
 }
 
@@ -756,10 +871,18 @@ async function doLoadMessages(opts) {
       <div id="msg-list" class="msg-list"></div>
       <div class="comp">
         <div id="attach-preview" class="attach-preview"></div>
+        <div id="voice-rec" class="voice-rec hidden">
+          <span class="rec-dot"></span>
+          <span id="voice-timer" class="rec-time">0:00</span>
+          <span class="spacer"></span>
+          <button class="btn btn-sm btn-outline" id="voice-cancel">${t('cancel')}</button>
+          <button class="btn btn-sm btn-primary" id="voice-stop">${t('voice_stop')}</button>
+        </div>
         <div class="comp-field">
           <input id="msg-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
           <button class="comp-btn" id="emoji-btn" title="😊">😊</button>
           <button class="comp-btn" id="attach-btn" title="${t('attach')}">📎</button>
+          <button class="comp-btn" id="mic-btn" title="${t('voice_msg')}" aria-label="${t('voice_msg')}">🎤</button>
           <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
           <button class="comp-btn send" id="send-btn" title="${t('send')}">➤</button>
         </div>
@@ -808,6 +931,12 @@ async function doLoadMessages(opts) {
     const msgFile = $('#msg-file');
     if ($('#attach-btn')) $('#attach-btn').onclick = () => msgFile && msgFile.click();
     if (msgFile) msgFile.onchange = () => { addPendingFiles(msgFile.files); msgFile.value = ''; };
+    const micBtn = $('#mic-btn');
+    if (micBtn) micBtn.onclick = () => { if (voiceRec) voiceStop(); else voiceStart(); };
+    const voiceStopBtn = $('#voice-stop');
+    if (voiceStopBtn) voiceStopBtn.onclick = voiceStop;
+    const voiceCancelBtn = $('#voice-cancel');
+    if (voiceCancelBtn) voiceCancelBtn.onclick = voiceCancel;
     renderAttachPreview();
     const miEl = $('#msg-input');
     miEl.onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
@@ -2256,6 +2385,10 @@ var T = {
 "new_chat":{rus:"Новый чат",eng:"New Chat"},"dm":{rus:"Личка",eng:"DM"},
 "menu":{rus:"Меню",eng:"Menu"},
 "edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
+"voice_msg":{rus:"Голосовое сообщение",eng:"Voice message"},
+"voice_stop":{rus:"Готово",eng:"Done"},
+"voice_need_https":{rus:"Запись с микрофона работает только по HTTPS (или на localhost). Можно приложить готовый аудиофайл.",eng:"Microphone recording needs HTTPS (or localhost). You can attach an audio file instead."},
+"voice_no_mic":{rus:"Не удалось получить доступ к микрофону. Проверьте разрешение браузера.",eng:"Could not access the microphone. Check the browser permission."},
 "devices_subtitle":{rus:"Сопряжение и управление устройствами",eng:"Pair and manage devices"},
 "pair_by_code":{rus:"Сопряжение по коду",eng:"Pair by code"},
 "pair_hint":{rus:"Включите устройство и введите 6-значный код с его экрана. Код действует 5 минут и срабатывает один раз.",eng:"Turn on the device and enter the 6-digit code from its screen. The code is valid for 5 minutes and works once."},
