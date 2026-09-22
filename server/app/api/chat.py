@@ -120,6 +120,34 @@ async def list_chats(
     }
 
 
+@router.get("/chat/api/updates")
+async def list_chat_updates(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    since_ms: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+
+    try:
+        items = service.list_updates(user_id=user_id, since_ms=since_ms, limit=limit)
+    except ChatError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+    import time as _time
+
+    return {
+        "status": "ok",
+        "count": len(items),
+        "items": items,
+        "server_time_ms": int(_time.time() * 1000),
+    }
+
+
 @router.post("/chat/api/chats")
 async def create_chat(
     request: Request,

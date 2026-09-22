@@ -220,6 +220,49 @@ class ChatService:
 
             return [self._row_to_chat(row) for row in rows]
 
+    def list_updates(
+        self,
+        *,
+        user_id: int,
+        since_ms: int,
+        limit: int = 50,
+    ) -> list[dict[str, object]]:
+        """New messages in all chats available to the user (excluding own)."""
+        safe_limit = min(max(int(limit), 1), 200)
+        safe_since = max(int(since_ms), 0)
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            rows = connection.execute(
+                """
+                SELECT
+                    m.id AS message_id,
+                    m.chat_id AS chat_id,
+                    c.title AS chat_title,
+                    m.author_user_id AS author_user_id,
+                    u.login AS author_login,
+                    m.body_text AS body_text,
+                    m.created_at_ms AS created_at_ms
+                FROM chat_messages m
+                JOIN chats c ON c.id = m.chat_id
+                LEFT JOIN users u ON u.id = m.author_user_id
+                WHERE m.created_at_ms > ?
+                  AND m.author_user_id != ?
+                  AND (
+                        c.kind = ?
+                     OR EXISTS(
+                            SELECT 1
+                            FROM chat_members cm
+                            WHERE cm.chat_id = c.id
+                              AND cm.user_id = ?
+                        )
+                  )
+                ORDER BY m.created_at_ms DESC
+                LIMIT ?
+                """,
+                (safe_since, user_id, ChatKind.COMMON.value, user_id, safe_limit),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     def add_member(
         self,
         *,

@@ -29,6 +29,8 @@ FILES = [
     "app/services/__init__.py",
     "app/api/devices.py",
     "app/api/auth.py",
+    "app/api/chat.py",
+    "app/services/chat.py",
     "migrations/0028_device_pair_secrets.sql",
 ]
 

@@ -32,6 +32,7 @@ static String session_token;
 static String session_login;
 static bool paired = false;
 static String pair_status = "boot";
+static uint64_t last_seen_ms = 0;
 
 // --- chat state ---
 enum class Screen { PAIR, MENU, CHAT_LIST, CHAT_VIEW, CHAT_INPUT, BLOG_LIST, BLOG_VIEW, SUPPORT_LIST, SUPPORT_VIEW, SUPPORT_INPUT, SUPPORT_NEW, SETTINGS, ABOUT };
@@ -200,6 +201,8 @@ static void drawScreen();
 static void drawPairScreen();
 static void drawMenu();
 static void runDeviceSession();
+static void initUpdatesCursor();
+static void pollUpdates();
 static bool loadChats();
 
 // --- pair ---
@@ -403,8 +406,70 @@ static void runDeviceSession() {
     pair_status = "session ok";
     Serial.printf("session: user=%s token_len=%u\n", session_login.c_str(), (unsigned)session_token.length());
 
+    initUpdatesCursor();
+
     screen = Screen::MENU;
     drawMenu();
+}
+
+static void initUpdatesCursor() {
+    String response;
+    int code = httpGet("/chat/api/updates?session_token=" + session_token + "&since_ms=0&limit=1", response);
+    if (code != 200) {
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        return;
+    }
+    last_seen_ms = doc["server_time_ms"].as<uint64_t>();
+    Serial.printf("updates cursor: %llu\n", (unsigned long long)last_seen_ms);
+}
+
+static void pollUpdates() {
+    if (session_token.length() == 0) {
+        return;
+    }
+    String response;
+    int code = httpGet("/chat/api/updates?session_token=" + session_token +
+                           "&since_ms=" + String((unsigned long long)last_seen_ms) + "&limit=10",
+                       response);
+    if (code != 200) {
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        return;
+    }
+    JsonArray items = doc["items"].as<JsonArray>();
+    if (items.isNull() || items.size() == 0) {
+        return;
+    }
+
+    bool notify_here = false;
+    for (JsonObject item : items) {
+        uint64_t ts = item["created_at_ms"].as<uint64_t>();
+        if (ts > last_seen_ms) {
+            last_seen_ms = ts;
+        }
+        long chat_id = item["chat_id"].as<long>();
+        bool in_open_chat = (chat_id == current_chat_id) &&
+                            (screen == Screen::CHAT_VIEW || screen == Screen::CHAT_INPUT);
+        if (!in_open_chat) {
+            notify_here = true;
+        }
+    }
+
+    if (notify_here) {
+        Serial.printf("updates: %d new\n", (int)items.size());
+        if (setting_notify) {
+            M5Cardputer.Speaker.tone(1800, 120);
+        }
+        if (screen_off) {
+            screen_off = false;
+            M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
+        }
+    }
 }
 
 // --- chat ---
@@ -1787,6 +1852,7 @@ void setup() {
 
     M5Cardputer.Display.setRotation(1);
     bool font_ok = M5Cardputer.Display.loadFont(lc_font_10);
+    M5Cardputer.Speaker.setVolume(180);
     Serial.printf("font loaded: %d\n", font_ok ? 1 : 0);
     drawPairScreen();
 
@@ -1883,6 +1949,12 @@ void loop() {
         millis() - last_retry > 15000) {
         last_retry = millis();
         runDeviceSession();
+    }
+
+    static uint32_t last_updates_poll = 0;
+    if (session_token.length() > 0 && millis() - last_updates_poll > 8000) {
+        last_updates_poll = millis();
+        pollUpdates();
     }
 
     static uint32_t last_msg_poll = 0;
