@@ -175,6 +175,8 @@ static uint8_t espnow_asm_count = 0;
 static volatile bool espnow_asm_complete = false;
 static uint32_t espnow_requests = 0;
 static uint32_t espnow_failures = 0;
+static uint32_t espnow_timeouts_in_row = 0;
+static uint32_t espnow_suspend_until = 0;
 
 // --- helpers ---
 
@@ -345,7 +347,7 @@ static int espnowRequest(const String &method, const String &path, const String 
     }
 
     uint32_t start = millis();
-    while (millis() - start < 12000) {
+    while (millis() - start < 6000) {
         if (espnow_asm_complete) {
             espnowParseResponse();
         }
@@ -359,9 +361,23 @@ static int espnowRequest(const String &method, const String &path, const String 
     espnow_requests++;
     if (!espnow_rx_done) {
         espnow_failures++;
-        Serial.printf("espnow: timeout id=%lu\n", (unsigned long)id);
+        espnow_timeouts_in_row++;
+        Serial.printf("espnow: timeout id=%lu (in row %lu)\n",
+                      (unsigned long)id, (unsigned long)espnow_timeouts_in_row);
+        if (espnow_timeouts_in_row >= 2) {
+            // Bridge is not answering: fall back to Wi-Fi for a while.
+            espnow_suspend_until = millis() + 60000;
+            espnow_timeouts_in_row = 0;
+            if (setting_link == 0) {
+                link_via_espnow = false;
+            }
+            Serial.println("espnow: suspended for 60s");
+        }
         return -1001;
     }
+    espnow_timeouts_in_row = 0;
+    Serial.printf("espnow: ok id=%lu status=%d len=%u\n",
+                  (unsigned long)id, espnow_rx_status, (unsigned)espnow_rx_body.length());
     response = espnow_rx_body;
     return espnow_rx_status;
 }
@@ -377,6 +393,10 @@ static void updateLinkMode() {
     }
     if (setting_link == 2) {
         link_via_espnow = true;
+        return;
+    }
+    if (millis() < espnow_suspend_until) {
+        link_via_espnow = false;
         return;
     }
     if (WiFi.status() != WL_CONNECTED) {
@@ -2229,6 +2249,7 @@ void setup() {
     M5Cardputer.begin(cfg, true);
 
     Serial.begin(115200);
+    Serial.setTxTimeoutMs(0);  // never block the loop on unread USB CDC output
     delay(300);
 
     M5Cardputer.Display.setRotation(1);
