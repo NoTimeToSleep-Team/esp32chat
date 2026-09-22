@@ -483,7 +483,7 @@ async function loadNetwork() {
       h += '<td><select id="mode-' + i.ifname + '" data-initial="' + curRole + '" style="padding:2px 6px;font-size:11px"><option value="ap"' + (curRole === "ap" ? " selected" : "") + '>AP</option><option value="client"' + (curRole === "client" ? " selected" : "") + '>Client</option><option value="off"' + (curRole === "off" ? " selected" : "") + '>Off</option></select></td></tr>';
     });
     h += '</table>';
-    h += '<button class="btn-warn" onclick="saveNetworkConfig()" style="margin-top:8px">💾 Save & Apply</button> <span id="net-save-msg" style="font-size:11px"></span>';
+    h += '<button class="btn-warn" onclick="saveNetworkConfig()" style="margin-top:8px"><svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px" viewBox="0 0 24 24"><path d="M5 3.5h10.5L19 7v13.5H5z"/><path d="M8.5 3.5v5.5h6V3.5"/><path d="M8.5 20.5v-6h7v6"/></svg> Save & Apply</button> <span id="net-save-msg" style="font-size:11px"></span>';
     h += '</div>';
     
     // Internet access
@@ -517,7 +517,7 @@ async function wifiScan() {
     if (d.networks && d.networks.length) {
       var h = '<table><tr><th>SSID</th><th>Signal</th><th>Security</th></tr>';
       d.networks.forEach(function(n) {
-        h += '<tr><td>' + esc(n.ssid) + '</td><td>' + (n.signal || "-") + '</td><td>' + (n.secure ? "🔒" : "🔓") + '</td></tr>';
+        h += '<tr><td>' + esc(n.ssid) + '</td><td>' + (n.signal || "-") + '</td><td>' + (n.secure ? "<svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.8a4 4 0 0 1 8 0V10"/></svg>" : "<svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.8a4 4 0 0 1 7.2-2.4"/></svg>") + '</td></tr>';
       });
       h += '</table>';
       results.innerHTML = h;

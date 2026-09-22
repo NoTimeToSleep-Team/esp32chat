@@ -166,6 +166,47 @@ function safeUrl(u) {
   return u.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// ===== Minimal inline SVG icon set (replaces emoji glyphs) =====
+const ICONS = {
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16.7 16.7"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7.5L12 13l8.5-5.5"/>',
+  refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.7-6.2"/><path d="M20.5 4.5V10h-5.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  back: '<path d="M19 12H5"/><path d="M11.5 18.5L5 12l6.5-6.5"/>',
+  more: '<circle cx="12" cy="5.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="18.5" r="1.7"/>',
+  clip: '<path d="M20.8 11.2l-8.2 8.2a4.7 4.7 0 0 1-6.6-6.6l8.2-8.2a3.2 3.2 0 0 1 4.5 4.5l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.5-7.5"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3"/>',
+  send: '<path d="M21.5 2.5L10.8 13.2"/><path d="M21.5 2.5l-7 19-3.7-8.3-8.3-3.7 19-7z"/>',
+  pencil: '<path d="M12.5 20H20"/><path d="M16.2 3.8a2.2 2.2 0 0 1 3.1 3.1L7.4 18.8 3.5 20l1.2-3.9L16.2 3.8z"/>',
+  trash: '<path d="M3.5 6.5h17"/><path d="M9 6.5V4.2h6V6.5"/><path d="M6.5 6.5l1 13.3h9l1-13.3"/>',
+  check: '<path d="M20 6.5L9.3 17.2 4 11.9"/>',
+  checkCircle: '<circle cx="12" cy="12" r="9"/><path d="M8.2 12.4l2.6 2.6 5-5.2"/>',
+  chat: '<path d="M20.5 12a8.5 8.5 0 0 1-8.5 8.5H8.2L3.5 23l1.4-4.9A8.5 8.5 0 1 1 20.5 12z"/>',
+  flag: '<path d="M5 21V4"/><path d="M5 5h12.5l-1.6 4 1.6 4H5"/>',
+  phone: '<path d="M4.5 3.5h3.7l1.8 4.4-2.3 1.5a12.5 12.5 0 0 0 6 6l1.5-2.3 4.4 1.8v3.7a1.4 1.4 0 0 1-1.5 1.4A16.5 16.5 0 0 1 3.1 5a1.4 1.4 0 0 1 1.4-1.5z"/>',
+  fileText: '<path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"/><path d="M14 3.5V8h4.5"/><path d="M9 13h6M9 16.5h4"/>',
+  ticket: '<path d="M4 8.5A2 2 0 0 1 6 6.5h12a2 2 0 0 1 2 2v1a2.5 2.5 0 0 0 0 5v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a2.5 2.5 0 0 0 0-5z"/><path d="M13 6.5v11" stroke-dasharray="2 2.6"/>',
+  warning: '<path d="M12 4.2l8.5 15.3H3.5z"/><path d="M12 10v4.2"/><path d="M12 17h.01"/>',
+  bot: '<rect x="4.5" y="8" width="15" height="10.5" rx="3.5"/><path d="M12 4v4"/><path d="M9.5 12.6v1.2M14.5 12.6v1.2"/>',
+  user: '<circle cx="12" cy="8.5" r="3.7"/><path d="M5 20.2a7.2 7.2 0 0 1 14 0"/>',
+  megaphone: '<path d="M4 10.5v3l11.5 5v-13L4 10.5z"/><path d="M15.5 8.2a3.2 3.2 0 0 1 0 7.6"/><path d="M7 14v4.5"/>',
+  alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5"/><path d="M12 16.2h.01"/>',
+  messageX: '<path d="M20.5 12a8.5 8.5 0 0 1-8.5 8.5H8.2L3.5 23l1.4-4.9A8.5 8.5 0 1 1 20.5 12z"/><path d="M9.8 9.5l4.4 4.4M14.2 9.5l-4.4 4.4"/>',
+  dollar: '<path d="M12 3.5v17"/><path d="M16 7.6c0-1.7-1.8-2.6-4-2.6s-4 .9-4 2.6S10 10.2 12 10.7s4 1.4 4 3.2-1.8 2.9-4 2.9-4-1-4-2.7"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .8-1 1.5v.2"/><path d="M12 16.6h.01"/>',
+  lock: '<rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.8a4 4 0 0 1 8 0V10"/>',
+  unlock: '<rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.8a4 4 0 0 1 7.2-2.4"/>',
+  save: '<path d="M5 3.5h10.5L19 7v13.5H5z"/><path d="M8.5 3.5v5.5h6V3.5"/><path d="M8.5 20.5v-6h7v6"/>',
+  download: '<path d="M12 3.5v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20.5h14"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  camera: '<path d="M4 8.5h3l1.5-2.5h7L17 8.5h3a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18v-8A1.5 1.5 0 0 1 4 8.5z"/><circle cx="12" cy="13.5" r="3.2"/>'
+};
+function icon(name, cls) {
+  const body = ICONS[name] || '';
+  return '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + body + '</svg>';
+}
+
 function renderAttachments(items) {
   if (!items?.length) return '';
   return `<div class="attachments">${items.map(a => {
@@ -177,9 +218,9 @@ function renderAttachments(items) {
     }
     if (a.media_kind === 'audio' || mime.startsWith('audio/')) {
       const isVoice = /^voice-/i.test(String(a.filename || ''));
-      return `<div class="attachment audio">${isVoice ? '<span class="voice-ico">🎤</span>' : ''}<audio controls preload="none" src="${safeUrl(url)}"></audio>${isVoice ? '' : `<div class="fname">${name}</div>`}</div>`;
+      return `<div class="attachment audio">${isVoice ? '<span class="voice-ico">' + icon('mic') + '</span>' : ''}<audio controls preload="none" src="${safeUrl(url)}"></audio>${isVoice ? '' : `<div class="fname">${name}</div>`}</div>`;
     }
-    return `<a class="attachment file" href="${safeUrl(url)}" target="_blank" rel="noopener">📎 ${name}</a>`;
+    return `<a class="attachment file" href="${safeUrl(url)}" target="_blank" rel="noopener">${icon('clip')} ${name}</a>`;
   }).join('')}</div>`;
 }
 
@@ -478,20 +519,20 @@ async function renderChat() {
     <div class="chat-layout show-list" id="chat-layout">
       <aside class="chat-side">
         <div class="chat-side-head">
-          <div class="chat-side-title only-desktop"><span>${t('chat')}</span><button class="mini" id="chat-refresh" title="${t('refresh')}">⟳</button></div>
+          <div class="chat-side-title only-desktop"><span>${t('chat')}</span><button class="mini" id="chat-refresh" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button></div>
           <div class="chat-top">
-            <button class="mini only-mobile" id="chat-menu-btn" title="${t('menu')}" aria-label="${t('menu')}">☰</button>
-            <div class="chat-search">🔎<input id="chat-search-input" placeholder="${t('search_user')}"></div>
-            <button class="mini only-mobile mini-pill" id="chat-dm-btn" title="${t('dm')}" aria-label="${t('dm')}"><span class="mi-ico">✉</span><span class="mi-lbl">${t('dm')}</span></button>
-            <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}" aria-label="${t('refresh')}">↻</button>
-            <button class="mini only-mobile" id="chat-new-btn" title="${t('new_chat')}" aria-label="${t('new_chat')}">＋</button>
+            <button class="mini only-mobile" id="chat-menu-btn" title="${t('menu')}" aria-label="${t('menu')}">${icon('menu')}</button>
+            <div class="chat-search">${icon('search')}<input id="chat-search-input" placeholder="${t('search_user')}"></div>
+            <button class="mini only-mobile mini-pill" id="chat-dm-btn" title="${t('dm')}" aria-label="${t('dm')}"><span class="mi-ico">${icon('mail')}</span><span class="mi-lbl">${t('dm')}</span></button>
+            <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
+            <button class="mini only-mobile" id="chat-new-btn" title="${t('new_chat')}" aria-label="${t('new_chat')}">${icon('plus')}</button>
           </div>
         </div>
         <div id="chat-list" class="chat-list"><div class="loading"><div class="spinner"></div></div></div>
       </aside>
       <section class="chat-pane">
         <div id="chat-messages" class="chat-messages">
-          <div class="empty"><div class="empty-icon">💬</div><div class="empty-text">${t('select_chat')}</div></div>
+          <div class="empty"><div class="empty-icon">${icon('chat')}</div><div class="empty-text">${t('select_chat')}</div></div>
         </div>
       </section>
     </div>`;
@@ -627,9 +668,9 @@ function fileChipsHtml(files) {
     if (isAudio) {
       let url = '';
       try { url = URL.createObjectURL(f); } catch (e) { url = ''; }
-      return `<span class="attach-chip voice"><audio controls preload="metadata" src="${url}"></audio><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`;
+      return `<span class="attach-chip voice"><audio controls preload="metadata" src="${url}"></audio><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">${icon('x')}</button></span>`;
     }
-    return `<span class="attach-chip"><span class="attach-name">📎 ${esc(f.name)}</span><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">✕</button></span>`;
+    return `<span class="attach-chip"><span class="attach-name">${icon('clip')} ${esc(f.name)}</span><span class="attach-size">${fmtBytes(f.size)}</span><button class="attach-remove" data-i="${i}" title="${t('remove')}">${icon('x')}</button></span>`;
   }).join('');
 }
 
@@ -802,8 +843,8 @@ function buildMessageEl(m) {
       ${renderAttachments(m.attachments)}
       <div class="msg-meta">
         <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
-        ${isMe ? '<span class="msg-tick" title="отправлено">✓</span>' : ''}
-        ${isMe ? '<span class="msg-actions"><button title="Edit" onclick="editMsg(' + m.message_id + ',this)">✏️</button><button title="Delete" onclick="confirmDel(' + m.message_id + ')">🗑️</button></span>' : ''}
+        ${isMe ? '<span class="msg-tick" title="отправлено">' + icon('check') + '</span>' : ''}
+        ${isMe ? '<span class="msg-actions"><button title="Edit" onclick="editMsg(' + m.message_id + ',this)">' + icon('pencil') + '</button><button title="Delete" onclick="confirmDel(' + m.message_id + ')">' + icon('trash') + '</button></span>' : ''}
       </div>
     </div>`;
   return div;
@@ -858,15 +899,15 @@ async function doLoadMessages(opts) {
     const cav = chatAvaFor(currentChatTitle, currentChatId);
     container.innerHTML = `
       <div class="chead">
-        <button class="chat-back" id="chat-back" title="${t('back_login')}">←</button>
+        <button class="chat-back" id="chat-back" title="${t('back_login')}" aria-label="${t('back_login')}">${icon('back')}</button>
         <div class="chat-ava" style="background:${cav.color}">${esc(cav.initials)}</div>
         <div class="chead-info">
           <div class="t1">${esc(currentChatTitle)}</div>
           <div class="t2">${esc(currentChatDesc || '#' + currentChatId)}</div>
         </div>
         <span class="spacer"></span>
-        <button class="icon-btn" id="chat-reload" title="${t('refresh')}">⟳</button>
-        <button class="icon-btn" id="chat-more" title="${t('description')}">⋮</button>
+        <button class="icon-btn" id="chat-reload" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
+        <button class="icon-btn" id="chat-more" title="${t('description')}" aria-label="${t('description')}">${icon('more', 'fill')}</button>
       </div>
       <div id="msg-list" class="msg-list"></div>
       <div class="comp">
@@ -880,11 +921,10 @@ async function doLoadMessages(opts) {
         </div>
         <div class="comp-field">
           <input id="msg-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
-          <button class="comp-btn" id="emoji-btn" title="😊">😊</button>
-          <button class="comp-btn" id="attach-btn" title="${t('attach')}">📎</button>
-          <button class="comp-btn" id="mic-btn" title="${t('voice_msg')}" aria-label="${t('voice_msg')}">🎤</button>
+          <button class="comp-btn" id="attach-btn" title="${t('attach')}" aria-label="${t('attach')}">${icon('clip')}</button>
+          <button class="comp-btn" id="mic-btn" title="${t('voice_msg')}" aria-label="${t('voice_msg')}">${icon('mic')}</button>
           <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
-          <button class="comp-btn send" id="send-btn" title="${t('send')}">➤</button>
+          <button class="comp-btn send" id="send-btn" title="${t('send')}" aria-label="${t('send')}">${icon('send')}</button>
         </div>
       </div>`;
     const list = $('#msg-list');
@@ -925,8 +965,6 @@ async function doLoadMessages(opts) {
     if (reloadEl) reloadEl.onclick = () => doLoadMessages({force:true});
     const moreEl = $('#chat-more');
     if (moreEl) moreEl.onclick = showChatInfo;
-    const emojiEl = $('#emoji-btn');
-    if (emojiEl) emojiEl.onclick = (ev) => { ev.stopPropagation(); toggleEmojiPicker(); };
     $('#send-btn').onclick = sendMessage;
     const msgFile = $('#msg-file');
     if ($('#attach-btn')) $('#attach-btn').onclick = () => msgFile && msgFile.click();
@@ -1012,33 +1050,6 @@ function daySepEl(ms) {
   return el('div',{class:'day-sep'}, dayLabel(ms));
 }
 
-const EMOJIS = ['😀','😄','😂','🤣','😊','😉','😍','🤔','😎','😢','😡','👍','👎','👌','🙏','👏','💪','🔥','❤️','💔','✨','🎉','🎂','☕','🍕','⚽','🎮','📚','📎','📄','📷','🎵','✅','❌','⚠️','💡','🚀','🌙','☀️','🌧️'];
-function toggleEmojiPicker() {
-  const field = document.querySelector('.comp-field');
-  if (!field) return;
-  let pop = document.getElementById('emoji-pop');
-  if (!pop) {
-    pop = el('div',{class:'emoji-pop',id:'emoji-pop'});
-    EMOJIS.forEach(sym => {
-      const b = el('button',{type:'button'},sym);
-      b.onclick = () => {
-        const inp = $('#msg-input');
-        if (!inp) return;
-        const s = inp.selectionStart ?? inp.value.length;
-        const en = inp.selectionEnd ?? inp.value.length;
-        inp.value = inp.value.slice(0, s) + sym + inp.value.slice(en);
-        inp.focus();
-        inp.selectionStart = inp.selectionEnd = s + sym.length;
-      };
-      pop.append(b);
-    });
-    field.append(pop);
-    document.addEventListener('click', (ev) => {
-      if (!pop.contains(ev.target) && ev.target.id !== 'emoji-btn') pop.classList.remove('open');
-    });
-  }
-  pop.classList.toggle('open');
-}
 function showChatInfo() {
   const old = document.getElementById('chat-info-modal');
   if (old) old.remove();
@@ -1394,7 +1405,7 @@ async function renderSupport() {
       <div id="ticket-list"><div class="loading"><div class="spinner"></div></div></div>
       <div id="ticket-detail">
         <div class="card" style="text-align:center;color:var(--text2);padding:40px">
-          <div style="font-size:40px;margin-bottom:8px">🎫</div>
+          <div class="empty-icon">${icon('ticket')}</div>
           <div>${t('select_ticket')}</div>
         </div>
       </div>
@@ -1412,7 +1423,7 @@ async function renderSupport() {
             <strong>${esc(t.title)}</strong>
             <span class="ticket-status ${t.status}">${t.status.replace('_',' ')}</span>
           </div>
-          <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? '🚩 report · ' : ''}${fmtTime(t.created_at_ms)}</div>`;
+          <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? icon('flag') + ' report · ' : ''}${fmtTime(t.created_at_ms)}</div>`;
         item.onclick = () => loadTicketDetail(t.ticket_id, t.title, item);
         list.append(item);
       });
@@ -1579,7 +1590,7 @@ async function renderAdminReports() {
   try { userData = await api(`/reports/api/list?session_token=${encodeURIComponent(STATE.token)}&limit=100`); } catch(e) { userErr = e.message; }
   try { autoData = await api(`/moderation/api/admin/reports?session_token=${encodeURIComponent(STATE.token)}&limit=100`); } catch(e) { autoErr = e.message; }
 
-  let html = `<div class="admin-card"><h3>🚩 ${t('admin_user_reports')} <span style="color:var(--accent4)">(${userData.pending_count||0})</span></h3>`;
+  let html = `<div class="admin-card"><h3>${icon('flag')} ${t('admin_user_reports')} <span style="color:var(--accent4)">(${userData.pending_count||0})</span></h3>`;
   if (userErr) html += `<div class="empty"><div class="empty-text">${esc(userErr)}</div></div>`;
   else if (!userData.reports?.length) html += `<div class="empty"><div class="empty-text">${t('no_reports')}</div></div>`;
   else {
@@ -1596,14 +1607,14 @@ async function renderAdminReports() {
             <button class="btn btn-sm btn-danger" data-urep="${r.id}" data-uraction="ban">Ban</button>
             <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="warn">Warn (${r.target_warn_count||0}/3)</button>
             <button class="btn btn-sm btn-outline" data-urep="${r.id}" data-uraction="dismiss">Dismiss</button>
-            <button class="btn btn-sm btn-outline" data-uevidence="${r.id}" data-utarget="${r.target_user_id}">📄 ${t('show_messages')}</button>
+            <button class="btn btn-sm btn-outline" data-uevidence="${r.id}" data-utarget="${r.target_user_id}">${icon('fileText')} ${t('show_messages')}</button>
           </div>` : `<div style="font-size:11px;color:var(--text2)">${esc(r.action||'?')} · ${esc(r.resolved_by||'?')} · ${fmtTime(r.resolved_at_ms)}</div>`}
         <div id="uevidence-${r.id}" class="hidden" style="margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px"></div>
       </div>`).join('');
   }
   html += '</div>';
 
-  html += `<div class="admin-card"><h3>🤖 ${t('admin_auto_reports')} <span style="color:var(--accent4)">(${autoData.pending_count||0})</span></h3>`;
+  html += `<div class="admin-card"><h3>${icon('bot')} ${t('admin_auto_reports')} <span style="color:var(--accent4)">(${autoData.pending_count||0})</span></h3>`;
   if (autoErr) html += `<div class="empty"><div class="empty-text">${esc(autoErr)}</div></div>`;
   else if (!autoData.reports?.length) html += `<div class="empty"><div class="empty-text">${t('no_reports')}</div></div>`;
   else {
@@ -1811,11 +1822,11 @@ async function renderAdminSupport() {
           <strong>${esc(t.title)}</strong>
           <select class="ats" data-tid="${t.ticket_id}" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px"><option value="open" ${t.status==="open"?"selected":""}>open</option><option value="in_progress" ${t.status==="in_progress"?"selected":""}>in progress</option><option value="resolved" ${t.status==="resolved"?"selected":""}>resolved</option><option value="closed" ${t.status==="closed"?"selected":""}>closed</option></select><button class="btn btn-sm btn-outline aus" data-tid="${t.ticket_id}">Update</button>
         </div>
-        <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? '🚩 report · ' : ''}User #${t.user_id} · ${fmtTime(t.created_at_ms)}</div>
+        <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? icon('flag') + ' report · ' : ''}User #${t.user_id} · ${fmtTime(t.created_at_ms)}</div>
         <div id="admin-ticket-${t.ticket_id}-msgs" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px"></div>
         <div id="admin-ticket-${t.ticket_id}-reply" style="display:none;margin-top:8px" class="send-area">
           <input id="admin-ticket-${t.ticket_id}-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
-          <button class="btn btn-sm btn-outline att-btn" data-tid="${t.ticket_id}" title="${_attachTitle}">📎</button>
+          <button class="btn btn-sm btn-outline att-btn" data-tid="${t.ticket_id}" title="${_attachTitle}">${icon('clip')}</button>
           <textarea id="admin-ticket-${t.ticket_id}-input" placeholder="Reply as admin..." rows="1"></textarea>
           <button class="btn btn-primary btn-sm" data-tid="${t.ticket_id}">Send</button>
         </div>`;
@@ -1889,7 +1900,7 @@ async function renderAdminBlog() {
         <div class="form-group"><label>Body</label><textarea class="form-input" id="blog-post-body" rows="6"></textarea></div>
         <div class="form-group"><label>${t('attachments')}</label>
           <input id="blog-post-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
-          <button type="button" class="btn btn-sm btn-outline" id="blog-post-attach">📎 ${t('attach')}</button>
+          <button type="button" class="btn btn-sm btn-outline" id="blog-post-attach">${icon('clip')} ${t('attach')}</button>
           <div id="blog-post-preview" class="attach-preview" style="margin-top:8px"></div>
         </div>
         <button class="btn btn-success" id="blog-post-publish">Publish</button>
@@ -2467,7 +2478,7 @@ var T = {
 "admin_user_reports":{rus:"Жалобы пользователей",eng:"User reports"},
 "admin_auto_reports":{rus:"Авто-модерация",eng:"Auto-moderation"},
 "no_reports":{rus:"Жалоб нет",eng:"No reports"},
-"warn_banner":{rus:"⚠️ У вас предупреждений: {n}/{max}. При {max} — бан на 3 дня.",eng:"⚠️ You have {n}/{max} warnings. At {max} — a 3-day ban."},
+"warn_banner":{rus:"У вас предупреждений: {n}/{max}. При {max} — бан на 3 дня.",eng:"You have {n}/{max} warnings. At {max} — a 3-day ban."},
 "warn_given":{rus:"Предупреждение {n}/{max} выдано",eng:"Warning {n}/{max} issued"},
 "warn_banned":{rus:"{max}/{max} предупреждений — пользователь забанен на 3 дня",eng:"{max}/{max} warnings — user banned for 3 days"},
 "show_messages":{rus:"Сообщения",eng:"Messages"},
@@ -2516,11 +2527,11 @@ async function viewUserProfile(uid) {
     h += "<h2 class='pm-name'>" + esc(p.display_name || p.login) + "</h2>";
     h += "<div class='pm-login'>@" + esc(p.login) + "</div>";
     h += "<div class='pm-role'>" + esc(p.role) + "</div>";
-    if (p.phone) h += "<div class='pm-phone'>📞 " + esc(p.phone) + "</div>";
+    if (p.phone) h += "<div class='pm-phone'>" + icon('phone') + " " + esc(p.phone) + "</div>";
     if (p.profile_bio) h += "<div class='pm-bio'>" + esc(p.profile_bio) + "</div>";
     h += "<div class='pm-actions'>";
-    h += "<button id='pm-dm' class='btn btn-success'>✉ DM</button>";
-    if (!isGuest) h += "<button id='pm-report' class='btn btn-danger'>🚩 Report</button>";
+    h += "<button id='pm-dm' class='btn btn-success'>" + icon('mail') + " DM</button>";
+    if (!isGuest) h += "<button id='pm-report' class='btn btn-danger'>" + icon('flag') + " Report</button>";
     h += "</div></div>";
     showProfileModal(h);
     var dmBtn = document.getElementById("pm-dm");
@@ -2556,9 +2567,9 @@ function openReportModal(uid, name, emoji) {
   overlay.className = 'overlay';
   overlay.innerHTML = `
     <div class="modal report-modal">
-      <h3>🚩 ${t('report_title')}</h3>
+      <h3>${icon('flag')} ${t('report_title')}</h3>
       <div class="report-target">
-        <span class="report-target-avatar">${esc(emoji || '👤')}</span>
+        <span class="report-target-avatar">${emoji ? esc(emoji) : icon('user')}</span>
         <div>
           <div class="report-target-name">${esc(name || ('User #' + uid))}</div>
           <div class="report-target-sub">ID #${uid}</div>
@@ -2572,7 +2583,7 @@ function openReportModal(uid, name, emoji) {
       </div>
       <div class="form-group"><label>${t('attachments')} (${t('optional')})</label>
         <input id="report-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
-        <button type="button" class="btn btn-sm btn-outline" id="report-attach">📎 ${t('attach')}</button>
+        <button type="button" class="btn btn-sm btn-outline" id="report-attach">${icon('clip')} ${t('attach')}</button>
         <div id="report-preview" class="attach-preview" style="margin-top:8px"></div>
       </div>
       <div id="report-error" class="login-error"></div>
@@ -2585,12 +2596,12 @@ function openReportModal(uid, name, emoji) {
   overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
   var selected = 'spam';
   var reasonsBox = document.getElementById('report-reasons');
-  [['spam','📢'],['abuse','😠'],['profanity','🤬'],['ads','📣'],['scam','💰'],['other','❓']].forEach(function(pair) {
+  [['spam','megaphone'],['abuse','alert'],['profanity','messageX'],['ads','megaphone'],['scam','dollar'],['other','help']].forEach(function(pair) {
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'report-reason' + (pair[0] === selected ? ' active' : '');
     b.dataset.reason = pair[0];
-    b.textContent = pair[1] + ' ' + reportReasonLabel(pair[0]);
+    b.innerHTML = icon(pair[1]) + ' ' + reportReasonLabel(pair[0]);
     b.onclick = function() {
       selected = pair[0];
       reasonsBox.querySelectorAll('.report-reason').forEach(function(x) { x.classList.remove('active'); });
@@ -2636,7 +2647,7 @@ function openReportModal(uid, name, emoji) {
       var card = overlay.querySelector('.modal');
       card.innerHTML = `
         <div class="report-success">
-          <div class="report-success-icon">✅</div>
+          <div class="report-success-icon">${icon('checkCircle')}</div>
           <h3>${t('report_sent_title')}</h3>
           <p>${t('report_sent_text')}</p>
           <button class="btn btn-primary" id="report-close">${t('close')}</button>
@@ -2721,7 +2732,7 @@ function confirmDel(mid) {
   var overlay = document.createElement("div");
   overlay.className = "overlay";
   overlay.innerHTML = `<div class="modal confirm-modal">
-    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-icon">${icon('trash')}</div>
     <h3>Delete this message?</h3>
     <div class="confirm-actions">
       <button id="cfm-yes" class="btn btn-danger">Yes, delete</button>

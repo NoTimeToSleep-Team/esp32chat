@@ -156,15 +156,30 @@ html:has(body.chat-mode){overflow:hidden}
 @keyframes recPulse{0%,100%{opacity:1}50%{opacity:.25}}
 .comp-btn.recording{background:var(--accent4);color:#fff;animation:recPulse 1.4s ease-in-out infinite}
 .attachment.audio{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);padding:7px 11px;border-radius:12px}
-.attachment.audio audio{height:36px;max-width:280px}
+.attachment.audio audio{height:36px;max-width:280px;color-scheme:dark}
+.attach-chip.voice audio{color-scheme:dark}
+audio::-webkit-media-controls-panel{background:var(--bg3)}
 .attachment.audio .fname{font-size:12.5px;color:var(--text2);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.attachment.audio .voice-ico{font-size:16px;flex:0 0 auto}
-.attach-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.attachment.audio .voice-ico{display:inline-flex;align-items:center;flex:0 0 auto}
+.attach-name{display:inline-flex;align-items:center;gap:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
 .attach-size{opacity:.8}
-.emoji-pop{position:absolute;bottom:58px;left:0;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:8px;display:none;grid-template-columns:repeat(8,1fr);gap:2px;z-index:80;box-shadow:var(--shadow);max-height:220px;overflow-y:auto;width:296px}
-.emoji-pop.open{display:grid}
-.emoji-pop button{background:none;border:none;font-size:19px;cursor:pointer;padding:5px;border-radius:8px;line-height:1}
-.emoji-pop button:hover{background:var(--hover)}
+
+/* Inline SVG icons (replace emoji glyphs) */
+.ic{width:20px;height:20px;flex:0 0 auto;display:block;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ic.fill{fill:currentColor;stroke:none}
+.comp-btn .ic{width:21px;height:21px}
+.icon-btn .ic{width:19px;height:19px}
+.mini .ic{width:19px;height:19px}
+.chat-back .ic{width:20px;height:20px}
+.chat-search .ic{width:16px;height:16px;color:var(--text2)}
+.msg-actions button .ic{width:15px;height:15px}
+.msg-tick .ic{width:14px;height:14px}
+.attach-chip .ic,.attachment.file .ic{width:15px;height:15px}
+.voice-ico .ic{width:17px;height:17px}
+.empty-icon .ic{width:46px;height:46px;color:var(--text2);margin:0 auto}
+.confirm-icon .ic{width:40px;height:40px;color:var(--accent4);margin:0 auto}
+.report-success-icon .ic{width:46px;height:46px;color:var(--accent2);margin:0 auto}
+.pm-phone .ic,.pm-actions .ic,.report-reason .ic,.admin-card h3 .ic,.login-title .ic{width:16px;height:16px;display:inline-block;vertical-align:-3px}
 .chat-info-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
 .chat-info-row:last-child{border-bottom:none}
 .chat-info-row .k{color:var(--text2)}
@@ -470,7 +485,6 @@ html:has(body.chat-mode){overflow:hidden}
   .msg-list{padding:12px 10px 6px}
   .comp{padding:6px 8px 10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
   .comp-btn{width:36px;height:36px}
-  .emoji-pop{width:270px;grid-template-columns:repeat(7,1fr)}
   .send-area{flex-wrap:nowrap;align-items:flex-end;gap:6px}
   .send-area textarea{flex:1 1 auto;min-width:0;min-height:44px}
   .send-area .btn{flex:0 0 auto;justify-content:center;height:44px;padding:0 12px}
