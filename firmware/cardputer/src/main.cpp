@@ -157,7 +157,7 @@ static int about_scroll = 0;
 static const uint8_t ESPNOW_MAGIC = 0x4C;
 static const uint8_t ESPNOW_CHANNEL = 1;
 static const size_t ESPNOW_FRAG = 200;
-static const size_t ESPNOW_RX_BUF = 4096;
+static const size_t ESPNOW_RX_BUF = 8192;
 static const uint8_t ESPNOW_BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 static bool espnow_ready = false;
@@ -347,7 +347,7 @@ static int espnowRequest(const String &method, const String &path, const String 
     }
 
     uint32_t start = millis();
-    while (millis() - start < 6000) {
+    while (millis() - start < 4000) {
         if (espnow_asm_complete) {
             espnowParseResponse();
         }
@@ -1616,7 +1616,7 @@ static void openChat(int index) {
     current_chat_title = chats[index].title;
     input_text = "";
     screen = Screen::CHAT_VIEW;
-    loadMessages(current_chat_id, 40);
+    loadMessages(current_chat_id, link_via_espnow ? 15 : 40);
     drawChatView();
 }
 
@@ -1647,9 +1647,11 @@ static void pollNewMessages() {
     if (current_chat_id == 0 || session_token.length() == 0) {
         return;
     }
+    int limit = link_via_espnow ? 5 : 10;
     String response;
     int code = httpGet("/chat/api/chats/" + String(current_chat_id) +
-                           "/messages?session_token=" + session_token + "&limit=10&offset=0",
+                           "/messages?session_token=" + session_token +
+                           "&limit=" + String(limit) + "&offset=0",
                        response);
     if (code != 200) {
         return;
@@ -2387,7 +2389,8 @@ void loop() {
     }
 
     static uint32_t last_msg_poll = 0;
-    if (screen != Screen::PAIR && session_token.length() > 0 &&
+    if ((screen == Screen::CHAT_VIEW || screen == Screen::CHAT_INPUT) &&
+        current_chat_id != 0 && session_token.length() > 0 &&
         millis() - last_msg_poll > MSG_POLL_MS) {
         last_msg_poll = millis();
         pollNewMessages();
