@@ -23,3 +23,6 @@ server/data/logs/
 
 # PlatformIO build artifacts
 .pio/
+
+# Local demo firmware (not ours)
+firmware/cardputer/user demo.bin

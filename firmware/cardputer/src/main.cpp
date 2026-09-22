@@ -1,5 +1,5 @@
-// LC Cardputer — этап pair.
-// Сопряжение по 6-значному коду + вход с proof (HMAC-SHA256), без отправки секрета.
+// LC Cardputer — этапы pair + chat.
+// Сопряжение по 6-значному коду, вход с HMAC-proof, список чатов, лента, отправка.
 
 #include <M5Cardputer.h>
 #include <WiFi.h>
@@ -7,30 +7,103 @@
 #include <Preferences.h>
 #include <mbedtls/md.h>
 #include <esp_random.h>
+#include <ArduinoJson.h>
+
+#include "lc_font_10.h"
 
 static const char *WIFI_SSID = "local-chat";
 static const char *WIFI_PASS = "";
 static const char *SERVER_BASE = "http://192.168.4.1:18080";
 static const char *DEVICE_TYPE = "cardputer";
 
+static const int MAX_CHATS = 16;
+static const int MAX_MSGS = 60;
+static const int MSG_POLL_MS = 3000;
+
+// --- pair state ---
 static Preferences prefs;
 static String device_id;
 static String device_name;
 static uint8_t device_secret[32];
 static uint8_t device_secret_hash[32];
-
 static String pairing_id;
 static String pairing_code;
 static String session_token;
 static String session_login;
 static bool paired = false;
-static String status_line = "boot";
-static String last_error;
+static String pair_status = "boot";
 
-static void drawScreen();
-static void requestPairingCode();
-static void pollPairingStatus();
-static void runDeviceSession();
+// --- chat state ---
+enum class Screen { PAIR, MENU, CHAT_LIST, CHAT_VIEW, CHAT_INPUT, BLOG_LIST, BLOG_VIEW, SUPPORT_LIST, SUPPORT_VIEW, SUPPORT_INPUT, SUPPORT_NEW, SETTINGS, ABOUT };
+static Screen screen = Screen::PAIR;
+
+struct ChatItem {
+    long id;
+    String title;
+};
+struct MsgItem {
+    long id;
+    String author;
+    String text;
+    String file;
+};
+
+static ChatItem chats[MAX_CHATS];
+static int chat_count = 0;
+static int chat_sel = 0;
+
+static MsgItem msgs[MAX_MSGS];
+static int msg_count = 0;
+static int msg_scroll = 0;
+static long last_msg_id = 0;
+
+static long current_chat_id = 0;
+static String current_chat_title;
+static String input_text;
+static String net_status;
+
+static const int MAX_BLOG = 16;
+struct BlogItem {
+    long id;
+    String title;
+};
+static BlogItem blog[MAX_BLOG];
+static int blog_count = 0;
+static int blog_sel = 0;
+static String post_title;
+static std::vector<String> post_lines;
+static int post_scroll = 0;
+
+static const int MENU_ITEMS = 5;
+static const char *menu_titles[MENU_ITEMS] = {"Чат", "Блог", "Поддержка", "Настройки", "О проекте"};
+static int menu_sel = 0;
+
+static const int BRIGHT_LEVELS[4] = {64, 128, 191, 255};
+static const char *BRIGHT_LABELS[4] = {"25%", "50%", "75%", "100%"};
+static const int SLEEP_MS[4] = {0, 30000, 60000, 300000};
+static const char *SLEEP_LABELS[4] = {"Выкл", "30 сек", "1 мин", "5 мин"};
+static int setting_bright = 3;
+static int setting_sleep = 0;
+static bool setting_notify = true;
+static bool screen_off = false;
+static const int SETTINGS_ITEMS = 3;
+static int settings_sel = 0;
+
+static const int MAX_TICKETS = 12;
+struct TicketItem {
+    long id;
+    String title;
+    String status;
+};
+static TicketItem tickets[MAX_TICKETS];
+static int ticket_count = 0;
+static int ticket_sel = 0;
+static long current_ticket_id = 0;
+static String current_ticket_title;
+
+static const char *FW_VERSION = "0.3.0";
+static std::vector<String> about_lines;
+static int about_scroll = 0;
 
 // --- helpers ---
 
@@ -70,6 +143,30 @@ static String jsonString(const String &body, const char *key) {
     return body.substring(idx, end);
 }
 
+static String escapeJson(const String &in) {
+    String out;
+    out.reserve(in.length() + 8);
+    for (size_t i = 0; i < in.length(); i++) {
+        char c = in[i];
+        if (c == '"' || c == '\\') {
+            out += '\\';
+            out += c;
+        } else if (c == '\n') {
+            out += "\\n";
+        } else if ((unsigned char)c >= 0x20) {
+            out += c;
+        }
+    }
+    return out;
+}
+
+static String clip(const String &s, int max_chars) {
+    if ((int)s.length() <= max_chars) {
+        return s;
+    }
+    return s.substring(0, max_chars - 1) + "~";
+}
+
 static int httpGet(const String &path, String &response) {
     HTTPClient http;
     http.setTimeout(6000);
@@ -97,9 +194,17 @@ static int httpPostJson(const String &path, const String &body, String &response
     return code;
 }
 
-// --- screen ---
+// --- forward declarations ---
 
-static void drawScreen() {
+static void drawScreen();
+static void drawPairScreen();
+static void drawMenu();
+static void runDeviceSession();
+static bool loadChats();
+
+// --- pair ---
+
+static void drawPairScreen() {
     auto &d = M5Cardputer.Display;
     d.fillScreen(TFT_BLACK);
     d.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -114,25 +219,22 @@ static void drawScreen() {
 
     if (pairing_code.length() == 6 && !paired) {
         d.setTextColor(TFT_WHITE, TFT_BLACK);
-        d.setCursor(4, 42);
+        d.setCursor(4, 36);
         d.print("Pairing code:");
         d.setTextSize(3);
         d.setTextColor(TFT_CYAN, TFT_BLACK);
-        d.setCursor(4, 56);
+        d.setCursor(4, 48);
         d.print(pairing_code);
         d.setTextSize(1);
         d.setTextColor(TFT_YELLOW, TFT_BLACK);
-        d.setCursor(4, 92);
+        d.setCursor(4, 94);
         d.print("Enter it in web UI:");
-        d.setCursor(4, 104);
+        d.setCursor(4, 108);
         d.print("Devices -> Pair by code");
     } else if (paired && session_token.length() > 0) {
         d.setTextColor(TFT_GREEN, TFT_BLACK);
         d.setCursor(4, 46);
         d.print("Session OK");
-        d.setTextColor(TFT_WHITE, TFT_BLACK);
-        d.setCursor(4, 60);
-        d.printf("user: %s", session_login.c_str());
     } else if (paired) {
         d.setTextColor(TFT_GREEN, TFT_BLACK);
         d.setCursor(4, 46);
@@ -147,17 +249,17 @@ static void drawScreen() {
     d.setCursor(4, 120);
     d.printf("Enter = retry");
     d.setCursor(120, 120);
-    d.printf("%s", status_line.c_str());
+    d.printf("%s", pair_status.c_str());
 }
-
-// --- network flow ---
 
 static void connectWifi() {
     if (WiFi.status() == WL_CONNECTED) {
         return;
     }
-    status_line = "wifi...";
-    drawScreen();
+    pair_status = "wifi...";
+    if (screen == Screen::PAIR) {
+        drawPairScreen();
+    }
     WiFi.mode(WIFI_STA);
     WiFi.setSleep(false);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -168,12 +270,13 @@ static void connectWifi() {
     }
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("wifi: ip=%s rssi=%d\n", WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
-        status_line = "wifi ok";
+        pair_status = "wifi ok";
     } else {
-        status_line = "wifi failed";
-        last_error = "wifi";
+        pair_status = "wifi failed";
     }
-    drawScreen();
+    if (screen == Screen::PAIR) {
+        drawPairScreen();
+    }
 }
 
 static void requestPairingCode() {
@@ -183,8 +286,8 @@ static void requestPairingCode() {
             return;
         }
     }
-    status_line = "requesting...";
-    drawScreen();
+    pair_status = "requesting...";
+    drawPairScreen();
 
     String secret_hash_hex = toHex(device_secret_hash, sizeof(device_secret_hash));
     String body = String("{\"device_id\":\"") + device_id +
@@ -197,22 +300,20 @@ static void requestPairingCode() {
     Serial.printf("pair/request: HTTP %d %s\n", code, response.c_str());
 
     if (code != 200) {
-        status_line = "request failed";
-        last_error = String("http ") + code;
-        drawScreen();
+        pair_status = "request failed";
+        drawPairScreen();
         return;
     }
 
     pairing_id = jsonString(response, "\"pairing_id\":\"");
     pairing_code = jsonString(response, "\"code\":\"");
     if (pairing_id.length() != 32 || pairing_code.length() != 6) {
-        status_line = "bad response";
-        last_error = "parse";
-        drawScreen();
+        pair_status = "bad response";
+        drawPairScreen();
         return;
     }
-    status_line = "waiting";
-    drawScreen();
+    pair_status = "waiting";
+    drawPairScreen();
 }
 
 static void pollPairingStatus() {
@@ -222,7 +323,6 @@ static void pollPairingStatus() {
     String response;
     int code = httpGet(String("/devices/api/pair/status?pairing_id=") + pairing_id, response);
     if (code != 200) {
-        Serial.printf("pair/status: HTTP %d\n", code);
         return;
     }
     String state = jsonString(response, "\"pairing_status\":\"");
@@ -231,14 +331,14 @@ static void pollPairingStatus() {
         paired = true;
         prefs.putBool("paired", true);
         pairing_code = "";
-        status_line = "paired!";
-        drawScreen();
+        pair_status = "paired!";
+        drawPairScreen();
         runDeviceSession();
     } else if (state == "expired") {
-        status_line = "code expired";
+        pair_status = "code expired";
         pairing_code = "";
         pairing_id = "";
-        drawScreen();
+        drawPairScreen();
     }
 }
 
@@ -249,29 +349,33 @@ static void runDeviceSession() {
             return;
         }
     }
-    status_line = "signing in...";
-    drawScreen();
+    pair_status = "signing in...";
+    if (screen == Screen::PAIR) {
+        drawPairScreen();
+    }
 
     String response;
     String challenge_body = String("{\"device_id\":\"") + device_id + "\"}";
     int code = httpPostJson("/auth/device-challenge", challenge_body, response);
-    Serial.printf("device-challenge: HTTP %d %s\n", code, response.c_str());
+    Serial.printf("device-challenge: HTTP %d\n", code);
     if (code != 200) {
-        status_line = "challenge failed";
+        pair_status = "challenge failed";
         if (code == 404) {
             paired = false;
             prefs.putBool("paired", false);
             pairing_id = "";
             pairing_code = "";
         }
-        drawScreen();
+        if (screen == Screen::PAIR) {
+            drawPairScreen();
+        }
         return;
     }
 
     String challenge = jsonString(response, "\"challenge\":\"");
     if (challenge.length() != 32) {
-        status_line = "bad challenge";
-        drawScreen();
+        pair_status = "bad challenge";
+        drawPairScreen();
         return;
     }
 
@@ -280,25 +384,1396 @@ static void runDeviceSession() {
                           "\",\"challenge\":\"" + challenge +
                           "\",\"proof\":\"" + proof + "\"}";
     code = httpPostJson("/auth/device-session", session_body, response);
-    Serial.printf("device-session: HTTP %d %s\n", code, response.c_str());
+    Serial.printf("device-session: HTTP %d\n", code);
     if (code != 200) {
-        status_line = "session failed";
+        pair_status = "session failed";
         if (code == 404 || code == 401) {
             paired = false;
             prefs.putBool("paired", false);
             pairing_id = "";
         }
-        drawScreen();
+        if (screen == Screen::PAIR) {
+            drawPairScreen();
+        }
         return;
     }
 
     session_token = jsonString(response, "\"token\":\"");
     session_login = jsonString(response, "\"login\":\"");
-    status_line = "session ok";
-    Serial.printf("session: user=%s token_len=%u heap=%lu\n",
-                  session_login.c_str(), (unsigned)session_token.length(),
-                  (unsigned long)ESP.getFreeHeap());
-    drawScreen();
+    pair_status = "session ok";
+    Serial.printf("session: user=%s token_len=%u\n", session_login.c_str(), (unsigned)session_token.length());
+
+    screen = Screen::MENU;
+    drawMenu();
+}
+
+// --- chat ---
+
+static const uint16_t COL_HEADER = 0x18E3;
+static const uint16_t COL_ACCENT = 0x07FF;
+static const uint16_t COL_SEL = 0x035F;
+static const uint16_t COL_DIM = 0x8410;
+
+static const uint16_t AUTHOR_COLORS[] = {0x07FF, 0xFD20, 0x07E0, 0xF81F, 0xFFE0, 0x5D9F};
+
+static uint16_t authorColor(const String &name) {
+    uint16_t h = 0;
+    for (size_t i = 0; i < name.length(); i++) {
+        h = h * 31 + (uint8_t)name[i];
+    }
+    return AUTHOR_COLORS[h % (sizeof(AUTHOR_COLORS) / sizeof(AUTHOR_COLORS[0]))];
+}
+
+static void drawChatList() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(TFT_WHITE, COL_HEADER);
+    d.setCursor(4, 4);
+    d.printf("Chats (%d)", chat_count);
+    int lvl = (int)M5Cardputer.Power.getBatteryLevel();
+    d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
+    d.setCursor(198, 4);
+    if (lvl < 0) {
+        d.print("--");
+    } else {
+        d.printf("%d%%", lvl);
+    }
+
+    int y = 20;
+    for (int i = 0; i < chat_count && i < 7; i++) {
+        bool sel = (i == chat_sel);
+        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
+        if (sel) {
+            d.fillRect(0, y - 2, 240, 14, bg);
+        }
+        d.setTextColor(COL_DIM, bg);
+        d.setCursor(4, y);
+        d.printf("%d", i + 1);
+        d.setTextColor(sel ? TFT_WHITE : authorColor(chats[i].title), bg);
+        d.setCursor(16, y);
+        d.print(clip(chats[i].title, 38));
+        y += 14;
+    }
+
+    d.fillRect(0, 122, 240, 13, COL_HEADER);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(4, 122);
+    d.print("↑↓ move   →/Enter open");
+}
+
+static void drawChatView() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 4);
+    d.printf("#%s", clip(current_chat_title, 16).c_str());
+
+    int lvl = (int)M5Cardputer.Power.getBatteryLevel();
+    d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
+    d.setCursor(198, 4);
+    if (lvl < 0) {
+        d.print("--");
+    } else {
+        d.printf("%d%%", lvl);
+    }
+    d.setTextColor(WiFi.status() == WL_CONNECTED ? TFT_GREEN : TFT_RED, COL_HEADER);
+    d.setCursor(228, 4);
+    d.print("w");
+
+    int pos = msg_count > 0 ? (msg_count - msg_scroll) : 0;
+    d.setTextColor(COL_DIM, TFT_BLACK);
+    d.setCursor(206, 19);
+    d.printf("%d/%d", pos, msg_count);
+
+    const int visible = 8;
+    int end = msg_count - msg_scroll;
+    int start = end - visible;
+    if (start < 0) {
+        start = 0;
+    }
+    if (end > msg_count) {
+        end = msg_count;
+    }
+
+    int y = 17;
+    for (int i = start; i < end && y < 104; i++) {
+        d.setTextColor(authorColor(msgs[i].author), TFT_BLACK);
+        d.setCursor(4, y);
+        d.print(clip(msgs[i].author, 9));
+        d.setCursor(64, y);
+        if (msgs[i].text.length() > 0) {
+            d.setTextColor(TFT_WHITE, TFT_BLACK);
+            d.print(clip(msgs[i].text, 30));
+        } else if (msgs[i].file.length() > 0) {
+            d.setTextColor(TFT_YELLOW, TFT_BLACK);
+            d.print(clip("[file] " + msgs[i].file, 30));
+        }
+        y += 13;
+        if (msgs[i].file.length() > 0 && msgs[i].text.length() > 0 && y < 104) {
+            d.setTextColor(TFT_YELLOW, TFT_BLACK);
+            d.setCursor(64, y);
+            d.print(clip("[file] " + msgs[i].file, 30));
+            y += 13;
+        }
+    }
+
+    d.fillRect(0, 116, 240, 19, COL_HEADER);
+    d.setTextColor(TFT_WHITE, COL_HEADER);
+    d.setCursor(4, 122);
+    if (screen == Screen::CHAT_INPUT) {
+        d.printf("> %s_", clip(input_text, 35).c_str());
+    } else {
+        d.print("↑↓ scroll  → write  Esc back");
+    }
+}
+
+static void drawMenu() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.print("LC");
+    d.setTextColor(TFT_WHITE, COL_HEADER);
+    d.setCursor(28, 2);
+    d.printf("%s", clip(session_login, 10).c_str());
+    int lvl = (int)M5Cardputer.Power.getBatteryLevel();
+    d.setTextColor(lvl < 0 ? COL_DIM : (lvl > 20 ? TFT_GREEN : TFT_RED), COL_HEADER);
+    d.setCursor(198, 2);
+    if (lvl < 0) {
+        d.print("--");
+    } else {
+        d.printf("%d%%", lvl);
+    }
+
+    int y = 24;
+    for (int i = 0; i < MENU_ITEMS; i++) {
+        bool sel = (i == menu_sel);
+        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
+        if (sel) {
+            d.fillRect(0, y - 3, 240, 20, bg);
+        }
+        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
+        d.setCursor(10, y);
+        d.print(sel ? ">" : " ");
+        d.setCursor(24, y);
+        d.print(menu_titles[i]);
+        y += 22;
+    }
+
+    d.fillRect(0, 122, 240, 13, COL_HEADER);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(4, 122);
+    d.print("↑↓ move   →/Enter open");
+}
+
+static void buildAbout() {
+    about_lines.clear();
+    char buf[96];
+
+    about_lines.push_back("Local Chat — локальный");
+    about_lines.push_back("чат-сервер на Raspberry Pi 5.");
+    about_lines.push_back("Работает без интернета:");
+    about_lines.push_back("Wi-Fi и данные только внутри");
+    about_lines.push_back("локальной сети.");
+    about_lines.push_back("");
+    about_lines.push_back("— Это устройство —");
+    about_lines.push_back(String("  ") + device_name);
+    about_lines.push_back(String("  id: ") + device_id);
+    about_lines.push_back(String("  прошивка: v") + FW_VERSION);
+    snprintf(buf, sizeof(buf), "  память: %lu КБ", (unsigned long)(ESP.getFreeHeap() / 1024));
+    about_lines.push_back(buf);
+    int lvl = (int)M5Cardputer.Power.getBatteryLevel();
+    snprintf(buf, sizeof(buf), "  батарея: %d%%", lvl);
+    about_lines.push_back(buf);
+    about_lines.push_back("");
+    about_lines.push_back("— Связь —");
+    about_lines.push_back(String("  сеть: local-chat"));
+    snprintf(buf, sizeof(buf), "  IP: %s", WiFi.localIP().toString().c_str());
+    about_lines.push_back(buf);
+    snprintf(buf, sizeof(buf), "  сигнал: %d dBm", (int)WiFi.RSSI());
+    about_lines.push_back(buf);
+    about_lines.push_back(String("  сервер: ") + SERVER_BASE);
+    about_lines.push_back("");
+    about_lines.push_back("— Аккаунт —");
+    about_lines.push_back(String("  пользователь: ") + session_login);
+    about_lines.push_back("");
+    about_lines.push_back("— Безопасность —");
+    about_lines.push_back("Сопряжение по 6-значному коду.");
+    about_lines.push_back("Вход по HMAC-подписи: секрет");
+    about_lines.push_back("устройства не передаётся по сети.");
+    about_lines.push_back("Отвязка — в веб-интерфейсе.");
+    about_lines.push_back("");
+    about_lines.push_back("— Управление —");
+    about_lines.push_back("; . , / — стрелки");
+    about_lines.push_back("Enter — выбор / отправить");
+    about_lines.push_back("Esc (`) — назад");
+    about_lines.push_back("Fn+Enter / Fn+Space — страницы");
+    about_lines.push_back("Fn+R — обновить");
+    about_lines.push_back("");
+    about_lines.push_back(String("сборка: ") + __DATE__);
+}
+
+static void drawAbout() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.print("О проекте");
+
+    int total = (int)about_lines.size();
+    int visible = 8;
+    int max_scroll = total > visible ? total - visible : 0;
+    if (about_scroll > max_scroll) {
+        about_scroll = max_scroll;
+    }
+    int y = 20;
+    for (int i = about_scroll; i < total && y < 116; i++) {
+        uint16_t color = TFT_WHITE;
+        if (about_lines[i].startsWith("—")) {
+            color = COL_ACCENT;
+        } else if (about_lines[i].startsWith("  ")) {
+            color = TFT_LIGHTGREY;
+        }
+        d.setTextColor(color, TFT_BLACK);
+        d.setCursor(6, y);
+        d.print(about_lines[i]);
+        y += 12;
+    }
+
+    d.fillRect(0, 122, 240, 13, COL_HEADER);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(4, 122);
+    d.printf("↑↓ scroll  %d/%d  Esc back", about_scroll, max_scroll);
+}
+
+static void drawBlogList() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.printf("Блог (%d)", blog_count);
+
+    int y = 22;
+    for (int i = 0; i < blog_count && i < 7; i++) {
+        bool sel = (i == blog_sel);
+        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
+        if (sel) {
+            d.fillRect(0, y - 2, 240, 15, bg);
+        }
+        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
+        d.setCursor(6, y);
+        d.print(clip(blog[i].title, 38));
+        y += 15;
+    }
+    if (blog_count == 0) {
+        d.setTextColor(COL_DIM, TFT_BLACK);
+        d.setCursor(6, 40);
+        d.print("Постов пока нет");
+    }
+
+    d.fillRect(0, 122, 240, 13, COL_HEADER);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(4, 122);
+    d.print("↑↓ move  → open  Esc back");
+}
+
+static void drawBlogView() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.print(clip(post_title, 36));
+
+    int total = (int)post_lines.size();
+    int visible = 8;
+    int max_scroll = total > visible ? total - visible : 0;
+    if (post_scroll > max_scroll) {
+        post_scroll = max_scroll;
+    }
+    int y = 20;
+    for (int i = post_scroll; i < total && y < 116; i++) {
+        d.setTextColor(TFT_WHITE, TFT_BLACK);
+        d.setCursor(6, y);
+        d.print(post_lines[i]);
+        y += 12;
+    }
+
+    d.fillRect(0, 122, 240, 13, COL_HEADER);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(4, 122);
+    d.printf("↑↓ scroll  %d/%d  Esc back", post_scroll, max_scroll);
+}
+
+static void wrapPost(const String &text, int width) {
+    post_lines.clear();
+    String line;
+    int last_space = -1;
+    for (size_t i = 0; i < text.length(); i++) {
+        char c = text[i];
+        if (c == '\r') {
+            continue;
+        }
+        if (c == '\n') {
+            post_lines.push_back(line);
+            line = "";
+            last_space = -1;
+            continue;
+        }
+        line += c;
+        if (c == ' ') {
+            last_space = (int)line.length() - 1;
+        }
+        if ((int)line.length() >= width) {
+            if (last_space > 0 && last_space < (int)line.length() - 1) {
+                String rest = line.substring(last_space + 1);
+                line = line.substring(0, last_space);
+                post_lines.push_back(line);
+                line = rest;
+            } else {
+                post_lines.push_back(line);
+                line = "";
+            }
+            last_space = -1;
+        }
+    }
+    if (line.length() > 0) {
+        post_lines.push_back(line);
+    }
+}
+
+static void loadBlog() {
+    String response;
+    int code = httpGet("/blog/api/posts?session_token=" + session_token + "&limit=16&offset=0", response);
+    if (code != 200) {
+        net_status = String("blog err ") + code;
+        Serial.printf("loadBlog: HTTP %d\n", code);
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        net_status = "blog json";
+        return;
+    }
+    blog_count = 0;
+    for (JsonObject item : doc["items"].as<JsonArray>()) {
+        if (blog_count >= MAX_BLOG) {
+            break;
+        }
+        blog[blog_count].id = item["post_id"].as<long>();
+        blog[blog_count].title = String((const char *)(item["title"] | "?"));
+        blog_count++;
+    }
+    if (blog_sel >= blog_count) {
+        blog_sel = 0;
+    }
+    net_status = String("blog: ") + blog_count;
+    Serial.printf("loadBlog: %d posts\n", blog_count);
+}
+
+static void openPost(int index) {
+    if (index < 0 || index >= blog_count) {
+        return;
+    }
+    String response;
+    int code = httpGet("/blog/api/posts/" + String(blog[index].id) +
+                           "?session_token=" + session_token,
+                       response);
+    if (code != 200) {
+        net_status = String("post err ") + code;
+        drawBlogList();
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        net_status = "post json";
+        drawBlogList();
+        return;
+    }
+    post_title = String((const char *)(doc["post"]["title"] | "?"));
+    String body = String((const char *)(doc["post"]["body_text"] | ""));
+    wrapPost(body, 40);
+    post_scroll = 0;
+    screen = Screen::BLOG_VIEW;
+    Serial.printf("openPost: %ld lines=%d\n", blog[index].id, (int)post_lines.size());
+    drawBlogView();
+}
+
+static void drawSupportList() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.printf("Поддержка (%d)", ticket_count);
+
+    int y = 22;
+    for (int i = 0; i < ticket_count && i < 7; i++) {
+        bool sel = (i == ticket_sel);
+        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
+        if (sel) {
+            d.fillRect(0, y - 2, 240, 15, bg);
+        }
+        bool closed = tickets[i].status == "closed" || tickets[i].status == "resolved";
+        d.setTextColor(closed ? COL_DIM : TFT_GREEN, bg);
+        d.setCursor(4, y);
+        d.print(closed ? "o" : "*");
+        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
+        d.setCursor(14, y);
+        d.print(clip(tickets[i].title, 34));
+        y += 15;
+    }
+    if (ticket_count == 0) {
+        d.setTextColor(COL_DIM, TFT_BLACK);
+        d.setCursor(6, 40);
+        d.print("Обращений пока нет");
+    }
+
+    d.fillRect(0, 122, 240, 13, COL_HEADER);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(4, 122);
+    d.print("↑↓ move  → open  Fn+N new  Esc");
+}
+
+static void drawSupportView() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.print(clip(current_ticket_title, 34));
+
+    int pos = msg_count > 0 ? (msg_count - msg_scroll) : 0;
+    d.setTextColor(COL_DIM, TFT_BLACK);
+    d.setCursor(206, 19);
+    d.printf("%d/%d", pos, msg_count);
+
+    const int visible = 8;
+    int end = msg_count - msg_scroll;
+    int start = end - visible;
+    if (start < 0) {
+        start = 0;
+    }
+    if (end > msg_count) {
+        end = msg_count;
+    }
+
+    int y = 19;
+    for (int i = start; i < end && y < 112; i++) {
+        d.setTextColor(COL_ACCENT, TFT_BLACK);
+        d.setCursor(4, y);
+        d.print(clip(msgs[i].author, 9));
+        d.setCursor(64, y);
+        if (msgs[i].text.length() > 0) {
+            d.setTextColor(TFT_WHITE, TFT_BLACK);
+            d.print(clip(msgs[i].text, 30));
+        } else if (msgs[i].file.length() > 0) {
+            d.setTextColor(TFT_YELLOW, TFT_BLACK);
+            d.print(clip("[file] " + msgs[i].file, 30));
+        }
+        y += 13;
+        if (msgs[i].file.length() > 0 && msgs[i].text.length() > 0 && y < 112) {
+            d.setTextColor(TFT_YELLOW, TFT_BLACK);
+            d.setCursor(64, y);
+            d.print(clip("[file] " + msgs[i].file, 30));
+            y += 13;
+        }
+    }
+
+    d.fillRect(0, 116, 240, 19, COL_HEADER);
+    d.setTextColor(TFT_WHITE, COL_HEADER);
+    d.setCursor(4, 122);
+    if (screen == Screen::SUPPORT_INPUT) {
+        d.printf("> %s_", clip(input_text, 35).c_str());
+    } else {
+        d.print("↑↓ scroll  → write  Esc back");
+    }
+}
+
+static void loadTickets() {
+    String response;
+    int code = httpGet("/support/api/tickets?session_token=" + session_token + "&limit=12&offset=0", response);
+    if (code != 200) {
+        net_status = String("tickets err ") + code;
+        Serial.printf("loadTickets: HTTP %d\n", code);
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        net_status = "tickets json";
+        return;
+    }
+    ticket_count = 0;
+    for (JsonObject item : doc["items"].as<JsonArray>()) {
+        if (ticket_count >= MAX_TICKETS) {
+            break;
+        }
+        tickets[ticket_count].id = item["ticket_id"].as<long>();
+        tickets[ticket_count].title = String((const char *)(item["title"] | "?"));
+        tickets[ticket_count].status = String((const char *)(item["status"] | "open"));
+        ticket_count++;
+    }
+    if (ticket_sel >= ticket_count) {
+        ticket_sel = 0;
+    }
+    net_status = String("tickets: ") + ticket_count;
+    Serial.printf("loadTickets: %d\n", ticket_count);
+}
+
+static void openTicket(int index) {
+    if (index < 0 || index >= ticket_count) {
+        return;
+    }
+    current_ticket_id = tickets[index].id;
+    current_ticket_title = tickets[index].title;
+
+    String response;
+    int code = httpGet("/support/api/tickets/" + String(current_ticket_id) +
+                           "/messages?session_token=" + session_token + "&limit=40&offset=0",
+                       response);
+    if (code != 200) {
+        net_status = String("ticket err ") + code;
+        drawSupportList();
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        net_status = "ticket json";
+        return;
+    }
+    msg_count = 0;
+    for (JsonObject item : doc["items"].as<JsonArray>()) {
+        if (msg_count >= MAX_MSGS) {
+            break;
+        }
+        msgs[msg_count].id = item["message_id"].as<long>();
+        msgs[msg_count].author = String("#") + String(item["author_user_id"].as<long>());
+        msgs[msg_count].text = String((const char *)(item["body_text"] | ""));
+        msgs[msg_count].file = "";
+        JsonArray atts = item["attachments"].as<JsonArray>();
+        if (!atts.isNull() && atts.size() > 0) {
+            msgs[msg_count].file = String((const char *)(atts[0]["filename"] | "file"));
+        }
+        msg_count++;
+    }
+    msg_scroll = 0;
+    input_text = "";
+    screen = Screen::SUPPORT_VIEW;
+    Serial.printf("openTicket: %ld msgs=%d\n", current_ticket_id, msg_count);
+    drawSupportView();
+}
+
+static void sendSupportMessage() {
+    if (input_text.length() == 0) {
+        screen = Screen::SUPPORT_VIEW;
+        drawSupportView();
+        return;
+    }
+    String text = input_text;
+    input_text = "";
+    String body = String("{\"session_token\":\"") + session_token +
+                  "\",\"body_text\":\"" + escapeJson(text) + "\"}";
+    String response;
+    int code = httpPostJson("/support/api/tickets/" + String(current_ticket_id) + "/messages", body, response);
+    Serial.printf("support send: HTTP %d\n", code);
+    if (code == 200) {
+        net_status = "sent";
+        openTicket(ticket_sel);
+    } else {
+        net_status = String("send err ") + code;
+        screen = Screen::SUPPORT_VIEW;
+        drawSupportView();
+    }
+}
+
+static void createSupportTicket() {
+    if (input_text.length() == 0) {
+        screen = Screen::SUPPORT_LIST;
+        drawSupportList();
+        return;
+    }
+    String text = input_text;
+    input_text = "";
+    String title = clip(text, 30);
+    String body = String("{\"session_token\":\"") + session_token +
+                  "\",\"title\":\"" + escapeJson(title) +
+                  "\",\"body_text\":\"" + escapeJson(text) +
+                  "\",\"kind\":\"support\"}";
+    String response;
+    int code = httpPostJson("/support/api/tickets", body, response);
+    Serial.printf("ticket create: HTTP %d %s\n", code, response.substring(0, 100).c_str());
+    loadTickets();
+    screen = Screen::SUPPORT_LIST;
+    drawSupportList();
+}
+
+static void drawSupportNew() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.print("Новое обращение");
+
+    d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    d.setCursor(6, 30);
+    d.print("Опиши проблему текстом.");
+    d.setCursor(6, 44);
+    d.print("Enter — отправить, Esc — отмена.");
+    d.setTextColor(COL_DIM, TFT_BLACK);
+    d.setCursor(6, 62);
+    d.print("(заголовок создастся сам)");
+
+    d.fillRect(0, 116, 240, 19, COL_HEADER);
+    d.setTextColor(TFT_WHITE, COL_HEADER);
+    d.setCursor(4, 122);
+    d.printf("> %s_", clip(input_text, 35).c_str());
+}
+
+static void drawSettings() {
+    auto &d = M5Cardputer.Display;
+    d.fillScreen(TFT_BLACK);
+    d.setTextSize(1);
+
+    d.fillRect(0, 0, 240, 16, COL_HEADER);
+    d.setTextColor(COL_ACCENT, COL_HEADER);
+    d.setCursor(4, 2);
+    d.print("Настройки");
+
+    int y = 26;
+    for (int i = 0; i < SETTINGS_ITEMS; i++) {
+        bool sel = (i == settings_sel);
+        uint16_t bg = sel ? COL_SEL : TFT_BLACK;
+        if (sel) {
+            d.fillRect(0, y - 3, 240, 18, bg);
+        }
+        d.setTextColor(sel ? TFT_WHITE : TFT_LIGHTGREY, bg);
+        d.setCursor(6, y);
+        if (i == 0) {
+            d.print("Яркость");
+            d.setCursor(150, y);
+            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
+            d.print(BRIGHT_LABELS[setting_bright]);
+        } else if (i == 1) {
+            d.print("Гашение экрана");
+            d.setCursor(150, y);
+            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
+            d.print(SLEEP_LABELS[setting_sleep]);
+        } else {
+            d.print("Уведомления");
+            d.setCursor(150, y);
+            d.setTextColor(sel ? TFT_WHITE : COL_ACCENT, bg);
+            d.print(setting_notify ? "Вкл" : "Выкл");
+        }
+        y += 26;
+    }
+
+    d.fillRect(0, 122, 240, 13, COL_HEADER);
+    d.setTextColor(COL_DIM, COL_HEADER);
+    d.setCursor(4, 122);
+    d.print("↑↓ move  ←→ change  Esc back");
+}
+
+static void drawScreen() {
+    switch (screen) {
+        case Screen::PAIR:
+            drawPairScreen();
+            break;
+        case Screen::MENU:
+            drawMenu();
+            break;
+        case Screen::CHAT_LIST:
+            drawChatList();
+            break;
+        case Screen::CHAT_VIEW:
+        case Screen::CHAT_INPUT:
+            drawChatView();
+            break;
+        case Screen::BLOG_LIST:
+            drawBlogList();
+            break;
+        case Screen::BLOG_VIEW:
+            drawBlogView();
+            break;
+        case Screen::SUPPORT_LIST:
+            drawSupportList();
+            break;
+        case Screen::SUPPORT_VIEW:
+        case Screen::SUPPORT_INPUT:
+            drawSupportView();
+            break;
+        case Screen::SUPPORT_NEW:
+            drawSupportNew();
+            break;
+        case Screen::SETTINGS:
+            drawSettings();
+            break;
+        case Screen::ABOUT:
+            drawAbout();
+            break;
+    }
+}
+
+static bool loadChats() {
+    String response;
+    int code = httpGet("/chat/api/chats?session_token=" + session_token, response);
+    if (code != 200) {
+        net_status = String("chats err ") + code;
+        Serial.printf("loadChats: HTTP %d\n", code);
+        return false;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        net_status = "chats json";
+        return false;
+    }
+    chat_count = 0;
+    for (JsonObject item : doc["items"].as<JsonArray>()) {
+        if (chat_count >= MAX_CHATS) {
+            break;
+        }
+        chats[chat_count].id = item["chat_id"].as<long>();
+        chats[chat_count].title = String((const char *)(item["title"] | "?"));
+        chat_count++;
+    }
+    if (chat_sel >= chat_count) {
+        chat_sel = 0;
+    }
+    net_status = String("chats: ") + chat_count;
+    Serial.printf("loadChats: %d chats\n", chat_count);
+    return true;
+}
+
+static bool loadMessages(long chat_id, int limit) {
+    String response;
+    int code = httpGet("/chat/api/chats/" + String(chat_id) +
+                           "/messages?session_token=" + session_token +
+                           "&limit=" + String(limit) + "&offset=0",
+                       response);
+    if (code != 200) {
+        net_status = String("msgs err ") + code;
+        Serial.printf("loadMessages: HTTP %d\n", code);
+        return false;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        net_status = "msgs json";
+        return false;
+    }
+    msg_count = 0;
+    last_msg_id = 0;
+    for (JsonObject item : doc["items"].as<JsonArray>()) {
+        if (msg_count >= MAX_MSGS) {
+            break;
+        }
+        msgs[msg_count].id = item["message_id"].as<long>();
+        msgs[msg_count].author = String((const char *)(item["author_login"] | "?"));
+        msgs[msg_count].text = String((const char *)(item["body_text"] | ""));
+        msgs[msg_count].file = "";
+        JsonArray atts = item["attachments"].as<JsonArray>();
+        if (!atts.isNull() && atts.size() > 0) {
+            msgs[msg_count].file = String((const char *)(atts[0]["filename"] | "file"));
+            if (atts.size() > 1) {
+                msgs[msg_count].file += " +" + String(atts.size() - 1);
+            }
+        }
+        if (msgs[msg_count].id > last_msg_id) {
+            last_msg_id = msgs[msg_count].id;
+        }
+        msg_count++;
+    }
+    msg_scroll = 0;
+    net_status = String("msgs: ") + msg_count;
+    Serial.printf("loadMessages: %d messages, last_id=%ld\n", msg_count, last_msg_id);
+    return true;
+}
+
+static void openChat(int index) {
+    if (index < 0 || index >= chat_count) {
+        return;
+    }
+    current_chat_id = chats[index].id;
+    current_chat_title = chats[index].title;
+    input_text = "";
+    screen = Screen::CHAT_VIEW;
+    loadMessages(current_chat_id, 40);
+    drawChatView();
+}
+
+static void sendCurrentMessage() {
+    if (input_text.length() == 0) {
+        screen = Screen::CHAT_VIEW;
+        drawChatView();
+        return;
+    }
+    String text = input_text;
+    input_text = "";
+    String body = String("{\"session_token\":\"") + session_token +
+                  "\",\"body_text\":\"" + escapeJson(text) + "\"}";
+    String response;
+    int code = httpPostJson("/chat/api/chats/" + String(current_chat_id) + "/messages", body, response);
+    Serial.printf("send: HTTP %d %s\n", code, response.substring(0, 120).c_str());
+    if (code == 200) {
+        net_status = "sent";
+        loadMessages(current_chat_id, 40);
+    } else {
+        net_status = String("send err ") + code;
+    }
+    screen = Screen::CHAT_VIEW;
+    drawChatView();
+}
+
+static void pollNewMessages() {
+    if (current_chat_id == 0 || session_token.length() == 0) {
+        return;
+    }
+    String response;
+    int code = httpGet("/chat/api/chats/" + String(current_chat_id) +
+                           "/messages?session_token=" + session_token + "&limit=10&offset=0",
+                       response);
+    if (code != 200) {
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, response)) {
+        return;
+    }
+    bool added = false;
+    int added_count = 0;
+    for (JsonObject item : doc["items"].as<JsonArray>()) {
+        long id = item["message_id"].as<long>();
+        if (id <= last_msg_id) {
+            continue;
+        }
+        if (msg_count >= MAX_MSGS) {
+            for (int i = 1; i < MAX_MSGS; i++) {
+                msgs[i - 1] = msgs[i];
+            }
+            msg_count = MAX_MSGS - 1;
+        }
+        msgs[msg_count].id = id;
+        msgs[msg_count].author = String((const char *)(item["author_login"] | "?"));
+        msgs[msg_count].text = String((const char *)(item["body_text"] | ""));
+        msgs[msg_count].file = "";
+        JsonArray atts = item["attachments"].as<JsonArray>();
+        if (!atts.isNull() && atts.size() > 0) {
+            msgs[msg_count].file = String((const char *)(atts[0]["filename"] | "file"));
+            if (atts.size() > 1) {
+                msgs[msg_count].file += " +" + String(atts.size() - 1);
+            }
+        }
+        msg_count++;
+        last_msg_id = id;
+        added = true;
+        added_count++;
+    }
+    if (added) {
+        Serial.printf("poll: +%d new, last_id=%ld\n", added_count, last_msg_id);
+        if (setting_notify) {
+            M5Cardputer.Speaker.tone(1800, 60);
+        }
+        if (screen_off) {
+            screen_off = false;
+            M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
+        }
+        if (msg_scroll == 0 && screen != Screen::CHAT_INPUT) {
+            drawChatView();
+        }
+    }
+}
+
+struct KeyInfo {
+    bool up = false;
+    bool down = false;
+    bool left = false;
+    bool right = false;
+    bool esc = false;
+    bool page_up = false;
+    bool page_down = false;
+    bool enter = false;
+    bool del = false;
+    bool opt = false;
+    bool space = false;
+    bool reload = false;
+    bool fn_n = false;
+    String chars;
+};
+
+static KeyInfo readKeys(const Keyboard_Class::KeysState &st) {
+    KeyInfo k;
+    bool nav_mode = (screen != Screen::CHAT_INPUT && screen != Screen::SUPPORT_INPUT &&
+                     screen != Screen::SUPPORT_NEW);
+    k.enter = st.enter && !st.fn;
+    k.del = st.del && !st.fn;
+    k.opt = st.opt;
+    k.page_up = st.enter && st.fn;
+    k.page_down = st.space && st.fn;
+    k.space = st.space && !st.fn;
+
+    for (auto c : st.word) {
+        if ((st.fn || nav_mode) && c == ';') {
+            k.up = true;
+            continue;
+        }
+        if ((st.fn || nav_mode) && c == '.') {
+            k.down = true;
+            continue;
+        }
+        if ((st.fn || nav_mode) && c == ',') {
+            k.right = true;
+            continue;
+        }
+        if ((st.fn || nav_mode) && c == '/') {
+            k.left = true;
+            continue;
+        }
+        if (st.fn && c == 'r') {
+            k.reload = true;
+            continue;
+        }
+        if (st.fn && c == 'n') {
+            k.fn_n = true;
+            continue;
+        }
+        if (!st.fn && c == '`') {
+            k.esc = true;
+            continue;
+        }
+        if (!st.fn) {
+            k.chars += c;
+        }
+    }
+    return k;
+}
+
+static void handleKeys(const Keyboard_Class::KeysState &status) {
+    KeyInfo k = readKeys(status);
+
+    if (screen == Screen::MENU) {
+        if (k.up) {
+            if (menu_sel > 0) {
+                menu_sel--;
+            }
+            drawMenu();
+            return;
+        }
+        if (k.down) {
+            if (menu_sel + 1 < MENU_ITEMS) {
+                menu_sel++;
+            }
+            drawMenu();
+            return;
+        }
+        if (k.enter || k.right) {
+            if (menu_sel == 0) {
+                if (chat_count == 0) {
+                    loadChats();
+                }
+                screen = Screen::CHAT_LIST;
+                drawChatList();
+            } else if (menu_sel == 1) {
+                loadBlog();
+                screen = Screen::BLOG_LIST;
+                drawBlogList();
+            } else if (menu_sel == 2) {
+                loadTickets();
+                screen = Screen::SUPPORT_LIST;
+                drawSupportList();
+            } else if (menu_sel == 3) {
+                settings_sel = 0;
+                screen = Screen::SETTINGS;
+                drawSettings();
+            } else {
+                buildAbout();
+                about_scroll = 0;
+                screen = Screen::ABOUT;
+                drawAbout();
+            }
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::SUPPORT_LIST) {
+        if (k.up) {
+            if (ticket_sel > 0) {
+                ticket_sel--;
+            }
+            drawSupportList();
+            return;
+        }
+        if (k.down) {
+            if (ticket_sel + 1 < ticket_count) {
+                ticket_sel++;
+            }
+            drawSupportList();
+            return;
+        }
+        if (k.enter || k.right) {
+            openTicket(ticket_sel);
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            screen = Screen::MENU;
+            drawMenu();
+            return;
+        }
+        if (k.reload) {
+            loadTickets();
+            drawSupportList();
+            return;
+        }
+        if (k.fn_n) {
+            input_text = "";
+            screen = Screen::SUPPORT_NEW;
+            drawSupportNew();
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::SUPPORT_VIEW) {
+        if (k.enter || k.right) {
+            screen = Screen::SUPPORT_INPUT;
+            drawSupportView();
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            loadTickets();
+            screen = Screen::SUPPORT_LIST;
+            drawSupportList();
+            return;
+        }
+        if (k.up || k.page_up) {
+            int step = k.page_up ? 8 : 1;
+            msg_scroll += step;
+            int max_scroll = msg_count > 0 ? msg_count - 1 : 0;
+            if (msg_scroll > max_scroll) {
+                msg_scroll = max_scroll;
+            }
+            drawSupportView();
+            return;
+        }
+        if (k.down || k.page_down) {
+            int step = k.page_down ? 8 : 1;
+            msg_scroll -= step;
+            if (msg_scroll < 0) {
+                msg_scroll = 0;
+            }
+            drawSupportView();
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::SUPPORT_INPUT) {
+        if (k.enter) {
+            sendSupportMessage();
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            input_text = "";
+            screen = Screen::SUPPORT_VIEW;
+            drawSupportView();
+            return;
+        }
+        if (k.del) {
+            if (input_text.length() > 0) {
+                input_text.remove(input_text.length() - 1);
+            }
+            drawSupportView();
+            return;
+        }
+        for (int i = 0; i < (int)k.chars.length(); i++) {
+            if (input_text.length() < 180) {
+                input_text += k.chars[i];
+            }
+        }
+        if (k.space && input_text.length() < 180) {
+            input_text += ' ';
+        }
+        drawSupportView();
+        return;
+    }
+
+    if (screen == Screen::SUPPORT_NEW) {
+        if (k.enter) {
+            createSupportTicket();
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            input_text = "";
+            screen = Screen::SUPPORT_LIST;
+            drawSupportList();
+            return;
+        }
+        if (k.del) {
+            if (input_text.length() > 0) {
+                input_text.remove(input_text.length() - 1);
+            }
+            drawSupportNew();
+            return;
+        }
+        for (int i = 0; i < (int)k.chars.length(); i++) {
+            if (input_text.length() < 180) {
+                input_text += k.chars[i];
+            }
+        }
+        if (k.space && input_text.length() < 180) {
+            input_text += ' ';
+        }
+        drawSupportNew();
+        return;
+    }
+
+    if (screen == Screen::SETTINGS) {
+        if (k.up) {
+            if (settings_sel > 0) {
+                settings_sel--;
+            }
+            drawSettings();
+            return;
+        }
+        if (k.down) {
+            if (settings_sel + 1 < SETTINGS_ITEMS) {
+                settings_sel++;
+            }
+            drawSettings();
+            return;
+        }
+        if (k.left || k.right) {
+            int dir = k.right ? 1 : -1;
+            if (settings_sel == 0) {
+                setting_bright += dir;
+                if (setting_bright < 0) {
+                    setting_bright = 0;
+                }
+                if (setting_bright > 3) {
+                    setting_bright = 3;
+                }
+                M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
+                prefs.putInt("bright", setting_bright);
+            } else if (settings_sel == 1) {
+                setting_sleep += dir;
+                if (setting_sleep < 0) {
+                    setting_sleep = 0;
+                }
+                if (setting_sleep > 3) {
+                    setting_sleep = 3;
+                }
+                prefs.putInt("sleep", setting_sleep);
+            } else {
+                setting_notify = !setting_notify;
+                prefs.putBool("notify", setting_notify);
+            }
+            drawSettings();
+            return;
+        }
+        if (k.esc || k.opt) {
+            screen = Screen::MENU;
+            drawMenu();
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::ABOUT) {
+        if (k.up || k.page_up) {
+            about_scroll -= k.page_up ? 8 : 1;
+            if (about_scroll < 0) {
+                about_scroll = 0;
+            }
+            drawAbout();
+            return;
+        }
+        if (k.down || k.page_down) {
+            about_scroll += k.page_down ? 8 : 1;
+            drawAbout();
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            screen = Screen::MENU;
+            drawMenu();
+        }
+        return;
+    }
+
+    if (screen == Screen::BLOG_LIST) {
+        if (k.up) {
+            if (blog_sel > 0) {
+                blog_sel--;
+            }
+            drawBlogList();
+            return;
+        }
+        if (k.down) {
+            if (blog_sel + 1 < blog_count) {
+                blog_sel++;
+            }
+            drawBlogList();
+            return;
+        }
+        if (k.enter || k.right) {
+            openPost(blog_sel);
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            screen = Screen::MENU;
+            drawMenu();
+            return;
+        }
+        if (k.reload) {
+            loadBlog();
+            drawBlogList();
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::BLOG_VIEW) {
+        if (k.up || k.page_up) {
+            post_scroll -= k.page_up ? 8 : 1;
+            if (post_scroll < 0) {
+                post_scroll = 0;
+            }
+            drawBlogView();
+            return;
+        }
+        if (k.down || k.page_down) {
+            post_scroll += k.page_down ? 8 : 1;
+            drawBlogView();
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            screen = Screen::BLOG_LIST;
+            drawBlogList();
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::CHAT_LIST) {
+        if (k.enter || k.right) {
+            openChat(chat_sel);
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            screen = Screen::MENU;
+            drawMenu();
+            return;
+        }
+        if (k.reload) {
+            loadChats();
+            drawChatList();
+            return;
+        }
+        if (k.up) {
+            if (chat_sel > 0) {
+                chat_sel--;
+            }
+            drawChatList();
+            return;
+        }
+        if (k.down) {
+            if (chat_sel + 1 < chat_count) {
+                chat_sel++;
+            }
+            drawChatList();
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::CHAT_VIEW) {
+        if (k.enter || k.right) {
+            screen = Screen::CHAT_INPUT;
+            drawChatView();
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            screen = Screen::CHAT_LIST;
+            drawChatList();
+            return;
+        }
+        if (k.reload) {
+            loadMessages(current_chat_id, 40);
+            drawChatView();
+            return;
+        }
+        if (k.up || k.page_up) {
+            int step = k.page_up ? 8 : 1;
+            msg_scroll += step;
+            int max_scroll = msg_count > 0 ? msg_count - 1 : 0;
+            if (msg_scroll > max_scroll) {
+                msg_scroll = max_scroll;
+            }
+            drawChatView();
+            return;
+        }
+        if (k.down || k.page_down) {
+            int step = k.page_down ? 8 : 1;
+            msg_scroll -= step;
+            if (msg_scroll < 0) {
+                msg_scroll = 0;
+            }
+            drawChatView();
+            return;
+        }
+        return;
+    }
+
+    if (screen == Screen::CHAT_INPUT) {
+        if (k.enter) {
+            sendCurrentMessage();
+            return;
+        }
+        if (k.esc || k.opt || k.left) {
+            input_text = "";
+            screen = Screen::CHAT_VIEW;
+            drawChatView();
+            return;
+        }
+        if (k.del) {
+            if (input_text.length() > 0) {
+                input_text.remove(input_text.length() - 1);
+            }
+            drawChatView();
+            return;
+        }
+        for (int i = 0; i < (int)k.chars.length(); i++) {
+            if (input_text.length() < 180) {
+                input_text += k.chars[i];
+            }
+        }
+        if (k.space && input_text.length() < 180) {
+            input_text += ' ';
+        }
+        drawChatView();
+        return;
+    }
 }
 
 // --- arduino ---
@@ -311,10 +1786,12 @@ void setup() {
     delay(300);
 
     M5Cardputer.Display.setRotation(1);
-    drawScreen();
+    bool font_ok = M5Cardputer.Display.loadFont(lc_font_10);
+    Serial.printf("font loaded: %d\n", font_ok ? 1 : 0);
+    drawPairScreen();
 
     Serial.println();
-    Serial.println("=== LC PAIR ===");
+    Serial.println("=== LC CHAT ===");
 
     prefs.begin("lc", false);
     size_t stored = prefs.getBytesLength("secret");
@@ -328,6 +1805,17 @@ void setup() {
     }
     paired = prefs.getBool("paired", false);
     sha256(device_secret, sizeof(device_secret), device_secret_hash);
+
+    setting_bright = prefs.getInt("bright", 3);
+    setting_sleep = prefs.getInt("sleep", 0);
+    setting_notify = prefs.getBool("notify", true);
+    if (setting_bright < 0 || setting_bright > 3) {
+        setting_bright = 3;
+    }
+    if (setting_sleep < 0 || setting_sleep > 3) {
+        setting_sleep = 0;
+    }
+    M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
 
     WiFi.mode(WIFI_STA);
     uint8_t mac[6];
@@ -355,37 +1843,66 @@ void setup() {
 void loop() {
     M5Cardputer.update();
 
+    static uint32_t last_activity = 0;
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
-        Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
-        if (status.enter) {
-            if (paired) {
-                runDeviceSession();
+        last_activity = millis();
+        if (screen_off) {
+            screen_off = false;
+            M5Cardputer.Display.setBrightness(BRIGHT_LEVELS[setting_bright]);
+        } else {
+            Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+            if (screen == Screen::PAIR) {
+                if (status.enter) {
+                    if (paired) {
+                        runDeviceSession();
+                    } else {
+                        requestPairingCode();
+                    }
+                }
             } else {
-                requestPairingCode();
+                handleKeys(status);
             }
         }
     }
 
-    static uint32_t last_poll = 0;
-    if (!paired && pairing_id.length() == 32 && millis() - last_poll > 2000) {
-        last_poll = millis();
+    if (setting_sleep > 0 && !screen_off &&
+        millis() - last_activity > (uint32_t)SLEEP_MS[setting_sleep]) {
+        screen_off = true;
+        M5Cardputer.Display.setBrightness(0);
+    }
+
+    static uint32_t last_pair_poll = 0;
+    if (screen == Screen::PAIR && !paired && pairing_id.length() == 32 &&
+        millis() - last_pair_poll > 2000) {
+        last_pair_poll = millis();
         pollPairingStatus();
     }
 
     static uint32_t last_retry = 0;
-    if (paired && session_token.length() == 0 && millis() - last_retry > 15000) {
+    if (screen == Screen::PAIR && paired && session_token.length() == 0 &&
+        millis() - last_retry > 15000) {
         last_retry = millis();
         runDeviceSession();
+    }
+
+    static uint32_t last_msg_poll = 0;
+    if (screen != Screen::PAIR && session_token.length() > 0 &&
+        millis() - last_msg_poll > MSG_POLL_MS) {
+        last_msg_poll = millis();
+        pollNewMessages();
     }
 
     static uint32_t last_alive = 0;
     if (millis() - last_alive > 5000) {
         last_alive = millis();
-        Serial.printf("alive wifi=%d paired=%d session=%d status=%s heap=%lu\n",
+        Serial.printf("alive wifi=%d paired=%d session=%d screen=%d chat=%ld msgs=%d bat=%d heap=%lu\n",
                       WiFi.status() == WL_CONNECTED ? 1 : 0,
                       paired ? 1 : 0,
                       session_token.length() > 0 ? 1 : 0,
-                      status_line.c_str(),
+                      (int)screen,
+                      current_chat_id,
+                      msg_count,
+                      (int)M5Cardputer.Power.getBatteryLevel(),
                       (unsigned long)ESP.getFreeHeap());
     }
 
