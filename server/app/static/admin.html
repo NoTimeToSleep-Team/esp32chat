@@ -517,7 +517,7 @@ async function wifiScan() {
     if (d.networks && d.networks.length) {
       var h = '<table><tr><th>SSID</th><th>Signal</th><th>Security</th></tr>';
       d.networks.forEach(function(n) {
-        h += '<tr><td>' + esc(n.ssid) + '</td><td>' + (n.signal || "-") + '</td><td>' + (n.secure ? "<svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.8a4 4 0 0 1 8 0V10"/></svg>" : "<svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.8a4 4 0 0 1 7.2-2.4"/></svg>") + '</td></tr>';
+        h += '<tr><td>' + esc(n.ssid) + '</td><td>' + (n.signal || "-") + '</td><td>' + (n.secure ? "<svg style='width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px' viewBox='0 0 24 24'><rect x='4.5' y='10' width='15' height='10.5' rx='2.5'/><path d='M8 10V7.8a4 4 0 0 1 8 0V10'/></svg>" : "<svg style='width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px' viewBox='0 0 24 24'><rect x='4.5' y='10' width='15' height='10.5' rx='2.5'/><path d='M8 10V7.8a4 4 0 0 1 7.2-2.4'/></svg>") + '</td></tr>';
       });
       h += '</table>';
       results.innerHTML = h;

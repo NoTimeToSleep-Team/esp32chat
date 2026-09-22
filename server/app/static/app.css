@@ -180,6 +180,12 @@ audio::-webkit-media-controls-panel{background:var(--bg3)}
 .confirm-icon .ic{width:40px;height:40px;color:var(--accent4);margin:0 auto}
 .report-success-icon .ic{width:46px;height:46px;color:var(--accent2);margin:0 auto}
 .pm-phone .ic,.pm-actions .ic,.report-reason .ic,.admin-card h3 .ic,.login-title .ic{width:16px;height:16px;display:inline-block;vertical-align:-3px}
+
+/* Photo avatars */
+.ava-img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.msg-avatar img,.account-avatar img,.pm-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.ava-actions{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.ava-hint{font-size:11.5px;color:var(--text2);margin-top:6px;line-height:1.4}
 .chat-info-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
 .chat-info-row:last-child{border-bottom:none}
 .chat-info-row .k{color:var(--text2)}

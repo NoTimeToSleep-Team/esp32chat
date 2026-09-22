@@ -207,6 +207,29 @@ function icon(name, cls) {
   return '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + body + '</svg>';
 }
 
+// ===== Avatars: photo (avatar_url) with emoji fallback =====
+const AVA_URL = {}; // userId -> avatar_url | null (null = no photo / already checked)
+
+function avatarInnerHtml(url, emoji) {
+  if (url) return '<img class="ava-img" src="' + safeUrl(url) + '" alt="">';
+  return esc(emoji || '');
+}
+
+async function ensureAvatarUrl(uid) {
+  if (uid === null || uid === undefined) return;
+  if (Object.prototype.hasOwnProperty.call(AVA_URL, uid)) return;
+  AVA_URL[uid] = null;
+  try {
+    const d = await api(`/account/api/profile/${uid}?session_token=${encodeURIComponent(STATE.token)}`);
+    const url = d && d.profile ? d.profile.avatar_url : null;
+    if (!url) return;
+    AVA_URL[uid] = url;
+    $$('.msg-avatar[data-ava-uid="' + uid + '"]').forEach(el => {
+      el.innerHTML = avatarInnerHtml(url, el.dataset.avaEmoji || '');
+    });
+  } catch (e) { /* ignore, emoji stays */ }
+}
+
 function renderAttachments(items) {
   if (!items?.length) return '';
   return `<div class="attachments">${items.map(a => {
@@ -835,8 +858,10 @@ function buildMessageEl(m) {
   div.dataset.mid = m.message_id;
   div.dataset.day = fmtDayKey(m.created_at_ms);
   const authorName = isMe ? esc(STATE.user?.login||'You') : esc(m.author_login || userName(m.author_user_id));
+  const avaUrl = AVA_URL[m.author_user_id];
+  if (!avaUrl) ensureAvatarUrl(m.author_user_id);
   div.innerHTML = `
-    <div class="msg-avatar" style="cursor:pointer" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${esc(initial)}</div>
+    <div class="msg-avatar" data-ava-uid="${m.author_user_id}" data-ava-emoji="${esc(initial)}" style="cursor:pointer" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${avatarInnerHtml(avaUrl, initial)}</div>
     <div class="msg-body">
       ${isMe ? '' : `<div class="msg-header"><span class="msg-author">${authorName}</span></div>`}
       <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span class="edited">(edited)</span>' : ''}</div>
@@ -1246,10 +1271,15 @@ async function renderAccount() {
     $('#account-card').innerHTML = `
       <div class="card">
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
-          <div class="account-avatar">${esc(p.avatar_emoji || localStorage.getItem('lc_my_emoji') || '🐱')}</div>
-          <div>
+          <div class="account-avatar" id="acct-avatar">${avatarInnerHtml(p.avatar_url, p.avatar_emoji || localStorage.getItem('lc_my_emoji') || '🐱')}</div>
+          <div style="min-width:0">
             <div style="font-size:18px;font-weight:600">${esc(p.display_name||p.login)}</div>
             <div style="font-size:13px;color:var(--text2)">@${esc(p.login)} · <span class="badge badge-${p.role}">${p.role}</span></div>
+            <div class="ava-actions">
+              <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
+              <button class="btn btn-sm btn-outline" id="avatar-upload">${icon('camera')} ${t('upload_photo')}</button>
+            </div>
+            <div class="ava-hint">${t('avatar_hint')}</div>
           </div>
         </div>
         
@@ -1273,6 +1303,34 @@ async function renderAccount() {
         </div>
         
       </div>`;
+
+    // Photo avatar upload (server keeps png/jpeg/webp up to 2 MB)
+    var avaFile = document.getElementById("avatar-file");
+    var avaBtn = document.getElementById("avatar-upload");
+    if (avaBtn && avaFile) {
+      avaBtn.onclick = function() { avaFile.click(); };
+      avaFile.onchange = function() {
+        var f = avaFile.files && avaFile.files[0];
+        avaFile.value = "";
+        if (!f) return;
+        if (!/^image\/(png|jpeg|webp)$/i.test(f.type)) { toast(t('avatar_bad_type'), 'error'); return; }
+        if (f.size > 2 * 1024 * 1024) { toast(t('avatar_too_big'), 'error'); return; }
+        var reader = new FileReader();
+        reader.onload = async function() {
+          try {
+            var res = await api('/account/api/avatar', {method:'POST', body:JSON.stringify({session_token: STATE.token, image_base64: String(reader.result), image_mime_type: f.type})});
+            var url = (res && (res.avatar_url || (res.profile && res.profile.avatar_url))) || null;
+            var box = document.getElementById('acct-avatar');
+            var emoji = (STATE.user && STATE.user.avatar_emoji) || localStorage.getItem('lc_my_emoji') || '🐱';
+            if (box) box.innerHTML = avatarInnerHtml(url, emoji);
+            if (STATE.user) STATE.user.avatar_url = url;
+            if (url) AVA_URL[STATE.user ? STATE.user.id : -1] = url;
+            toast(t('avatar_photo_ok'), 'success');
+          } catch(err) { toast(err.message, 'error'); }
+        };
+        reader.readAsDataURL(f);
+      };
+    }
 
     // Emoji avatar picker (stored on the server, mirrored locally)
     var myEmoji = p.avatar_emoji || localStorage.getItem("lc_my_emoji") || "🐱";
@@ -2400,6 +2458,11 @@ var T = {
 "voice_stop":{rus:"Готово",eng:"Done"},
 "voice_need_https":{rus:"Запись с микрофона работает только по HTTPS (или на localhost). Можно приложить готовый аудиофайл.",eng:"Microphone recording needs HTTPS (or localhost). You can attach an audio file instead."},
 "voice_no_mic":{rus:"Не удалось получить доступ к микрофону. Проверьте разрешение браузера.",eng:"Could not access the microphone. Check the browser permission."},
+"upload_photo":{rus:"Загрузить фото",eng:"Upload photo"},
+"avatar_hint":{rus:"PNG, JPEG или WEBP · до 2 МБ. Фото заменяет эмодзи-аватар.",eng:"PNG, JPEG or WEBP · up to 2 MB. The photo replaces the emoji avatar."},
+"avatar_photo_ok":{rus:"Фото-аватар обновлён",eng:"Photo avatar updated"},
+"avatar_bad_type":{rus:"Только PNG, JPEG или WEBP",eng:"PNG, JPEG or WEBP only"},
+"avatar_too_big":{rus:"Файл больше 2 МБ",eng:"File is larger than 2 MB"},
 "devices_subtitle":{rus:"Сопряжение и управление устройствами",eng:"Pair and manage devices"},
 "pair_by_code":{rus:"Сопряжение по коду",eng:"Pair by code"},
 "pair_hint":{rus:"Включите устройство и введите 6-значный код с его экрана. Код действует 5 минут и срабатывает один раз.",eng:"Turn on the device and enter the 6-digit code from its screen. The code is valid for 5 minutes and works once."},
@@ -2523,7 +2586,7 @@ async function viewUserProfile(uid) {
     var isGuest = STATE.user?.role === 'guest';
     var h = "<div class='modal profile-modal'>";
     h += "<button class='pm-close' onclick=\"document.getElementById('profile-modal').remove()\">&times;</button>";
-    h += "<div class='pm-avatar'>" + esc(emoji) + "</div>";
+    h += "<div class='pm-avatar'>" + (p.avatar_url ? "<img class='ava-img' src='" + safeUrl(p.avatar_url) + "' alt=''>" : esc(emoji)) + "</div>";
     h += "<h2 class='pm-name'>" + esc(p.display_name || p.login) + "</h2>";
     h += "<div class='pm-login'>@" + esc(p.login) + "</div>";
     h += "<div class='pm-role'>" + esc(p.role) + "</div>";

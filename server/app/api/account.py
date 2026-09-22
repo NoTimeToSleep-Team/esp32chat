@@ -191,7 +191,7 @@ async def get_account_profile(
 
 
 
-@router.get("/account/api/profile/{user_id}")
+@router.get("/account/api/profile/{user_id:int}")
 async def get_user_profile(
     request: Request,
     user_id: int,
@@ -218,7 +218,7 @@ async def get_user_profile(
     if not can_see_private:
         data["phone"] = None
     data["avatar_url"] = (
-        f"/account/api/profile/avatar?session_token={session_token}&v={profile.avatar_updated_at_ms or 0}"
+        f"/account/api/profile/avatar?session_token={session_token}&user_id={profile.user_id}&v={profile.avatar_updated_at_ms or 0}"
         if profile.avatar_path else None
     )
     return {"status": "ok", "profile": data}
@@ -310,12 +310,13 @@ async def update_account_avatar(
 async def get_account_avatar(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
+    user_id: int | None = Query(default=None),
 ) -> FileResponse:
-    user_id = _resolve_user_id(request, session_token)
+    target_user_id = user_id if user_id is not None else _resolve_user_id(request, session_token)
     service = _account_service(request)
 
     try:
-        file_path, mime_type = service.get_avatar_file(user_id=user_id)
+        file_path, mime_type = service.get_avatar_file(user_id=target_user_id)
     except AccountError as exc:
         raise HTTPException(
             status_code=exc.status_code,
