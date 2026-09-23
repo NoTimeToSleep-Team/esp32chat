@@ -864,6 +864,13 @@ class ChatService:
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
             self._require_active_user(connection, target_user_id)
+            target = connection.execute("SELECT role FROM users WHERE id = ?", (target_user_id,)).fetchone()
+            if target is not None and str(target["role"]) == UserRole.GUEST.value:
+                raise ChatError(
+                    "guest_target",
+                    "Guest accounts are one-off: they cannot receive direct messages",
+                    403,
+                )
             # Check for existing 1-on-1 chat
             rows = connection.execute("""
                 SELECT DISTINCT c.id FROM chats c
@@ -896,13 +903,30 @@ class ChatService:
             return self._row_to_chat(row)
 
     def search_users(self, query: str, limit: int = 20) -> list[dict]:
+        """Find people to chat with. Guest accounts are one-off (they expire), so skip them."""
         safe_limit = min(max(limit, 1), 50)
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT id, login FROM users WHERE status='active' AND login LIKE ? ORDER BY login LIMIT ?",
-                (f"%{query}%", safe_limit),
+                """
+                SELECT id, login, role, status
+                FROM users
+                WHERE status = ?
+                  AND role != ?
+                  AND login LIKE ?
+                ORDER BY login
+                LIMIT ?
+                """,
+                (UserStatus.ACTIVE.value, UserRole.GUEST.value, f"%{query}%", safe_limit),
             ).fetchall()
-            return [{"user_id": int(r["id"]), "login": str(r["login"])} for r in rows]
+            return [
+                {
+                    "user_id": int(r["id"]),
+                    "login": str(r["login"]),
+                    "role": str(r["role"]),
+                    "status": str(r["status"]),
+                }
+                for r in rows
+            ]
 
     def delete_message(self, chat_id: int, message_id: int, actor_user_id: int | None = None) -> None:
         with self._connect() as connection:

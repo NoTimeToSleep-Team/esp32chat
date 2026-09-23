@@ -360,7 +360,7 @@ async def bulk_add_members(request: Request, chat_id: int, payload: BulkAddMembe
     if not payload.add_all:
         conn.close()
         raise HTTPException(status_code=422, detail={"code": "add_all_required", "message": "Set add_all=true"})
-    users = conn.execute("SELECT id FROM users WHERE status = 'active' AND id != ?", (user_id,)).fetchall()
+    users = conn.execute("SELECT id FROM users WHERE status = 'active' AND role != 'guest' AND id != ?", (user_id,)).fetchall()
     conn.close()
     chat_service = _chat_service(request)
     added = 0

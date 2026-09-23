@@ -665,8 +665,10 @@ async function renderChat() {
       list.innerHTML = '';
       data.items.forEach(u => {
         if (u.user_id === STATE.user?.id) return;
+        if (u.role === 'guest') return; // one-off accounts: nothing to write to
         const item = el('div',{class:'dm-user-item',style:'padding:10px;cursor:pointer;border-bottom:1px solid var(--border);border-radius:4px'});
-        item.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${u.status==='banned'?'#f85149':u.status==='blocked'?'#d29922':'var(--border)'};margin-right:6px"></span><strong>${esc(u.login)}</strong> <span style="color:var(--text2);font-size:12px">#${u.user_id}</span>`;
+        const roleBadge = (u.role === 'admin' || u.role === 'moderator') ? ` <span class="badge badge-${u.role}">${u.role}</span>` : '';
+        item.innerHTML = `<strong>${esc(u.login)}</strong>${roleBadge} <span style="color:var(--text2);font-size:12px">#${u.user_id}</span>`;
         item.onmouseenter = () => item.style.background = 'var(--bg3)';
         item.onmouseleave = () => item.style.background = '';
         item.onclick = async () => { 
