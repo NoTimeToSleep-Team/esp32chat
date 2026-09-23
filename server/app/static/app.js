@@ -27,6 +27,18 @@ function userName(uid) {
 setTimeout(loadUserNames, 500);
 setInterval(loadUserNames, 60000);
 
+// Presence: пока вкладка открыта, раз в 30 сек отмечаемся «в сети»
+function presencePing() {
+  if (!STATE.token || document.hidden) return;
+  fetch("/chat/api/presence/ping", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({session_token: STATE.token}),
+  }).catch(function(){});
+}
+setTimeout(presencePing, 1200);
+setInterval(presencePing, 30000);
+
 function $(sel, ctx) {return (ctx||document).querySelector(sel)}
 function $$(sel, ctx) {return Array.from((ctx||document).querySelectorAll(sel))}
 function el(tag, attrs, ...kids) {
@@ -204,6 +216,7 @@ const ICONS = {
   pin: '<path d="M12 17.5V21"/><path d="M8.5 3.5h7l-1 6 3.5 3.5H6l3.5-3.5-1-6z"/>',
   copy: '<rect x="9" y="9" width="11.5" height="11.5" rx="2.5"/><path d="M6 15H5.5A1.5 1.5 0 0 1 4 13.5V5.5A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6"/>',
   users: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0"/><path d="M16.5 5.4a3.4 3.4 0 0 1 0 6.2"/><path d="M17.5 13.6a6.2 6.2 0 0 1 3.7 5.9"/>',
+  chart: '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/><path d="M2.5 20h19"/>',
   link: '<path d="M10 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/><path d="M14 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>',
   reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v3"/>',
   forward: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v3"/>',
@@ -1183,6 +1196,109 @@ function msgReactionsHtml(m) {
   ).join('') + '</div>';
 }
 
+function renderPollHtml(poll) {
+  if (!poll) return '';
+  const total = poll.total_votes || 0;
+  const options = (poll.options || []).map(o => {
+    const pct = total ? Math.round((o.votes / total) * 100) : 0;
+    return `<button class="poll-opt${o.mine ? ' mine' : ''}" onclick="votePoll(${poll.poll_id}, ${o.index})">
+      <span class="poll-bar" style="width:${pct}%"></span>
+      <span class="poll-text">${esc(o.text)}</span>
+      <span class="poll-count">${o.votes}${total ? ' · ' + pct + '%' : ''}</span>
+    </button>`;
+  }).join('');
+  const meta = [total + ' ' + t('votes')];
+  if (poll.is_multiple) meta.push(t('poll_multiple'));
+  if (poll.is_anonymous) meta.push(t('poll_anonymous'));
+  if (poll.closed) meta.push(t('poll_closed'));
+  return `<div class="poll-card" data-poll="${poll.poll_id}">
+    <div class="poll-question">${esc(poll.question)}</div>
+    <div class="poll-options">${options}</div>
+    <div class="poll-meta">${esc(meta.join(' · '))}</div>
+  </div>`;
+}
+
+async function votePoll(pollId, optionIndex) {
+  if (!currentChatId) return;
+  try {
+    const res = await api(`/chat/api/chats/${currentChatId}/polls/${pollId}/vote`, {
+      method: 'POST', body: JSON.stringify({session_token: STATE.token, option_index: optionIndex}),
+    });
+    const node = document.querySelector('.msg[data-mid="' + res.message.message_id + '"]');
+    const card = node ? node.querySelector('.poll-card') : null;
+    if (card) card.outerHTML = renderPollHtml(res.message.poll);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function openPollModal() {
+  const old = document.getElementById('poll-modal');
+  if (old) old.remove();
+  const ov = el('div', {class: 'overlay', id: 'poll-modal'});
+  ov.innerHTML = `<div class="modal">
+    <h3>${t('create_poll')}</h3>
+    <div class="form-group"><label>${t('poll_question')}</label><input class="form-input" id="poll-question" maxlength="300" placeholder="${t('poll_question_ph')}"></div>
+    <div class="form-group"><label>${t('poll_options')}</label><div id="poll-options"></div>
+      <button class="btn btn-sm btn-outline" id="poll-add-option" type="button">+ ${t('add')}</button></div>
+    <label class="check-row"><input type="checkbox" id="poll-multiple"> ${t('poll_multiple')}</label>
+    <label class="check-row"><input type="checkbox" id="poll-anonymous"> ${t('poll_anonymous')}</label>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-outline" id="poll-cancel">${t('cancel')}</button>
+      <button class="btn btn-primary" id="poll-submit">${t('create')}</button>
+    </div>
+  </div>`;
+  document.body.append(ov);
+  const optionsBox = ov.querySelector('#poll-options');
+  function addOption() {
+    if (optionsBox.querySelectorAll('input').length >= 10) return;
+    const input = el('input', {class: 'form-input', style: 'margin-bottom:6px', maxlength: '120'});
+    optionsBox.append(input);
+  }
+  addOption(); addOption();
+  ov.querySelector('#poll-add-option').onclick = () => addOption();
+  const close = () => ov.remove();
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  ov.querySelector('#poll-cancel').onclick = close;
+  ov.querySelector('#poll-submit').onclick = async () => {
+    const question = (ov.querySelector('#poll-question').value || '').trim();
+    const options = Array.from(optionsBox.querySelectorAll('input')).map(i => i.value.trim()).filter(Boolean);
+    if (!question) { toast(t('poll_question_required'), 'error'); return; }
+    if (options.length < 2) { toast(t('poll_options_required'), 'error'); return; }
+    const btn = ov.querySelector('#poll-submit');
+    btn.disabled = true;
+    try {
+      await api(`/chat/api/chats/${currentChatId}/polls`, {
+        method: 'POST',
+        body: JSON.stringify({
+          session_token: STATE.token, question, options,
+          is_multiple: ov.querySelector('#poll-multiple').checked,
+          is_anonymous: ov.querySelector('#poll-anonymous').checked,
+        }),
+      });
+      toast(t('poll_created'), 'success');
+      close();
+      doLoadMessages({force: true});
+    } catch (e) { toast(e.message, 'error'); btn.disabled = false; }
+  };
+  const q = ov.querySelector('#poll-question');
+  if (q) q.focus();
+}
+
+let chatOnlineTimer = null;
+async function updateChatOnline() {
+  const view = currentChatView;
+  if (!view || !view.chat) return;
+  const chatId = view.chat.chat_id;
+  const box = document.getElementById('chat-online');
+  if (!box) return;
+  if ((view.member_count || 0) > 100) { box.textContent = ''; return; }
+  try {
+    const od = await api(`/chat/api/chats/${chatId}/online?session_token=${encodeURIComponent(STATE.token)}`);
+    if (String(chatId) !== String(currentChatId)) return;
+    const count = od.count || 0;
+    box.textContent = count > 0 ? ' · ' + count + ' ' + t('online') : '';
+  } catch (e) { box.textContent = ''; }
+}
+
 function buildMessageEl(m) {
   const isMe = m.author_user_id === STATE.user?.id;
   var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯','🐙','🦄','🐳','🐧','🐤'];
@@ -1201,7 +1317,7 @@ function buildMessageEl(m) {
       ${isMe ? '' : `<div class="msg-header"><span class="msg-author">${authorName}</span></div>`}
       ${m.forwarded_from_login ? `<div class="msg-forwarded">${icon('forward')} ${t('forwarded_from')} <b>${esc(m.forwarded_from_login)}</b></div>` : ''}
       ${msgReplyHtml(m)}
-      <div class="msg-text">${highlightMentions(m.body_text || '')}${m.edited_at_ms ? ' <span class="edited">(' + t('edited') + ')</span>' : ''}</div>
+      ${m.poll ? renderPollHtml(m.poll) : `<div class="msg-text">${highlightMentions(m.body_text || '')}${m.edited_at_ms ? ' <span class="edited">(' + t('edited') + ')</span>' : ''}</div>`}
       ${renderAttachments(m.attachments)}
       ${msgReactionsHtml(m)}
       <div class="msg-meta">
@@ -1480,7 +1596,7 @@ async function doLoadMessages(opts) {
         <div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(currentChatAvatarUrl, cav.initials)}</div>
         <div class="chead-info" id="chat-head-open" style="cursor:pointer">
           <div class="t1">${esc(currentChatTitle)} ${typeBadge}</div>
-          <div class="t2">${esc(subtitle)}</div>
+          <div class="t2">${esc(subtitle)}<span id="chat-online"></span></div>
         </div>
         <span class="spacer"></span>
         <button class="icon-btn" id="chat-search-btn" title="${t('search_messages')}" aria-label="${t('search_messages')}">${icon('search')}</button>
@@ -1502,6 +1618,7 @@ async function doLoadMessages(opts) {
           <input id="msg-file" type="file" multiple style="display:none" accept="${FILE_ACCEPT}">
           <button class="comp-btn" id="attach-btn" title="${t('attach')}" aria-label="${t('attach')}">${icon('clip')}</button>
           <button class="comp-btn" id="mic-btn" title="${t('voice_msg')}" aria-label="${t('voice_msg')}">${icon('mic')}</button>
+          <button class="comp-btn" id="poll-btn" title="${t('create_poll')}" aria-label="${t('create_poll')}">${icon('chart')}</button>
           <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
           <button class="comp-btn send" id="send-btn" title="${t('send')}" aria-label="${t('send')}">${icon('send')}</button>
         </div>
@@ -1585,6 +1702,8 @@ async function doLoadMessages(opts) {
     if (msgFile) msgFile.onchange = () => { addPendingFiles(msgFile.files); msgFile.value = ''; };
     const micBtn = $('#mic-btn');
     if (micBtn) micBtn.onclick = () => { if (voiceRec) voiceStop(); else voiceStart(); };
+    const pollBtn = $('#poll-btn');
+    if (pollBtn) pollBtn.onclick = () => openPollModal();
     const voiceStopBtn = $('#voice-stop');
     if (voiceStopBtn) voiceStopBtn.onclick = voiceStop;
     const voiceCancelBtn = $('#voice-cancel');
@@ -1611,6 +1730,9 @@ async function doLoadMessages(opts) {
       if (currentChatView && currentChatView.draft_text && !miEl.value) miEl.value = currentChatView.draft_text;
     }
     renderReplyBar();
+    updateChatOnline();
+    if (chatOnlineTimer) clearInterval(chatOnlineTimer);
+    chatOnlineTimer = setInterval(updateChatOnline, 30000);
   } catch(e) {
     if (container) container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
@@ -1746,7 +1868,12 @@ function applyChatHeader(chat) {
   const t1 = document.querySelector('.chead .t1');
   if (t1) t1.textContent = chat.title;
   const t2 = document.querySelector('.chead .t2');
-  if (t2) t2.textContent = chat.description || ('#' + chat.chat_id);
+  if (t2) {
+    t2.textContent = chat.description || ('#' + chat.chat_id);
+    const online = document.createElement('span');
+    online.id = 'chat-online';
+    t2.append(online);
+  }
   const item = document.querySelector('#chat-list .chat-item.active');
   if (item) {
     item.dataset.avatar = currentChatAvatarUrl;
@@ -3945,6 +4072,23 @@ var T = {
 "clear_history":{rus:"Очистить историю",eng:"Clear history"},
 "confirm_clear_history":{rus:"Очистить историю только у себя?",eng:"Clear the history only for you?"},
 "history_cleared":{rus:"История очищена",eng:"History cleared"},
+"create_poll":{rus:"Создать опрос",eng:"Create poll"},
+"poll_question":{rus:"Вопрос",eng:"Question"},
+"poll_question_ph":{rus:"О чём спросить?",eng:"What to ask?"},
+"poll_options":{rus:"Варианты ответа",eng:"Options"},
+"poll_multiple":{rus:"Несколько ответов",eng:"Multiple answers"},
+"poll_anonymous":{rus:"Анонимный опрос",eng:"Anonymous poll"},
+"poll_question_required":{rus:"Введите вопрос",eng:"Enter a question"},
+"poll_options_required":{rus:"Нужно минимум 2 варианта",eng:"At least 2 options are required"},
+"poll_created":{rus:"Опрос создан",eng:"Poll created"},
+"votes":{rus:"голосов",eng:"votes"},
+"poll_closed":{rus:"закрыт",eng:"closed"},
+"block_user":{rus:"Заблокировать",eng:"Block"},
+"unblock_user":{rus:"Разблокировать",eng:"Unblock"},
+"user_blocked":{rus:"Пользователь заблокирован",eng:"User blocked"},
+"user_unblocked":{rus:"Пользователь разблокирован",eng:"User unblocked"},
+"report":{rus:"Жалоба",eng:"Report"},
+"online":{rus:"в сети",eng:"online"},
 "menu":{rus:"Меню",eng:"Menu"},
 "edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
 "voice_msg":{rus:"Голосовое сообщение",eng:"Voice message"},
@@ -4098,11 +4242,29 @@ async function viewUserProfile(uid) {
     h += "<div class='pm-role'>" + esc(p.role) + "</div>";
     if (p.phone) h += "<div class='pm-phone'>" + icon('phone') + " " + esc(p.phone) + "</div>";
     if (p.profile_bio) h += "<div class='pm-bio'>" + esc(p.profile_bio) + "</div>";
+    var blockedIds = [];
+    try { var bd = await api('/chat/api/blocks?session_token=' + encodeURIComponent(STATE.token)); blockedIds = bd.user_ids || []; } catch (e) {}
+    var isBlocked = blockedIds.indexOf(uid) >= 0;
     h += "<div class='pm-actions'>";
-    h += "<button id='pm-dm' class='btn btn-success'>" + icon('mail') + " DM</button>";
-    if (!isGuest) h += "<button id='pm-report' class='btn btn-danger'>" + icon('flag') + " Report</button>";
+    h += "<button id='pm-dm' class='btn btn-success'>" + icon('mail') + " " + t('dm') + "</button>";
+    if (!isGuest) h += "<button id='pm-report' class='btn btn-danger'>" + icon('flag') + " " + t('report') + "</button>";
+    if (!isGuest) h += "<button id='pm-block' class='btn btn-outline'>" + icon(isBlocked ? 'unlock' : 'lock') + " " + (isBlocked ? t('unblock_user') : t('block_user')) + "</button>";
     h += "</div></div>";
     showProfileModal(h);
+    var blockBtn = document.getElementById("pm-block");
+    if (blockBtn) blockBtn.onclick = async function() {
+      try {
+        if (isBlocked) {
+          await api('/chat/api/blocks/' + uid, {method:'DELETE', body: JSON.stringify({session_token: STATE.token})});
+          toast(t('user_unblocked'), 'success');
+        } else {
+          await api('/chat/api/blocks/' + uid, {method:'POST', body: JSON.stringify({session_token: STATE.token})});
+          toast(t('user_blocked'), 'success');
+        }
+        var modal = document.getElementById("profile-modal");
+        if (modal) modal.remove();
+      } catch (e) { toast(e.message, 'error'); }
+    };
     var dmBtn = document.getElementById("pm-dm");
     if (dmBtn) dmBtn.onclick = async function() {
       try {

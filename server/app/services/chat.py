@@ -21,6 +21,8 @@ from app.models import (
     ChatMember,
     ChatMemberRole,
     ChatMessage,
+    ChatPoll,
+    ChatPollOption,
     ChatReaction,
     ChatRoom,
     ChatType,
@@ -1581,6 +1583,193 @@ class ChatService:
                 )
             return summaries
 
+    def create_poll(
+        self,
+        *,
+        chat_id: int,
+        author_user_id: int,
+        question: str,
+        options: Sequence[str],
+        is_multiple: bool = False,
+        is_anonymous: bool = False,
+    ) -> ChatMessage:
+        cleaned_question = (question or "").strip()
+        if not cleaned_question:
+            raise ChatError("invalid_poll", "Poll question must not be empty", 422)
+        cleaned_options = [(option or "").strip() for option in options]
+        cleaned_options = [option for option in cleaned_options if option]
+        if len(cleaned_options) < 2 or len(cleaned_options) > 10:
+            raise ChatError("invalid_poll", "A poll needs 2 to 10 options", 422)
+
+        with self._connect() as connection:
+            self._require_active_user(connection, author_user_id)
+            chat = self._require_chat(connection, chat_id)
+            if not self._can_access_chat(connection, chat_row=chat, user_id=author_user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+            if not self._can_post(connection, chat_row=chat, user_id=author_user_id):
+                raise ChatError("read_only", "Only admins can post in this chat", 403)
+            self._enforce_slow_mode(connection, chat_row=chat, user_id=author_user_id)
+
+            now_ms = _now_ms()
+            cursor = connection.execute(
+                """
+                INSERT INTO chat_messages(
+                    chat_id, author_user_id, body_text, client_message_id, created_at_ms, edited_at_ms
+                )
+                VALUES (?, ?, ?, NULL, ?, NULL)
+                """,
+                (chat_id, author_user_id, cleaned_question, now_ms),
+            )
+            message_id = self._lastrowid(cursor)
+            connection.execute(
+                """
+                INSERT INTO chat_polls(
+                    chat_id, message_id, created_by, question, options_json,
+                    is_multiple, is_anonymous, created_at_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    chat_id,
+                    message_id,
+                    author_user_id,
+                    cleaned_question,
+                    json.dumps(cleaned_options, ensure_ascii=False),
+                    1 if is_multiple else 0,
+                    1 if is_anonymous else 0,
+                    now_ms,
+                ),
+            )
+            connection.execute("UPDATE chats SET updated_at_ms = ? WHERE id = ?", (now_ms, chat_id))
+
+            row = self._select_message_row(connection, message_id)
+            if row is None:
+                raise ChatError("poll_create_failed", "Failed to create the poll", 500)
+            polls = self._polls_for_messages(connection, [message_id], viewer_user_id=author_user_id)
+            return self._with_message_attachments(
+                connection,
+                self._row_to_message(row),
+                polls_by_id=polls,
+            )
+
+    def vote_poll(
+        self,
+        *,
+        chat_id: int,
+        poll_id: int,
+        user_id: int,
+        option_index: int,
+    ) -> ChatMessage:
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            chat = self._require_chat(connection, chat_id)
+            if not self._can_access_chat(connection, chat_row=chat, user_id=user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+
+            row = connection.execute(
+                "SELECT * FROM chat_polls WHERE id = ? AND chat_id = ?",
+                (poll_id, chat_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("poll_not_found", "Poll not found", 404)
+            if self._row_optional_int_lenient(row, "closed_at_ms") is not None:
+                raise ChatError("poll_closed", "Poll is closed", 409)
+
+            try:
+                raw_options = json.loads(str(row["options_json"]))
+            except (TypeError, ValueError):
+                raw_options = []
+            if not isinstance(raw_options, list):
+                raw_options = []
+            index = int(option_index)
+            if index < 0 or index >= len(raw_options):
+                raise ChatError("invalid_option", "Unknown poll option", 422)
+
+            if not self._row_bool(row, "is_multiple"):
+                connection.execute(
+                    "DELETE FROM chat_poll_votes WHERE poll_id = ? AND user_id = ?",
+                    (poll_id, user_id),
+                )
+
+            existing = connection.execute(
+                "SELECT 1 FROM chat_poll_votes WHERE poll_id = ? AND user_id = ? AND option_index = ?",
+                (poll_id, user_id, index),
+            ).fetchone()
+            if existing is not None:
+                connection.execute(
+                    "DELETE FROM chat_poll_votes WHERE poll_id = ? AND user_id = ? AND option_index = ?",
+                    (poll_id, user_id, index),
+                )
+            else:
+                connection.execute(
+                    """
+                    INSERT OR REPLACE INTO chat_poll_votes(poll_id, user_id, option_index, created_at_ms)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (poll_id, user_id, index, _now_ms()),
+                )
+
+            message_id = self._row_optional_int_lenient(row, "message_id")
+            if message_id is None:
+                raise ChatError("poll_message_missing", "Poll has no message", 500)
+            message_row = self._select_message_row(connection, message_id)
+            if message_row is None:
+                raise ChatError("message_not_found", "Message not found", 404)
+            polls = self._polls_for_messages(connection, [message_id], viewer_user_id=user_id)
+            return self._with_message_attachments(
+                connection,
+                self._row_to_message(message_row),
+                polls_by_id=polls,
+            )
+
+    # --- User blocks ---
+
+    def block_user(self, *, blocker_user_id: int, blocked_user_id: int) -> None:
+        if blocker_user_id == blocked_user_id:
+            raise ChatError("invalid_target", "Cannot block yourself", 400)
+        with self._connect() as connection:
+            self._require_active_user(connection, blocker_user_id)
+            self._require_active_user(connection, blocked_user_id)
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO user_blocks(blocker_user_id, blocked_user_id, created_at_ms)
+                VALUES (?, ?, ?)
+                """,
+                (blocker_user_id, blocked_user_id, _now_ms()),
+            )
+
+    def unblock_user(self, *, blocker_user_id: int, blocked_user_id: int) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM user_blocks WHERE blocker_user_id = ? AND blocked_user_id = ?",
+                (blocker_user_id, blocked_user_id),
+            )
+
+    def list_blocked_user_ids(self, *, user_id: int) -> list[int]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT blocked_user_id FROM user_blocks WHERE blocker_user_id = ? ORDER BY created_at_ms DESC",
+                (user_id,),
+            ).fetchall()
+            return [int(row["blocked_user_id"]) for row in rows]
+
+    def is_blocked_between(self, *, user_a: int, user_b: int) -> bool:
+        with self._connect() as connection:
+            return self._is_blocked_between(connection, user_a=user_a, user_b=user_b)
+
+    @staticmethod
+    def _is_blocked_between(connection: sqlite3.Connection, *, user_a: int, user_b: int) -> bool:
+        row = connection.execute(
+            """
+            SELECT 1 FROM user_blocks
+            WHERE (blocker_user_id = ? AND blocked_user_id = ?)
+               OR (blocker_user_id = ? AND blocked_user_id = ?)
+            LIMIT 1
+            """,
+            (user_a, user_b, user_b, user_a),
+        ).fetchone()
+        return row is not None
+
     def _upsert_join_request(
         self,
         connection: sqlite3.Connection,
@@ -1936,6 +2125,24 @@ class ChatService:
             if not self._can_post(connection, chat_row=chat, user_id=author_user_id):
                 raise ChatError("read_only", "Only admins can post in this chat", 403)
 
+            if self._is_private_dialog(connection, chat) and not self._is_platform_moderator(
+                connection, user_id=author_user_id
+            ):
+                other = connection.execute(
+                    "SELECT user_id FROM chat_members WHERE chat_id = ? AND user_id != ? LIMIT 1",
+                    (chat_id, author_user_id),
+                ).fetchone()
+                if other is not None and self._is_blocked_between(
+                    connection,
+                    user_a=author_user_id,
+                    user_b=int(other["user_id"]),
+                ):
+                    raise ChatError(
+                        "blocked",
+                        "Messaging is not available: one of the users is blocked",
+                        403,
+                    )
+
             self._enforce_slow_mode(connection, chat_row=chat, user_id=author_user_id)
 
             now_ms = _now_ms()
@@ -2063,12 +2270,18 @@ class ChatService:
                 [message.message_id for message in messages],
                 viewer_user_id=requester_user_id,
             )
+            polls_by_id = self._polls_for_messages(
+                connection,
+                [message.message_id for message in messages],
+                viewer_user_id=requester_user_id,
+            )
             return [
                 self._with_message_attachments(
                     connection,
                     message,
                     attachments_by_id=attachments_by_id,
                     reactions_by_id=reactions_by_id,
+                    polls_by_id=polls_by_id,
                 )
                 for message in messages
             ]
@@ -2245,6 +2458,7 @@ class ChatService:
         *,
         attachments_by_id: dict[int, tuple[object, ...]] | None = None,
         reactions_by_id: dict[int, tuple[object, ...]] | None = None,
+        polls_by_id: dict[int, object] | None = None,
     ) -> ChatMessage:
         if attachments_by_id is None:
             attachments_by_id = MediaService(self._db_path, self._storage_root).list_for_chat_messages(
@@ -2268,7 +2482,76 @@ class ChatService:
             forwarded_from_login=message.forwarded_from_login,
             forwarded_from_chat_id=message.forwarded_from_chat_id,
             reactions=(reactions_by_id or {}).get(message.message_id, message.reactions),
+            poll=(polls_by_id or {}).get(message.message_id, message.poll),
         )
+
+    def _polls_for_messages(
+        self,
+        connection: sqlite3.Connection,
+        message_ids: Sequence[int],
+        *,
+        viewer_user_id: int,
+    ) -> dict[int, ChatPoll]:
+        if not message_ids:
+            return {}
+        placeholders = ",".join("?" for _ in message_ids)
+        rows = connection.execute(
+            f"SELECT * FROM chat_polls WHERE message_id IN ({placeholders})",
+            tuple(message_ids),
+        ).fetchall()
+        if not rows:
+            return {}
+
+        poll_ids = [int(row["id"]) for row in rows]
+        vote_placeholders = ",".join("?" for _ in poll_ids)
+        vote_rows = connection.execute(
+            f"""
+            SELECT poll_id, option_index, COUNT(*) AS total,
+                   SUM(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS mine
+            FROM chat_poll_votes
+            WHERE poll_id IN ({vote_placeholders})
+            GROUP BY poll_id, option_index
+            """,
+            (viewer_user_id, *poll_ids),
+        ).fetchall()
+
+        votes: dict[int, dict[int, tuple[int, bool]]] = {}
+        for vote_row in vote_rows:
+            votes.setdefault(int(vote_row["poll_id"]), {})[int(vote_row["option_index"])] = (
+                int(vote_row["total"]),
+                bool(vote_row["mine"]),
+            )
+
+        result: dict[int, ChatPoll] = {}
+        for row in rows:
+            poll_id = int(row["id"])
+            try:
+                raw_options = json.loads(str(row["options_json"]))
+            except (TypeError, ValueError):
+                raw_options = []
+            if not isinstance(raw_options, list):
+                raw_options = []
+            options: list[ChatPollOption] = []
+            total_votes = 0
+            for index, text in enumerate(raw_options):
+                count, mine = votes.get(poll_id, {}).get(index, (0, False))
+                total_votes += count
+                options.append(
+                    ChatPollOption(index=index, text=str(text), votes=count, mine=mine)
+                )
+            poll = ChatPoll(
+                poll_id=poll_id,
+                question=str(row["question"]),
+                options=tuple(options),
+                total_votes=total_votes,
+                is_multiple=self._row_bool(row, "is_multiple"),
+                is_anonymous=self._row_bool(row, "is_anonymous"),
+                closed=self._row_optional_int_lenient(row, "closed_at_ms") is not None,
+            )
+            message_id = self._row_optional_int_lenient(row, "message_id")
+            if message_id is not None:
+                result[message_id] = poll
+        return result
 
     def _reactions_for_messages(
         self,
@@ -2523,6 +2806,12 @@ class ChatService:
                     "Guest accounts are one-off: they cannot receive direct messages",
                     403,
                 )
+            if self._is_blocked_between(connection, user_a=user_id, user_b=target_user_id):
+                raise ChatError(
+                    "blocked",
+                    "Messaging is not available: one of the users is blocked",
+                    403,
+                )
             # Check for existing 1-on-1 chat
             rows = connection.execute("""
                 SELECT DISTINCT c.id FROM chats c
@@ -2554,21 +2843,32 @@ class ChatService:
                 raise ChatError("create_failed", "DM chat create failed", 500)
             return self._row_to_chat(row)
 
-    def search_users(self, query: str, limit: int = 20) -> list[dict]:
+    def search_users(self, query: str, limit: int = 20, viewer_user_id: int | None = None) -> list[dict]:
         """Find people to chat with. Guest accounts are one-off (they expire), so skip them."""
         safe_limit = min(max(limit, 1), 50)
         with self._connect() as connection:
+            blocked_filter = ""
+            params: list[object] = [UserStatus.ACTIVE.value, UserRole.GUEST.value, f"%{query}%"]
+            if viewer_user_id is not None:
+                blocked_filter = (
+                    " AND id NOT IN (SELECT blocked_user_id FROM user_blocks WHERE blocker_user_id = ?)"
+                    " AND id NOT IN (SELECT blocker_user_id FROM user_blocks WHERE blocked_user_id = ?)"
+                )
+                params.extend([viewer_user_id, viewer_user_id])
+            params.append(safe_limit)
+
             rows = connection.execute(
-                """
+                f"""
                 SELECT id, login, role, status
                 FROM users
                 WHERE status = ?
                   AND role != ?
                   AND login LIKE ?
+                  {blocked_filter}
                 ORDER BY login
                 LIMIT ?
                 """,
-                (UserStatus.ACTIVE.value, UserRole.GUEST.value, f"%{query}%", safe_limit),
+                tuple(params),
             ).fetchall()
             return [
                 {

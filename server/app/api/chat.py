@@ -21,6 +21,7 @@ from app.services.activity_log import ActivityLogService
 from app.services.auth import AuthError, AuthService
 from app.services.avatars import AvatarPayloadError, decode_avatar_payload
 from app.services.chat import ChatError, ChatService
+from app.services.presence import presence
 
 
 router = APIRouter(tags=["chat"])
@@ -81,6 +82,7 @@ def _resolve_user_id(request: Request, session_token: str) -> int:
             },
         )
 
+    presence.touch(session.user.user_id)
     return session.user.user_id
 
 
@@ -361,9 +363,9 @@ async def post_chat_message(
 
 @router.get("/chat/api/users/search")
 async def search_chat_users(request: Request, session_token: str = Query(..., min_length=8, max_length=512), q: str = Query(default="", max_length=128)) -> dict[str, object]:
-    _resolve_user_id(request, session_token)
+    user_id = _resolve_user_id(request, session_token)
     chat_service = _chat_service(request)
-    results = chat_service.search_users(q)
+    results = chat_service.search_users(q, viewer_user_id=user_id)
     return {"status": "ok", "items": results}
 
 
@@ -618,6 +620,35 @@ async def list_chat_members(
         "count": len(items),
         "items": [_member_profile_payload(item, session_token) for item in items],
     }
+
+
+@router.get("/chat/api/chats/{chat_id}/online")
+async def chat_online_members(
+    request: Request,
+    chat_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    """Online members of one chat (presence comes from recent authenticated activity)."""
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        items = service.list_member_profiles(chat_id=chat_id, requester_user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    online_ids = [int(item["user_id"]) for item in items if presence.is_online(int(item["user_id"]))]
+    return {"status": "ok", "count": len(online_ids), "user_ids": online_ids}
+
+
+class PresencePingRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+
+
+@router.post("/chat/api/presence/ping")
+async def presence_ping(request: Request, payload: PresencePingRequest) -> dict[str, object]:
+    """Lightweight heartbeat so idle-but-open clients stay 'online'."""
+    user_id = _resolve_user_id(request, payload.session_token)
+    presence.touch(user_id)
+    return {"status": "ok", "user_id": user_id}
 
 
 @router.delete("/chat/api/chats/{chat_id}/members/{user_id}")
@@ -1077,6 +1108,111 @@ async def search_chat_messages(
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     return {"status": "ok", "count": len(items), "items": items}
+
+
+# --- P2: polls and user blocks ---
+
+
+class PollCreateRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    question: str = Field(min_length=1, max_length=300)
+    options: list[str] = Field(min_length=2, max_length=10)
+    is_multiple: bool = False
+    is_anonymous: bool = False
+
+
+class PollVoteRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    option_index: int = Field(ge=0, le=9)
+
+
+@router.post("/chat/api/chats/{chat_id}/polls")
+async def create_chat_poll(
+    request: Request,
+    chat_id: int,
+    payload: PollCreateRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        message = service.create_poll(
+            chat_id=chat_id,
+            author_user_id=user_id,
+            question=payload.question,
+            options=tuple(payload.options),
+            is_multiple=payload.is_multiple,
+            is_anonymous=payload.is_anonymous,
+        )
+    except (ChatError, ValueError) as exc:
+        if isinstance(exc, ChatError):
+            raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+        raise HTTPException(status_code=422, detail={"code": "invalid_poll", "message": str(exc)}) from exc
+    return {"status": "ok", "message": _message_payload(message)}
+
+
+@router.post("/chat/api/chats/{chat_id}/polls/{poll_id}/vote")
+async def vote_chat_poll(
+    request: Request,
+    chat_id: int,
+    poll_id: int,
+    payload: PollVoteRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        message = service.vote_poll(
+            chat_id=chat_id,
+            poll_id=poll_id,
+            user_id=user_id,
+            option_index=payload.option_index,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "message": _message_payload(message)}
+
+
+@router.get("/chat/api/blocks")
+async def list_user_blocks(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        ids = service.list_blocked_user_ids(user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "count": len(ids), "user_ids": ids}
+
+
+@router.post("/chat/api/blocks/{user_id}")
+async def block_user(
+    request: Request,
+    user_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    blocker_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.block_user(blocker_user_id=blocker_id, blocked_user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "blocked_user_id": user_id}
+
+
+@router.delete("/chat/api/blocks/{user_id}")
+async def unblock_user(
+    request: Request,
+    user_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    blocker_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.unblock_user(blocker_user_id=blocker_id, blocked_user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "unblocked_user_id": user_id}
 
 
 # --- Admin cleanup ---

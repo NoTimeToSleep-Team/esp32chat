@@ -108,6 +108,25 @@ class ChatReaction:
 
 
 @dataclass(frozen=True)
+class ChatPollOption:
+    index: int
+    text: str
+    votes: int = 0
+    mine: bool = False
+
+
+@dataclass(frozen=True)
+class ChatPoll:
+    poll_id: int
+    question: str
+    options: tuple[ChatPollOption, ...]
+    total_votes: int = 0
+    is_multiple: bool = False
+    is_anonymous: bool = False
+    closed: bool = False
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     message_id: int
     chat_id: int
@@ -125,6 +144,7 @@ class ChatMessage:
     forwarded_from_login: str | None = None
     forwarded_from_chat_id: int | None = None
     reactions: tuple[ChatReaction, ...] = ()
+    poll: ChatPoll | None = None
 
 
 @dataclass(frozen=True)

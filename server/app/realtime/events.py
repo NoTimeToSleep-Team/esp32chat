@@ -23,6 +23,18 @@ def chat_message_payload(message: ChatMessage) -> dict[str, object]:
             {"emoji": item.emoji, "count": item.count, "mine": item.mine}
             for item in message.reactions
         ],
+        "poll": None if message.poll is None else {
+            "poll_id": message.poll.poll_id,
+            "question": message.poll.question,
+            "options": [
+                {"index": option.index, "text": option.text, "votes": option.votes, "mine": option.mine}
+                for option in message.poll.options
+            ],
+            "total_votes": message.poll.total_votes,
+            "is_multiple": message.poll.is_multiple,
+            "is_anonymous": message.poll.is_anonymous,
+            "closed": message.poll.closed,
+        },
         "attachments": [
             {
                 "attachment_id": item.attachment_id,
