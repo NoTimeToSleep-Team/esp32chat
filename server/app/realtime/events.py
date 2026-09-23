@@ -14,6 +14,15 @@ def chat_message_payload(message: ChatMessage) -> dict[str, object]:
         "client_message_id": message.client_message_id,
         "created_at_ms": message.created_at_ms,
         "edited_at_ms": message.edited_at_ms,
+        "reply_to_message_id": message.reply_to_message_id,
+        "reply_to_login": message.reply_to_login,
+        "reply_to_text": (message.reply_to_text or "")[:200] or None,
+        "forwarded_from_login": message.forwarded_from_login,
+        "forwarded_from_chat_id": message.forwarded_from_chat_id,
+        "reactions": [
+            {"emoji": item.emoji, "count": item.count, "mine": item.mine}
+            for item in message.reactions
+        ],
         "attachments": [
             {
                 "attachment_id": item.attachment_id,

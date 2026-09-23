@@ -34,6 +34,9 @@ CHAT_PERMISSIONS: tuple[str, ...] = (
     "restrict_members",
 )
 
+#: Fixed reaction set (Telegram-like quick reactions).
+REACTION_EMOJIS: tuple[str, ...] = ("👍", "❤️", "😂", "🔥", "👏", "🤔")
+
 
 def default_admin_permissions() -> dict[str, bool]:
     return {name: True for name in CHAT_PERMISSIONS}
@@ -98,6 +101,13 @@ class ChatJoinRequest:
 
 
 @dataclass(frozen=True)
+class ChatReaction:
+    emoji: str
+    count: int
+    mine: bool = False
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     message_id: int
     chat_id: int
@@ -109,6 +119,12 @@ class ChatMessage:
     attachments: tuple[MediaAttachment, ...] = ()
     author_login: str | None = None
     author_avatar_emoji: str | None = None
+    reply_to_message_id: int | None = None
+    reply_to_login: str | None = None
+    reply_to_text: str | None = None
+    forwarded_from_login: str | None = None
+    forwarded_from_chat_id: int | None = None
+    reactions: tuple[ChatReaction, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -130,6 +146,7 @@ class MessageDraft:
     body_text: str
     client_message_id: str | None = None
     attachment_ids: tuple[int, ...] = ()
+    reply_to_message_id: int | None = None
 
     def __post_init__(self) -> None:
         if not self.body_text.strip() and not self.attachment_ids:

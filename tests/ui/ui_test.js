@@ -57,14 +57,15 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
     });
     check("sent message appears", lastText.includes(uniq), lastText.slice(0, 60));
 
-    const editClicked = await page.evaluate(() => {
-      const msgs = document.querySelectorAll("#msg-list .msg");
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        const btns = msgs[i].querySelectorAll(".msg-actions button");
-        if (btns.length) { btns[0].click(); return true; }
-      }
-      return false;
-    });
+    const editClicked = await page.evaluate((needle) => {
+      const msgs = Array.from(document.querySelectorAll("#msg-list .msg"));
+      const target = msgs.reverse().find(m => ((m.querySelector(".msg-text") || {}).textContent || "").includes(needle));
+      if (!target) return false;
+      const btn = Array.from(target.querySelectorAll(".msg-actions button")).find(b => (b.getAttribute("title") || "").toLowerCase().includes("редак"));
+      if (!btn) return false;
+      btn.click();
+      return true;
+    }, uniq);
     check("edit button clicked", editClicked);
     if (editClicked) {
       await page.waitForTimeout(800);
@@ -75,17 +76,19 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
       const edited = await page.evaluate(() => Array.from(document.querySelectorAll("#msg-list .msg .msg-text")).map(e => e.textContent).join(" | "));
       check("edit applied (modal save)", edited.includes("ui-edited"), edited.slice(0, 80));
 
-      const targetText = await page.evaluate(() => {
-        const els = document.querySelectorAll("#msg-list .msg .msg-text");
-        return els.length ? els[els.length - 1].textContent : "";
+      const targetMid = await page.evaluate(() => {
+        const msgs = Array.from(document.querySelectorAll("#msg-list .msg"));
+        const target = msgs.reverse().find(m => ((m.querySelector(".msg-text") || {}).textContent || "").includes("ui-edited"));
+        return target ? target.dataset.mid : null;
       });
       const delClicked = await page.evaluate(() => {
-        const msgs = document.querySelectorAll("#msg-list .msg");
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          const btns = msgs[i].querySelectorAll(".msg-actions button");
-          if (btns.length >= 2) { btns[1].click(); return true; }
-        }
-        return false;
+        const msgs = Array.from(document.querySelectorAll("#msg-list .msg"));
+        const target = msgs.reverse().find(m => ((m.querySelector(".msg-text") || {}).textContent || "").includes("ui-edited"));
+        if (!target) return false;
+        const btn = Array.from(target.querySelectorAll(".msg-actions button")).find(b => (b.getAttribute("title") || "").toLowerCase().includes("удал"));
+        if (!btn) return false;
+        btn.click();
+        return true;
       });
       check("delete button clicked", delClicked);
       if (delClicked) {
@@ -93,10 +96,8 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
         check("delete confirm overlay appears", await page.isVisible("#cfm-yes"));
         await page.click("#cfm-yes");
         await page.waitForTimeout(1500);
-        const stillThere = await page.evaluate((txt) => {
-          return Array.from(document.querySelectorAll("#msg-list .msg .msg-text")).some(e => e.textContent === txt);
-        }, targetText);
-        check("delete removes message", !stillThere, targetText.slice(0, 40));
+        const stillThere = await page.evaluate((mid) => !!document.querySelector('#msg-list .msg[data-mid="' + mid + '"]'), targetMid);
+        check("delete removes message", !stillThere, "mid=" + targetMid);
       }
     }
   }

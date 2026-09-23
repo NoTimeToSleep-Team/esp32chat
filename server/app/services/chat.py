@@ -12,6 +12,7 @@ from time import time
 
 from app.models import (
     CHAT_PERMISSIONS,
+    REACTION_EMOJIS,
     AvatarImage,
     ChatDraft,
     ChatInvite,
@@ -20,6 +21,7 @@ from app.models import (
     ChatMember,
     ChatMemberRole,
     ChatMessage,
+    ChatReaction,
     ChatRoom,
     ChatType,
     MessageDraft,
@@ -567,6 +569,10 @@ class ChatService:
                 raise ChatError("forbidden", "User has no access to this chat", 403)
 
             role = self._member_role_value(connection, chat_id=chat_id, user_id=requester_user_id)
+            member_row = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, requester_user_id),
+            ).fetchone()
             count_row = connection.execute(
                 "SELECT COUNT(*) AS n FROM chat_members WHERE chat_id = ?",
                 (chat_id,),
@@ -597,6 +603,11 @@ class ChatService:
                 "member_count": int(count_row["n"]) if count_row is not None else 0,
                 "pending_requests": int(pending_row["n"]) if pending_row is not None else 0,
                 "pinned_message": pinned_message,
+                "draft_text": self._row_optional_str_lenient(member_row, "draft_text") if member_row is not None else None,
+                "last_read_message_id": self._row_optional_int_lenient(member_row, "last_read_message_id") if member_row is not None else None,
+                "is_muted": self._row_bool(member_row, "is_muted") if member_row is not None else False,
+                "is_archived": self._row_bool(member_row, "is_archived") if member_row is not None else False,
+                "is_pinned": self._row_bool(member_row, "is_pinned") if member_row is not None else False,
             }
 
     def update_chat(
@@ -1260,6 +1271,316 @@ class ChatService:
                 raise ChatError("chat_not_found", "Chat not found", 404)
             return self._row_to_chat(updated)
 
+    def toggle_reaction(
+        self,
+        *,
+        chat_id: int,
+        message_id: int,
+        user_id: int,
+        emoji: str,
+    ) -> ChatMessage:
+        normalized = (emoji or "").strip()
+        if normalized not in REACTION_EMOJIS:
+            raise ChatError("invalid_reaction", "Unsupported reaction", 422)
+
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            chat = self._require_chat(connection, chat_id)
+            if not self._can_access_chat(connection, chat_row=chat, user_id=user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+
+            row = connection.execute(
+                "SELECT id FROM chat_messages WHERE id = ? AND chat_id = ?",
+                (message_id, chat_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("message_not_found", "Message not found", 404)
+
+            existing = connection.execute(
+                "SELECT 1 FROM chat_message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?",
+                (message_id, user_id, normalized),
+            ).fetchone()
+            if existing is not None:
+                connection.execute(
+                    "DELETE FROM chat_message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?",
+                    (message_id, user_id, normalized),
+                )
+            else:
+                # one reaction per user per message (Telegram-like quick reactions)
+                connection.execute(
+                    "DELETE FROM chat_message_reactions WHERE message_id = ? AND user_id = ?",
+                    (message_id, user_id),
+                )
+                connection.execute(
+                    """
+                    INSERT OR REPLACE INTO chat_message_reactions(message_id, user_id, emoji, created_at_ms)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (message_id, user_id, normalized, _now_ms()),
+                )
+
+            message_row = self._select_message_row(connection, message_id)
+            if message_row is None:
+                raise ChatError("message_not_found", "Message not found", 404)
+            reactions = self._reactions_for_messages(connection, [message_id], viewer_user_id=user_id)
+            return self._with_message_attachments(
+                connection,
+                self._row_to_message(message_row),
+                reactions_by_id=reactions,
+            )
+
+    def forward_message(
+        self,
+        *,
+        source_chat_id: int,
+        message_id: int,
+        target_chat_id: int,
+        actor_user_id: int,
+    ) -> ChatMessage:
+        with self._connect() as connection:
+            self._require_active_user(connection, actor_user_id)
+            source_chat = self._require_chat(connection, source_chat_id)
+            if not self._can_access_chat(connection, chat_row=source_chat, user_id=actor_user_id):
+                raise ChatError("forbidden", "User has no access to the source chat", 403)
+
+            source_row = self._select_message_row(connection, message_id)
+            if source_row is None or int(source_row["chat_id"]) != source_chat_id:
+                raise ChatError("message_not_found", "Message not found", 404)
+
+            target_chat = self._require_chat(connection, target_chat_id)
+            if not self._can_access_chat(connection, chat_row=target_chat, user_id=actor_user_id):
+                raise ChatError("forbidden", "User has no access to the target chat", 403)
+            if not self._can_post(connection, chat_row=target_chat, user_id=actor_user_id):
+                raise ChatError("read_only", "Only admins can post in this chat", 403)
+
+            now_ms = _now_ms()
+            cursor = connection.execute(
+                """
+                INSERT INTO chat_messages(
+                    chat_id, author_user_id, body_text, client_message_id, created_at_ms, edited_at_ms,
+                    forwarded_from_chat_id, forwarded_from_message_id, forwarded_from_user_id, forwarded_from_login
+                )
+                VALUES (?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?)
+                """,
+                (
+                    target_chat_id,
+                    actor_user_id,
+                    str(source_row["body_text"] or ""),
+                    now_ms,
+                    source_chat_id,
+                    message_id,
+                    int(source_row["author_user_id"]),
+                    self._row_optional_str_lenient(source_row, "author_login"),
+                ),
+            )
+            new_message_id = self._lastrowid(cursor)
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO chat_message_attachments(message_id, attachment_id, position)
+                SELECT ?, attachment_id, position FROM chat_message_attachments WHERE message_id = ?
+                """,
+                (new_message_id, message_id),
+            )
+            connection.execute(
+                "UPDATE chats SET updated_at_ms = ? WHERE id = ?",
+                (now_ms, target_chat_id),
+            )
+
+            row = self._select_message_row(connection, new_message_id)
+            if row is None:
+                raise ChatError("message_create_failed", "Failed to forward the message", 500)
+            return self._with_message_attachments(connection, self._row_to_message(row))
+
+    def mark_read(self, *, chat_id: int, user_id: int, message_id: int) -> None:
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            row = connection.execute(
+                "SELECT last_read_message_id FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            ).fetchone()
+            if row is None:
+                return
+            current = self._row_optional_int_lenient(row, "last_read_message_id") or 0
+            if int(message_id) > current:
+                connection.execute(
+                    "UPDATE chat_members SET last_read_message_id = ? WHERE chat_id = ? AND user_id = ?",
+                    (int(message_id), chat_id, user_id),
+                )
+
+    def save_draft(self, *, chat_id: int, user_id: int, text: str) -> None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            ).fetchone()
+            if row is None:
+                return
+            cleaned = (text or "").strip()
+            connection.execute(
+                "UPDATE chat_members SET draft_text = ?, draft_updated_at_ms = ? WHERE chat_id = ? AND user_id = ?",
+                (cleaned or None, _now_ms(), chat_id, user_id),
+            )
+
+    def set_chat_user_state(
+        self,
+        *,
+        chat_id: int,
+        user_id: int,
+        is_muted: bool | None = None,
+        is_archived: bool | None = None,
+        is_pinned: bool | None = None,
+    ) -> dict[str, object]:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("member_not_found", "You are not a member of this chat", 404)
+
+            next_muted = self._row_bool(row, "is_muted") if is_muted is None else bool(is_muted)
+            next_archived = self._row_bool(row, "is_archived") if is_archived is None else bool(is_archived)
+            next_pinned = self._row_bool(row, "is_pinned") if is_pinned is None else bool(is_pinned)
+
+            connection.execute(
+                "UPDATE chat_members SET is_muted = ?, is_archived = ?, is_pinned = ? WHERE chat_id = ? AND user_id = ?",
+                (1 if next_muted else 0, 1 if next_archived else 0, 1 if next_pinned else 0, chat_id, user_id),
+            )
+            return {"is_muted": next_muted, "is_archived": next_archived, "is_pinned": next_pinned}
+
+    def clear_history_for_user(self, *, chat_id: int, user_id: int) -> None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("member_not_found", "You are not a member of this chat", 404)
+            connection.execute(
+                "UPDATE chat_members SET cleared_at_ms = ? WHERE chat_id = ? AND user_id = ?",
+                (_now_ms(), chat_id, user_id),
+            )
+
+    def search_messages(
+        self,
+        *,
+        user_id: int,
+        query: str,
+        chat_id: int | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, object]]:
+        safe_limit = min(max(int(limit), 1), 100)
+        needle = (query or "").strip()
+        if not needle:
+            return []
+
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            params: list[object] = [user_id, f"%{needle}%", user_id]
+            chat_filter = ""
+            if chat_id is not None:
+                chat_filter = " AND c.id = ? "
+                params.append(int(chat_id))
+            params.append(safe_limit)
+
+            rows = connection.execute(
+                f"""
+                SELECT m.id AS message_id,
+                       m.chat_id AS chat_id,
+                       c.title AS chat_title,
+                       m.author_user_id AS author_user_id,
+                       u.login AS author_login,
+                       m.body_text AS body_text,
+                       m.created_at_ms AS created_at_ms
+                FROM chat_messages m
+                JOIN chats c ON c.id = m.chat_id
+                LEFT JOIN users u ON u.id = m.author_user_id
+                LEFT JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = ?
+                WHERE m.body_text LIKE ?
+                  AND (
+                        c.kind = 'common'
+                     OR c.is_public = 1
+                     OR cm.user_id IS NOT NULL
+                     OR EXISTS (SELECT 1 FROM users a WHERE a.id = ? AND a.role IN ('admin','moderator'))
+                  )
+                  AND m.created_at_ms >= COALESCE(cm.cleared_at_ms, 0)
+                  AND (c.history_visible = 1 OR m.created_at_ms >= COALESCE(cm.joined_at_ms, 0))
+                  {chat_filter}
+                ORDER BY m.created_at_ms DESC, m.id DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_chat_summaries(self, *, user_id: int) -> list[dict[str, object]]:
+        """Chats of the user with unread counters, drafts and per-user flags."""
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            rows = connection.execute(
+                """
+                SELECT c.*,
+                       m.role AS member_role,
+                       m.is_muted AS is_muted,
+                       m.is_archived AS is_archived,
+                       m.is_pinned AS is_pinned,
+                       m.last_read_message_id AS last_read_message_id,
+                       m.cleared_at_ms AS cleared_at_ms,
+                       m.joined_at_ms AS joined_at_ms,
+                       m.draft_text AS draft_text,
+                       m.draft_updated_at_ms AS draft_updated_at_ms,
+                       (
+                           SELECT COUNT(*)
+                           FROM chat_messages msg
+                           WHERE msg.chat_id = c.id
+                             AND msg.author_user_id != ?
+                             AND msg.id > COALESCE(m.last_read_message_id, 0)
+                             AND msg.created_at_ms >= COALESCE(m.cleared_at_ms, 0)
+                             AND (c.history_visible = 1 OR msg.created_at_ms >= COALESCE(m.joined_at_ms, 0))
+                       ) AS unread_count,
+                       (
+                           SELECT msg.body_text
+                           FROM chat_messages msg
+                           WHERE msg.chat_id = c.id
+                             AND msg.created_at_ms >= COALESCE(m.cleared_at_ms, 0)
+                           ORDER BY msg.created_at_ms DESC, msg.id DESC
+                           LIMIT 1
+                       ) AS last_message_text,
+                       (
+                           SELECT msg.created_at_ms
+                           FROM chat_messages msg
+                           WHERE msg.chat_id = c.id
+                             AND msg.created_at_ms >= COALESCE(m.cleared_at_ms, 0)
+                           ORDER BY msg.created_at_ms DESC, msg.id DESC
+                           LIMIT 1
+                       ) AS last_message_at_ms
+                FROM chats c
+                LEFT JOIN chat_members m ON m.chat_id = c.id AND m.user_id = ?
+                WHERE c.kind = 'common' OR m.user_id IS NOT NULL
+                ORDER BY COALESCE(m.is_pinned, 0) DESC, c.updated_at_ms DESC, c.id DESC
+                """,
+                (user_id, user_id),
+            ).fetchall()
+
+            summaries: list[dict[str, object]] = []
+            for row in rows:
+                summaries.append(
+                    {
+                        "chat": self._row_to_chat(row),
+                        "my_role": self._row_optional_str_lenient(row, "member_role"),
+                        "is_member": self._row_optional_str_lenient(row, "member_role") is not None,
+                        "is_muted": self._row_bool(row, "is_muted"),
+                        "is_archived": self._row_bool(row, "is_archived"),
+                        "is_pinned": self._row_bool(row, "is_pinned"),
+                        "unread_count": int(self._row_optional_int_lenient(row, "unread_count") or 0),
+                        "draft_text": self._row_optional_str_lenient(row, "draft_text"),
+                        "draft_updated_at_ms": self._row_optional_int_lenient(row, "draft_updated_at_ms"),
+                        "last_message_text": self._row_optional_str_lenient(row, "last_message_text"),
+                        "last_message_at_ms": self._row_optional_int_lenient(row, "last_message_at_ms"),
+                    }
+                )
+            return summaries
+
     def _upsert_join_request(
         self,
         connection: sqlite3.Connection,
@@ -1622,6 +1943,15 @@ class ChatService:
             client_message_id = (draft.client_message_id or "").strip() or None
             attachment_ids = self._normalize_attachment_ids(draft.attachment_ids)
 
+            reply_to_message_id = draft.reply_to_message_id
+            if reply_to_message_id is not None:
+                parent = connection.execute(
+                    "SELECT id FROM chat_messages WHERE id = ? AND chat_id = ?",
+                    (int(reply_to_message_id), chat_id),
+                ).fetchone()
+                if parent is None:
+                    raise ChatError("reply_target_not_found", "Replied message was not found", 404)
+
             try:
                 cursor = connection.execute(
                     """
@@ -1631,11 +1961,12 @@ class ChatService:
                         body_text,
                         client_message_id,
                         created_at_ms,
-                        edited_at_ms
+                        edited_at_ms,
+                        reply_to_message_id
                     )
-                    VALUES (?, ?, ?, ?, ?, NULL)
+                    VALUES (?, ?, ?, ?, ?, NULL, ?)
                     """,
-                    (chat_id, author_user_id, text, client_message_id, now_ms),
+                    (chat_id, author_user_id, text, client_message_id, now_ms, reply_to_message_id),
                 )
                 message_id = self._lastrowid(cursor)
                 self._attach_media_to_message(
@@ -1704,9 +2035,15 @@ class ChatService:
 
             rows = connection.execute(
                 """
-                SELECT m.*, u.login AS author_login, u.avatar_emoji AS author_avatar_emoji
+                SELECT m.*,
+                       u.login AS author_login,
+                       u.avatar_emoji AS author_avatar_emoji,
+                       rm.body_text AS reply_text,
+                       ru.login AS reply_login
                 FROM chat_messages m
                 LEFT JOIN users u ON u.id = m.author_user_id
+                LEFT JOIN chat_messages rm ON rm.id = m.reply_to_message_id
+                LEFT JOIN users ru ON ru.id = rm.author_user_id
                 WHERE m.chat_id = ?
                   AND m.created_at_ms >= ?
                 ORDER BY m.created_at_ms DESC, m.id DESC
@@ -1721,11 +2058,17 @@ class ChatService:
                 connection,
                 [message.message_id for message in messages],
             )
+            reactions_by_id = self._reactions_for_messages(
+                connection,
+                [message.message_id for message in messages],
+                viewer_user_id=requester_user_id,
+            )
             return [
                 self._with_message_attachments(
                     connection,
                     message,
                     attachments_by_id=attachments_by_id,
+                    reactions_by_id=reactions_by_id,
                 )
                 for message in messages
             ]
@@ -1888,6 +2231,11 @@ class ChatService:
             edited_at_ms=ChatService._row_optional_int(row, "edited_at_ms"),
             author_login=ChatService._row_optional_str_lenient(row, "author_login"),
             author_avatar_emoji=ChatService._row_optional_str_lenient(row, "author_avatar_emoji"),
+            reply_to_message_id=ChatService._row_optional_int_lenient(row, "reply_to_message_id"),
+            reply_to_login=ChatService._row_optional_str_lenient(row, "reply_login"),
+            reply_to_text=ChatService._row_optional_str_lenient(row, "reply_text"),
+            forwarded_from_login=ChatService._row_optional_str_lenient(row, "forwarded_from_login"),
+            forwarded_from_chat_id=ChatService._row_optional_int_lenient(row, "forwarded_from_chat_id"),
         )
 
     def _with_message_attachments(
@@ -1896,6 +2244,7 @@ class ChatService:
         message: ChatMessage,
         *,
         attachments_by_id: dict[int, tuple[object, ...]] | None = None,
+        reactions_by_id: dict[int, tuple[object, ...]] | None = None,
     ) -> ChatMessage:
         if attachments_by_id is None:
             attachments_by_id = MediaService(self._db_path, self._storage_root).list_for_chat_messages(
@@ -1913,7 +2262,50 @@ class ChatService:
             attachments=attachments_by_id.get(message.message_id, ()),
             author_login=message.author_login,
             author_avatar_emoji=message.author_avatar_emoji,
+            reply_to_message_id=message.reply_to_message_id,
+            reply_to_login=message.reply_to_login,
+            reply_to_text=message.reply_to_text,
+            forwarded_from_login=message.forwarded_from_login,
+            forwarded_from_chat_id=message.forwarded_from_chat_id,
+            reactions=(reactions_by_id or {}).get(message.message_id, message.reactions),
         )
+
+    def _reactions_for_messages(
+        self,
+        connection: sqlite3.Connection,
+        message_ids: Sequence[int],
+        *,
+        viewer_user_id: int,
+    ) -> dict[int, tuple[object, ...]]:
+        if not message_ids:
+            return {}
+        placeholders = ",".join("?" for _ in message_ids)
+        rows = connection.execute(
+            f"""
+            SELECT message_id, emoji, COUNT(*) AS total,
+                   SUM(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS mine
+            FROM chat_message_reactions
+            WHERE message_id IN ({placeholders})
+            GROUP BY message_id, emoji
+            """,
+            (viewer_user_id, *message_ids),
+        ).fetchall()
+
+        grouped: dict[int, list[ChatReaction]] = {}
+        for row in rows:
+            grouped.setdefault(int(row["message_id"]), []).append(
+                ChatReaction(
+                    emoji=str(row["emoji"]),
+                    count=int(row["total"]),
+                    mine=bool(row["mine"]),
+                )
+            )
+
+        ordered: dict[int, tuple[object, ...]] = {}
+        for message_id, items in grouped.items():
+            items.sort(key=lambda item: REACTION_EMOJIS.index(item.emoji) if item.emoji in REACTION_EMOJIS else 99)
+            ordered[message_id] = tuple(items)
+        return ordered
 
     @staticmethod
     def _normalize_attachment_ids(attachment_ids: tuple[int, ...]) -> tuple[int, ...]:
@@ -2076,9 +2468,15 @@ class ChatService:
     def _select_message_row(connection: sqlite3.Connection, message_id: int) -> sqlite3.Row | None:
         return connection.execute(
             """
-            SELECT m.*, u.login AS author_login, u.avatar_emoji AS author_avatar_emoji
+            SELECT m.*,
+                   u.login AS author_login,
+                   u.avatar_emoji AS author_avatar_emoji,
+                   rm.body_text AS reply_text,
+                   ru.login AS reply_login
             FROM chat_messages m
             LEFT JOIN users u ON u.id = m.author_user_id
+            LEFT JOIN chat_messages rm ON rm.id = m.reply_to_message_id
+            LEFT JOIN users ru ON ru.id = rm.author_user_id
             WHERE m.id = ?
             """,
             (message_id,),

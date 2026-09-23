@@ -11,6 +11,7 @@ from app.models.application import ApplicationDraft, ApplicationRecord, Applicat
 from app.models.blog import BlogPost, BlogPostDraft
 from app.models.chat import (
     CHAT_PERMISSIONS,
+    REACTION_EMOJIS,
     ChatDraft,
     ChatInvite,
     ChatJoinRequest,
@@ -18,6 +19,7 @@ from app.models.chat import (
     ChatMember,
     ChatMemberRole,
     ChatMessage,
+    ChatReaction,
     ChatRoom,
     ChatType,
     MessageDraft,

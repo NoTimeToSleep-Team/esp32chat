@@ -204,7 +204,13 @@ const ICONS = {
   pin: '<path d="M12 17.5V21"/><path d="M8.5 3.5h7l-1 6 3.5 3.5H6l3.5-3.5-1-6z"/>',
   copy: '<rect x="9" y="9" width="11.5" height="11.5" rx="2.5"/><path d="M6 15H5.5A1.5 1.5 0 0 1 4 13.5V5.5A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6"/>',
   users: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0"/><path d="M16.5 5.4a3.4 3.4 0 0 1 0 6.2"/><path d="M17.5 13.6a6.2 6.2 0 0 1 3.7 5.9"/>',
-  link: '<path d="M10 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/><path d="M14 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>'
+  link: '<path d="M10 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/><path d="M14 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>',
+  reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v3"/>',
+  forward: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v3"/>',
+  smile: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><circle cx="9" cy="10" r=".9"/><circle cx="15" cy="10" r=".9"/>',
+  archive: '<rect x="3" y="4.5" width="18" height="4" rx="1.5"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 12.5h4"/>',
+  bell: '<path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 14 6 10z"/><path d="M10 18.5a2 2 0 0 0 4 0"/>',
+  bellOff: '<path d="M8.5 5.5A6 6 0 0 1 18 10c0 1.6.3 2.8.7 3.7"/><path d="M6 10c0 4-1.5 5.5-1.5 5.5h12"/><path d="M10 18.5a2 2 0 0 0 4 0"/><path d="M3.5 3.5l17 17"/>'
 };
 function icon(name, cls) {
   const body = ICONS[name] || '';
@@ -738,6 +744,7 @@ async function renderChat() {
           <div class="chat-top">
             <button class="mini only-mobile" id="chat-menu-btn" title="${t('menu')}" aria-label="${t('menu')}">${icon('menu')}</button>
             <div class="chat-search">${icon('search')}<input id="chat-search-input" placeholder="${t('search_user')}"></div>
+            <button class="mini" id="chat-archive-btn" title="${t('archive')}" aria-label="${t('archive')}" style="display:none">${icon('archive')}<span class="mini-badge" id="chat-archive-count"></span></button>
             <button class="mini only-mobile mini-pill" id="chat-dm-btn" title="${t('dm')}" aria-label="${t('dm')}"><span class="mi-ico">${icon('mail')}</span><span class="mi-lbl">${t('dm')}</span></button>
             <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
             <button class="mini only-mobile" id="chat-new-btn" title="${t('new_chat')}" aria-label="${t('new_chat')}">${icon('plus')}</button>
@@ -758,7 +765,17 @@ async function renderChat() {
       return;
     }
     const list = el('div');
-    data.items.forEach(chat => {
+    const archived = data.items.filter(c => c.is_archived);
+    const archiveBtn = $('#chat-archive-btn');
+    if (archiveBtn) {
+      archiveBtn.style.display = archived.length ? '' : 'none';
+      const cnt = $('#chat-archive-count');
+      if (cnt) cnt.textContent = archived.length ? String(archived.length) : '';
+      archiveBtn.classList.toggle('active', !!STATE.showArchived);
+      archiveBtn.onclick = () => { STATE.showArchived = !STATE.showArchived; renderChat(); };
+    }
+    const visibleChats = data.items.filter(c => STATE.showArchived || !c.is_archived);
+    visibleChats.forEach(chat => {
       const item = el('div',{class:'chat-item'});
       let displayTitle = chat.title;
       if (displayTitle.includes(' & ')) {
@@ -767,14 +784,25 @@ async function renderChat() {
       }
       const cav = chatAvaFor(displayTitle, chat.chat_id);
       const typeIcon = chat.chat_type === 'group' ? '' : `<span class="chat-type-ico" title="${esc(chatTypeLabel(chat))}">${chatTypeIcon(chat)}</span>`;
+      const flags = [];
+      if (chat.is_pinned) flags.push(`<span class="chat-flag" title="${t('pinned_chat')}">${icon('pin')}</span>`);
+      if (chat.is_muted) flags.push(`<span class="chat-flag" title="${t('muted')}">${icon('bellOff')}</span>`);
+      const unread = Number(chat.unread_count || 0);
+      const badge = unread > 0 ? `<span class="chat-badge${chat.is_muted ? ' muted' : ''}">${unread > 99 ? '99+' : unread}</span>` : '';
+      const draft = (chat.draft_text || '').trim();
+      const desc = draft
+        ? `<span class="chat-draft">${t('draft')}: ${esc(draft.slice(0, 60))}</span>`
+        : (chat.description ? esc(chat.description) : '#' + chat.chat_id);
       item.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
         <div class="chat-item-main">
-          <div class="chat-item-title">${typeIcon}${esc(displayTitle)}</div>
-          <div class="chat-item-desc">${chat.description ? esc(chat.description) : '#' + chat.chat_id}</div>
-        </div>`;
+          <div class="chat-item-title">${typeIcon}${esc(displayTitle)}${flags.join('')}</div>
+          <div class="chat-item-desc">${desc}</div>
+        </div>
+        ${badge}`;
       item.dataset.search = (displayTitle + ' ' + (chat.description || '')).toLowerCase();
       item.dataset.avatar = chat.avatar_url || '';
       item.dataset.chatType = chatTypeOf(chat);
+      item.dataset.chatId = chat.chat_id;
       item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item, chat.avatar_url);
       list.append(item);
     });
@@ -1133,6 +1161,28 @@ async function loadChatMessages(chatId, title, itemEl, avatarUrl) {
 
 let msgLoadOffset = 0;
 
+const REACTIONS = ['👍', '❤️', '😂', '🔥', '👏', '🤔'];
+
+function highlightMentions(text) {
+  return esc(text || '').replace(/(^|[\s(.,!?])@([a-zA-Z0-9_]{2,32})/g, (all, pre, login) => pre + '<span class="mention">@' + login + '</span>');
+}
+
+function msgReplyHtml(m) {
+  if (!m.reply_to_message_id) return '';
+  return `<div class="msg-reply" onclick="jumpToMessage(${m.reply_to_message_id})">
+    <span class="msg-reply-author">${esc(m.reply_to_login || '')}</span>
+    <span class="msg-reply-text">${esc((m.reply_to_text || '').slice(0, 140) || '…')}</span>
+  </div>`;
+}
+
+function msgReactionsHtml(m) {
+  const items = m.reactions || [];
+  if (!items.length) return '';
+  return '<div class="msg-reactions">' + items.map(r =>
+    `<button class="react${r.mine ? ' mine' : ''}" data-emoji="${esc(r.emoji)}" onclick="toggleReaction(${m.message_id}, '${esc(r.emoji)}')">${esc(r.emoji)}<span>${r.count}</span></button>`
+  ).join('') + '</div>';
+}
+
 function buildMessageEl(m) {
   const isMe = m.author_user_id === STATE.user?.id;
   var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯','🐙','🦄','🐳','🐧','🐤'];
@@ -1144,19 +1194,226 @@ function buildMessageEl(m) {
   const authorName = isMe ? esc(STATE.user?.login||'You') : esc(m.author_login || userName(m.author_user_id));
   const avaUrl = AVA_URL[m.author_user_id];
   if (!avaUrl) ensureAvatarUrl(m.author_user_id);
+  const canPin = !!(currentChatView && (currentChatView.is_owner || currentChatView.can_post));
   div.innerHTML = `
     <div class="msg-avatar" data-ava-uid="${m.author_user_id}" data-ava-emoji="${esc(initial)}" style="cursor:pointer" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${avatarInnerHtml(avaUrl, initial)}</div>
     <div class="msg-body">
       ${isMe ? '' : `<div class="msg-header"><span class="msg-author">${authorName}</span></div>`}
-      <div class="msg-text">${esc(m.body_text || '')}${m.edited_at_ms ? ' <span class="edited">(edited)</span>' : ''}</div>
+      ${m.forwarded_from_login ? `<div class="msg-forwarded">${icon('forward')} ${t('forwarded_from')} <b>${esc(m.forwarded_from_login)}</b></div>` : ''}
+      ${msgReplyHtml(m)}
+      <div class="msg-text">${highlightMentions(m.body_text || '')}${m.edited_at_ms ? ' <span class="edited">(' + t('edited') + ')</span>' : ''}</div>
       ${renderAttachments(m.attachments)}
+      ${msgReactionsHtml(m)}
       <div class="msg-meta">
         <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
-        ${isMe ? '<span class="msg-tick" title="отправлено">' + icon('check') + '</span>' : ''}
-        ${isMe ? '<span class="msg-actions"><button title="Edit" onclick="editMsg(' + m.message_id + ',this)">' + icon('pencil') + '</button><button title="Delete" onclick="confirmDel(' + m.message_id + ')">' + icon('trash') + '</button></span>' : ''}
+        ${isMe ? '<span class="msg-tick" title="' + t('sent') + '">' + icon('check') + '</span>' : ''}
+        <span class="msg-actions">
+          <button title="${t('reply')}" aria-label="${t('reply')}" onclick="startReply(${m.message_id})">${icon('reply')}</button>
+          <button title="${t('forward')}" aria-label="${t('forward')}" onclick="startForward(${m.message_id})">${icon('forward')}</button>
+          <button title="${t('react')}" aria-label="${t('react')}" onclick="toggleReactionBar(${m.message_id}, this)">${icon('smile')}</button>
+          ${canPin ? `<button title="${t('pin')}" aria-label="${t('pin')}" onclick="pinMessage(${m.message_id})">${icon('pin')}</button>` : ''}
+          <button title="${t('copy')}" aria-label="${t('copy')}" onclick="copyTextToClipboard(${JSON.stringify(String(m.body_text || ''))})">${icon('copy')}</button>
+          ${isMe ? `<button title="${t('edit_msg')}" aria-label="${t('edit_msg')}" onclick="editMsg(${m.message_id},this)">${icon('pencil')}</button><button title="${t('delete')}" aria-label="${t('delete')}" onclick="confirmDel(${m.message_id})">${icon('trash')}</button>` : ''}
+        </span>
       </div>
     </div>`;
   return div;
+}
+
+function toggleReactionBar(messageId, btn) {
+  const existing = document.querySelector('.react-bar');
+  if (existing) existing.remove();
+  const bar = el('div', {class: 'react-bar'});
+  REACTIONS.forEach(emoji => {
+    const b = el('button', {class: 'react-opt', type: 'button'}, emoji);
+    b.onclick = () => { bar.remove(); toggleReaction(messageId, emoji); };
+    bar.append(b);
+  });
+  const rect = btn.getBoundingClientRect();
+  bar.style.position = 'fixed';
+  bar.style.left = Math.max(8, Math.min(rect.left - 120, window.innerWidth - 260)) + 'px';
+  bar.style.top = Math.max(8, rect.top - 48) + 'px';
+  document.body.append(bar);
+  setTimeout(() => {
+    document.addEventListener('click', function close(ev) {
+      if (!bar.contains(ev.target)) { bar.remove(); document.removeEventListener('click', close); }
+    });
+  }, 0);
+}
+
+async function toggleReaction(messageId, emoji) {
+  if (!currentChatId) return;
+  try {
+    const res = await api(`/chat/api/chats/${currentChatId}/messages/${messageId}/reactions`, {
+      method: 'POST', body: JSON.stringify({session_token: STATE.token, emoji}),
+    });
+    const el2 = document.querySelector('.msg[data-mid="' + messageId + '"]');
+    if (el2 && res.message) {
+      const body = el2.querySelector('.msg-body');
+      const old = body.querySelector('.msg-reactions');
+      if (old) old.remove();
+      const html = msgReactionsHtml(res.message);
+      if (html) {
+        const tmp = el('div');
+        tmp.innerHTML = html;
+        const meta = body.querySelector('.msg-meta');
+        if (meta) body.insertBefore(tmp.firstChild, meta); else body.append(tmp.firstChild);
+      }
+    }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function pinMessage(messageId) {
+  if (!currentChatId) return;
+  try {
+    const res = await api(`/chat/api/chats/${currentChatId}/pin`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, message_id: messageId})});
+    if (currentChatView) currentChatView.chat = res.chat;
+    toast(t('pinned_ok'), 'success');
+    doLoadMessages({force: true});
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function jumpToMessage(messageId) {
+  const target = document.querySelector('.msg[data-mid="' + messageId + '"]');
+  if (!target) { toast(t('message_not_loaded'), 'info'); return; }
+  target.classList.add('msg-flash');
+  target.scrollIntoView({behavior: 'smooth', block: 'center'});
+  setTimeout(() => target.classList.remove('msg-flash'), 1600);
+}
+
+let replyTarget = null;
+
+function startReply(messageId) {
+  const node = document.querySelector('.msg[data-mid="' + messageId + '"]');
+  const text = node ? (node.querySelector('.msg-text') || {}).textContent || '' : '';
+  const authorEl = node ? node.querySelector('.msg-author') : null;
+  const author = authorEl ? authorEl.textContent : (node && node.classList.contains('out') ? (STATE.user?.login || '') : '');
+  replyTarget = {message_id: messageId, login: author, text: text.slice(0, 140)};
+  renderReplyBar();
+  const input = $('#msg-input');
+  if (input) input.focus();
+}
+
+function renderReplyBar() {
+  const comp = document.querySelector('.comp');
+  if (!comp) return;
+  let bar = document.getElementById('reply-bar');
+  if (!replyTarget) { if (bar) bar.remove(); return; }
+  if (!bar) {
+    bar = el('div', {class: 'reply-bar', id: 'reply-bar'});
+    comp.insertBefore(bar, comp.firstChild);
+  }
+  bar.innerHTML = `<div class="reply-bar-body"><div class="reply-bar-author">${esc(replyTarget.login || '')}</div><div class="reply-bar-text">${esc(replyTarget.text || '')}</div></div><button class="icon-btn" id="reply-cancel" title="${t('cancel')}">${icon('x')}</button>`;
+  bar.querySelector('#reply-cancel').onclick = () => { replyTarget = null; renderReplyBar(); };
+}
+
+async function showMessageSearch() {
+  const old = document.getElementById('search-modal');
+  if (old) old.remove();
+  let scope = 'chat';
+  const ov = el('div', {class: 'overlay', id: 'search-modal'});
+  ov.innerHTML = `<div class="modal modal-wide">
+    <div class="cp-head"><h3>${t('search_messages')}</h3><button class="icon-btn" id="search-close" title="${t('close')}" aria-label="${t('close')}">${icon('x')}</button></div>
+    <div class="form-group"><input class="form-input" id="search-input" placeholder="${t('search_ph')}" autocomplete="off"></div>
+    <div class="seg" id="search-scope">
+      <button class="seg-btn active" data-scope="chat" type="button">${t('search_in_chat')}</button>
+      <button class="seg-btn" data-scope="all" type="button">${t('search_all_chats')}</button>
+    </div>
+    <div id="search-results" class="cp-members" style="margin-top:12px"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-outline" id="search-cancel">${t('close')}</button></div>
+  </div>`;
+  document.body.append(ov);
+  const close = () => ov.remove();
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  ov.querySelector('#search-close').onclick = close;
+  ov.querySelector('#search-cancel').onclick = close;
+
+  const input = ov.querySelector('#search-input');
+  const results = ov.querySelector('#search-results');
+  let timer = null;
+
+  async function runSearch() {
+    const q = (input.value || '').trim();
+    if (q.length < 2) { results.innerHTML = `<div class="cp-empty">${t('search_hint')}</div>`; return; }
+    try {
+      const chatPart = (scope === 'chat' && currentChatId) ? `&chat_id=${currentChatId}` : '';
+      const data = await api(`/chat/api/messages/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(q)}${chatPart}`);
+      const items = data.items || [];
+      if (!items.length) { results.innerHTML = `<div class="cp-empty">${t('nothing_found')}</div>`; return; }
+      results.innerHTML = '';
+      items.forEach(item => {
+        const row = el('div', {class: 'cp-member', style: 'cursor:pointer'});
+        const initials = (item.author_login || '?').slice(0, 2).toUpperCase();
+        row.innerHTML = `<div class="cp-member-ava">${esc(initials)}</div>
+          <div class="cp-member-main">
+            <div class="cp-member-name">${esc(item.author_login || '')} <span class="cp-me">${esc(item.chat_title || '')}</span></div>
+            <div class="cp-member-sub">${esc((item.body_text || '').slice(0, 140))}</div>
+          </div>
+          <div class="cp-invite-meta">${fmtTimeShort(item.created_at_ms)}</div>`;
+        row.onclick = () => { close(); openChatAndJump(item.chat_id, item.message_id); };
+        results.append(row);
+      });
+    } catch (e) { results.innerHTML = `<div class="cp-empty">${esc(e.message)}</div>`; }
+  }
+
+  ov.querySelectorAll('#search-scope .seg-btn').forEach(b => b.onclick = () => {
+    scope = b.dataset.scope || 'chat';
+    ov.querySelectorAll('#search-scope .seg-btn').forEach(x => x.classList.toggle('active', x === b));
+    runSearch();
+  });
+  input.oninput = () => { clearTimeout(timer); timer = setTimeout(runSearch, 300); };
+  results.innerHTML = `<div class="cp-empty">${t('search_hint')}</div>`;
+  input.focus();
+}
+
+async function openChatAndJump(chatId, messageId) {
+  if (Number(chatId) !== Number(currentChatId)) {
+    const item = document.querySelector('#chat-list .chat-item[data-chat-id="' + chatId + '"]');
+    if (!item) { toast(t('open_chat_manually'), 'info'); return; }
+    const title = (item.querySelector('.chat-item-title') || {}).textContent || '';
+    await loadChatMessages(chatId, title, item, item.dataset.avatar || '');
+  }
+  setTimeout(() => jumpToMessage(messageId), 700);
+}
+
+async function startForward(messageId) {
+  const old = document.getElementById('forward-modal');
+  if (old) old.remove();
+  const ov = el('div', {class: 'overlay', id: 'forward-modal'});
+  ov.innerHTML = `<div class="modal">
+    <h3>${t('forward')}</h3>
+    <div id="forward-list" class="cp-members"><div class="loading"><div class="spinner"></div></div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-outline" id="forward-cancel">${t('cancel')}</button>
+    </div>
+  </div>`;
+  document.body.append(ov);
+  const close = () => ov.remove();
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  ov.querySelector('#forward-cancel').onclick = close;
+  try {
+    const data = await api(`/chat/api/chats?session_token=${encodeURIComponent(STATE.token)}`);
+    const list = ov.querySelector('#forward-list');
+    const items = (data.items || []).filter(c => c.chat_id !== currentChatId);
+    if (!items.length) { list.innerHTML = `<div class="cp-empty">${t('no_chats')}</div>`; return; }
+    list.innerHTML = '';
+    items.forEach(chat => {
+      const row = el('div', {class: 'cp-member', style: 'cursor:pointer'});
+      const cav = chatAvaFor(chat.title, chat.chat_id);
+      row.innerHTML = `<div class="cp-member-ava">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
+        <div class="cp-member-main"><div class="cp-member-name">${esc(chat.title)}</div><div class="cp-member-sub">${esc(chatTypeLabel(chat))}</div></div>`;
+      row.onclick = async () => {
+        try {
+          await api(`/chat/api/chats/${currentChatId}/messages/${messageId}/forward`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, target_chat_id: chat.chat_id})});
+          toast(t('forwarded_ok'), 'success');
+          close();
+        } catch (e) { toast(e.message, 'error'); }
+      };
+      list.append(row);
+    });
+  } catch (e) {
+    ov.querySelector('#forward-list').innerHTML = `<div class="cp-empty">${esc(e.message)}</div>`;
+  }
 }
 
 async function doLoadMessages(opts) {
@@ -1226,6 +1483,7 @@ async function doLoadMessages(opts) {
           <div class="t2">${esc(subtitle)}</div>
         </div>
         <span class="spacer"></span>
+        <button class="icon-btn" id="chat-search-btn" title="${t('search_messages')}" aria-label="${t('search_messages')}">${icon('search')}</button>
         <button class="icon-btn" id="chat-reload" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
         <button class="icon-btn" id="chat-more" title="${t('chat_profile')}" aria-label="${t('chat_profile')}">${icon('more', 'fill')}</button>
       </div>
@@ -1264,6 +1522,16 @@ async function doLoadMessages(opts) {
       list.append(buildMessageEl(m));
     });
     msgLoadOffset = msgs.length;
+    const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+    if (lastMsg && currentChatView && (currentChatView.last_read_message_id || 0) < lastMsg.message_id) {
+      currentChatView.last_read_message_id = lastMsg.message_id;
+      api(`/chat/api/chats/${currentChatId}/read`, {method:'POST', body: JSON.stringify({session_token: STATE.token, message_id: lastMsg.message_id})})
+        .then(() => {
+          const activeItem = document.querySelector('#chat-list .chat-item.active');
+          if (activeItem) { const badge = activeItem.querySelector('.chat-badge'); if (badge) badge.remove(); }
+        })
+        .catch(() => {});
+    }
     if (opts.newMid) {
       const newEl = list.querySelector('.msg[data-mid="' + opts.newMid + '"]');
       if (newEl) newEl.classList.add('new');
@@ -1287,6 +1555,8 @@ async function doLoadMessages(opts) {
     if (backEl) backEl.onclick = () => { const lay = $('#chat-layout'); if (lay) lay.classList.add('show-list'); };
     const reloadEl = $('#chat-reload');
     if (reloadEl) reloadEl.onclick = () => doLoadMessages({force:true});
+    const searchBtn = $('#chat-search-btn');
+    if (searchBtn) searchBtn.onclick = () => showMessageSearch();
     const moreEl = $('#chat-more');
     if (moreEl) moreEl.onclick = () => showChatProfile();
     const headOpen = $('#chat-head-open');
@@ -1322,13 +1592,25 @@ async function doLoadMessages(opts) {
     renderAttachPreview();
     const miEl = $('#msg-input');
     if (miEl) {
-      miEl.onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
-      miEl.oninput = () => { miEl.style.height = 'auto'; miEl.style.height = Math.min(miEl.scrollHeight, 120) + 'px'; };
+      miEl.onkeydown = e => {
+        if (e.key === 'Escape') { replyTarget = null; renderReplyBar(); hideMentionList(); return; }
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); hideMentionList(); sendMessage(); }
+      };
+      miEl.oninput = () => {
+        miEl.style.height = 'auto';
+        miEl.style.height = Math.min(miEl.scrollHeight, 120) + 'px';
+        saveDraft(miEl.value);
+        const q = mentionQuery(miEl.value, miEl.selectionStart || 0);
+        if (q) showMentionList(q, miEl); else hideMentionList();
+      };
+      miEl.onblur = () => setTimeout(hideMentionList, 200);
       miEl.onfocus = () => {
         list._stickBottom = true;
         setTimeout(function(){ if (list) list.scrollTop = list.scrollHeight; }, 300);
       };
+      if (currentChatView && currentChatView.draft_text && !miEl.value) miEl.value = currentChatView.draft_text;
     }
+    renderReplyBar();
   } catch(e) {
     if (container) container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
@@ -1353,11 +1635,16 @@ async function sendMessage() {
       const idx = pendingFiles.indexOf(f);
       if (idx >= 0) pendingFiles.splice(idx, 1);
     }
+    const payload = {session_token:STATE.token, body_text:text, attachment_ids:ids};
+    if (replyTarget && replyTarget.message_id) payload.reply_to_message_id = replyTarget.message_id;
     const sent = await api(`/chat/api/chats/${currentChatId}/messages`, {
       method:'POST',
-      body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:ids})
+      body:JSON.stringify(payload)
     });
     input.value = '';
+    replyTarget = null;
+    renderReplyBar();
+    saveDraft('');
     const newMid = sent && sent.message ? sent.message.message_id : null;
     await doLoadMessages({force:true, newMid: newMid, smooth:true});
   } catch(e) {
@@ -1367,6 +1654,57 @@ async function sendMessage() {
     if (attachBtn) attachBtn.disabled = false;
     renderAttachPreview();
   }
+}
+
+let draftTimer = null;
+function saveDraft(text) {
+  if (!currentChatId) return;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    api(`/chat/api/chats/${currentChatId}/draft`, {
+      method: 'POST',
+      body: JSON.stringify({session_token: STATE.token, text: text || ''}),
+    }).catch(() => {});
+  }, 700);
+}
+
+function mentionQuery(text, caret) {
+  const before = (text || '').slice(0, caret);
+  const match = before.match(/(^|[\s(])@([a-zA-Z0-9_]{1,32})$/);
+  return match ? match[2] : null;
+}
+
+function hideMentionList() {
+  const box = document.getElementById('mention-list');
+  if (box) box.remove();
+}
+
+async function showMentionList(query, input) {
+  if (!query) { hideMentionList(); return; }
+  let items = [];
+  try {
+    const data = await api(`/chat/api/users/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(query)}`);
+    items = (data.items || []).filter(u => u.role !== 'guest').slice(0, 6);
+  } catch (e) { return; }
+  hideMentionList();
+  if (!items.length) return;
+  const box = el('div', {class: 'mention-list', id: 'mention-list'});
+  items.forEach(u => {
+    const row = el('div', {class: 'mention-item'}, '@' + u.login);
+    row.onmousedown = (ev) => {
+      ev.preventDefault();
+      const text = input.value;
+      const caret = input.selectionStart || text.length;
+      const before = text.slice(0, caret).replace(/(^|[\s(])@([a-zA-Z0-9_]{1,32})$/, (all, pre) => pre + '@' + u.login + ' ');
+      input.value = before + text.slice(caret);
+      input.focus();
+      input.selectionStart = input.selectionEnd = before.length;
+      hideMentionList();
+    };
+    box.append(row);
+  });
+  const comp = input.closest('.comp') || input.parentElement;
+  comp.append(box);
 }
 
 const AVA_COLORS = ["#e17076","#7bc862","#e5ca77","#a695e7","#6ec9cb","#ee7aae","#65aadd"];
@@ -1564,6 +1902,15 @@ async function showChatProfile() {
     ${canManage ? `<div class="form-group">
       <label>${t('join_requests')} · <span id="cp-requests-count">${view.pending_requests || 0}</span></label>
       <div id="cp-requests" class="cp-members"></div>
+    </div>` : ''}
+    ${isMember ? `<div class="form-group">
+      <label>${t('chat_notifications')}</label>
+      <div class="cp-state">
+        <button class="btn btn-sm ${view.is_muted ? 'btn-primary' : 'btn-outline'}" id="cp-mute">${view.is_muted ? t('unmute') : t('mute')}</button>
+        <button class="btn btn-sm ${view.is_archived ? 'btn-primary' : 'btn-outline'}" id="cp-archive">${view.is_archived ? t('unarchive') : t('archive')}</button>
+        <button class="btn btn-sm ${view.is_pinned ? 'btn-primary' : 'btn-outline'}" id="cp-pin">${view.is_pinned ? t('unpin_chat') : t('pin_chat')}</button>
+        <button class="btn btn-sm btn-outline danger" id="cp-clear">${t('clear_history')}</button>
+      </div>
     </div>` : ''}
     <div class="cp-danger">
       ${!isMember ? `<button class="btn btn-primary" id="cp-join">${t('subscribe')}</button>` : ''}
@@ -1911,6 +2258,36 @@ async function showChatProfile() {
     } catch (e) { requestsBox.innerHTML = `<div class="cp-empty">${esc(e.message)}</div>`; }
   }
   if (requestsBox) loadRequests();
+
+  // per-user chat state: mute / archive / pin / clear history
+  const stateBtn = (selector, patch, okKey) => {
+    const btn = ov.querySelector(selector);
+    if (!btn) return;
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        await api(`/chat/api/chats/${currentChatId}/state`, {method: 'POST', body: JSON.stringify(Object.assign({session_token: STATE.token}, patch))});
+        toast(t(okKey), 'success');
+        reopen();
+      } catch (e) { toast(e.message, 'error'); btn.disabled = false; }
+    };
+  };
+  stateBtn('#cp-mute', {is_muted: !view.is_muted}, view.is_muted ? 'unmuted' : 'muted_ok');
+  stateBtn('#cp-archive', {is_archived: !view.is_archived}, view.is_archived ? 'unarchived' : 'archived_ok');
+  stateBtn('#cp-pin', {is_pinned: !view.is_pinned}, view.is_pinned ? 'unpinned_chat' : 'pinned_chat_ok');
+  const clearBtn = ov.querySelector('#cp-clear');
+  if (clearBtn) {
+    clearBtn.onclick = async () => {
+      if (!confirm(t('confirm_clear_history'))) return;
+      clearBtn.disabled = true;
+      try {
+        await api(`/chat/api/chats/${currentChatId}/clear`, {method: 'POST', body: JSON.stringify({session_token: STATE.token})});
+        toast(t('history_cleared'), 'success');
+        close();
+        doLoadMessages({force: true});
+      } catch (e) { toast(e.message, 'error'); clearBtn.disabled = false; }
+    };
+  }
 
   // join / leave / delete
   const joinBtn = ov.querySelector('#cp-join');
@@ -3533,6 +3910,41 @@ var T = {
 "perm_manage_invites":{rus:"Управлять ссылками",eng:"Manage invites"},
 "perm_restrict_members":{rus:"Удалять участников",eng:"Remove members"},
 "subscriber":{rus:"подписчик",eng:"subscriber"},
+"reply":{rus:"Ответить",eng:"Reply"},
+"forward":{rus:"Переслать",eng:"Forward"},
+"react":{rus:"Реакция",eng:"React"},
+"pin":{rus:"Закрепить",eng:"Pin"},
+"forwarded_from":{rus:"Переслано от",eng:"Forwarded from"},
+"forwarded_ok":{rus:"Сообщение переслано",eng:"Message forwarded"},
+"sent":{rus:"отправлено",eng:"sent"},
+"edited":{rus:"изменено",eng:"edited"},
+"pinned_ok":{rus:"Сообщение закреплено",eng:"Message pinned"},
+"message_not_loaded":{rus:"Сообщение не загружено",eng:"Message is not loaded"},
+"search_messages":{rus:"Поиск по сообщениям",eng:"Search messages"},
+"search_ph":{rus:"Что искать?",eng:"Search for..."},
+"search_in_chat":{rus:"В этом чате",eng:"In this chat"},
+"search_all_chats":{rus:"Во всех чатах",eng:"In all chats"},
+"search_hint":{rus:"Введите минимум 2 символа",eng:"Type at least 2 characters"},
+"open_chat_manually":{rus:"Откройте чат вручную",eng:"Open the chat manually"},
+"draft":{rus:"Черновик",eng:"Draft"},
+"pinned_chat":{rus:"Закреплён в списке",eng:"Pinned in the list"},
+"muted":{rus:"Без звука",eng:"Muted"},
+"chat_notifications":{rus:"Чат",eng:"Chat"},
+"mute":{rus:"Без звука",eng:"Mute"},
+"unmute":{rus:"Включить звук",eng:"Unmute"},
+"muted_ok":{rus:"Уведомления отключены",eng:"Notifications muted"},
+"unmuted":{rus:"Уведомления включены",eng:"Notifications enabled"},
+"archive":{rus:"Архив",eng:"Archive"},
+"unarchive":{rus:"Вернуть из архива",eng:"Unarchive"},
+"archived_ok":{rus:"Чат в архиве",eng:"Chat archived"},
+"unarchived":{rus:"Чат возвращён из архива",eng:"Chat unarchived"},
+"pin_chat":{rus:"Закрепить в списке",eng:"Pin in the list"},
+"unpin_chat":{rus:"Открепить от списка",eng:"Unpin from the list"},
+"pinned_chat_ok":{rus:"Чат закреплён в списке",eng:"Chat pinned in the list"},
+"unpinned_chat":{rus:"Чат откреплён",eng:"Chat unpinned"},
+"clear_history":{rus:"Очистить историю",eng:"Clear history"},
+"confirm_clear_history":{rus:"Очистить историю только у себя?",eng:"Clear the history only for you?"},
+"history_cleared":{rus:"История очищена",eng:"History cleared"},
 "menu":{rus:"Меню",eng:"Menu"},
 "edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
 "voice_msg":{rus:"Голосовое сообщение",eng:"Voice message"},

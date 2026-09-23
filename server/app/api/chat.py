@@ -31,6 +31,7 @@ class SendMessageRequest(BaseModel):
     body_text: str = Field(min_length=0, max_length=4000)
     client_message_id: str | None = Field(default=None, max_length=128)
     attachment_ids: list[int] = Field(default_factory=list, max_length=8)
+    reply_to_message_id: int | None = None
 
 
 class CreateChatRequest(BaseModel):
@@ -146,6 +147,25 @@ def _chat_payload(chat: ChatRoom, session_token: str | None = None) -> dict[str,
     }
 
 
+def _chat_summary_payload(summary: dict[str, object], session_token: str) -> dict[str, object]:
+    chat = summary.get("chat")
+    payload = _chat_payload(chat, session_token) if isinstance(chat, ChatRoom) else {}
+    payload.update(
+        {
+            "my_role": summary.get("my_role"),
+            "is_member": summary.get("is_member"),
+            "is_muted": summary.get("is_muted"),
+            "is_archived": summary.get("is_archived"),
+            "is_pinned": summary.get("is_pinned"),
+            "unread_count": summary.get("unread_count") or 0,
+            "draft_text": summary.get("draft_text"),
+            "last_message_text": summary.get("last_message_text"),
+            "last_message_at_ms": summary.get("last_message_at_ms"),
+        }
+    )
+    return payload
+
+
 def _message_payload(message: ChatMessage) -> dict[str, object]:
     return chat_message_payload(message)
 
@@ -166,7 +186,7 @@ async def list_chats(
     service = _chat_service(request)
 
     try:
-        chats = service.list_user_chats(user_id=user_id)
+        summaries = service.list_chat_summaries(user_id=user_id)
     except ChatError as exc:
         raise HTTPException(
             status_code=exc.status_code,
@@ -178,8 +198,8 @@ async def list_chats(
 
     return {
         "status": "ok",
-        "count": len(chats),
-        "items": [_chat_payload(chat, session_token) for chat in chats],
+        "count": len(summaries),
+        "items": [_chat_summary_payload(item, session_token) for item in summaries],
     }
 
 
@@ -296,6 +316,7 @@ async def post_chat_message(
                 body_text=payload.body_text,
                 client_message_id=(payload.client_message_id or "").strip() or None,
                 attachment_ids=tuple(payload.attachment_ids),
+                reply_to_message_id=payload.reply_to_message_id,
             ),
         )
     except (ChatError, ValueError) as exc:
@@ -901,6 +922,161 @@ async def pin_chat_message(
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
+
+
+# --- P1: reactions, forwards, read state, drafts, per-chat state, search ---
+
+
+class ReactionRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    emoji: str = Field(min_length=1, max_length=8)
+
+
+class ForwardMessageRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    target_chat_id: int
+
+
+class MarkReadRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    message_id: int
+
+
+class DraftRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    text: str = Field(default="", max_length=4000)
+
+
+class ChatUserStateRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    is_muted: bool | None = None
+    is_archived: bool | None = None
+    is_pinned: bool | None = None
+
+
+@router.post("/chat/api/chats/{chat_id}/messages/{message_id}/reactions")
+async def toggle_message_reaction(
+    request: Request,
+    chat_id: int,
+    message_id: int,
+    payload: ReactionRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        message = service.toggle_reaction(
+            chat_id=chat_id,
+            message_id=message_id,
+            user_id=user_id,
+            emoji=payload.emoji,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "message": _message_payload(message)}
+
+
+@router.post("/chat/api/chats/{chat_id}/messages/{message_id}/forward")
+async def forward_chat_message(
+    request: Request,
+    chat_id: int,
+    message_id: int,
+    payload: ForwardMessageRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        message = service.forward_message(
+            source_chat_id=chat_id,
+            message_id=message_id,
+            target_chat_id=payload.target_chat_id,
+            actor_user_id=user_id,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "message": _message_payload(message), "target_chat_id": payload.target_chat_id}
+
+
+@router.post("/chat/api/chats/{chat_id}/read")
+async def mark_chat_read(
+    request: Request,
+    chat_id: int,
+    payload: MarkReadRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.mark_read(chat_id=chat_id, user_id=user_id, message_id=payload.message_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok"}
+
+
+@router.post("/chat/api/chats/{chat_id}/draft")
+async def save_chat_draft(
+    request: Request,
+    chat_id: int,
+    payload: DraftRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.save_draft(chat_id=chat_id, user_id=user_id, text=payload.text)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok"}
+
+
+@router.post("/chat/api/chats/{chat_id}/state")
+async def set_chat_user_state(
+    request: Request,
+    chat_id: int,
+    payload: ChatUserStateRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        state = service.set_chat_user_state(
+            chat_id=chat_id,
+            user_id=user_id,
+            is_muted=payload.is_muted,
+            is_archived=payload.is_archived,
+            is_pinned=payload.is_pinned,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "state": state}
+
+
+@router.post("/chat/api/chats/{chat_id}/clear")
+async def clear_chat_history_for_me(
+    request: Request,
+    chat_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.clear_history_for_user(chat_id=chat_id, user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok"}
+
+
+@router.get("/chat/api/messages/search")
+async def search_chat_messages(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    q: str = Query(default="", max_length=256),
+    chat_id: int | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        items = service.search_messages(user_id=user_id, query=q, chat_id=chat_id, limit=limit)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "count": len(items), "items": items}
 
 
 # --- Admin cleanup ---
