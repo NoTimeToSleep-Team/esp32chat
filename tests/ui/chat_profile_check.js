@@ -86,7 +86,7 @@ async function loginToken(login, password) {
     titleValue: document.querySelector("#cp-title")?.value,
     hasAvatar: !!document.querySelector("#cp-avatar img"),
   }));
-  check("chat profile modal opens", profile.visible && profile.heading === "Профиль чата", JSON.stringify(profile));
+  check("chat profile modal opens", profile.visible && /Профиль чата/.test(profile.heading || ""), JSON.stringify(profile));
   check("members list shows both participants", profile.members === 2, JSON.stringify(profile));
   check("owner is clearly marked", profile.ownerBadge === "Владелец", JSON.stringify(profile));
   check("title is prefilled", profile.titleValue === title, JSON.stringify(profile));

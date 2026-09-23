@@ -200,7 +200,11 @@ const ICONS = {
   save: '<path d="M5 3.5h10.5L19 7v13.5H5z"/><path d="M8.5 3.5v5.5h6V3.5"/><path d="M8.5 20.5v-6h7v6"/>',
   download: '<path d="M12 3.5v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20.5h14"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
-  camera: '<path d="M4 8.5h3l1.5-2.5h7L17 8.5h3a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18v-8A1.5 1.5 0 0 1 4 8.5z"/><circle cx="12" cy="13.5" r="3.2"/>'
+  camera: '<path d="M4 8.5h3l1.5-2.5h7L17 8.5h3a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18v-8A1.5 1.5 0 0 1 4 8.5z"/><circle cx="12" cy="13.5" r="3.2"/>',
+  pin: '<path d="M12 17.5V21"/><path d="M8.5 3.5h7l-1 6 3.5 3.5H6l3.5-3.5-1-6z"/>',
+  copy: '<rect x="9" y="9" width="11.5" height="11.5" rx="2.5"/><path d="M6 15H5.5A1.5 1.5 0 0 1 4 13.5V5.5A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6"/>',
+  users: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0"/><path d="M16.5 5.4a3.4 3.4 0 0 1 0 6.2"/><path d="M17.5 13.6a6.2 6.2 0 0 1 3.7 5.9"/>',
+  link: '<path d="M10 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/><path d="M14 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>'
 };
 function icon(name, cls) {
   const body = ICONS[name] || '';
@@ -522,6 +526,58 @@ async function renderLogin() {
   renderForm();
 }
 
+// ===== Chat types, join links, subscription =====
+function chatTypeOf(chat) { return (chat && chat.chat_type) || 'group'; }
+function chatTypeLabel(chat) {
+  const type = chatTypeOf(chat);
+  if (type === 'channel') return t('type_channel');
+  if (type === 'dm') return t('dm');
+  return t('type_group');
+}
+function chatTypeIcon(chat) {
+  const type = chatTypeOf(chat);
+  if (type === 'channel') return icon('megaphone');
+  if (type === 'dm') return icon('mail');
+  return icon('users');
+}
+function extractJoinTarget(raw) {
+  let candidate = (raw || '').trim();
+  if (!candidate) return '';
+  const joinIdx = candidate.indexOf('#/join/');
+  if (joinIdx >= 0) candidate = candidate.slice(joinIdx + 7);
+  if (/^https?:\/\//i.test(candidate)) {
+    try { candidate = new URL(candidate).pathname; } catch (e) {}
+  }
+  candidate = candidate.split('?')[0].split('#')[0].replace(/^\/+|\/+$/g, '');
+  const parts = candidate.split('/').filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : '';
+}
+async function joinChatByTarget(raw) {
+  const target = extractJoinTarget(raw);
+  if (!target) { toast(t('join_link_invalid'), 'error'); return null; }
+  try {
+    let res;
+    try {
+      res = await api('/chat/api/join', {method:'POST', body: JSON.stringify({session_token: STATE.token, code: target})});
+    } catch (e) {
+      if (e && e.status === 404) {
+        res = await api('/chat/api/join', {method:'POST', body: JSON.stringify({session_token: STATE.token, username: target})});
+      } else { throw e; }
+    }
+    if (res.join_status === 'pending') toast(t('join_pending'), 'info');
+    else if (res.already_member) toast(t('join_already'), 'info');
+    else toast(t('join_ok'), 'success');
+    return res;
+  } catch (e) { toast(e.message, 'error'); return null; }
+}
+async function subscribeToChat(chatId) {
+  try {
+    const res = await api('/chat/api/join', {method:'POST', body: JSON.stringify({session_token: STATE.token, chat_id: chatId})});
+    toast(res.already_member ? t('join_already') : t('join_ok'), 'success');
+    return res;
+  } catch (e) { toast(e.message, 'error'); return null; }
+}
+
 // ===== Shared people picker (create chat, chat profile, invites) =====
 function createUserPicker(opts) {
   const chipsEl = opts.chips;
@@ -612,23 +668,52 @@ async function renderChat() {
     <div class="page-header">
       <div><div class="page-title">${t('chat')}</div><div class="page-subtitle">${t('chat_subtitle')}</div></div>
       <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-outline" id="join-chat-btn">${icon('link')} <span class="only-desktop-inline">${t('join_by_link')}</span></button>
         <button class="btn btn-sm btn-outline" id="dm-chat-btn">+ ${t('dm')}</button>
         <button class="btn btn-success btn-sm" id="create-chat-btn">+ ${t('new_chat')}</button>
+      </div>
+    </div>
+    <div id="join-chat-modal" class="overlay hidden">
+      <div class="modal">
+        <h3>${t('join_by_link')}</h3>
+        <div class="form-group"><input class="form-input" id="join-link-input" placeholder="${t('join_link_ph')}" autocomplete="off"></div>
+        <div class="form-hint">${t('join_link_hint')}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" id="join-cancel">${t('cancel')}</button>
+          <button class="btn btn-primary" id="join-submit">${t('join')}</button>
+        </div>
       </div>
     </div>
     <div id="create-chat-modal" class="overlay hidden">
       <div class="modal modal-wide">
         <h3>${t('new_chat')}</h3>
+        <div class="form-group">
+          <label>${t('chat_type')}</label>
+          <div class="seg" id="chat-type-seg">
+            <button class="seg-btn active" data-type="group" type="button">${t('type_group')}</button>
+            <button class="seg-btn" data-type="channel" type="button">${t('type_channel')}</button>
+          </div>
+          <div class="form-hint" id="chat-type-hint">${t('type_group_hint')}</div>
+        </div>
         <div class="form-group"><label>${t('title')}</label><input class="form-input" id="chat-title" maxlength="256" placeholder="${t('chat_title_ph')}" autocomplete="off"></div>
         <div class="form-group"><label>${t('description')}</label><textarea class="form-input" id="chat-desc" rows="2" maxlength="2000" placeholder="${t('chat_desc_ph')}"></textarea></div>
         <div class="form-group">
-          <label>${t('chat_members')}</label>
+          <label>${t('chat_members')} <span class="label-optional" id="chat-members-optional">${t('optional')}</span></label>
           <div class="member-chips" id="chat-members-chips"></div>
           <div class="picker-box">
             <input class="form-input" id="chat-member-search" placeholder="${t('chat_members_ph')}" autocomplete="off">
             <div class="picker-list hidden" id="chat-member-list"></div>
           </div>
           <div class="form-hint" id="chat-members-hint">${t('chat_members_hint')}</div>
+        </div>
+        <div class="form-group hidden" id="chat-public-wrap">
+          <label class="check-row"><input type="checkbox" id="chat-public"> ${t('chat_public')}</label>
+          <input class="form-input hidden" id="chat-username" maxlength="32" placeholder="${t('chat_username_ph')}" autocomplete="off">
+          <div class="form-hint">${t('chat_public_hint')}</div>
+        </div>
+        <div class="form-group">
+          <label class="check-row"><input type="checkbox" id="chat-history" checked> ${t('chat_history')}</label>
+          <div class="form-hint">${t('chat_history_hint')}</div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-outline" id="chat-create-cancel">${t('cancel')}</button>
@@ -681,13 +766,15 @@ async function renderChat() {
         displayTitle = parts.filter(p => p !== STATE.user?.login).join(' & ') || displayTitle;
       }
       const cav = chatAvaFor(displayTitle, chat.chat_id);
+      const typeIcon = chat.chat_type === 'group' ? '' : `<span class="chat-type-ico" title="${esc(chatTypeLabel(chat))}">${chatTypeIcon(chat)}</span>`;
       item.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
         <div class="chat-item-main">
-          <div class="chat-item-title">${esc(displayTitle)}</div>
+          <div class="chat-item-title">${typeIcon}${esc(displayTitle)}</div>
           <div class="chat-item-desc">${chat.description ? esc(chat.description) : '#' + chat.chat_id}</div>
         </div>`;
       item.dataset.search = (displayTitle + ' ' + (chat.description || '')).toLowerCase();
       item.dataset.avatar = chat.avatar_url || '';
+      item.dataset.chatType = chatTypeOf(chat);
       item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item, chat.avatar_url);
       list.append(item);
     });
@@ -728,38 +815,87 @@ async function renderChat() {
     input: $('#chat-member-search'),
     onchange: () => syncCreateChatBtn(),
   });
+  let createChatType = 'group';
+  function setCreateChatType(type) {
+    createChatType = type;
+    $$('#chat-type-seg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+    const hint = $('#chat-type-hint');
+    if (hint) hint.textContent = t(type === 'channel' ? 'type_channel_hint' : 'type_group_hint');
+    const publicWrap = $('#chat-public-wrap');
+    if (publicWrap) publicWrap.classList.toggle('hidden', type !== 'channel');
+    const optional = $('#chat-members-optional');
+    if (optional) optional.classList.toggle('hidden', type !== 'channel');
+    syncCreateChatBtn();
+  }
   function syncCreateChatBtn() {
     const btn = $('#chat-create-submit');
     if (!btn) return;
     const hasTitle = ($('#chat-title').value || '').trim().length > 0;
     const hasMembers = chatCreatePicker.selected.length > 0;
-    btn.disabled = !(hasTitle && hasMembers);
+    btn.disabled = !(hasTitle && (hasMembers || createChatType === 'channel'));
   }
   function resetCreateChatForm() {
     $('#chat-title').value = '';
     $('#chat-desc').value = '';
+    const pub = $('#chat-public');
+    if (pub) pub.checked = false;
+    const uname = $('#chat-username');
+    if (uname) { uname.value = ''; uname.classList.add('hidden'); }
+    const hist = $('#chat-history');
+    if (hist) hist.checked = true;
     chatCreatePicker.reset();
+    setCreateChatType('group');
     syncCreateChatBtn();
   }
+  $$('#chat-type-seg .seg-btn').forEach(b => {
+    b.onclick = () => setCreateChatType(b.dataset.type || 'group');
+  });
+  const chatPublic = $('#chat-public');
+  if (chatPublic) chatPublic.onchange = () => {
+    const uname = $('#chat-username');
+    if (uname) uname.classList.toggle('hidden', !chatPublic.checked);
+  };
   $('#create-chat-btn').onclick = () => {
     show('#create-chat-modal');
+    setCreateChatType('group');
     syncCreateChatBtn();
     setTimeout(() => { const el2 = $('#chat-title'); if (el2) el2.focus(); }, 50);
   };
   $('#chat-create-cancel').onclick = () => { hide('#create-chat-modal'); resetCreateChatForm(); };
+  const joinBtn = $('#join-chat-btn');
+  if (joinBtn) joinBtn.onclick = () => { show('#join-chat-modal'); const i = $('#join-link-input'); if (i) { i.value = ''; i.focus(); } };
+  const joinCancel = $('#join-cancel');
+  if (joinCancel) joinCancel.onclick = () => hide('#join-chat-modal');
+  const joinSubmit = $('#join-submit');
+  if (joinSubmit) joinSubmit.onclick = async () => {
+    const input = $('#join-link-input');
+    joinSubmit.disabled = true;
+    try {
+      const res = await joinChatByTarget(input ? input.value : '');
+      if (res) { hide('#join-chat-modal'); if (input) input.value = ''; renderChat(); }
+    } finally { joinSubmit.disabled = false; }
+  };
+  const joinInput = $('#join-link-input');
+  if (joinInput) joinInput.onkeydown = (e) => { if (e.key === 'Enter' && joinSubmit) joinSubmit.click(); };
   $('#chat-title').oninput = syncCreateChatBtn;
   $('#chat-create-submit').onclick = async () => {
     const title = $('#chat-title').value.trim();
     const desc = $('#chat-desc').value.trim();
     const memberIds = chatCreatePicker.selected.map(u => u.user_id);
     if (!title) { toast(t('chat_title_required'), 'error'); return; }
-    if (!memberIds.length) { toast(t('chat_members_required'), 'error'); return; }
+    if (!memberIds.length && createChatType !== 'channel') { toast(t('chat_members_required'), 'error'); return; }
+    const isPublic = createChatType === 'channel' && $('#chat-public') && $('#chat-public').checked;
+    const username = isPublic ? (($('#chat-username').value || '').trim() || undefined) : undefined;
+    const historyVisible = $('#chat-history') ? $('#chat-history').checked : true;
     const btn = $('#chat-create-submit');
     btn.disabled = true;
     try {
       await api('/chat/api/chats', {
         method:'POST',
-        body:JSON.stringify({session_token:STATE.token, title, description:desc||undefined, member_ids:memberIds})
+        body:JSON.stringify({
+          session_token:STATE.token, title, description:desc||undefined, member_ids:memberIds,
+          chat_type: createChatType, is_public: isPublic || undefined, username, history_visible: historyVisible,
+        })
       });
       toast(t('chat_created'), 'success');
       hide('#create-chat-modal');
@@ -813,6 +949,7 @@ let currentChatId = null;
 let currentChatTitle = '';
 let currentChatDesc = '';
 let currentChatAvatarUrl = '';
+let currentChatView = null;
 let messagesPollTimer = null;
 let pendingFiles = [];
 const MAX_ATTACH_FILES = 8;
@@ -984,6 +1121,12 @@ async function loadChatMessages(chatId, title, itemEl, avatarUrl) {
   if (cm) { cm.classList.remove('fade-switch'); void cm.offsetWidth; cm.classList.add('fade-switch'); }
   msgLoadOffset = 0;
   if (messagesPollTimer) clearInterval(messagesPollTimer);
+  currentChatView = null;
+  try {
+    const viewData = await api(`/chat/api/chats/${chatId}?session_token=${encodeURIComponent(STATE.token)}`);
+    currentChatView = viewData.view || null;
+    if (viewData.chat) currentChatAvatarUrl = viewData.chat.avatar_url || currentChatAvatarUrl;
+  } catch (e) { currentChatView = null; }
   await doLoadMessages({force:true});
   // messagesPollTimer = setInterval(doLoadMessages, 10000); // отключено — только при отправке
 }
@@ -1063,20 +1206,32 @@ async function doLoadMessages(opts) {
     var wasAtBottom = !oldList || (oldList.scrollHeight - oldList.scrollTop - oldList.clientHeight < 50);
     var oldScrollTop = oldList ? oldList.scrollTop : 0;
     const cav = chatAvaFor(currentChatTitle, currentChatId);
+    const view = currentChatView || {};
+    const chatInfo = view.chat || null;
+    const isChannel = chatTypeOf(chatInfo) === 'channel';
+    const canPost = view.can_post !== false;
+    const isMember = view.is_member !== false;
+    const pinned = view.pinned_message || null;
+    const memberWord = isChannel ? t('subscribers') : t('members');
+    const descText = (currentChatDesc && !/^#\d+$/.test((currentChatDesc || '').trim())) ? currentChatDesc : '';
+    const subtitle = descText
+      || (view.member_count ? (view.member_count + ' ' + memberWord) : ('#' + currentChatId));
+    const typeBadge = chatInfo ? `<span class="badge badge-type">${chatTypeLabel(chatInfo)}</span>` : '';
     container.innerHTML = `
       <div class="chead">
         <button class="chat-back" id="chat-back" title="${t('back_login')}" aria-label="${t('back_login')}">${icon('back')}</button>
         <div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(currentChatAvatarUrl, cav.initials)}</div>
         <div class="chead-info" id="chat-head-open" style="cursor:pointer">
-          <div class="t1">${esc(currentChatTitle)}</div>
-          <div class="t2">${esc(currentChatDesc || '#' + currentChatId)}</div>
+          <div class="t1">${esc(currentChatTitle)} ${typeBadge}</div>
+          <div class="t2">${esc(subtitle)}</div>
         </div>
         <span class="spacer"></span>
         <button class="icon-btn" id="chat-reload" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
         <button class="icon-btn" id="chat-more" title="${t('chat_profile')}" aria-label="${t('chat_profile')}">${icon('more', 'fill')}</button>
       </div>
+      ${pinned ? `<div class="pin-bar" id="pin-bar">${icon('pin')}<div class="pin-body"><div class="pin-title">${t('pinned')}</div><div class="pin-text">${esc(pinned.body_text || '')}</div></div>${canPost ? `<button class="icon-btn" id="pin-unpin" title="${t('unpin')}" aria-label="${t('unpin')}">${icon('x')}</button>` : ''}</div>` : ''}
       <div id="msg-list" class="msg-list"></div>
-      <div class="comp">
+      ${canPost ? `<div class="comp">
         <div id="attach-preview" class="attach-preview"></div>
         <div id="voice-rec" class="voice-rec hidden">
           <span class="rec-dot"></span>
@@ -1092,7 +1247,10 @@ async function doLoadMessages(opts) {
           <textarea id="msg-input" placeholder="${t('type_msg')}" rows="1"></textarea>
           <button class="comp-btn send" id="send-btn" title="${t('send')}" aria-label="${t('send')}">${icon('send')}</button>
         </div>
-      </div>`;
+      </div>` : `<div class="comp-readonly">
+        <span>${isChannel ? (isMember ? t('channel_read_only') : t('channel_subscribe_hint')) : t('read_only')}</span>
+        ${!isMember ? `<button class="btn btn-sm btn-primary" id="chat-subscribe">${t('subscribe')}</button>` : ''}
+      </div>`}`;
     const list = $('#msg-list');
     if (msgs.length >= limit) {
       const olderBtn = el('button',{class:'btn btn-sm btn-outline load-older'},t('load_older'));
@@ -1133,7 +1291,25 @@ async function doLoadMessages(opts) {
     if (moreEl) moreEl.onclick = () => showChatProfile();
     const headOpen = $('#chat-head-open');
     if (headOpen) headOpen.onclick = () => showChatProfile();
-    $('#send-btn').onclick = sendMessage;
+    const pinUnpin = $('#pin-unpin');
+    if (pinUnpin) pinUnpin.onclick = async () => {
+      pinUnpin.disabled = true;
+      try {
+        const res = await api(`/chat/api/chats/${currentChatId}/pin`, {method:'POST', body: JSON.stringify({session_token: STATE.token, message_id: null})});
+        if (currentChatView) currentChatView.chat = res.chat;
+        toast(t('unpinned'), 'success');
+        doLoadMessages({force:true});
+      } catch (e) { toast(e.message, 'error'); pinUnpin.disabled = false; }
+    };
+    const subscribeBtn = $('#chat-subscribe');
+    if (subscribeBtn) subscribeBtn.onclick = async () => {
+      subscribeBtn.disabled = true;
+      const res = await subscribeToChat(currentChatId);
+      if (res) { loadChatMessages(currentChatId, currentChatTitle, document.querySelector('#chat-list .chat-item.active'), currentChatAvatarUrl); }
+      else subscribeBtn.disabled = false;
+    };
+    const sendBtn = $('#send-btn');
+    if (sendBtn) sendBtn.onclick = sendMessage;
     const msgFile = $('#msg-file');
     if ($('#attach-btn')) $('#attach-btn').onclick = () => msgFile && msgFile.click();
     if (msgFile) msgFile.onchange = () => { addPendingFiles(msgFile.files); msgFile.value = ''; };
@@ -1145,12 +1321,14 @@ async function doLoadMessages(opts) {
     if (voiceCancelBtn) voiceCancelBtn.onclick = voiceCancel;
     renderAttachPreview();
     const miEl = $('#msg-input');
-    miEl.onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
-    miEl.oninput = () => { miEl.style.height = 'auto'; miEl.style.height = Math.min(miEl.scrollHeight, 120) + 'px'; };
-    miEl.onfocus = () => {
-      list._stickBottom = true;
-      setTimeout(function(){ if (list) list.scrollTop = list.scrollHeight; }, 300);
-    };
+    if (miEl) {
+      miEl.onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}};
+      miEl.oninput = () => { miEl.style.height = 'auto'; miEl.style.height = Math.min(miEl.scrollHeight, 120) + 'px'; };
+      miEl.onfocus = () => {
+        list._stickBottom = true;
+        setTimeout(function(){ if (list) list.scrollTop = list.scrollHeight; }, 300);
+      };
+    }
   } catch(e) {
     if (container) container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
@@ -1242,35 +1420,73 @@ function applyChatHeader(chat) {
   }
 }
 
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      toast(t('copied'), 'success');
+      return;
+    }
+    throw new Error('no clipboard');
+  } catch (e) {
+    try {
+      const tmp = el('input', {type: 'text'});
+      tmp.value = text;
+      tmp.style.position = 'fixed';
+      tmp.style.opacity = '0';
+      document.body.append(tmp);
+      tmp.select();
+      document.execCommand('copy');
+      tmp.remove();
+      toast(t('copied'), 'success');
+    } catch (e2) { toast(text, 'info'); }
+  }
+}
+
+function fullJoinLink(target) {
+  const base = location.origin + location.pathname;
+  return base + '#/join/' + target;
+}
+
 async function showChatProfile() {
   if (!currentChatId) return;
   const token = encodeURIComponent(STATE.token);
-  let chat = null;
+  let view = null;
   let members = [];
   try {
     const res = await Promise.all([
       api(`/chat/api/chats/${currentChatId}?session_token=${token}`),
       api(`/chat/api/chats/${currentChatId}/members?session_token=${token}`),
     ]);
-    chat = res[0].chat;
+    view = res[0].view || {chat: res[0].chat};
     members = res[1].items || [];
   } catch (e) { toast(e.message, 'error'); return; }
+
+  const chat = view.chat || {};
+  currentChatView = view;
+  const isChannel = chatTypeOf(chat) === 'channel';
+  const memberWord = isChannel ? t('subscribers') : t('members');
+  const me = members.find(m => m.is_me);
+  const myRole = view.my_role || (me ? me.role : null);
+  const isOwner = !!view.is_owner || myRole === 'owner';
+  const isPlatform = ['admin', 'moderator'].includes(STATE.user?.role);
+  const canManage = isOwner || isPlatform || myRole === 'admin';
+  const isMember = view.is_member !== false;
+  const canDelete = isOwner || isPlatform || chatTypeOf(chat) === 'dm';
+  const cav = chatAvaFor(chat.title, chat.chat_id);
+  const permissionsList = ['change_info', 'delete_messages', 'invite_users', 'pin_messages', 'manage_invites', 'restrict_members'];
 
   const old = document.getElementById('chat-profile-modal');
   if (old) old.remove();
 
-  const me = members.find(m => m.is_me);
-  const myRole = me ? me.role : 'member';
-  const isOwner = myRole === 'owner' || (chat.owner_user_id === STATE.user?.id);
-  const isPlatform = ['admin', 'moderator'].includes(STATE.user?.role);
-  const canManage = isOwner || isPlatform;
-  const canDelete = canManage || !!chat.is_private;
-  const cav = chatAvaFor(chat.title, chat.chat_id);
+  const slowOptions = [0, 10, 30, 60, 300, 900, 3600].map(v =>
+    `<option value="${v}"${(chat.slow_mode_seconds || 0) === v ? ' selected' : ''}>${v === 0 ? t('slow_off') : (v < 60 ? v + ' ' + t('sec') : Math.round(v / 60) + ' ' + t('min'))}</option>`
+  ).join('');
 
   const ov = el('div', {class: 'overlay', id: 'chat-profile-modal'});
   ov.innerHTML = `<div class="modal modal-wide chat-profile">
     <div class="cp-head">
-      <h3>${t('chat_profile')}</h3>
+      <h3>${t('chat_profile')} <span class="badge badge-type">${chatTypeLabel(chat)}</span></h3>
       <button class="icon-btn" id="cp-close" title="${t('close')}" aria-label="${t('close')}">${icon('x')}</button>
     </div>
     <div class="cp-avatar-row">
@@ -1280,12 +1496,14 @@ async function showChatProfile() {
         ${canManage ? `<button class="btn btn-sm btn-outline" id="cp-avatar-upload">${t('upload_photo')}</button>` : ''}
         ${canManage && chat.has_avatar ? `<button class="btn btn-sm btn-outline" id="cp-avatar-remove">${t('chat_photo_remove')}</button>` : ''}
         <div class="form-hint">${t('chat_photo_hint')}</div>
+        <div class="cp-count">${view.member_count || members.length} ${memberWord}</div>
       </div>
     </div>
+    ${chat.is_public && chat.username ? `<div class="cp-link-row">${icon('link')}<span class="cp-link" id="cp-public-link">#/join/${esc(chat.username)}</span><button class="icon-btn" id="cp-copy-link" title="${t('copy')}" aria-label="${t('copy')}">${icon('copy')}</button></div>` : ''}
     <div class="form-group">
       <label>${t('title')}</label>
       <div class="cp-edit-row">
-        <input class="form-input" id="cp-title" maxlength="256" value="${esc(chat.title)}"${canManage ? '' : ' disabled'}>
+        <input class="form-input" id="cp-title" maxlength="256" value="${esc(chat.title || '')}"${canManage ? '' : ' disabled'}>
         ${canManage ? `<button class="btn btn-sm btn-primary" id="cp-title-save" disabled>${t('save')}</button>` : ''}
       </div>
     </div>
@@ -1296,6 +1514,16 @@ async function showChatProfile() {
         ${canManage ? `<button class="btn btn-sm btn-primary" id="cp-desc-save" disabled>${t('save')}</button>` : ''}
       </div>
     </div>
+    ${canManage ? `<div class="form-group">
+      <label>${t('chat_settings')}</label>
+      <div class="cp-settings">
+        <label class="check-row"><input type="checkbox" id="cp-public"${chat.is_public ? ' checked' : ''}> ${t('chat_public')}</label>
+        <input class="form-input" id="cp-username" maxlength="32" placeholder="${t('chat_username_ph')}" value="${esc(chat.username || '')}">
+        <label class="check-row"><input type="checkbox" id="cp-history"${chat.history_visible !== false ? ' checked' : ''}> ${t('chat_history')}</label>
+        <div class="cp-row"><span>${t('slow_mode')}</span><select class="form-input" id="cp-slow">${slowOptions}</select></div>
+        <button class="btn btn-sm btn-primary" id="cp-settings-save">${t('save')}</button>
+      </div>
+    </div>` : ''}
     <div class="form-group">
       <label>${t('chat_members')} · <span id="cp-members-count">${members.length}</span></label>
       <div id="cp-members" class="cp-members"></div>
@@ -1312,9 +1540,35 @@ async function showChatProfile() {
       </div>
       <button class="btn btn-sm btn-outline" id="cp-add-open" style="margin-top:8px">+ ${t('add_members')}</button>` : ''}
     </div>
+    ${canManage ? `<div class="form-group">
+      <label>${t('invites')}</label>
+      <div id="cp-invites" class="cp-invites"></div>
+      <div class="cp-invite-actions">
+        <button class="btn btn-sm btn-outline" id="cp-invite-toggle">+ ${t('create_invite')}</button>
+      </div>
+      <div id="cp-invite-form" class="cp-add-wrap hidden">
+        <label class="check-row"><input type="checkbox" id="cp-invite-approval"> ${t('invite_approval')}</label>
+        <div class="cp-row"><span>${t('invite_max_uses')}</span><input class="form-input" id="cp-invite-max" type="number" min="0" max="100000" placeholder="${t('unlimited')}"></div>
+        <div class="cp-row"><span>${t('invite_expires')}</span><select class="form-input" id="cp-invite-expires">
+          <option value="0">${t('unlimited')}</option>
+          <option value="24">24 ${t('hours')}</option>
+          <option value="168">7 ${t('days')}</option>
+          <option value="720">30 ${t('days')}</option>
+        </select></div>
+        <div class="cp-add-actions">
+          <button class="btn btn-sm btn-outline" id="cp-invite-cancel">${t('cancel')}</button>
+          <button class="btn btn-sm btn-primary" id="cp-invite-submit">${t('create')}</button>
+        </div>
+      </div>
+    </div>` : ''}
+    ${canManage ? `<div class="form-group">
+      <label>${t('join_requests')} · <span id="cp-requests-count">${view.pending_requests || 0}</span></label>
+      <div id="cp-requests" class="cp-members"></div>
+    </div>` : ''}
     <div class="cp-danger">
-      ${!isOwner ? `<button class="btn btn-outline" id="cp-leave">${t('leave_chat')}</button>` : ''}
-      ${canDelete ? `<button class="btn btn-outline danger" id="cp-delete">${t('delete_chat')}</button>` : ''}
+      ${!isMember ? `<button class="btn btn-primary" id="cp-join">${t('subscribe')}</button>` : ''}
+      ${isMember && !isOwner ? `<button class="btn btn-outline" id="cp-leave">${t('leave_chat')}</button>` : ''}
+      ${isMember && canDelete ? `<button class="btn btn-outline danger" id="cp-delete">${t('delete_chat')}</button>` : ''}
     </div>
   </div>`;
   document.body.append(ov);
@@ -1322,19 +1576,50 @@ async function showChatProfile() {
   const close = () => ov.remove();
   ov.onclick = (e) => { if (e.target === ov) close(); };
   ov.querySelector('#cp-close').onclick = close;
+  const reopen = () => { close(); showChatProfile(); };
+
+  const copyLink = ov.querySelector('#cp-copy-link');
+  if (copyLink) copyLink.onclick = () => copyTextToClipboard(fullJoinLink(chat.username));
 
   function memberRow(m) {
     const row = el('div', {class: 'cp-member'});
     const initials = (m.login || '?').slice(0, 2).toUpperCase();
     const roleBadge = m.is_owner
       ? ` <span class="badge badge-owner">${t('chat_owner')}</span>`
-      : (m.role === 'admin' ? ` <span class="badge badge-admin">${t('chat_admin')}</span>` : '');
+      : (m.role === 'admin' ? ` <span class="badge badge-admin">${t('chat_admin')}</span>` : (isChannel && m.role === 'subscriber' ? ` <span class="badge badge-sub">${t('subscriber')}</span>` : ''));
     row.innerHTML = `<div class="cp-member-ava">${avatarInnerHtml(m.avatar_url, m.avatar_emoji || initials)}</div>
       <div class="cp-member-main">
         <div class="cp-member-name">${esc(m.login)}${m.is_me ? ` <span class="cp-me">(${t('you')})</span>` : ''}</div>
         <div class="cp-member-sub">#${m.user_id}${roleBadge}</div>
       </div>`;
     const actions = el('div', {class: 'cp-member-actions'});
+    if (isOwner && !m.is_owner && m.role !== 'admin') {
+      const promoteBtn = el('button', {class: 'btn btn-sm btn-outline'});
+      promoteBtn.textContent = t('make_admin');
+      promoteBtn.onclick = async () => {
+        promoteBtn.disabled = true;
+        try {
+          await api(`/chat/api/chats/${currentChatId}/members/${m.user_id}/role`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, role: 'admin'})});
+          toast(t('role_updated'), 'success');
+          reopen();
+        } catch (e) { toast(e.message, 'error'); promoteBtn.disabled = false; }
+      };
+      actions.append(promoteBtn);
+    }
+    if (isOwner && m.role === 'admin') {
+      const demoteBtn = el('button', {class: 'btn btn-sm btn-outline'});
+      demoteBtn.textContent = t('demote_admin');
+      demoteBtn.onclick = async () => {
+        demoteBtn.disabled = true;
+        try {
+          const role = isChannel ? 'subscriber' : 'member';
+          await api(`/chat/api/chats/${currentChatId}/members/${m.user_id}/role`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, role})});
+          toast(t('role_updated'), 'success');
+          reopen();
+        } catch (e) { toast(e.message, 'error'); demoteBtn.disabled = false; }
+      };
+      actions.append(demoteBtn);
+    }
     if (isOwner && !m.is_owner) {
       const ownBtn = el('button', {class: 'btn btn-sm btn-outline', title: t('make_owner')});
       ownBtn.textContent = t('make_owner');
@@ -1344,13 +1629,12 @@ async function showChatProfile() {
         try {
           await api(`/chat/api/chats/${currentChatId}/owner`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, target_user_id: m.user_id})});
           toast(t('owner_transferred'), 'success');
-          close();
-          showChatProfile();
+          reopen();
         } catch (e) { toast(e.message, 'error'); ownBtn.disabled = false; }
       };
       actions.append(ownBtn);
     }
-    if (canManage && !m.is_owner && !m.is_me) {
+    if (canManage && !m.is_owner && !m.is_me && (isOwner || m.role !== 'admin')) {
       const delBtn = el('button', {class: 'icon-btn', title: t('remove')});
       delBtn.innerHTML = icon('trash');
       delBtn.onclick = async () => {
@@ -1359,14 +1643,39 @@ async function showChatProfile() {
         try {
           await api(`/chat/api/chats/${currentChatId}/members/${m.user_id}`, {method: 'DELETE', body: JSON.stringify({session_token: STATE.token})});
           toast(t('member_removed'), 'success');
-          close();
-          showChatProfile();
+          reopen();
         } catch (e) { toast(e.message, 'error'); delBtn.disabled = false; }
       };
       actions.append(delBtn);
     }
     if (actions.childNodes.length) row.append(actions);
-    return row;
+
+    const wrapper = el('div', {class: 'cp-member-wrap'});
+    wrapper.append(row);
+    if (isOwner && m.role === 'admin') {
+      const permsBox = el('div', {class: 'cp-perms hidden'});
+      const current = m.permissions || {};
+      permsBox.innerHTML = permissionsList.map(name =>
+        `<label class="check-row"><input type="checkbox" data-perm="${name}"${current[name] !== false ? ' checked' : ''}> ${t('perm_' + name)}</label>`
+      ).join('') + `<button class="btn btn-sm btn-primary" data-perm-save="1">${t('save')}</button>`;
+      const permsBtn = el('button', {class: 'btn btn-sm btn-outline'});
+      permsBtn.textContent = t('permissions');
+      permsBtn.onclick = () => permsBox.classList.toggle('hidden');
+      actions.insertBefore(permsBtn, actions.firstChild);
+      const saveBtn = permsBox.querySelector('[data-perm-save]');
+      saveBtn.onclick = async () => {
+        const payload = {};
+        permsBox.querySelectorAll('input[data-perm]').forEach(cb => { payload[cb.dataset.perm] = cb.checked; });
+        saveBtn.disabled = true;
+        try {
+          await api(`/chat/api/chats/${currentChatId}/members/${m.user_id}/permissions`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, permissions: payload})});
+          toast(t('role_updated'), 'success');
+          reopen();
+        } catch (e) { toast(e.message, 'error'); saveBtn.disabled = false; }
+      };
+      wrapper.append(permsBox);
+    }
+    return wrapper;
   }
 
   const membersBox = ov.querySelector('#cp-members');
@@ -1381,8 +1690,8 @@ async function showChatProfile() {
       titleSave.disabled = true;
       try {
         const res = await api(`/chat/api/chats/${currentChatId}`, {method: 'PATCH', body: JSON.stringify({session_token: STATE.token, title: titleInput.value.trim()})});
-        chat = res.chat;
-        applyChatHeader(chat);
+        chat.title = res.chat.title;
+        applyChatHeader(res.chat);
         toast(t('chat_updated'), 'success');
       } catch (e) { toast(e.message, 'error'); }
       finally { titleSave.disabled = true; }
@@ -1396,11 +1705,33 @@ async function showChatProfile() {
       descSave.disabled = true;
       try {
         const res = await api(`/chat/api/chats/${currentChatId}`, {method: 'PATCH', body: JSON.stringify({session_token: STATE.token, description: descInput.value.trim()})});
-        chat = res.chat;
-        applyChatHeader(chat);
+        chat.description = res.chat.description;
+        applyChatHeader(res.chat);
         toast(t('chat_updated'), 'success');
       } catch (e) { toast(e.message, 'error'); }
       finally { descSave.disabled = true; }
+    };
+  }
+
+  // settings (public link, history, slow mode)
+  const settingsSave = ov.querySelector('#cp-settings-save');
+  if (settingsSave) {
+    settingsSave.onclick = async () => {
+      settingsSave.disabled = true;
+      const isPublic = ov.querySelector('#cp-public').checked;
+      const username = (ov.querySelector('#cp-username').value || '').trim();
+      const historyVisible = ov.querySelector('#cp-history').checked;
+      const slow = Number(ov.querySelector('#cp-slow').value || 0);
+      try {
+        const res = await api(`/chat/api/chats/${currentChatId}`, {method: 'PATCH', body: JSON.stringify({
+          session_token: STATE.token, is_public: isPublic,
+          username: isPublic ? (username || null) : null,
+          history_visible: historyVisible, slow_mode_seconds: slow,
+        })});
+        toast(t('chat_updated'), 'success');
+        applyChatHeader(res.chat);
+        reopen();
+      } catch (e) { toast(e.message, 'error'); settingsSave.disabled = false; }
     };
   }
 
@@ -1423,11 +1754,9 @@ async function showChatProfile() {
           reader.readAsDataURL(file);
         });
         const res = await api(`/chat/api/chats/${currentChatId}/avatar`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, image_base64: dataUrl, image_mime_type: file.type})});
-        chat = res.chat;
-        applyChatHeader(chat);
+        applyChatHeader(res.chat);
         toast(t('chat_photo_ok'), 'success');
-        close();
-        showChatProfile();
+        reopen();
       } catch (e) { toast(e.message, 'error'); }
     };
   }
@@ -1437,11 +1766,9 @@ async function showChatProfile() {
       avatarRemove.disabled = true;
       try {
         const res = await api(`/chat/api/chats/${currentChatId}/avatar/remove`, {method: 'POST', body: JSON.stringify({session_token: STATE.token})});
-        chat = res.chat;
-        applyChatHeader(chat);
+        applyChatHeader(res.chat);
         toast(t('chat_photo_removed'), 'success');
-        close();
-        showChatProfile();
+        reopen();
       } catch (e) { toast(e.message, 'error'); avatarRemove.disabled = false; }
     };
   }
@@ -1475,13 +1802,126 @@ async function showChatProfile() {
           added++;
         }
         if (added) toast(t('member_added'), 'success');
-        close();
-        showChatProfile();
+        reopen();
       } catch (e) { toast(e.message, 'error'); btn.disabled = false; }
     };
   }
 
-  // leave / delete
+  // invites
+  const invitesBox = ov.querySelector('#cp-invites');
+  const inviteToggle = ov.querySelector('#cp-invite-toggle');
+  const inviteForm = ov.querySelector('#cp-invite-form');
+
+  async function loadInvites() {
+    if (!invitesBox) return;
+    try {
+      const data = await api(`/chat/api/chats/${currentChatId}/invites?session_token=${token}`);
+      const items = data.items || [];
+      if (!items.length) { invitesBox.innerHTML = `<div class="cp-empty">${t('no_invites')}</div>`; return; }
+      invitesBox.innerHTML = '';
+      items.forEach(inv => {
+        const row = el('div', {class: 'cp-invite'});
+        const uses = inv.max_uses ? `${inv.uses}/${inv.max_uses}` : `${inv.uses}`;
+        const expires = inv.expires_at_ms ? new Date(inv.expires_at_ms).toLocaleDateString() : t('unlimited');
+        const flags = [uses + ' ' + t('uses'), expires];
+        if (inv.requires_approval) flags.push(t('invite_approval_short'));
+        row.innerHTML = `<div class="cp-invite-main"><div class="cp-invite-code">#/join/${esc(inv.code)}</div><div class="cp-invite-meta">${esc(flags.join(' · '))}</div></div>`;
+        const actions = el('div', {class: 'cp-member-actions'});
+        const copyBtn = el('button', {class: 'icon-btn', title: t('copy')});
+        copyBtn.innerHTML = icon('copy');
+        copyBtn.onclick = () => copyTextToClipboard(fullJoinLink(inv.code));
+        const delBtn = el('button', {class: 'icon-btn', title: t('revoke')});
+        delBtn.innerHTML = icon('trash');
+        delBtn.onclick = async () => {
+          if (!confirm(t('confirm_revoke_invite'))) return;
+          delBtn.disabled = true;
+          try {
+            await api(`/chat/api/chats/${currentChatId}/invites/${inv.invite_id}`, {method: 'DELETE', body: JSON.stringify({session_token: STATE.token})});
+            toast(t('invite_revoked'), 'success');
+            loadInvites();
+          } catch (e) { toast(e.message, 'error'); delBtn.disabled = false; }
+        };
+        actions.append(copyBtn, delBtn);
+        row.append(actions);
+        invitesBox.append(row);
+      });
+    } catch (e) { invitesBox.innerHTML = `<div class="cp-empty">${esc(e.message)}</div>`; }
+  }
+  if (inviteToggle && inviteForm) {
+    inviteToggle.onclick = () => inviteForm.classList.toggle('hidden');
+    ov.querySelector('#cp-invite-cancel').onclick = () => inviteForm.classList.add('hidden');
+    ov.querySelector('#cp-invite-submit').onclick = async () => {
+      const btn = ov.querySelector('#cp-invite-submit');
+      btn.disabled = true;
+      const approval = ov.querySelector('#cp-invite-approval').checked;
+      const maxUses = Number(ov.querySelector('#cp-invite-max').value || 0);
+      const expires = Number(ov.querySelector('#cp-invite-expires').value || 0);
+      try {
+        await api(`/chat/api/chats/${currentChatId}/invites`, {method: 'POST', body: JSON.stringify({
+          session_token: STATE.token,
+          requires_approval: approval,
+          max_uses: maxUses > 0 ? maxUses : null,
+          expires_in_hours: expires > 0 ? expires : null,
+        })});
+        toast(t('invite_created'), 'success');
+        inviteForm.classList.add('hidden');
+        loadInvites();
+      } catch (e) { toast(e.message, 'error'); }
+      finally { btn.disabled = false; }
+    };
+    loadInvites();
+  }
+
+  // join requests
+  const requestsBox = ov.querySelector('#cp-requests');
+  async function loadRequests() {
+    if (!requestsBox) return;
+    try {
+      const data = await api(`/chat/api/chats/${currentChatId}/requests?session_token=${token}`);
+      const items = data.items || [];
+      const countEl = ov.querySelector('#cp-requests-count');
+      if (countEl) countEl.textContent = String(items.length);
+      if (!items.length) { requestsBox.innerHTML = `<div class="cp-empty">${t('no_requests')}</div>`; return; }
+      requestsBox.innerHTML = '';
+      items.forEach(req => {
+        const row = el('div', {class: 'cp-member'});
+        const initials = (req.login || '?').slice(0, 2).toUpperCase();
+        row.innerHTML = `<div class="cp-member-ava">${avatarInnerHtml(req.avatar_url, req.avatar_emoji || initials)}</div>
+          <div class="cp-member-main"><div class="cp-member-name">${esc(req.login)}</div><div class="cp-member-sub">#${req.user_id}</div></div>`;
+        const actions = el('div', {class: 'cp-member-actions'});
+        const okBtn = el('button', {class: 'btn btn-sm btn-primary'});
+        okBtn.textContent = t('approve');
+        const noBtn = el('button', {class: 'btn btn-sm btn-outline'});
+        noBtn.textContent = t('decline');
+        const decide = async (approve) => {
+          okBtn.disabled = noBtn.disabled = true;
+          try {
+            await api(`/chat/api/chats/${currentChatId}/requests/${req.user_id}`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, approve})});
+            toast(approve ? t('request_approved') : t('request_declined'), 'success');
+            loadRequests();
+            if (approve) reopen();
+          } catch (e) { toast(e.message, 'error'); okBtn.disabled = noBtn.disabled = false; }
+        };
+        okBtn.onclick = () => decide(true);
+        noBtn.onclick = () => decide(false);
+        actions.append(okBtn, noBtn);
+        row.append(actions);
+        requestsBox.append(row);
+      });
+    } catch (e) { requestsBox.innerHTML = `<div class="cp-empty">${esc(e.message)}</div>`; }
+  }
+  if (requestsBox) loadRequests();
+
+  // join / leave / delete
+  const joinBtn = ov.querySelector('#cp-join');
+  if (joinBtn) {
+    joinBtn.onclick = async () => {
+      joinBtn.disabled = true;
+      const res = await subscribeToChat(currentChatId);
+      if (res) reopen();
+      else joinBtn.disabled = false;
+    };
+  }
   const leaveBtn = ov.querySelector('#cp-leave');
   if (leaveBtn) {
     leaveBtn.onclick = async () => {
@@ -2754,6 +3194,12 @@ async function handleRoute() {
   const isChat = hash.split('?')[0] === '#/chat';
   if (contentEl) contentEl.classList.toggle('chat-wide', isChat);
   document.body.classList.toggle('chat-mode', isChat);
+  const joinMatch = hash.split('?')[0].match(/^#\/join\/(.+)$/);
+  if (joinMatch) {
+    await renderChat();
+    await joinChatByTarget(decodeURIComponent(joinMatch[1]));
+    return;
+  }
   try {
     switch(hash.split('?')[0]) {
       case '#/login': await renderLogin(); break;
@@ -3020,6 +3466,73 @@ var T = {
 "confirm_leave_chat":{rus:"Выйти из чата?",eng:"Leave the chat?"},
 "confirm_delete_chat":{rus:"Удалить чат для всех? Это действие необратимо.",eng:"Delete the chat for everyone? This cannot be undone."},
 "you":{rus:"вы",eng:"you"},
+"chat_type":{rus:"Тип",eng:"Type"},
+"type_group":{rus:"Группа",eng:"Group"},
+"type_channel":{rus:"Канал",eng:"Channel"},
+"type_group_hint":{rus:"Все участники могут писать и видят историю.",eng:"All members can post and see the history."},
+"type_channel_hint":{rus:"Пишут только администраторы, остальные читают.",eng:"Only admins can post, everyone else reads."},
+"optional":{rus:"необязательно",eng:"optional"},
+"chat_public":{rus:"Публичный чат (ссылка по имени)",eng:"Public chat (link by name)"},
+"chat_username_ph":{rus:"имя ссылки, например my_chat",eng:"link name, e.g. my_chat"},
+"chat_public_hint":{rus:"Публичный чат можно открыть по ссылке вида #/join/имя.",eng:"A public chat opens by a link like #/join/name."},
+"chat_history":{rus:"История для новых участников",eng:"History for new members"},
+"chat_history_hint":{rus:"Если выключено, новые участники увидят только сообщения после вступления.",eng:"When off, new members see only messages posted after they joined."},
+"join_by_link":{rus:"Вступить",eng:"Join"},
+"join_link_ph":{rus:"Вставьте ссылку или код",eng:"Paste a link or a code"},
+"join_link_hint":{rus:"Например: #/join/abc123 или имя публичного чата.",eng:"For example: #/join/abc123 or a public chat name."},
+"join":{rus:"Вступить",eng:"Join"},
+"join_ok":{rus:"Вы вступили в чат",eng:"You joined the chat"},
+"join_pending":{rus:"Заявка отправлена — ждите одобрения",eng:"Request sent — waiting for approval"},
+"join_already":{rus:"Вы уже участник",eng:"You are already a member"},
+"join_link_invalid":{rus:"Не удалось разобрать ссылку",eng:"Could not parse the link"},
+"subscribers":{rus:"подписчиков",eng:"subscribers"},
+"members":{rus:"участников",eng:"members"},
+"channel_read_only":{rus:"Пишут только администраторы",eng:"Only admins can post"},
+"channel_subscribe_hint":{rus:"Это публичный канал — подпишитесь, чтобы читать",eng:"This is a public channel — subscribe to read"},
+"read_only":{rus:"Только чтение",eng:"Read only"},
+"subscribe":{rus:"Подписаться",eng:"Subscribe"},
+"pinned":{rus:"Закреплённое сообщение",eng:"Pinned message"},
+"unpin":{rus:"Открепить",eng:"Unpin"},
+"unpinned":{rus:"Сообщение откреплено",eng:"Message unpinned"},
+"copy":{rus:"Копировать",eng:"Copy"},
+"copied":{rus:"Скопировано",eng:"Copied"},
+"chat_settings":{rus:"Настройки чата",eng:"Chat settings"},
+"slow_mode":{rus:"Медленный режим",eng:"Slow mode"},
+"slow_off":{rus:"Выключен",eng:"Off"},
+"sec":{rus:"сек",eng:"s"},
+"min":{rus:"мин",eng:"min"},
+"invites":{rus:"Ссылки-приглашения",eng:"Invite links"},
+"create_invite":{rus:"Создать ссылку",eng:"Create link"},
+"invite_approval":{rus:"Вступление по заявке (одобряет админ)",eng:"Join by request (admin approves)"},
+"invite_approval_short":{rus:"по заявке",eng:"by request"},
+"invite_max_uses":{rus:"Лимит входов",eng:"Use limit"},
+"invite_expires":{rus:"Срок действия",eng:"Expires in"},
+"unlimited":{rus:"без ограничений",eng:"unlimited"},
+"hours":{rus:"ч.",eng:"h"},
+"days":{rus:"дн.",eng:"d"},
+"no_invites":{rus:"Ссылок пока нет",eng:"No links yet"},
+"uses":{rus:"входов",eng:"uses"},
+"revoke":{rus:"Отозвать",eng:"Revoke"},
+"confirm_revoke_invite":{rus:"Отозвать ссылку-приглашение?",eng:"Revoke this invite link?"},
+"invite_created":{rus:"Ссылка создана",eng:"Link created"},
+"invite_revoked":{rus:"Ссылка отозвана",eng:"Link revoked"},
+"join_requests":{rus:"Заявки на вступление",eng:"Join requests"},
+"no_requests":{rus:"Новых заявок нет",eng:"No new requests"},
+"approve":{rus:"Принять",eng:"Approve"},
+"decline":{rus:"Отклонить",eng:"Decline"},
+"request_approved":{rus:"Заявка принята",eng:"Request approved"},
+"request_declined":{rus:"Заявка отклонена",eng:"Request declined"},
+"make_admin":{rus:"Сделать админом",eng:"Make admin"},
+"demote_admin":{rus:"Снять админа",eng:"Demote admin"},
+"role_updated":{rus:"Роль обновлена",eng:"Role updated"},
+"permissions":{rus:"Права",eng:"Rights"},
+"perm_change_info":{rus:"Менять профиль чата",eng:"Change chat info"},
+"perm_delete_messages":{rus:"Удалять сообщения",eng:"Delete messages"},
+"perm_invite_users":{rus:"Добавлять участников",eng:"Add members"},
+"perm_pin_messages":{rus:"Закреплять сообщения",eng:"Pin messages"},
+"perm_manage_invites":{rus:"Управлять ссылками",eng:"Manage invites"},
+"perm_restrict_members":{rus:"Удалять участников",eng:"Remove members"},
+"subscriber":{rus:"подписчик",eng:"subscriber"},
 "menu":{rus:"Меню",eng:"Menu"},
 "edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
 "voice_msg":{rus:"Голосовое сообщение",eng:"Voice message"},

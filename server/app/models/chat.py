@@ -11,9 +11,32 @@ class ChatKind(str, Enum):
     CUSTOM = "custom"
 
 
+class ChatType(str, Enum):
+    DM = "dm"
+    GROUP = "group"
+    CHANNEL = "channel"
+
+
 class ChatMemberRole(str, Enum):
     OWNER = "owner"
+    ADMIN = "admin"
     MEMBER = "member"
+    SUBSCRIBER = "subscriber"
+
+
+#: Permission flags stored as a JSON object in chat_members.permissions.
+CHAT_PERMISSIONS: tuple[str, ...] = (
+    "change_info",
+    "delete_messages",
+    "invite_users",
+    "pin_messages",
+    "manage_invites",
+    "restrict_members",
+)
+
+
+def default_admin_permissions() -> dict[str, bool]:
+    return {name: True for name in CHAT_PERMISSIONS}
 
 
 @dataclass(frozen=True)
@@ -29,6 +52,12 @@ class ChatRoom:
     created_at_ms: int
     updated_at_ms: int
     avatar_path: str | None = None
+    chat_type: ChatType = ChatType.GROUP
+    username: str | None = None
+    is_public: bool = False
+    slow_mode_seconds: int = 0
+    pinned_message_id: int | None = None
+    history_visible: bool = True
 
 
 @dataclass(frozen=True)
@@ -37,6 +66,35 @@ class ChatMember:
     user_id: int
     role: ChatMemberRole
     joined_at_ms: int
+    permissions: str | None = None
+    is_muted: bool = False
+    is_archived: bool = False
+    is_pinned: bool = False
+    cleared_at_ms: int | None = None
+    last_read_message_id: int | None = None
+
+
+@dataclass(frozen=True)
+class ChatInvite:
+    invite_id: int
+    chat_id: int
+    code: str
+    created_by: int | None
+    created_at_ms: int
+    expires_at_ms: int | None
+    max_uses: int | None
+    uses: int
+    requires_approval: bool
+
+
+@dataclass(frozen=True)
+class ChatJoinRequest:
+    chat_id: int
+    user_id: int
+    status: str
+    created_at_ms: int
+    decided_by: int | None = None
+    decided_at_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +115,10 @@ class ChatMessage:
 class ChatDraft:
     title: str
     description: str | None = None
+    chat_type: ChatType = ChatType.GROUP
+    username: str | None = None
+    is_public: bool = False
+    history_visible: bool = True
 
     def __post_init__(self) -> None:
         if not self.title.strip():

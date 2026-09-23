@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import secrets
 import sqlite3
 from collections.abc import Sequence
@@ -10,16 +11,21 @@ from pathlib import Path
 from time import time
 
 from app.models import (
+    CHAT_PERMISSIONS,
     AvatarImage,
     ChatDraft,
+    ChatInvite,
+    ChatJoinRequest,
     ChatKind,
     ChatMember,
     ChatMemberRole,
     ChatMessage,
     ChatRoom,
+    ChatType,
     MessageDraft,
     UserRole,
     UserStatus,
+    default_admin_permissions,
 )
 from app.services.chat_limits import ChatLimitsService
 from app.services.media import MAX_ATTACHMENTS_PER_MESSAGE, MediaError, MediaService
@@ -145,6 +151,10 @@ class ChatService:
         avatar_url: str | None = None,
         member_ids: Sequence[int] | None = None,
         require_members: bool = False,
+        chat_type: ChatType | None = None,
+        username: str | None = None,
+        is_public: bool | None = None,
+        history_visible: bool | None = None,
     ) -> ChatRoom:
         with self._connect() as connection:
             decision = self._limits.evaluate_custom_chat_creation(
@@ -182,6 +192,27 @@ class ChatService:
                 else None
             )
 
+            resolved_type = chat_type or draft.chat_type or ChatType.GROUP
+            if private_flag and resolved_type == ChatType.GROUP and (normalized_code is not None or is_private):
+                # legacy private rooms stay groups
+                resolved_type = ChatType.GROUP
+            if resolved_type == ChatType.DM:
+                raise ChatError("invalid_chat_type", "Direct chats are created separately", 422)
+
+            resolved_username = self._normalize_username(username if username is not None else draft.username)
+            if resolved_username:
+                self._require_username_free(connection, username=resolved_username)
+
+            resolved_public = bool(is_public if is_public is not None else draft.is_public)
+            resolved_history = bool(
+                history_visible if history_visible is not None else draft.history_visible
+            )
+            member_role = (
+                ChatMemberRole.SUBSCRIBER.value
+                if resolved_type == ChatType.CHANNEL
+                else ChatMemberRole.MEMBER.value
+            )
+
             now_ms = _now_ms()
             cursor = connection.execute(
                 """
@@ -194,9 +225,13 @@ class ChatService:
                     room_code_hash,
                     avatar_url,
                     created_at_ms,
-                    updated_at_ms
+                    updated_at_ms,
+                    chat_type,
+                    username,
+                    is_public,
+                    history_visible
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     ChatKind.CUSTOM.value,
@@ -208,6 +243,10 @@ class ChatService:
                     normalized_avatar,
                     now_ms,
                     now_ms,
+                    resolved_type.value,
+                    resolved_username,
+                    1 if resolved_public else 0,
+                    1 if resolved_history else 0,
                 ),
             )
             chat_id = self._lastrowid(cursor)
@@ -234,7 +273,7 @@ class ChatService:
                     (
                         chat_id,
                         member_user_id,
-                        ChatMemberRole.MEMBER.value,
+                        member_role,
                         now_ms,
                     ),
                 )
@@ -315,25 +354,37 @@ class ChatService:
         chat_id: int,
         target_user_id: int,
         actor_user_id: int,
+        role: ChatMemberRole | None = None,
     ) -> ChatMember:
         with self._connect() as connection:
             actor = self._require_active_user(connection, actor_user_id)
             self._require_active_user(connection, target_user_id)
             chat = self._require_chat(connection, chat_id)
 
-            if chat["kind"] != ChatKind.CUSTOM.value:
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError(
                     "invalid_chat_kind",
                     "Members are managed only for custom chats",
                     409,
                 )
 
-            if actor["role"] != UserRole.ADMIN.value and not self._is_owner(
+            if target_user_id != actor_user_id and not self._has_permission(
                 connection,
-                chat_id=chat_id,
+                chat_row=chat,
                 user_id=actor_user_id,
+                permission="invite_users",
             ):
-                raise ChatError("forbidden", "Only owner or admin can add members", 403)
+                raise ChatError("forbidden", "Only the owner or an admin can add members", 403)
+
+            chat_type = self._row_optional_str_lenient(chat, "chat_type") or ChatType.GROUP.value
+            default_role = (
+                ChatMemberRole.SUBSCRIBER.value
+                if chat_type == ChatType.CHANNEL.value
+                else ChatMemberRole.MEMBER.value
+            )
+            resolved_role = role.value if role is not None else default_role
+            if resolved_role == ChatMemberRole.OWNER.value:
+                raise ChatError("invalid_role", "Use ownership transfer to change the owner", 422)
 
             now_ms = _now_ms()
             connection.execute(
@@ -341,7 +392,7 @@ class ChatService:
                 INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
                 VALUES (?, ?, ?, ?)
                 """,
-                (chat_id, target_user_id, ChatMemberRole.MEMBER.value, now_ms),
+                (chat_id, target_user_id, resolved_role, now_ms),
             )
 
             row = connection.execute(
@@ -438,6 +489,10 @@ class ChatService:
                 SELECT m.user_id AS user_id,
                        m.role AS role,
                        m.joined_at_ms AS joined_at_ms,
+                       m.permissions AS permissions,
+                       m.is_muted AS is_muted,
+                       m.is_archived AS is_archived,
+                       m.is_pinned AS is_pinned,
                        u.login AS login,
                        u.avatar_emoji AS avatar_emoji,
                        u.avatar_path AS avatar_path,
@@ -453,23 +508,42 @@ class ChatService:
                 (chat_id,),
             ).fetchall()
 
+            chat_type = self._row_optional_str_lenient(chat, "chat_type") or ChatType.GROUP.value
             owner_user_id = self._row_optional_int(chat, "owner_user_id")
             items: list[dict[str, object]] = []
             for row in rows:
                 user_id = int(row["user_id"])
+                role = str(row["role"])
+                permissions: dict[str, bool] | None = None
+                raw_permissions = self._row_optional_str_lenient(row, "permissions")
+                if raw_permissions:
+                    try:
+                        parsed = json.loads(raw_permissions)
+                        if isinstance(parsed, dict):
+                            permissions = {name: bool(parsed.get(name, True)) for name in CHAT_PERMISSIONS}
+                    except (TypeError, ValueError):
+                        permissions = None
+                if chat_type == ChatType.CHANNEL.value:
+                    can_post = role in {ChatMemberRole.OWNER.value, ChatMemberRole.ADMIN.value}
+                else:
+                    can_post = role != ChatMemberRole.SUBSCRIBER.value
                 items.append(
                     {
                         "user_id": user_id,
                         "login": self._row_optional_str_lenient(row, "login") or f"user#{user_id}",
-                        "role": str(row["role"]),
+                        "role": role,
                         "joined_at_ms": int(row["joined_at_ms"]),
                         "avatar_emoji": self._row_optional_str_lenient(row, "avatar_emoji"),
                         "avatar_updated_at_ms": self._row_optional_int_lenient(row, "avatar_updated_at_ms"),
                         "has_avatar": bool(self._row_optional_str_lenient(row, "avatar_path")),
-                        "is_owner": owner_user_id == user_id
-                        or str(row["role"]) == ChatMemberRole.OWNER.value,
+                        "is_owner": owner_user_id == user_id or role == ChatMemberRole.OWNER.value,
                         "is_me": user_id == requester_user_id,
                         "status": self._row_optional_str_lenient(row, "status"),
+                        "permissions": permissions,
+                        "can_post": can_post,
+                        "is_muted": self._row_bool(row, "is_muted"),
+                        "is_archived": self._row_bool(row, "is_archived"),
+                        "is_pinned": self._row_bool(row, "is_pinned"),
                     }
                 )
             return items
@@ -483,6 +557,48 @@ class ChatService:
                 raise ChatError("forbidden", "User has no access to this chat", 403)
             return self._row_to_chat(chat)
 
+    def get_chat_view(self, *, chat_id: int, requester_user_id: int) -> dict[str, object]:
+        """Chat plus the requester's own state (role, posting rights, counters)."""
+        with self._connect() as connection:
+            self._require_active_user(connection, requester_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if not self._can_access_chat(connection, chat_row=chat, user_id=requester_user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+
+            role = self._member_role_value(connection, chat_id=chat_id, user_id=requester_user_id)
+            count_row = connection.execute(
+                "SELECT COUNT(*) AS n FROM chat_members WHERE chat_id = ?",
+                (chat_id,),
+            ).fetchone()
+            pending_row = connection.execute(
+                "SELECT COUNT(*) AS n FROM chat_join_requests WHERE chat_id = ? AND status = 'pending'",
+                (chat_id,),
+            ).fetchone()
+
+            pinned_message: dict[str, object] | None = None
+            pinned_id = self._row_optional_int_lenient(chat, "pinned_message_id")
+            if pinned_id:
+                pinned_row = self._select_message_row(connection, pinned_id)
+                if pinned_row is not None and int(pinned_row["chat_id"]) == chat_id:
+                    pinned_message = {
+                        "message_id": int(pinned_row["id"]),
+                        "author_login": self._row_optional_str_lenient(pinned_row, "author_login"),
+                        "body_text": str(pinned_row["body_text"] or "")[:300],
+                        "created_at_ms": int(pinned_row["created_at_ms"]),
+                    }
+
+            return {
+                "chat": self._row_to_chat(chat),
+                "my_role": role,
+                "is_member": role is not None,
+                "is_owner": self._is_chat_owner(connection, chat_row=chat, user_id=requester_user_id),
+                "can_post": self._can_post(connection, chat_row=chat, user_id=requester_user_id),
+                "member_count": int(count_row["n"]) if count_row is not None else 0,
+                "pending_requests": int(pending_row["n"]) if pending_row is not None else 0,
+                "pinned_message": pinned_message,
+            }
+
     def update_chat(
         self,
         *,
@@ -490,6 +606,10 @@ class ChatService:
         actor_user_id: int,
         title: str | None = None,
         description: str | None = None,
+        slow_mode_seconds: int | None = None,
+        history_visible: bool | None = None,
+        is_public: bool | None = None,
+        username: str | None = None,
     ) -> ChatRoom:
         with self._connect() as connection:
             actor = self._require_active_user(connection, actor_user_id)
@@ -497,7 +617,10 @@ class ChatService:
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Only custom chats can be edited", 409)
-            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change chat info")
+            if not self._has_permission(
+                connection, chat_row=chat, user_id=actor_user_id, permission="change_info"
+            ):
+                raise ChatError("forbidden", "Only the owner or an admin can change chat info", 403)
 
             next_title = str(chat["title"]).strip()
             if title is not None:
@@ -511,14 +634,53 @@ class ChatService:
                 else self._row_optional_str(chat, "description")
             )
 
+            next_slow = int(self._row_optional_int_lenient(chat, "slow_mode_seconds") or 0)
+            if slow_mode_seconds is not None:
+                next_slow = int(slow_mode_seconds)
+                if next_slow < 0 or next_slow > 3600:
+                    raise ChatError("invalid_slow_mode", "Slow mode must be between 0 and 3600 seconds", 422)
+
+            next_history = self._row_bool_default(chat, "history_visible", True)
+            if history_visible is not None:
+                next_history = bool(history_visible)
+
+            next_public = self._row_bool(chat, "is_public")
+            if is_public is not None:
+                next_public = bool(is_public)
+
+            next_username = self._row_optional_str_lenient(chat, "username")
+            if username is not None:
+                normalized = self._normalize_username(username)
+                if normalized and normalized != next_username:
+                    self._require_username_free(connection, username=normalized)
+                next_username = normalized
+            if not next_public and next_username:
+                # a private chat keeps no public link name
+                next_username = None
+
             now_ms = _now_ms()
             connection.execute(
                 """
                 UPDATE chats
-                SET title = ?, description = ?, updated_at_ms = ?
+                SET title = ?,
+                    description = ?,
+                    updated_at_ms = ?,
+                    slow_mode_seconds = ?,
+                    history_visible = ?,
+                    is_public = ?,
+                    username = ?
                 WHERE id = ?
                 """,
-                (next_title, next_description, now_ms, chat_id),
+                (
+                    next_title,
+                    next_description,
+                    now_ms,
+                    next_slow,
+                    1 if next_history else 0,
+                    1 if next_public else 0,
+                    next_username,
+                    chat_id,
+                ),
             )
 
             updated = connection.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
@@ -632,6 +794,14 @@ class ChatService:
             if str(target["role"]) == ChatMemberRole.OWNER.value:
                 raise ChatError("cannot_remove_owner", "The chat owner cannot be removed", 409)
 
+            actor_id = self._row_int(actor, "id")
+            if (
+                str(target["role"]) == ChatMemberRole.ADMIN.value
+                and not self._is_chat_owner(connection, chat_row=chat, user_id=actor_id)
+                and not self._is_platform_moderator(connection, user_id=actor_id)
+            ):
+                raise ChatError("forbidden", "Only the owner can remove an admin", 403)
+
             connection.execute(
                 "DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?",
                 (chat_id, target_user_id),
@@ -700,6 +870,565 @@ class ChatService:
             if updated is None:
                 raise ChatError("chat_not_found", "Chat not found", 404)
             return self._row_to_chat(updated)
+
+    def set_member_role(
+        self,
+        *,
+        chat_id: int,
+        target_user_id: int,
+        actor_user_id: int,
+        role: ChatMemberRole,
+    ) -> ChatMember:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Roles are managed only in custom chats", 409)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change member roles")
+
+            if role == ChatMemberRole.OWNER:
+                raise ChatError("invalid_role", "Use ownership transfer to change the owner", 422)
+
+            target = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if target is None:
+                raise ChatError("member_not_found", "Member not found", 404)
+            if str(target["role"]) == ChatMemberRole.OWNER.value:
+                raise ChatError("cannot_change_owner", "The owner role cannot be changed", 409)
+
+            actor_id = self._row_int(actor, "id")
+            is_owner = self._row_optional_int(chat, "owner_user_id") == actor_id or self._is_owner(
+                connection, chat_id=chat_id, user_id=actor_id
+            )
+            if (
+                not is_owner
+                and str(target["role"]) == ChatMemberRole.ADMIN.value
+                and role != ChatMemberRole.ADMIN
+            ):
+                raise ChatError("forbidden", "Only the owner can demote an admin", 403)
+
+            permissions = self._row_optional_str_lenient(target, "permissions")
+            if role == ChatMemberRole.ADMIN:
+                if not permissions:
+                    permissions = json.dumps(default_admin_permissions())
+            else:
+                permissions = None
+
+            connection.execute(
+                "UPDATE chat_members SET role = ?, permissions = ? WHERE chat_id = ? AND user_id = ?",
+                (role.value, permissions, chat_id, target_user_id),
+            )
+            row = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("member_not_found", "Member not found", 404)
+            return self._row_to_member(row)
+
+    def set_member_permissions(
+        self,
+        *,
+        chat_id: int,
+        target_user_id: int,
+        actor_user_id: int,
+        permissions: dict[str, bool],
+    ) -> ChatMember:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Permissions are managed only in custom chats", 409)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change admin rights")
+
+            target = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if target is None:
+                raise ChatError("member_not_found", "Member not found", 404)
+            if str(target["role"]) != ChatMemberRole.ADMIN.value:
+                raise ChatError("not_an_admin", "Permissions are available for admins only", 409)
+
+            cleaned = {
+                name: bool(permissions.get(name, True))
+                for name in CHAT_PERMISSIONS
+            }
+            connection.execute(
+                "UPDATE chat_members SET permissions = ? WHERE chat_id = ? AND user_id = ?",
+                (json.dumps(cleaned), chat_id, target_user_id),
+            )
+            row = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("member_not_found", "Member not found", 404)
+            return self._row_to_member(row)
+
+    def create_invite(
+        self,
+        *,
+        chat_id: int,
+        actor_user_id: int,
+        expires_in_hours: int | None = None,
+        max_uses: int | None = None,
+        requires_approval: bool = False,
+    ) -> ChatInvite:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Invites are available only for custom chats", 409)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="manage invites")
+
+            now_ms = _now_ms()
+            expires_at_ms = None
+            if expires_in_hours:
+                hours = int(expires_in_hours)
+                if hours <= 0 or hours > 24 * 365:
+                    raise ChatError("invalid_expiry", "Invite expiry must be between 1 hour and 1 year", 422)
+                expires_at_ms = now_ms + hours * 3600_000
+
+            max_uses_value = None
+            if max_uses:
+                max_uses_value = int(max_uses)
+                if max_uses_value <= 0:
+                    raise ChatError("invalid_max_uses", "max_uses must be positive", 422)
+
+            code = ""
+            for _ in range(6):
+                candidate = self._generate_invite_code()
+                if connection.execute("SELECT 1 FROM chat_invites WHERE code = ?", (candidate,)).fetchone() is None:
+                    code = candidate
+                    break
+            if not code:
+                raise ChatError("invite_create_failed", "Failed to allocate an invite code", 500)
+
+            cursor = connection.execute(
+                """
+                INSERT INTO chat_invites(
+                    chat_id, code, created_by, created_at_ms, expires_at_ms, max_uses, uses, requires_approval
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+                """,
+                (
+                    chat_id,
+                    code,
+                    actor_user_id,
+                    now_ms,
+                    expires_at_ms,
+                    max_uses_value,
+                    1 if requires_approval else 0,
+                ),
+            )
+            invite_id = self._lastrowid(cursor)
+            row = connection.execute("SELECT * FROM chat_invites WHERE id = ?", (invite_id,)).fetchone()
+            if row is None:
+                raise ChatError("invite_create_failed", "Failed to create an invite", 500)
+            return self._row_to_invite(row)
+
+    def list_invites(self, *, chat_id: int, actor_user_id: int) -> list[ChatInvite]:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="manage invites")
+
+            rows = connection.execute(
+                "SELECT * FROM chat_invites WHERE chat_id = ? ORDER BY created_at_ms DESC, id DESC",
+                (chat_id,),
+            ).fetchall()
+            return [self._row_to_invite(row) for row in rows]
+
+    def revoke_invite(self, *, chat_id: int, invite_id: int, actor_user_id: int) -> None:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="manage invites")
+
+            row = connection.execute(
+                "SELECT * FROM chat_invites WHERE id = ? AND chat_id = ?",
+                (invite_id, chat_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("invite_not_found", "Invite not found", 404)
+            connection.execute("DELETE FROM chat_invites WHERE id = ?", (invite_id,))
+
+    def join_by_invite_code(self, *, code: str, user_id: int) -> dict[str, object]:
+        normalized = (code or "").strip()
+        if not normalized:
+            raise ChatError("invite_not_found", "Invite link is invalid", 404)
+
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            row = connection.execute(
+                "SELECT * FROM chat_invites WHERE code = ?",
+                (normalized,),
+            ).fetchone()
+            if row is None:
+                raise ChatError("invite_not_found", "Invite link is invalid", 404)
+
+            invite = self._row_to_invite(row)
+            now_ms = _now_ms()
+            if invite.expires_at_ms is not None and invite.expires_at_ms < now_ms:
+                raise ChatError("invite_expired", "Invite link has expired", 410)
+            if invite.max_uses is not None and invite.uses >= invite.max_uses:
+                raise ChatError("invite_exhausted", "Invite link has reached its limit", 410)
+
+            chat = self._require_chat(connection, invite.chat_id)
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Cannot join this chat", 409)
+
+            existing = connection.execute(
+                "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (invite.chat_id, user_id),
+            ).fetchone()
+            if existing is not None:
+                return {"status": "joined", "chat": self._row_to_chat(chat), "already_member": True}
+
+            if invite.requires_approval:
+                self._upsert_join_request(connection, chat_id=invite.chat_id, user_id=user_id, now_ms=now_ms)
+                return {"status": "pending", "chat": self._row_to_chat(chat)}
+
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
+                VALUES (?, ?, ?, ?)
+                """,
+                (invite.chat_id, user_id, self._default_member_role(chat), now_ms),
+            )
+            connection.execute("UPDATE chat_invites SET uses = uses + 1 WHERE id = ?", (invite.invite_id,))
+            return {"status": "joined", "chat": self._row_to_chat(chat)}
+
+    def join_public_chat(
+        self,
+        *,
+        user_id: int,
+        username: str | None = None,
+        chat_id: int | None = None,
+    ) -> dict[str, object]:
+        normalized = self._normalize_username(username) if username else None
+        if not normalized and not chat_id:
+            raise ChatError("chat_not_found", "Chat not found", 404)
+
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            if chat_id:
+                row = connection.execute(
+                    "SELECT * FROM chats WHERE id = ? AND is_public = 1",
+                    (int(chat_id),),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT * FROM chats WHERE username = ? AND is_public = 1",
+                    (normalized,),
+                ).fetchone()
+            if row is None:
+                raise ChatError("chat_not_found", "Chat not found", 404)
+
+            existing = connection.execute(
+                "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (self._row_int(row, "id"), user_id),
+            ).fetchone()
+            if existing is not None:
+                return {"status": "joined", "chat": self._row_to_chat(row), "already_member": True}
+
+            now_ms = _now_ms()
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
+                VALUES (?, ?, ?, ?)
+                """,
+                (self._row_int(row, "id"), user_id, self._default_member_role(row), now_ms),
+            )
+            return {"status": "joined", "chat": self._row_to_chat(row)}
+
+    def list_join_requests(self, *, chat_id: int, actor_user_id: int) -> list[dict[str, object]]:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="manage join requests")
+
+            rows = connection.execute(
+                """
+                SELECT r.*, u.login AS login, u.avatar_emoji AS avatar_emoji,
+                       u.avatar_path AS avatar_path, u.avatar_updated_at_ms AS avatar_updated_at_ms
+                FROM chat_join_requests r
+                LEFT JOIN users u ON u.id = r.user_id
+                WHERE r.chat_id = ? AND r.status = 'pending'
+                ORDER BY r.created_at_ms ASC
+                """,
+                (chat_id,),
+            ).fetchall()
+            items: list[dict[str, object]] = []
+            for row in rows:
+                items.append(
+                    {
+                        "user_id": int(row["user_id"]),
+                        "status": str(row["status"]),
+                        "created_at_ms": int(row["created_at_ms"]),
+                        "login": self._row_optional_str_lenient(row, "login") or f"user#{int(row['user_id'])}",
+                        "avatar_emoji": self._row_optional_str_lenient(row, "avatar_emoji"),
+                        "has_avatar": bool(self._row_optional_str_lenient(row, "avatar_path")),
+                        "avatar_updated_at_ms": self._row_optional_int_lenient(row, "avatar_updated_at_ms"),
+                    }
+                )
+            return items
+
+    def decide_join_request(
+        self,
+        *,
+        chat_id: int,
+        target_user_id: int,
+        actor_user_id: int,
+        approve: bool,
+    ) -> ChatJoinRequest:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="manage join requests")
+
+            row = connection.execute(
+                "SELECT * FROM chat_join_requests WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if row is None:
+                raise ChatError("request_not_found", "Join request not found", 404)
+            if str(row["status"]) != "pending":
+                raise ChatError("request_already_decided", "Join request was already decided", 409)
+
+            now_ms = _now_ms()
+            if approve:
+                self._require_active_user(connection, target_user_id)
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (chat_id, target_user_id, self._default_member_role(chat), now_ms),
+                )
+                status = "approved"
+            else:
+                status = "declined"
+
+            connection.execute(
+                "UPDATE chat_join_requests SET status = ?, decided_by = ?, decided_at_ms = ? WHERE chat_id = ? AND user_id = ?",
+                (status, actor_user_id, now_ms, chat_id, target_user_id),
+            )
+            updated = connection.execute(
+                "SELECT * FROM chat_join_requests WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if updated is None:
+                raise ChatError("request_not_found", "Join request not found", 404)
+            return self._row_to_join_request(updated)
+
+    def set_pinned_message(
+        self,
+        *,
+        chat_id: int,
+        actor_user_id: int,
+        message_id: int | None,
+    ) -> ChatRoom:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if not self._has_permission(connection, chat_row=chat, user_id=actor_user_id, permission="pin_messages"):
+                raise ChatError("forbidden", "Only the owner or an admin can pin messages", 403)
+
+            if message_id is not None:
+                row = connection.execute(
+                    "SELECT 1 FROM chat_messages WHERE id = ? AND chat_id = ?",
+                    (message_id, chat_id),
+                ).fetchone()
+                if row is None:
+                    raise ChatError("message_not_found", "Message not found", 404)
+
+            now_ms = _now_ms()
+            connection.execute(
+                "UPDATE chats SET pinned_message_id = ?, updated_at_ms = ? WHERE id = ?",
+                (message_id, now_ms, chat_id),
+            )
+            updated = connection.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+            if updated is None:
+                raise ChatError("chat_not_found", "Chat not found", 404)
+            return self._row_to_chat(updated)
+
+    def _upsert_join_request(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_id: int,
+        user_id: int,
+        now_ms: int,
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO chat_join_requests(chat_id, user_id, status, created_at_ms)
+            VALUES (?, ?, 'pending', ?)
+            ON CONFLICT(chat_id, user_id) DO UPDATE SET
+                status = 'pending',
+                created_at_ms = excluded.created_at_ms,
+                decided_by = NULL,
+                decided_at_ms = NULL
+            """,
+            (chat_id, user_id, now_ms),
+        )
+
+    @staticmethod
+    def _default_member_role(chat_row: sqlite3.Row) -> str:
+        chat_type = ChatService._row_optional_str_lenient(chat_row, "chat_type") or ChatType.GROUP.value
+        if chat_type == ChatType.CHANNEL.value:
+            return ChatMemberRole.SUBSCRIBER.value
+        return ChatMemberRole.MEMBER.value
+
+    @staticmethod
+    def _generate_invite_code() -> str:
+        return secrets.token_urlsafe(9).replace("-", "").replace("_", "")[:12]
+
+    @staticmethod
+    def _normalize_username(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lstrip("@").lower()
+        if not normalized:
+            return None
+        if len(normalized) < 4 or len(normalized) > 32:
+            raise ChatError("invalid_username", "Link name must be 4-32 characters long", 422)
+        if not all(ch.isalnum() or ch == "_" for ch in normalized):
+            raise ChatError("invalid_username", "Link name may contain letters, digits and underscores", 422)
+        return normalized
+
+    @staticmethod
+    def _require_username_free(connection: sqlite3.Connection, *, username: str) -> None:
+        row = connection.execute(
+            "SELECT 1 FROM chats WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if row is not None:
+            raise ChatError("username_taken", "This link name is already taken", 409)
+
+    def _member_role_value(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_id: int,
+        user_id: int,
+    ) -> str | None:
+        row = connection.execute(
+            "SELECT role FROM chat_members WHERE chat_id = ? AND user_id = ?",
+            (chat_id, user_id),
+        ).fetchone()
+        return str(row["role"]) if row is not None else None
+
+    def _is_platform_moderator(self, connection: sqlite3.Connection, *, user_id: int) -> bool:
+        row = connection.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        if row is None:
+            return False
+        return str(row["role"]) in {UserRole.ADMIN.value, UserRole.MODERATOR.value}
+
+    def _is_chat_owner(self, connection: sqlite3.Connection, *, chat_row: sqlite3.Row, user_id: int) -> bool:
+        if self._row_optional_int(chat_row, "owner_user_id") == user_id:
+            return True
+        return self._is_owner(connection, chat_id=self._row_int(chat_row, "id"), user_id=user_id)
+
+    def _has_permission(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        user_id: int,
+        permission: str,
+    ) -> bool:
+        if self._is_platform_moderator(connection, user_id=user_id):
+            return True
+
+        chat_id = self._row_int(chat_row, "id")
+        role = self._member_role_value(connection, chat_id=chat_id, user_id=user_id)
+        if role is None:
+            return False
+        if role == ChatMemberRole.OWNER.value or self._is_chat_owner(connection, chat_row=chat_row, user_id=user_id):
+            return True
+        if role != ChatMemberRole.ADMIN.value:
+            return False
+
+        row = connection.execute(
+            "SELECT permissions FROM chat_members WHERE chat_id = ? AND user_id = ?",
+            (chat_id, user_id),
+        ).fetchone()
+        raw = self._row_optional_str_lenient(row, "permissions") if row is not None else None
+        if not raw:
+            return True
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            return True
+        if not isinstance(data, dict):
+            return True
+        return bool(data.get(permission, True))
+
+    def _can_post(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        user_id: int,
+    ) -> bool:
+        if self._is_platform_moderator(connection, user_id=user_id):
+            return True
+
+        chat_id = self._row_int(chat_row, "id")
+        role = self._member_role_value(connection, chat_id=chat_id, user_id=user_id)
+        if role is None:
+            return False
+
+        chat_type = self._row_optional_str_lenient(chat_row, "chat_type") or ChatType.GROUP.value
+        if chat_type == ChatType.CHANNEL.value:
+            return role in {ChatMemberRole.OWNER.value, ChatMemberRole.ADMIN.value}
+        if role == ChatMemberRole.SUBSCRIBER.value:
+            return False
+        return True
+
+    def _enforce_slow_mode(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        user_id: int,
+    ) -> None:
+        slow = int(self._row_optional_int_lenient(chat_row, "slow_mode_seconds") or 0)
+        if slow <= 0:
+            return
+        if self._is_platform_moderator(connection, user_id=user_id):
+            return
+
+        chat_id = self._row_int(chat_row, "id")
+        role = self._member_role_value(connection, chat_id=chat_id, user_id=user_id)
+        if role in {ChatMemberRole.OWNER.value, ChatMemberRole.ADMIN.value}:
+            return
+
+        row = connection.execute(
+            """
+            SELECT created_at_ms FROM chat_messages
+            WHERE chat_id = ? AND author_user_id = ?
+            ORDER BY created_at_ms DESC, id DESC
+            LIMIT 1
+            """,
+            (chat_id, user_id),
+        ).fetchone()
+        if row is None:
+            return
+
+        elapsed_ms = _now_ms() - int(row["created_at_ms"])
+        if elapsed_ms < slow * 1000:
+            wait_seconds = max(int((slow * 1000 - elapsed_ms + 999) // 1000), 1)
+            raise ChatError("slow_mode", f"Slow mode: wait {wait_seconds} s", 429)
 
     def _chat_avatars_root(self) -> Path:
         return self._storage_root / "chat_avatars"
@@ -883,6 +1612,11 @@ class ChatService:
             if not self._can_access_chat(connection, chat_row=chat, user_id=author_user_id):
                 raise ChatError("forbidden", "User has no access to this chat", 403)
 
+            if not self._can_post(connection, chat_row=chat, user_id=author_user_id):
+                raise ChatError("read_only", "Only admins can post in this chat", 403)
+
+            self._enforce_slow_mode(connection, chat_row=chat, user_id=author_user_id)
+
             now_ms = _now_ms()
             text = draft.body_text.strip()
             client_message_id = (draft.client_message_id or "").strip() or None
@@ -954,16 +1688,31 @@ class ChatService:
             if not self._can_access_chat(connection, chat_row=chat, user_id=requester_user_id):
                 raise ChatError("forbidden", "User has no access to this chat", 403)
 
+            member_row = connection.execute(
+                "SELECT joined_at_ms, cleared_at_ms FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, requester_user_id),
+            ).fetchone()
+
+            # History for new members: everything posted before joining stays hidden.
+            min_created_at_ms = 0
+            if member_row is not None:
+                if not self._row_bool_default(chat, "history_visible", True):
+                    min_created_at_ms = int(member_row["joined_at_ms"] or 0)
+                cleared_at_ms = self._row_optional_int_lenient(member_row, "cleared_at_ms")
+                if cleared_at_ms:
+                    min_created_at_ms = max(min_created_at_ms, int(cleared_at_ms))
+
             rows = connection.execute(
                 """
                 SELECT m.*, u.login AS author_login, u.avatar_emoji AS author_avatar_emoji
                 FROM chat_messages m
                 LEFT JOIN users u ON u.id = m.author_user_id
                 WHERE m.chat_id = ?
+                  AND m.created_at_ms >= ?
                 ORDER BY m.created_at_ms DESC, m.id DESC
                 LIMIT ? OFFSET ?
                 """,
-                (chat_id, safe_limit, safe_offset),
+                (chat_id, min_created_at_ms, safe_limit, safe_offset),
             ).fetchall()
             # Offset counts from the newest message; return oldest-first for rendering.
             rows = list(reversed(rows))
@@ -1016,11 +1765,14 @@ class ChatService:
         chat_row: sqlite3.Row,
         user_id: int,
     ) -> bool:
-        if self._is_admin(connection, user_id=user_id):
+        if self._is_platform_moderator(connection, user_id=user_id):
             return True
 
         kind = str(chat_row["kind"])
         if kind == ChatKind.COMMON.value:
+            return True
+
+        if self._row_bool(chat_row, "is_public"):
             return True
 
         owner_user_id = self._row_optional_int(chat_row, "owner_user_id")
@@ -1059,6 +1811,11 @@ class ChatService:
 
     @staticmethod
     def _row_to_chat(row: sqlite3.Row) -> ChatRoom:
+        raw_type = ChatService._row_optional_str_lenient(row, "chat_type") or "group"
+        try:
+            chat_type = ChatType(raw_type)
+        except ValueError:
+            chat_type = ChatType.GROUP
         return ChatRoom(
             chat_id=ChatService._row_int(row, "id"),
             kind=ChatKind(str(row["kind"])),
@@ -1071,6 +1828,12 @@ class ChatService:
             created_at_ms=ChatService._row_int(row, "created_at_ms"),
             updated_at_ms=ChatService._row_int(row, "updated_at_ms"),
             avatar_path=ChatService._row_optional_str_lenient(row, "avatar_path"),
+            chat_type=chat_type,
+            username=ChatService._row_optional_str_lenient(row, "username"),
+            is_public=ChatService._row_bool(row, "is_public"),
+            slow_mode_seconds=int(ChatService._row_optional_int_lenient(row, "slow_mode_seconds") or 0),
+            pinned_message_id=ChatService._row_optional_int_lenient(row, "pinned_message_id"),
+            history_visible=ChatService._row_bool_default(row, "history_visible", True),
         )
 
     @staticmethod
@@ -1080,6 +1843,37 @@ class ChatService:
             user_id=ChatService._row_int(row, "user_id"),
             role=ChatMemberRole(str(row["role"])),
             joined_at_ms=ChatService._row_int(row, "joined_at_ms"),
+            permissions=ChatService._row_optional_str_lenient(row, "permissions"),
+            is_muted=ChatService._row_bool(row, "is_muted"),
+            is_archived=ChatService._row_bool(row, "is_archived"),
+            is_pinned=ChatService._row_bool(row, "is_pinned"),
+            cleared_at_ms=ChatService._row_optional_int_lenient(row, "cleared_at_ms"),
+            last_read_message_id=ChatService._row_optional_int_lenient(row, "last_read_message_id"),
+        )
+
+    @staticmethod
+    def _row_to_invite(row: sqlite3.Row) -> ChatInvite:
+        return ChatInvite(
+            invite_id=ChatService._row_int(row, "id"),
+            chat_id=ChatService._row_int(row, "chat_id"),
+            code=str(row["code"]),
+            created_by=ChatService._row_optional_int_lenient(row, "created_by"),
+            created_at_ms=ChatService._row_int(row, "created_at_ms"),
+            expires_at_ms=ChatService._row_optional_int_lenient(row, "expires_at_ms"),
+            max_uses=ChatService._row_optional_int_lenient(row, "max_uses"),
+            uses=int(ChatService._row_optional_int_lenient(row, "uses") or 0),
+            requires_approval=ChatService._row_bool(row, "requires_approval"),
+        )
+
+    @staticmethod
+    def _row_to_join_request(row: sqlite3.Row) -> ChatJoinRequest:
+        return ChatJoinRequest(
+            chat_id=ChatService._row_int(row, "chat_id"),
+            user_id=ChatService._row_int(row, "user_id"),
+            status=str(row["status"]),
+            created_at_ms=ChatService._row_int(row, "created_at_ms"),
+            decided_by=ChatService._row_optional_int_lenient(row, "decided_by"),
+            decided_at_ms=ChatService._row_optional_int_lenient(row, "decided_at_ms"),
         )
 
     @staticmethod
@@ -1301,6 +2095,16 @@ class ChatService:
         return bool(int(value))
 
     @staticmethod
+    def _row_bool_default(row: sqlite3.Row, key: str, default: bool) -> bool:
+        try:
+            value = row[key]
+        except Exception:
+            return default
+        if value is None:
+            return default
+        return bool(int(value))
+
+    @staticmethod
     def _lastrowid(cursor: sqlite3.Cursor) -> int:
         value = cursor.lastrowid
         if value is None:
@@ -1340,7 +2144,7 @@ class ChatService:
             login2 = u2["login"] if u2 else str(target_user_id)
             draft_title = f"{login1} & {login2}"
             cursor = connection.execute(
-                "INSERT INTO chats (kind, title, description, owner_user_id, is_private, created_at_ms, updated_at_ms) VALUES (?, ?, ?, ?, 1, ?, ?)",
+                "INSERT INTO chats (kind, title, description, owner_user_id, is_private, created_at_ms, updated_at_ms, chat_type) VALUES (?, ?, ?, ?, 1, ?, ?, 'dm')",
                 (ChatKind.CUSTOM.value, draft_title, "", user_id, now_ms, now_ms),
             )
             chat_id = cursor.lastrowid

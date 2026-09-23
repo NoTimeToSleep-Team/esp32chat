@@ -6,7 +6,16 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
-from app.models import ChatDraft, ChatMessage, ChatRoom, ClientKind, MessageDraft, UserRole
+from app.models import (
+    ChatDraft,
+    ChatMemberRole,
+    ChatMessage,
+    ChatRoom,
+    ChatType,
+    ClientKind,
+    MessageDraft,
+    UserRole,
+)
 from app.realtime import chat_message_event, chat_message_payload
 from app.services.activity_log import ActivityLogService
 from app.services.auth import AuthError, AuthService
@@ -29,6 +38,10 @@ class CreateChatRequest(BaseModel):
     title: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=2000)
     member_ids: list[int] = Field(default_factory=list, max_length=200)
+    chat_type: str | None = Field(default=None, max_length=16)
+    username: str | None = Field(default=None, max_length=64)
+    is_public: bool | None = None
+    history_visible: bool | None = None
 
 
 def _template_path() -> Path:
@@ -70,6 +83,42 @@ def _resolve_user_id(request: Request, session_token: str) -> int:
     return session.user.user_id
 
 
+def _parse_chat_type(value: str | None) -> ChatType | None:
+    if not value:
+        return None
+    try:
+        chat_type = ChatType(value.strip().lower())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_chat_type", "message": "Chat type must be group or channel"},
+        ) from exc
+    if chat_type == ChatType.DM:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_chat_type", "message": "Direct chats are created separately"},
+        )
+    return chat_type
+
+
+def _parse_member_role(value: str | None) -> ChatMemberRole | None:
+    if not value:
+        return None
+    try:
+        role = ChatMemberRole(value.strip().lower())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_role", "message": "Unknown member role"},
+        ) from exc
+    if role == ChatMemberRole.OWNER:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_role", "message": "Use ownership transfer to change the owner"},
+        )
+    return role
+
+
 def _chat_payload(chat: ChatRoom, session_token: str | None = None) -> dict[str, object]:
     avatar_url = chat.avatar_url
     if chat.avatar_path:
@@ -88,6 +137,12 @@ def _chat_payload(chat: ChatRoom, session_token: str | None = None) -> dict[str,
         "has_room_code": chat.has_room_code,
         "created_at_ms": chat.created_at_ms,
         "updated_at_ms": chat.updated_at_ms,
+        "chat_type": chat.chat_type.value,
+        "username": chat.username,
+        "is_public": chat.is_public,
+        "slow_mode_seconds": chat.slow_mode_seconds,
+        "pinned_message_id": chat.pinned_message_id,
+        "history_visible": chat.history_visible,
     }
 
 
@@ -164,12 +219,17 @@ async def create_chat(
     user_id = _resolve_user_id(request, payload.session_token)
     service = _chat_service(request)
 
+    parsed_type = _parse_chat_type(payload.chat_type)
     try:
         chat = service.create_custom_chat(
             creator_user_id=user_id,
             draft=ChatDraft(title=payload.title, description=payload.description),
             member_ids=payload.member_ids,
-            require_members=True,
+            require_members=parsed_type != ChatType.CHANNEL,
+            chat_type=parsed_type,
+            username=payload.username,
+            is_public=payload.is_public,
+            history_visible=payload.history_visible,
         )
     except ChatError as exc:
         raise HTTPException(
@@ -337,6 +397,7 @@ async def delete_chat_message(request: Request, chat_id: int, message_id: int, p
 class AddMemberRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     user_id: int
+    role: str | None = Field(default=None, max_length=16)
 
 
 @router.post("/chat/api/chats/{chat_id}/members")
@@ -344,7 +405,12 @@ async def add_chat_member(request: Request, chat_id: int, payload: AddMemberRequ
     user_id = _resolve_user_id(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
-        chat_service.add_member(chat_id=chat_id, target_user_id=payload.user_id, actor_user_id=user_id)
+        chat_service.add_member(
+            chat_id=chat_id,
+            target_user_id=payload.user_id,
+            actor_user_id=user_id,
+            role=_parse_member_role(payload.role),
+        )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     return {"status": "ok"}
@@ -390,6 +456,10 @@ class UpdateChatRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     title: str | None = Field(default=None, max_length=256)
     description: str | None = Field(default=None, max_length=2000)
+    slow_mode_seconds: int | None = Field(default=None, ge=0, le=3600)
+    history_visible: bool | None = None
+    is_public: bool | None = None
+    username: str | None = Field(default=None, max_length=64)
 
 
 class ChatAvatarRequest(BaseModel):
@@ -428,10 +498,14 @@ async def get_chat(
     user_id = _resolve_user_id(request, session_token)
     service = _chat_service(request)
     try:
-        chat = service.get_chat(chat_id=chat_id, requester_user_id=user_id)
+        view = service.get_chat_view(chat_id=chat_id, requester_user_id=user_id)
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
-    return {"status": "ok", "chat": _chat_payload(chat, session_token)}
+
+    chat = view.get("chat")
+    payload = dict(view)
+    payload["chat"] = _chat_payload(chat, session_token) if isinstance(chat, ChatRoom) else None
+    return {"status": "ok", "chat": payload["chat"], "view": payload}
 
 
 @router.patch("/chat/api/chats/{chat_id}")
@@ -444,6 +518,10 @@ async def update_chat(request: Request, chat_id: int, payload: UpdateChatRequest
             actor_user_id=user_id,
             title=payload.title,
             description=payload.description,
+            slow_mode_seconds=payload.slow_mode_seconds,
+            history_visible=payload.history_visible,
+            is_public=payload.is_public,
+            username=payload.username,
         )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
@@ -580,6 +658,245 @@ async def transfer_chat_owner(
             chat_id=chat_id,
             actor_user_id=user_id,
             target_user_id=payload.target_user_id,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
+
+
+# --- Groups and channels: roles, permissions, invites, join requests, pin ---
+
+
+class MemberRoleRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    role: str = Field(min_length=1, max_length=16)
+
+
+class MemberPermissionsRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    permissions: dict[str, bool] = Field(default_factory=dict)
+
+
+class InviteCreateRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    expires_in_hours: int | None = Field(default=None, ge=1, le=8760)
+    max_uses: int | None = Field(default=None, ge=1, le=100000)
+    requires_approval: bool = False
+
+
+class JoinByCodeRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    code: str | None = Field(default=None, max_length=64)
+    username: str | None = Field(default=None, max_length=64)
+    chat_id: int | None = None
+
+
+class JoinRequestDecision(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    approve: bool = True
+
+
+class PinMessageRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    message_id: int | None = None
+
+
+def _invite_payload(invite) -> dict[str, object]:
+    return {
+        "invite_id": invite.invite_id,
+        "chat_id": invite.chat_id,
+        "code": invite.code,
+        "link": f"#/join/{invite.code}",
+        "created_by": invite.created_by,
+        "created_at_ms": invite.created_at_ms,
+        "expires_at_ms": invite.expires_at_ms,
+        "max_uses": invite.max_uses,
+        "uses": invite.uses,
+        "requires_approval": invite.requires_approval,
+    }
+
+
+@router.post("/chat/api/chats/{chat_id}/members/{user_id}/role")
+async def set_chat_member_role(
+    request: Request,
+    chat_id: int,
+    user_id: int,
+    payload: MemberRoleRequest,
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    role = _parse_member_role(payload.role)
+    try:
+        member = service.set_member_role(
+            chat_id=chat_id,
+            target_user_id=user_id,
+            actor_user_id=actor_id,
+            role=role,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "member": {"chat_id": member.chat_id, "user_id": member.user_id, "role": member.role.value}}
+
+
+@router.post("/chat/api/chats/{chat_id}/members/{user_id}/permissions")
+async def set_chat_member_permissions(
+    request: Request,
+    chat_id: int,
+    user_id: int,
+    payload: MemberPermissionsRequest,
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        member = service.set_member_permissions(
+            chat_id=chat_id,
+            target_user_id=user_id,
+            actor_user_id=actor_id,
+            permissions=payload.permissions,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "member": {"chat_id": member.chat_id, "user_id": member.user_id, "role": member.role.value}}
+
+
+@router.post("/chat/api/chats/{chat_id}/invites")
+async def create_chat_invite(
+    request: Request,
+    chat_id: int,
+    payload: InviteCreateRequest,
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        invite = service.create_invite(
+            chat_id=chat_id,
+            actor_user_id=actor_id,
+            expires_in_hours=payload.expires_in_hours,
+            max_uses=payload.max_uses,
+            requires_approval=payload.requires_approval,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "invite": _invite_payload(invite)}
+
+
+@router.get("/chat/api/chats/{chat_id}/invites")
+async def list_chat_invites(
+    request: Request,
+    chat_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        invites = service.list_invites(chat_id=chat_id, actor_user_id=actor_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "count": len(invites), "items": [_invite_payload(item) for item in invites]}
+
+
+@router.delete("/chat/api/chats/{chat_id}/invites/{invite_id}")
+async def revoke_chat_invite(
+    request: Request,
+    chat_id: int,
+    invite_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.revoke_invite(chat_id=chat_id, invite_id=invite_id, actor_user_id=actor_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok"}
+
+
+@router.post("/chat/api/join")
+async def join_chat(request: Request, payload: JoinByCodeRequest) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        if payload.code:
+            result = service.join_by_invite_code(code=payload.code, user_id=user_id)
+        elif payload.username:
+            result = service.join_public_chat(username=payload.username, user_id=user_id)
+        elif payload.chat_id:
+            result = service.join_public_chat(user_id=user_id, chat_id=payload.chat_id)
+        else:
+            raise ChatError("invite_not_found", "Provide an invite link or a public link name", 422)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+    chat = result.get("chat")
+    return {
+        "status": "ok",
+        "join_status": result.get("status"),
+        "already_member": bool(result.get("already_member")),
+        "chat": _chat_payload(chat, payload.session_token) if isinstance(chat, ChatRoom) else None,
+    }
+
+
+@router.get("/chat/api/chats/{chat_id}/requests")
+async def list_chat_join_requests(
+    request: Request,
+    chat_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        items = service.list_join_requests(chat_id=chat_id, actor_user_id=actor_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+    payload_items = []
+    for item in items:
+        row = dict(item)
+        if item.get("has_avatar"):
+            row["avatar_url"] = (
+                f"/account/api/profile/avatar?session_token={session_token}"
+                f"&user_id={item.get('user_id')}&v={item.get('avatar_updated_at_ms') or 0}"
+            )
+        else:
+            row["avatar_url"] = None
+        payload_items.append(row)
+    return {"status": "ok", "count": len(payload_items), "items": payload_items}
+
+
+@router.post("/chat/api/chats/{chat_id}/requests/{user_id}")
+async def decide_chat_join_request(
+    request: Request,
+    chat_id: int,
+    user_id: int,
+    payload: JoinRequestDecision,
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        result = service.decide_join_request(
+            chat_id=chat_id,
+            target_user_id=user_id,
+            actor_user_id=actor_id,
+            approve=payload.approve,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "request_status": result.status}
+
+
+@router.post("/chat/api/chats/{chat_id}/pin")
+async def pin_chat_message(
+    request: Request,
+    chat_id: int,
+    payload: PinMessageRequest,
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        chat = service.set_pinned_message(
+            chat_id=chat_id,
+            actor_user_id=actor_id,
+            message_id=payload.message_id,
         )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc

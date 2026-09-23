@@ -85,6 +85,12 @@ def _chat_payload(chat: ChatRoom, session_token: str | None = None) -> dict[str,
         "has_room_code": chat.has_room_code,
         "created_at_ms": chat.created_at_ms,
         "updated_at_ms": chat.updated_at_ms,
+        "chat_type": chat.chat_type.value,
+        "username": chat.username,
+        "is_public": chat.is_public,
+        "slow_mode_seconds": chat.slow_mode_seconds,
+        "pinned_message_id": chat.pinned_message_id,
+        "history_visible": chat.history_visible,
     }
 
 

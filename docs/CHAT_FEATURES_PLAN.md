@@ -26,12 +26,12 @@
 
 ## Фаза 3. Группы и каналы (+ P2-управление)
 
-- [ ] 3.1 Миграция `0029_chat_groups.sql`: `chat_type` (dm/group/channel), роли (owner/admin/member/subscriber), `permissions` (JSON), `username`, `is_public`, `slow_mode_seconds`, `pinned_message_id`, `history_visible`; таблицы `chat_invites`, `chat_join_requests`.
-- [ ] 3.2 Модели: `ChatType`, расширенный `ChatMemberRole`, `ChatInvite`, `ChatJoinRequest`.
-- [ ] 3.3 Сервис: создание группы/канала; права (кто может писать/управлять); promote/demote; приглашения (код, срок, лимит, одобрение); вступление по коду/username; заявки; slow mode; история для новых.
-- [ ] 3.4 API: всё выше + `GET /chat/api/chats/{id}` (детали), `POST .../invites`, `DELETE .../invites/{id}`, `POST /chat/api/join`, `GET/POST .../requests`.
-- [ ] 3.5 UI: выбор типа при создании; профиль группы/канала (подписчики, роли, права, приглашения, заявки, slow mode, история); «Подписаться/Отписаться»; композер только для админов канала; вступление по ссылке/коду.
-- [ ] 3.6 Тест `tests/ui/chat_groups_check.js` + деплой.
+- [x] 3.1 Миграция `0030_chat_groups.sql`: `chat_type` (dm/group/channel), роли (owner/admin/member/subscriber), `permissions` (JSON), `username`, `is_public`, `slow_mode_seconds`, `pinned_message_id`, `history_visible`; таблицы `chat_invites`, `chat_join_requests`.
+- [x] 3.2 Модели: `ChatType`, расширенный `ChatMemberRole`, `ChatInvite`, `ChatJoinRequest`.
+- [x] 3.3 Сервис: создание группы/канала; права (кто может писать/управлять); promote/demote; приглашения (код, срок, лимит, одобрение); вступление по коду/username; заявки; slow mode; история для новых.
+- [x] 3.4 API: всё выше + `GET /chat/api/chats/{id}` (детали), `POST .../invites`, `DELETE .../invites/{id}`, `POST /chat/api/join`, `GET/POST .../requests`.
+- [x] 3.5 UI: выбор типа при создании; профиль группы/канала (подписчики, роли, права, приглашения, заявки, slow mode, история); «Подписаться/Отписаться»; композер только для админов канала; вступление по ссылке/коду.
+- [x] 3.6 Тест `tests/ui/chat_groups_check.js` (34/34 локально и на RPi) + деплой.
 
 ## Фаза 4. P1-фичи
 
