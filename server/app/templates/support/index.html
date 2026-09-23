@@ -2,86 +2,128 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Support | Local Chat Server</title>
-  <link rel="stylesheet" href="/static/support/support.css?v=1789902700" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Поддержка | Local Chat</title>
+  <link rel="stylesheet" href="/static/support/support.css?v=1789903200" />
 </head>
 <body>
-  <div class="support-shell">
-    <aside class="left-column">
-      <header class="card">
-        <h1>Support Desk</h1>
-        <p>Личные обращения и диалог user-admin</p>
-      </header>
+  <nav class="nav">
+    <div class="nav-brand">Local Chat</div>
+    <div class="nav-links">
+      <a href="/#/chat">Чаты</a>
+      <a href="/#/devices">Устройства</a>
+      <a href="/support" class="active">Поддержка</a>
+      <a href="/#/account">Аккаунт</a>
+    </div>
+    <div class="nav-right"><span class="nav-user" id="navUser" hidden></span></div>
+  </nav>
 
-      <section class="card">
-        <label for="sessionToken">Session token</label>
-        <input id="sessionToken" type="password" placeholder="Введите token" autocomplete="off" />
-        <button id="loadTicketsBtn" type="button">Загрузить обращения</button>
-      </section>
+  <div class="main">
+    <header class="page-head">
+      <div>
+        <h1>Поддержка</h1>
+        <p class="muted">Личные обращения: опишите проблему, при необходимости приложите файл. Ответ придёт сюда.</p>
+      </div>
+      <button class="btn btn-outline" id="refreshBtn" type="button">Обновить</button>
+    </header>
 
-      <section class="card">
-        <h2>Новое обращение</h2>
-        <form id="createTicketForm" autocomplete="off">
-          <input id="ticketTitle" type="text" maxlength="256" placeholder="Тема" required />
-          <textarea id="ticketBody" rows="4" maxlength="8000" placeholder="Опишите проблему" required></textarea>
-          <button id="createTicketBtn" type="submit">Создать</button>
+    <div class="sup-grid">
+      <aside class="col-left">
+        <section class="card">
+          <h2>Новое обращение</h2>
+          <form id="createTicketForm" autocomplete="off">
+            <input id="ticketTitle" class="input" type="text" maxlength="256" placeholder="Тема" required />
+            <textarea id="ticketBody" class="input" rows="4" maxlength="8000" placeholder="Опишите проблему" required></textarea>
+            <div id="createFiles" class="file-chips" hidden></div>
+            <div class="row">
+              <button class="btn btn-outline btn-icon" type="button" id="createAttachBtn">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 12.5l6-6a2.6 2.6 0 0 1 3.7 3.7l-7.3 7.3a4.3 4.3 0 0 1-6.1-6.1l7-7"/></svg>
+                Вложение
+              </button>
+              <button class="btn btn-primary" type="submit" id="createTicketBtn">Создать</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Мои обращения</h2>
+            <span class="pill" id="ticketCount" hidden></span>
+          </div>
+          <ul id="ticketList" class="ticket-list" aria-live="polite"></ul>
+        </section>
+
+        <details class="card token-card" id="tokenCard">
+          <summary>Сессия</summary>
+          <label class="muted" for="sessionToken">Session token</label>
+          <input id="sessionToken" class="input" type="password" placeholder="Вставьте token" autocomplete="off" />
+          <button class="btn btn-outline" id="loadTicketsBtn" type="button">Применить</button>
+        </details>
+      </aside>
+
+      <main class="col-right card" id="threadCard">
+        <header class="thread-head">
+          <button class="btn btn-ghost btn-icon back-btn" id="backBtn" type="button">
+            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            Назад
+          </button>
+          <div class="thread-title">
+            <h2 id="activeTicketTitle">Выберите обращение</h2>
+            <p id="activeTicketMeta" class="muted">Здесь появится переписка</p>
+          </div>
+          <span class="pill" id="threadStatusPill" hidden></span>
+        </header>
+
+        <section id="messagesViewport" class="messages-viewport" aria-live="polite"></section>
+
+        <form id="replyForm" class="reply-form" autocomplete="off">
+          <div id="replyFiles" class="file-chips" hidden></div>
+          <div class="composer">
+            <button class="btn btn-outline btn-icon" id="replyAttachBtn" type="button" title="Прикрепить файл" disabled>
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 12.5l6-6a2.6 2.6 0 0 1 3.7 3.7l-7.3 7.3a4.3 4.3 0 0 1-6.1-6.1l7-7"/></svg>
+            </button>
+            <textarea id="replyBody" class="input" rows="1" maxlength="8000" placeholder="Написать в поддержку…" disabled></textarea>
+            <button class="btn btn-primary" id="sendReplyBtn" type="submit" disabled>Отправить</button>
+          </div>
+          <span id="replyHint" class="hint">Загружаем обращения…</span>
         </form>
-      </section>
 
-      <section class="card tickets-card">
-        <h2>Список обращений</h2>
-        <ul id="ticketList" class="ticket-list" aria-live="polite"></ul>
-      </section>
-    </aside>
-
-    <main class="right-column card">
-      <header class="thread-head">
-        <h2 id="activeTicketTitle">Выберите обращение</h2>
-        <p id="activeTicketMeta">Здесь появится переписка</p>
-      </header>
-
-      <section id="messagesViewport" class="messages-viewport" aria-live="polite"></section>
-
-      <form id="replyForm" class="reply-form" autocomplete="off">
-        <textarea id="replyBody" rows="3" maxlength="8000" placeholder="Ответ в обращение" disabled></textarea>
-        <div class="reply-row">
-          <button id="sendReplyBtn" type="submit" disabled>Отправить</button>
-          <span id="replyHint">Загрузите обращения и выберите диалог</span>
-        </div>
-      </form>
-
-      <section class="status-row">
-        <select id="statusSelect" disabled>
-          <option value="open">open</option>
-          <option value="in_progress">in_progress</option>
-          <option value="resolved">resolved</option>
-          <option value="closed">closed</option>
-        </select>
-        <button id="updateStatusBtn" type="button" disabled>Обновить статус</button>
-      </section>
-    </main>
+        <section class="status-row">
+          <select id="statusSelect" class="input" disabled>
+            <option value="open">Открыто</option>
+            <option value="in_progress">В работе</option>
+            <option value="resolved">Решено</option>
+            <option value="closed">Закрыто</option>
+          </select>
+          <button id="updateStatusBtn" class="btn btn-outline" type="button" disabled>Обновить статус</button>
+        </section>
+      </main>
+    </div>
   </div>
+
+  <input type="file" id="filePicker" multiple hidden
+    accept="image/*,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.zip,.doc,.docx,.xls,.xlsx,.csv,.json" />
 
   <template id="ticketTemplate">
     <li>
       <button type="button" class="ticket-btn">
-        <strong class="ticket-title"></strong>
-        <small class="ticket-meta"></small>
+        <span class="ticket-title"></span>
+        <span class="ticket-meta"><span class="pill status-pill"></span><time class="ticket-time"></time></span>
       </button>
     </li>
   </template>
 
   <template id="messageTemplate">
-    <article class="message-item">
-      <header>
+    <article class="msg">
+      <header class="msg-head">
         <span class="author"></span>
         <time class="time"></time>
       </header>
-      <p class="body"></p>
+      <div class="body msg-body"></div>
+      <div class="msg-atts"></div>
     </article>
   </template>
 
-  <script type="module" src="/static/support/support.js?v=1789902700"></script>
+  <script type="module" src="/static/support/support.js?v=1789903200"></script>
 </body>
 </html>
