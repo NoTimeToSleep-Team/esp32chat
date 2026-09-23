@@ -165,6 +165,35 @@ class AccountService:
             self._delete_old_avatar_file(old_avatar)
             return self._row_to_profile(updated)
 
+    def clear_avatar(self, *, user_id: int) -> AccountProfile:
+        with self._connect() as connection:
+            row = self._require_active_user(connection, user_id)
+            self._require_profile_owner_role(row)
+
+            now_ms = _now_ms()
+            old_avatar = self._row_optional_str(row, "avatar_path")
+
+            connection.execute(
+                """
+                UPDATE users
+                SET avatar_path = NULL,
+                    avatar_updated_at_ms = ?,
+                    updated_at_ms = ?
+                WHERE id = ?
+                """,
+                (now_ms, now_ms, user_id),
+            )
+
+            updated = connection.execute(
+                "SELECT * FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+            if updated is None:
+                raise AccountError("user_not_found", "User was not found", 404)
+
+            self._delete_old_avatar_file(old_avatar)
+            return self._row_to_profile(updated)
+
     def get_avatar_file(self, *, user_id: int) -> tuple[Path, str]:
         with self._connect() as connection:
             row = self._require_active_user(connection, user_id)

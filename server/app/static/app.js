@@ -215,6 +215,21 @@ function avatarInnerHtml(url, emoji) {
   return esc(emoji || '');
 }
 
+// Repaint the current user's avatar everywhere (account card + own messages).
+function setOwnAvatarDisplay(url, emoji) {
+  const box = document.getElementById('acct-avatar');
+  if (box) box.innerHTML = avatarInnerHtml(url, emoji);
+  const uid = STATE.user ? STATE.user.id : null;
+  if (STATE.user) STATE.user.avatar_url = url || null;
+  if (uid === null || uid === undefined) return;
+  if (url) AVA_URL[uid] = url;
+  else delete AVA_URL[uid];
+  $$('.msg-avatar[data-ava-uid="' + uid + '"]').forEach(el => {
+    el.dataset.avaEmoji = emoji || '';
+    el.innerHTML = avatarInnerHtml(url, emoji);
+  });
+}
+
 async function ensureAvatarUrl(uid) {
   if (uid === null || uid === undefined) return;
   if (Object.prototype.hasOwnProperty.call(AVA_URL, uid)) return;
@@ -1320,11 +1335,8 @@ async function renderAccount() {
           try {
             var res = await api('/account/api/avatar', {method:'POST', body:JSON.stringify({session_token: STATE.token, image_base64: String(reader.result), image_mime_type: f.type})});
             var url = (res && (res.avatar_url || (res.profile && res.profile.avatar_url))) || null;
-            var box = document.getElementById('acct-avatar');
             var emoji = (STATE.user && STATE.user.avatar_emoji) || localStorage.getItem('lc_my_emoji') || '🐱';
-            if (box) box.innerHTML = avatarInnerHtml(url, emoji);
-            if (STATE.user) STATE.user.avatar_url = url;
-            if (url) AVA_URL[STATE.user ? STATE.user.id : -1] = url;
+            setOwnAvatarDisplay(url, emoji);
             toast(t('avatar_photo_ok'), 'success');
           } catch(err) { toast(err.message, 'error'); }
         };
@@ -1350,8 +1362,11 @@ async function renderAccount() {
           d.classList.add("sel");
           try {
             await api('/account/api/profile', {method:'POST', body:JSON.stringify({session_token: STATE.token, avatar_emoji: e})});
+            // Emoji wins over an uploaded photo: drop the photo so the emoji shows again.
+            await api('/account/api/avatar/remove', {method:'POST', body:JSON.stringify({session_token: STATE.token})});
             if (STATE.user) STATE.user.avatar_emoji = e;
-            toast('Avatar updated', 'success');
+            setOwnAvatarDisplay(null, e);
+            toast(t('avatar_emoji_ok'), 'success');
           } catch(err) { toast(err.message, 'error'); }
         };
         eg.appendChild(d);
@@ -2461,6 +2476,7 @@ var T = {
 "upload_photo":{rus:"Загрузить фото",eng:"Upload photo"},
 "avatar_hint":{rus:"PNG, JPEG или WEBP · до 2 МБ. Фото заменяет эмодзи-аватар.",eng:"PNG, JPEG or WEBP · up to 2 MB. The photo replaces the emoji avatar."},
 "avatar_photo_ok":{rus:"Фото-аватар обновлён",eng:"Photo avatar updated"},
+"avatar_emoji_ok":{rus:"Эмодзи-аватар обновлён",eng:"Emoji avatar updated"},
 "avatar_bad_type":{rus:"Только PNG, JPEG или WEBP",eng:"PNG, JPEG or WEBP only"},
 "avatar_too_big":{rus:"Файл больше 2 МБ",eng:"File is larger than 2 MB"},
 "devices_subtitle":{rus:"Сопряжение и управление устройствами",eng:"Pair and manage devices"},

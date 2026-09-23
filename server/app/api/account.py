@@ -29,6 +29,10 @@ class UpdateAccountAvatarRequest(BaseModel):
     image_mime_type: str | None = Field(default=None, max_length=32)
 
 
+class ClearAccountAvatarRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+
+
 def _template_path() -> Path:
     return Path(__file__).resolve().parents[1] / "templates" / "account" / "index.html"
 
@@ -300,6 +304,34 @@ async def update_account_avatar(
         if profile.avatar_path
         else None
     )
+    return {
+        "status": "ok",
+        "profile": data,
+    }
+
+
+@router.post("/account/api/avatar/remove")
+async def remove_account_avatar(
+    request: Request,
+    payload: ClearAccountAvatarRequest,
+) -> dict[str, object]:
+    """Drop the uploaded photo avatar so the emoji avatar is used again."""
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _account_service(request)
+
+    try:
+        profile = service.clear_avatar(user_id=user_id)
+    except AccountError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={
+                "code": exc.code,
+                "message": exc.message,
+            },
+        ) from exc
+
+    data = _profile_payload(profile)
+    data["avatar_url"] = None
     return {
         "status": "ok",
         "profile": data,

@@ -66,6 +66,35 @@ const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8B
     await page.screenshot({ path: SHOTS + "avatar-chat.png" });
   }
 
+  // switching back to an emoji drops the photo (and uses the localized toast)
+  await page.evaluate(() => { window.location.hash = "#/account"; });
+  await page.waitForTimeout(1500);
+  const emojiSwitch = await page.evaluate(async () => {
+    document.querySelectorAll(".toast").forEach(t => t.remove());
+    const cell = Array.from(document.querySelectorAll("#emoji-grid div")).find(d => d.textContent === "🐼");
+    if (!cell) return { ok: false, why: "no emoji cell" };
+    cell.click();
+    await new Promise(r => setTimeout(r, 1800));
+    return {
+      ok: true,
+      toast: (document.querySelector(".toast") || {}).textContent || "",
+      hasImg: !!document.querySelector("#acct-avatar img"),
+      text: (document.querySelector("#acct-avatar") || {}).textContent || ""
+    };
+  });
+  check("emoji avatar toast is localized", /обновлён/.test(emojiSwitch.toast) && !/Avatar updated/.test(emojiSwitch.toast), JSON.stringify(emojiSwitch.toast));
+  check("emoji replaces the photo avatar", emojiSwitch.ok && !emojiSwitch.hasImg && emojiSwitch.text.indexOf("🐼") >= 0, JSON.stringify(emojiSwitch));
+
+  await page.reload({ waitUntil: "load" });
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => { window.location.hash = "#/account"; });
+  await page.waitForTimeout(2000);
+  const emojiPersisted = await page.evaluate(() => ({
+    hasImg: !!document.querySelector("#acct-avatar img"),
+    text: (document.querySelector("#acct-avatar") || {}).textContent || ""
+  }));
+  check("emoji avatar persists after reload", !emojiPersisted.hasImg && emojiPersisted.text.indexOf("🐼") >= 0, JSON.stringify(emojiPersisted));
+
   check("no page errors", errs.length === 0, errs.join(" | "));
   await browser.close();
   process.exit(summary());
