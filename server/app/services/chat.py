@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import secrets
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from time import time
@@ -125,6 +126,8 @@ class ChatService:
         is_private: bool = False,
         room_code: str | None = None,
         avatar_url: str | None = None,
+        member_ids: Sequence[int] | None = None,
+        require_members: bool = False,
     ) -> ChatRoom:
         with self._connect() as connection:
             decision = self._limits.evaluate_custom_chat_creation(
@@ -139,6 +142,18 @@ class ChatService:
                 )
 
             creator = self._require_active_user(connection, creator_user_id)
+
+            resolved_member_ids = self._resolve_member_ids(
+                connection,
+                creator_user_id=self._row_int(creator, "id"),
+                member_ids=member_ids,
+            )
+            if require_members and not resolved_member_ids:
+                raise ChatError(
+                    "members_required",
+                    "Add at least one member to create a chat",
+                    422,
+                )
 
             normalized_code = self._normalize_room_code(room_code)
             normalized_avatar = (avatar_url or "").strip() or None
@@ -192,6 +207,20 @@ class ChatService:
                     now_ms,
                 ),
             )
+
+            for member_user_id in resolved_member_ids:
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        chat_id,
+                        member_user_id,
+                        ChatMemberRole.MEMBER.value,
+                        now_ms,
+                    ),
+                )
 
             row = connection.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
             if row is None:
@@ -755,6 +784,51 @@ class ChatService:
                 """,
                 (message_id, attachment_id, position),
             )
+
+    @staticmethod
+    def _resolve_member_ids(
+        connection: sqlite3.Connection,
+        *,
+        creator_user_id: int,
+        member_ids: Sequence[int] | None,
+    ) -> list[int]:
+        """Validate a member list: active accounts only, no guests, no duplicates."""
+        if not member_ids:
+            return []
+
+        unique_ids: list[int] = []
+        for raw in member_ids:
+            try:
+                user_id = int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ChatError("invalid_member_id", "Member id must be an integer", 422) from exc
+            if user_id <= 0 or user_id == creator_user_id or user_id in unique_ids:
+                continue
+            unique_ids.append(user_id)
+
+        if not unique_ids:
+            return []
+
+        placeholders = ",".join("?" for _ in unique_ids)
+        rows = connection.execute(
+            f"SELECT id, role, status FROM users WHERE id IN ({placeholders})",
+            unique_ids,
+        ).fetchall()
+        found = {int(row["id"]): row for row in rows}
+
+        for user_id in unique_ids:
+            row = found.get(user_id)
+            if row is None:
+                raise ChatError("member_not_found", "User not found", 404)
+            if str(row["status"]) != UserStatus.ACTIVE.value:
+                raise ChatError("member_inactive", "User is blocked or banned", 403)
+            if str(row["role"]) == UserRole.GUEST.value:
+                raise ChatError(
+                    "guest_member_forbidden",
+                    "Guest accounts cannot be added to chats",
+                    403,
+                )
+        return unique_ids
 
     @staticmethod
     def _normalize_room_code(room_code: str | None) -> str | None:

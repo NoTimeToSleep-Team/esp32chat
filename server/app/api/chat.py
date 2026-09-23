@@ -27,6 +27,7 @@ class CreateChatRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     title: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=2000)
+    member_ids: list[int] = Field(default_factory=list, max_length=200)
 
 
 def _template_path() -> Path:
@@ -160,6 +161,8 @@ async def create_chat(
         chat = service.create_custom_chat(
             creator_user_id=user_id,
             draft=ChatDraft(title=payload.title, description=payload.description),
+            member_ids=payload.member_ids,
+            require_members=True,
         )
     except ChatError as exc:
         raise HTTPException(

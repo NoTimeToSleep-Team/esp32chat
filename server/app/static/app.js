@@ -522,6 +522,89 @@ async function renderLogin() {
   renderForm();
 }
 
+// ===== Shared people picker (create chat, chat profile, invites) =====
+function createUserPicker(opts) {
+  const chipsEl = opts.chips;
+  const listEl = opts.list;
+  const inputEl = opts.input;
+  const selected = [];
+  const excludeIds = new Set((opts.exclude || []).map(Number));
+  let timer = null;
+
+  function notify() { if (opts.onchange) opts.onchange(selected); }
+
+  function renderChips() {
+    if (!chipsEl) return;
+    chipsEl.innerHTML = selected.map((u, i) =>
+      `<span class="member-chip" data-uid="${u.user_id}">${esc(u.login)}<button class="chip-x" data-i="${i}" title="${t('remove')}" aria-label="${t('remove')}">${icon('x')}</button></span>`
+    ).join('');
+    chipsEl.querySelectorAll('.chip-x').forEach(b => {
+      b.onclick = () => { selected.splice(Number(b.dataset.i), 1); renderChips(); notify(); };
+    });
+  }
+
+  function hideList() {
+    if (!listEl) return;
+    listEl.classList.add('hidden');
+    listEl.innerHTML = '';
+  }
+
+  function showList(html) {
+    if (!listEl) return;
+    listEl.innerHTML = html;
+    listEl.classList.remove('hidden');
+  }
+
+  async function doSearch() {
+    const q = (inputEl.value || '').trim();
+    if (!q) { hideList(); return; }
+    try {
+      const data = await api(`/chat/api/users/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(q)}`);
+      const items = (data.items || []).filter(u =>
+        u.role !== 'guest' &&
+        !excludeIds.has(Number(u.user_id)) &&
+        !selected.some(s => s.user_id === u.user_id)
+      );
+      if (!items.length) { showList(`<div class="picker-empty">${t('nothing_found')}</div>`); return; }
+      listEl.innerHTML = '';
+      items.forEach(u => {
+        const row = el('div', {class: 'picker-item'});
+        const roleBadge = (u.role === 'admin' || u.role === 'moderator') ? ` <span class="badge badge-${u.role}">${u.role}</span>` : '';
+        row.innerHTML = `<strong>${esc(u.login)}</strong>${roleBadge} <span class="picker-id">#${u.user_id}</span>`;
+        row.onmousedown = (ev) => {
+          ev.preventDefault();
+          selected.push({user_id: Number(u.user_id), login: u.login});
+          inputEl.value = '';
+          hideList();
+          renderChips();
+          notify();
+        };
+        listEl.append(row);
+      });
+      listEl.classList.remove('hidden');
+    } catch (e) { hideList(); }
+  }
+
+  if (inputEl) {
+    inputEl.oninput = () => { clearTimeout(timer); timer = setTimeout(doSearch, 250); };
+    inputEl.onfocus = () => { if ((inputEl.value || '').trim()) doSearch(); };
+    inputEl.onblur = () => { setTimeout(hideList, 200); };
+  }
+  renderChips();
+
+  return {
+    selected,
+    renderChips,
+    reset() { selected.length = 0; if (inputEl) inputEl.value = ''; hideList(); renderChips(); notify(); },
+    add(user) {
+      if (!user || selected.some(s => s.user_id === Number(user.user_id))) return;
+      selected.push({user_id: Number(user.user_id), login: user.login});
+      renderChips();
+      notify();
+    },
+  };
+}
+
 async function renderChat() {
   if (!requireAuth()) return;
   const c = $('#content');
@@ -534,13 +617,22 @@ async function renderChat() {
       </div>
     </div>
     <div id="create-chat-modal" class="overlay hidden">
-      <div class="modal">
-        <h3>New Chat</h3>
-        <div class="form-group"><label>Title</label><input class="form-input" id="chat-title"></div>
-        <div class="form-group"><label>Description</label><textarea class="form-input" id="chat-desc" rows="3"></textarea></div>
+      <div class="modal modal-wide">
+        <h3>${t('new_chat')}</h3>
+        <div class="form-group"><label>${t('title')}</label><input class="form-input" id="chat-title" maxlength="256" placeholder="${t('chat_title_ph')}" autocomplete="off"></div>
+        <div class="form-group"><label>${t('description')}</label><textarea class="form-input" id="chat-desc" rows="2" maxlength="2000" placeholder="${t('chat_desc_ph')}"></textarea></div>
+        <div class="form-group">
+          <label>${t('chat_members')}</label>
+          <div class="member-chips" id="chat-members-chips"></div>
+          <div class="picker-box">
+            <input class="form-input" id="chat-member-search" placeholder="${t('chat_members_ph')}" autocomplete="off">
+            <div class="picker-list hidden" id="chat-member-list"></div>
+          </div>
+          <div class="form-hint" id="chat-members-hint">${t('chat_members_hint')}</div>
+        </div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
-          <button class="btn btn-outline" id="chat-create-cancel">Cancel</button>
-          <button class="btn btn-primary" id="chat-create-submit">Create</button>
+          <button class="btn btn-outline" id="chat-create-cancel">${t('cancel')}</button>
+          <button class="btn btn-primary" id="chat-create-submit" disabled>${t('create')}</button>
         </div>
       </div>
     </div>
@@ -629,22 +721,51 @@ async function renderChat() {
   if (chatDmBtn) chatDmBtn.onclick = () => { const b = $('#dm-chat-btn'); if (b) b.click(); };
   const chatNewBtn = $('#chat-new-btn');
   if (chatNewBtn) chatNewBtn.onclick = () => { const b = $('#create-chat-btn'); if (b) b.click(); };
-  $('#create-chat-btn').onclick = () => show('#create-chat-modal');
-  $('#chat-create-cancel').onclick = () => { hide('#create-chat-modal'); $('#chat-title').value=''; $('#chat-desc').value=''; };
-  $('#chat-create-submit').onclick = async () => { 
+  const chatCreatePicker = createUserPicker({
+    chips: $('#chat-members-chips'),
+    list: $('#chat-member-list'),
+    input: $('#chat-member-search'),
+    onchange: () => syncCreateChatBtn(),
+  });
+  function syncCreateChatBtn() {
+    const btn = $('#chat-create-submit');
+    if (!btn) return;
+    const hasTitle = ($('#chat-title').value || '').trim().length > 0;
+    const hasMembers = chatCreatePicker.selected.length > 0;
+    btn.disabled = !(hasTitle && hasMembers);
+  }
+  function resetCreateChatForm() {
+    $('#chat-title').value = '';
+    $('#chat-desc').value = '';
+    chatCreatePicker.reset();
+    syncCreateChatBtn();
+  }
+  $('#create-chat-btn').onclick = () => {
+    show('#create-chat-modal');
+    syncCreateChatBtn();
+    setTimeout(() => { const el2 = $('#chat-title'); if (el2) el2.focus(); }, 50);
+  };
+  $('#chat-create-cancel').onclick = () => { hide('#create-chat-modal'); resetCreateChatForm(); };
+  $('#chat-title').oninput = syncCreateChatBtn;
+  $('#chat-create-submit').onclick = async () => {
     const title = $('#chat-title').value.trim();
     const desc = $('#chat-desc').value.trim();
-    if (!title) { toast('Enter a title', 'error'); return; }
+    const memberIds = chatCreatePicker.selected.map(u => u.user_id);
+    if (!title) { toast(t('chat_title_required'), 'error'); return; }
+    if (!memberIds.length) { toast(t('chat_members_required'), 'error'); return; }
+    const btn = $('#chat-create-submit');
+    btn.disabled = true;
     try {
       await api('/chat/api/chats', {
         method:'POST',
-        body:JSON.stringify({session_token:STATE.token, title, description:desc||undefined})
+        body:JSON.stringify({session_token:STATE.token, title, description:desc||undefined, member_ids:memberIds})
       });
-      toast('Chat created', 'success');
+      toast(t('chat_created'), 'success');
       hide('#create-chat-modal');
-      $('#chat-title').value=''; $('#chat-desc').value='';
+      resetCreateChatForm();
       renderChat();
     } catch(e) { toast(e.message, 'error'); }
+    finally { syncCreateChatBtn(); }
   };
   // DM modal
   $('#dm-chat-btn').onclick = () => { show('#dm-modal'); $('#dm-user-search').value=''; doDMSearch(); $('#dm-user-search').focus(); };
@@ -2590,6 +2711,15 @@ var T = {
 "logout":{rus:"Выйти",eng:"Logout"},"send":{rus:"Отправить",eng:"Send"},
 "type_msg":{rus:"Введите сообщение...",eng:"Type a message..."},
 "new_chat":{rus:"Новый чат",eng:"New Chat"},"dm":{rus:"Личка",eng:"DM"},
+"chat_title_ph":{rus:"Например: Друзья",eng:"For example: Friends"},
+"chat_desc_ph":{rus:"О чём этот чат (необязательно)",eng:"What is this chat about (optional)"},
+"chat_members":{rus:"Участники",eng:"Members"},
+"chat_members_ph":{rus:"Поиск по логину...",eng:"Search by login..."},
+"chat_members_hint":{rus:"Добавьте хотя бы одного участника — без этого чат будет пустым.",eng:"Add at least one member — otherwise the chat will be empty."},
+"chat_title_required":{rus:"Введите название чата",eng:"Enter a chat title"},
+"chat_members_required":{rus:"Добавьте хотя бы одного участника",eng:"Add at least one member"},
+"chat_created":{rus:"Чат создан",eng:"Chat created"},
+"nothing_found":{rus:"Никого не найдено",eng:"Nothing found"},
 "menu":{rus:"Меню",eng:"Menu"},
 "edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
 "voice_msg":{rus:"Голосовое сообщение",eng:"Voice message"},
