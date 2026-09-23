@@ -1,44 +1,188 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>LC Admin</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0e1621;color:#f1f5f9;font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:12px}
-h2{color:#5eb5f7;margin:0 0 8px}h3{margin:12px 0 6px;color:#5eb5f7}
-input,select,textarea,button{padding:6px 10px;border-radius:4px;border:1px solid #24313d;background:#17212b;color:#f1f5f9;font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:2px}
-button{cursor:pointer;border:none}button:hover{opacity:.85}
-.btn-danger{background:#f85149;color:#fff}.btn-outline{background:#24313d}.btn-green{background:#2f9e6b}.btn-warn{background:#d29922;color:#000}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:16px 0 8px}
-.tab{padding:8px 16px;background:#17212b;border:1px solid #24313d;border-radius:6px 6px 0 0;cursor:pointer;color:#7f8b98}
-.tab.active,.tab:hover{background:#2f9e6b;color:#fff;border-color:#2f9e6b}
+:root{
+  --bg:#0e1621;--bg2:#17212b;--bg3:#1d2a36;--border:#24313d;
+  --text:#f1f5f9;--text2:#7f8b98;--accent:#5eb5f7;--ok:#4fb286;--warn:#d29922;--danger:#f85149;
+  --radius:12px;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+a{color:var(--accent);text-decoration:none}
+.top{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(23,33,43,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.brand{font-size:15px;font-weight:800;color:var(--accent);letter-spacing:.4px;white-space:nowrap}
+.top .spacer{flex:1}
+.pill{font-size:11px;padding:3px 10px;border-radius:999px;background:var(--bg3);color:var(--text2);white-space:nowrap}
+.pill-warn{background:rgba(210,153,34,.18);color:var(--warn)}
+.pill-ok{background:rgba(79,178,134,.16);color:var(--ok)}
+.pill-err{background:rgba(248,81,73,.18);color:var(--danger)}
+.wrap{max-width:1080px;margin:0 auto;padding:14px}
+h2{color:var(--accent);margin:0 0 8px;font-size:18px}
+h3{margin:0 0 10px;color:var(--text);font-size:15px;font-weight:600}
+h4{margin:8px 0 4px;font-size:13px}
+input,select,textarea,button{padding:8px 11px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font:13px inherit;font-family:inherit;margin:2px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94,181,247,.15)}
+input[type=number]{text-align:center}
+button{cursor:pointer;border:none;font-weight:600;transition:.15s}
+button:hover{filter:brightness(1.12)}
+button:active{transform:translateY(1px)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-outline{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-green{background:#2f9e6b;color:#fff}
+.btn-warn{background:var(--warn);color:#10161d}
+.btn-logout{padding:7px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12.5px}
+.btn-logout:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px;margin:0;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:7px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;cursor:pointer;color:var(--text2);font-size:13px;white-space:nowrap;flex:0 0 auto;transition:.15s}
+.tab:hover{color:var(--text)}
+.tab.active{background:rgba(94,181,247,.16);color:var(--accent);border-color:rgba(94,181,247,.4);font-weight:600}
 .panel{display:none}.panel.active{display:block}
-table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
-td,th{padding:6px 8px;border-bottom:1px solid #24313d;text-align:left}
-th{color:#7f8b98;font-weight:normal}
-.card{background:#17212b;border:1px solid #24313d;border-radius:8px;padding:12px;margin-bottom:12px}
-#msg{color:#5eb5f7;margin:8px 0;font-size:12px;min-height:18px}
-#login{margin-bottom:12px}
-.stat{text-align:center;padding:8px 12px}.stat .n{font-size:22px;font-weight:700}.stat .l{font-size:11px;color:#7f8b98}
-.row{display:flex;gap:12px;flex-wrap:wrap}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.card .card{background:var(--bg3);margin-bottom:10px}
+.card.mini{padding:10px 14px}
+table{width:100%;border-collapse:collapse;margin:6px 0;font-size:12.5px}
+td,th{padding:7px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
+th{color:var(--text2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+tr:last-child td{border-bottom:none}
+.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}
+#msg{color:var(--accent);margin:0 0 10px;font-size:12.5px;min-height:18px}
+#login{margin-bottom:14px}
+.login-card{max-width:440px}
+.login-card form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.login-card input{flex:1 1 150px;min-width:0;margin:0}
+#loginMsg{font-size:12px;color:var(--accent);margin-top:8px;min-height:16px}
+.who{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--text2)}
+.who b{color:var(--text)}
+.stat{text-align:center;padding:10px 14px;background:var(--bg3);border-radius:10px;min-width:96px}
+.stat .n{font-size:20px;font-weight:700}
+.stat .l{font-size:11px;color:var(--text2)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.acts button,.acts input{margin:0}
+.ava{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--bg3);display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent)}
+.ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px}
+#debug-log table{font-size:11px}
+@media(max-width:700px){
+  .wrap{padding:10px}
+  .card{padding:13px;border-radius:10px}
+  h3{font-size:14px}
+  .top{padding:9px 11px}
+  .brand{font-size:14px}
+  td,th{padding:6px 7px}
+  .tbl-stack{display:block}
+  .tbl-stack thead{display:none}
+  .tbl-stack tr{display:block;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+  .tbl-stack td{display:flex;justify-content:space-between;gap:10px;border:none;padding:3px 0;white-space:normal}
+  .tbl-stack td::before{content:attr(data-label);color:var(--text2);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;flex:0 0 auto;padding-top:2px}
+  .tbl-stack td:last-child{justify-content:flex-start;flex-wrap:wrap}
+  .tbl-stack td:last-child::before{display:none}
+}
 </style></head><body>
-<h2>LC Admin Panel</h2>
-<div id="js-status" style="background:#d29922;color:#000;padding:4px 8px;font-size:11px;margin-bottom:8px">JS checking...</div>
-<div id="login"><form onsubmit="doLogin();return false" style="display:inline"><input id="l" placeholder="admin login" size="12" autocomplete="username"><input id="p" type="password" placeholder="admin password" size="12" autocomplete="current-password"><button type="submit" class="btn-green">Login</button></form><span id="loginMsg" style="color:#5eb5f7;margin-left:8px;font-size:12px"></span></div>
-<div id="main" style="display:none"><div id="msg"></div>
-<div class="tabs"><div class="tab active" onclick="switchTab('users')">Users</div><div class="tab" onclick="switchTab('cleanup')">Cleanup</div><div class="tab" onclick="switchTab('system')">System</div><div class="tab" onclick="switchTab('passwords')">Passwords</div><div class="tab" onclick="switchTab('support')">Support</div><div class="tab" onclick="switchTab('mode')">Mode</div><div class="tab" onclick="switchTab('activity')">Activity</div><div class="tab" onclick="switchTab('network')">Network</div><div class="tab" onclick="switchTab('reports')">Reports</div>
+<header class="top">
+  <div class="brand">LC Admin</div>
+  <span class="spacer"></span>
+  <span id="js-status" class="pill pill-warn">JS checking…</span>
+</header>
+<div class="wrap">
+  <div id="login" class="card login-card">
+    <h3>Admin login</h3>
+    <form onsubmit="doLogin();return false">
+      <input id="l" placeholder="admin login" autocomplete="username">
+      <input id="p" type="password" placeholder="admin password" autocomplete="current-password">
+      <button type="submit" class="btn-green">Login</button>
+    </form>
+    <div id="loginMsg"></div>
+  </div>
+  <div id="main" style="display:none"><div id="msg"></div>
+  <div class="tabs" id="tabs"><div class="tab active" onclick="switchTab('users')">Users</div><div class="tab" onclick="switchTab('cleanup')">Cleanup</div><div class="tab" onclick="switchTab('system')">System</div><div class="tab" onclick="switchTab('passwords')">Passwords</div><div class="tab" onclick="switchTab('support')">Support</div><div class="tab" onclick="switchTab('mode')">Mode</div><div class="tab" onclick="switchTab('activity')">Activity</div><div class="tab" onclick="switchTab('network')">Network</div><div class="tab" onclick="switchTab('reports')">Reports</div>
   <div class="tab" onclick="switchTab('profile')">Profile</div></div>
 <div id="panel-users" class="panel active"></div><div id="panel-cleanup" class="panel"></div><div id="panel-system" class="panel"></div><div id="panel-passwords" class="panel"></div><div id="panel-support" class="panel"></div><div id="panel-mode" class="panel"></div><div id="panel-activity" class="panel"></div><div id="panel-network" class="panel"></div><div id="panel-reports" class="panel"></div>
 <div id="panel-profile" class="panel"></div></div>
+</div>
 <script>
 var ST = "";
-var _el = document.getElementById("js-status");
-if (_el) _el.innerHTML = '<span style="color:#4fb286">JS loaded</span>';
+var ADMIN_TOKEN_KEY = "lc_admin_token", ADMIN_USER_KEY = "lc_admin_user";
+function jsStatus(text, cls) {
+  var el = document.getElementById("js-status");
+  if (!el) return;
+  el.textContent = text;
+  el.className = "pill " + (cls || "");
+}
+jsStatus("JS loaded", "pill-ok");
+setTimeout(function() { var el = document.getElementById("js-status"); if (el) el.style.display = "none"; }, 1500);
 window.onerror = function(m,u,l) {
   var el = document.getElementById("js-status");
-  if (el) el.innerHTML = '<span style="color:#f85149">JS ERROR line '+l+': '+m+'</span>';
+  if (el) el.style.display = "";
+  jsStatus("JS ERROR line " + l + ": " + m, "pill-err");
 };
 
 
-function msg(t) { var m = document.getElementById("msg"); m.innerHTML = t || ""; setTimeout(function() { m.innerHTML = ""; }, 5000); }
+var _msgTimer = null;
+function msg(t) { var m = document.getElementById("msg"); if (!m) return; m.innerHTML = t || ""; if (_msgTimer) clearTimeout(_msgTimer); _msgTimer = setTimeout(function() { m.innerHTML = ""; }, 5000); }
 function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+function icon(name) {
+  var paths = {
+    clip: "<path d='M8.5 12.5l6-6a2.6 2.6 0 0 1 3.7 3.7l-7.3 7.3a4.3 4.3 0 0 1-6.1-6.1l7-7'/>",
+    save: "<path d='M5 3.5h10.5L19 7v13.5H5z'/><path d='M8.5 3.5v5.5h6V3.5'/><path d='M8.5 20.5v-6h7v6'/>",
+    user: "<circle cx='12' cy='8.5' r='3.5'/><path d='M5 19.5c1.2-3.2 3.8-5 7-5s5.8 1.8 7 5'/>"
+  };
+  return "<svg class='ic' viewBox='0 0 24 24' aria-hidden='true'>" + (paths[name] || "") + "</svg>";
+}
+// Photo avatar when the user has one, initials otherwise.
+function avatarHtml(profile, size) {
+  var s = size || 44;
+  if (profile && profile.avatar_url) return '<img class="ava" style="width:' + s + 'px;height:' + s + 'px" src="' + profile.avatar_url + '" alt="">';
+  var name = (profile && (profile.display_name || profile.login)) || "?";
+  var initials = name.trim().slice(0, 2).toUpperCase();
+  return '<span class="ava" style="width:' + s + 'px;height:' + s + 'px">' + esc(initials) + "</span>";
+}
+// Wrap every table into a scroll container and label cells for the mobile card layout.
+function enhanceTables(root) {
+  var scope = root && root.querySelectorAll ? root : document;
+  var tables = scope.querySelectorAll("table:not([data-enhanced])");
+  for (var i = 0; i < tables.length; i++) {
+    var t = tables[i];
+    t.setAttribute("data-enhanced", "1");
+    var head = t.querySelector("tr");
+    var labels = [];
+    if (head) {
+      var ths = head.children;
+      var onlyTh = ths.length > 0;
+      for (var j = 0; j < ths.length; j++) {
+        labels.push((ths[j].textContent || "").trim());
+        if (ths[j].tagName !== "TH") onlyTh = false;
+      }
+      // Keep header cells in a real thead so the mobile card layout can hide them.
+      if (onlyTh && t.querySelector("thead") === null) {
+        var thead = document.createElement("thead");
+        thead.appendChild(head);
+        t.insertBefore(thead, t.firstChild);
+      }
+    }
+    var rows = t.querySelectorAll("tr");
+    for (var r = 0; r < rows.length; r++) {
+      var tds = rows[r].children;
+      for (var c = 0; c < tds.length; c++) {
+        if (tds[c].tagName === "TD" && labels[c]) tds[c].setAttribute("data-label", labels[c]);
+      }
+    }
+    if (t.parentNode && t.parentNode.className !== "tbl") {
+      var wrap = document.createElement("div");
+      wrap.className = "tbl";
+      t.parentNode.insertBefore(wrap, t);
+      wrap.appendChild(t);
+    }
+  }
+}
+new MutationObserver(function(muts) {
+  for (var i = 0; i < muts.length; i++) {
+    var added = muts[i].addedNodes;
+    for (var j = 0; j < added.length; j++) {
+      if (added[j].nodeType === 1) enhanceTables(added[j]);
+    }
+  }
+}).observe(document.body, { childList: true, subtree: true });
 function attachmentUrl(a) {
   var base = a.download_url || ("/media/api/attachments/" + a.attachment_id + "/download");
   return base + (base.indexOf("?") >= 0 ? "&" : "?") + "session_token=" + encodeURIComponent(ST);
@@ -52,7 +196,7 @@ function attachmentsHtml(items) {
     if (a.media_kind === "image") {
       h += '<img src="' + url + '" alt="' + name + '" title="' + name + '" style="max-width:140px;max-height:120px;border-radius:6px;border:1px solid #24313d;cursor:zoom-in" onclick="openImg(this.src)">';
     } else {
-      h += '<a href="' + url + '" target="_blank" rel="noopener" style="color:#5eb5f7;font-size:12px;border:1px solid #24313d;border-radius:6px;padding:4px 8px;text-decoration:none">\ud83d\udcce ' + name + "</a>";
+      h += '<a href="' + url + '" target="_blank" rel="noopener" style="color:#5eb5f7;font-size:12px;border:1px solid #24313d;border-radius:8px;padding:5px 9px;text-decoration:none">' + icon("clip") + " " + name + "</a>";
     }
   });
   return h + "</div>";
@@ -132,22 +276,49 @@ async function doLogin() {
       throw new Error(d.detail ? d.detail.message : "HTTP " + r.status);
     }
     dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:true, status:r.status, stages_done:3, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
-    if (d.user.role !== "admin" && d.user.role !== "moderator") { m.textContent = "Admin access only"; return; }
+    if (d.user.role !== "admin" && d.user.role !== "moderator") { m.textContent = "Admin access only"; m.style.color = "#f85149"; return; }
     ST = d.session.token;
-    localStorage.setItem("lc_session_token", ST);
-    localStorage.setItem("lc_user", JSON.stringify(d.user));
+    localStorage.setItem(ADMIN_TOKEN_KEY, ST);
+    localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(d.user));
     m.textContent = "OK"; m.style.color = "#4fb286";
     showMain();
   } catch(e) {
     if (e.name === "TypeError") dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
     m.textContent = e.message;
+    m.style.color = "#f85149";
   }
 }
 
-function showMain() {
-  var me = {};
-  try { me = JSON.parse(localStorage.getItem("lc_user") || "{}"); } catch(e) {}
-  document.getElementById("login").innerHTML = '<span style="color:#4fb286">Logged in as <b>' + (me.login || "") + '</b></span> <button class="btn-outline" onclick="ST=\'\';localStorage.clear();location.reload()">Logout</button>';
+function doLogout() {
+  ST = "";
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_USER_KEY);
+  location.reload();
+}
+
+// Restore a previous admin session on reload (the app session is kept separate).
+async function restoreSession() {
+  var tok = localStorage.getItem(ADMIN_TOKEN_KEY);
+  if (!tok) return;
+  ST = tok;
+  try {
+    var d = await apiCall("/account/api/profile?session_token=" + encodeURIComponent(ST));
+    showMain(d.profile);
+  } catch(e) {
+    ST = "";
+    localStorage.removeItem(ADMIN_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_USER_KEY);
+  }
+}
+
+function showMain(profile) {
+  var me = profile || {};
+  if (!me.login) {
+    try { me = JSON.parse(localStorage.getItem(ADMIN_USER_KEY) || "{}"); } catch(e) { me = {}; }
+  }
+  var loginBox = document.getElementById("login");
+  loginBox.className = "card mini";
+  loginBox.innerHTML = '<div class="who">' + avatarHtml(me, 34) + '<span>Logged in as <b>' + esc(me.login || "") + '</b></span><span class="spacer" style="flex:1"></span><button class="btn-logout" onclick="doLogout()">Logout</button></div>';
   document.getElementById("main").style.display = "block";
   if (me.role !== "admin") {
     var keep = ["Users", "Reports", "Profile"];
@@ -155,12 +326,15 @@ function showMain() {
       if (keep.indexOf(t.textContent.trim()) === -1) t.style.display = "none";
     });
   }
-  loadUsers();
+  switchTab("users");
 }
 
 function switchTab(t) {
+  var tab = document.querySelector(".tab[onclick*='" + t + "']");
+  if (!tab) return;
   document.querySelectorAll(".tab").forEach(function(x) { x.classList.remove("active"); });
-  document.querySelector(".tab[onclick*='" + t + "']").classList.add("active");
+  tab.classList.add("active");
+  try { tab.scrollIntoView({ inline: "center", block: "nearest" }); } catch(e) {}
   document.querySelectorAll(".panel").forEach(function(x) { x.classList.remove("active"); });
   document.getElementById("panel-" + t).classList.add("active");
   if (t === "users") loadUsers();
@@ -205,23 +379,23 @@ async function loadUsers() {
   var p = document.getElementById("panel-users");
   p.innerHTML = '<div class="card">Loading...</div>';
   var meRole = "user";
-  try { meRole = JSON.parse(localStorage.getItem("lc_user") || "{}").role || "user"; } catch(e) {}
+  try { meRole = JSON.parse(localStorage.getItem(ADMIN_USER_KEY) || "{}").role || "user"; } catch(e) {}
   var isFullAdmin = meRole === "admin";
   try {
     var d = await apiCall("/admin/users?session_token=" + ST + "&_=" + Date.now());
-    var h = '<div class="card"><h3>Users (' + d.count + ')</h3><table><tr><th>ID</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr>';
+    var h = '<div class="card"><h3>Users (' + d.count + ')</h3><table class="tbl-stack"><tr><th>ID</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr>';
     d.items.forEach(function(u) {
-      h += "<tr><td>" + u.user_id + "</td><td>" + esc(u.login) + "</td><td>" + u.role + "</td><td>" + u.status + "</td><td>";
+      h += "<tr><td>" + u.user_id + "</td><td>" + esc(u.login) + "</td><td>" + u.role + "</td><td>" + u.status + '</td><td><span class="acts">';
       if (u.status === "active") {
-        h += '<button class="btn-outline" onclick="userAction(' + u.user_id + ',\'setrole\',\'' + (u.role === "moderator" ? "user" : "moderator") + '\')">' + (u.role === "moderator" ? "Demote" : "Promote") + '</button> ';
-        h += '<button class="btn-danger" onclick="userAction(' + u.user_id + ',\'ban\')">Ban</button> ';
-        h += '<input id="tbdur' + u.user_id + '" type="number" value="60" min="1" max="10080" size="4" style="width:55px"> ';
-        h += '<button class="btn-outline" onclick="tblk(' + u.user_id + ')">min</button> ';
+        h += '<button class="btn-outline" onclick="userAction(' + u.user_id + ',\'setrole\',\'' + (u.role === "moderator" ? "user" : "moderator") + '\')">' + (u.role === "moderator" ? "Demote" : "Promote") + '</button>';
+        h += '<button class="btn-danger" onclick="userAction(' + u.user_id + ',\'ban\')">Ban</button>';
+        h += '<input id="tbdur' + u.user_id + '" type="number" inputmode="numeric" value="60" min="1" max="10080" style="width:60px">';
+        h += '<button class="btn-outline" onclick="tblk(' + u.user_id + ')">min</button>';
         if (isFullAdmin) h += '<button class="btn-danger" onclick="delUser(' + u.user_id + ',this)">Delete</button>';
       } else {
         h += '<button class="btn-green" onclick="userAction(' + u.user_id + ',\'unban\')">Unban</button>';
       }
-      h += "</td></tr>";
+      h += "</span></td></tr>";
     });
     h += "</table></div>";
     p.innerHTML = h;
@@ -313,13 +487,13 @@ async function loadSystem() {
     html += '<div class="stat"><div class="n" style="color:#4fb286">' + (h.health.cpu_temp || "?") + '</div><div class="l">CPU</div></div>';
     html += '<div class="stat"><div class="n">' + h.health.ram_used + '</div><div class="l">RAM / ' + h.health.ram_total + "</div></div>";
     html += '<div class="stat"><div class="n">' + h.health.disk_used + '</div><div class="l">Disk ' + h.health.disk_pct + "</div></div>";
-    html += '</div><h3>Services</h3><table><tr><th>Service</th><th>State</th><th>Action</th></tr>';
+    html += '</div><h3>Services</h3><table class="tbl-stack"><tr><th>Service</th><th>State</th><th>Action</th></tr>';
     s.services.forEach(function(svc) {
       var c = svc.active === "active" ? "#4fb286" : "#f85149";
       html += '<tr><td>' + svc.name + '</td><td style="color:' + c + '">' + svc.active + '</td><td><button class="btn-outline" onclick="sysRestart(\'' + svc.name + '\')">Restart</button></td></tr>';
     });
-    html += '</table><button class="btn-warn" onclick="sysRestart(\'reboot\')">Reboot RPi</button> <span id="sysMsg" style="font-size:12px"></span></div>';
-    html += '<div class="card"><h3>Debug Log</h3><button class="btn-outline" onclick="loadDebugLog()">Load last 100</button><div id="debug-log" style="margin-top:8px;max-height:320px;overflow-y:auto"></div></div>';
+    html += '</table><div class="row" style="margin-top:10px"><button class="btn-warn" onclick="sysRestart(\'reboot\')">Reboot RPi</button><span id="sysMsg" style="font-size:12px"></span></div></div>';
+    html += '<div class="card"><h3>Debug Log</h3><button class="btn-outline" onclick="loadDebugLog()">Load last 100</button><div id="debug-log" style="margin-top:8px;max-height:340px;overflow-y:auto"></div></div>';
     p.innerHTML = html;
   } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
 }
@@ -358,10 +532,10 @@ async function loadPasswords() {
   p.innerHTML = '<div class="card">Loading...</div>';
   try {
     var d = await apiCall("/admin/users?session_token=" + ST + "&limit=200");
-    var h = '<div class="card"><h3>Password Reset</h3><table><tr><th>Login</th><th>Role</th><th>New Password</th><th></th></tr>';
+    var h = '<div class="card"><h3>Password Reset</h3><table class="tbl-stack"><tr><th>Login</th><th>Role</th><th>New Password</th><th></th></tr>';
     d.items.forEach(function(u) {
-      h += '<tr><td>' + esc(u.login) + '</td><td>' + u.role + '</td><td><input id="pw' + u.user_id + '" placeholder="min 8 chars" size="16"></td>';
-      h += '<td><button class="btn-outline" onclick="pwReset(' + u.user_id + ')">Reset</button> <span id="pm' + u.user_id + '" style="font-size:11px"></span></td></tr>';
+      h += '<tr><td>' + esc(u.login) + '</td><td>' + u.role + '</td><td><input id="pw' + u.user_id + '" placeholder="min 8 chars"></td>';
+      h += '<td><span class="acts"><button class="btn-outline" onclick="pwReset(' + u.user_id + ')">Reset</button><span id="pm' + u.user_id + '" style="font-size:11px"></span></span></td></tr>';
     });
     h += "</table></div>";
     p.innerHTML = h;
@@ -394,8 +568,8 @@ async function loadSupport() {
       h += '<button class="btn-outline" onclick="suppStatus(' + t.ticket_id + ')">Update</button>';
       h += '<textarea id="sti' + t.ticket_id + '" placeholder="Reply..." rows="2" style="width:100%;margin-top:4px"></textarea>';
       h += '<input type="file" id="stf' + t.ticket_id + '" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg,video/3gpp,.flac,.aac,.opus,.mid,.bmp,.tiff,.avif,.ico,.avi,.mkv,.mpeg,.3gp,.pdf,.txt,.md,.zip,.rar,.7z,.gz,.tar,.bz2,.xz,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.epub,.csv,.json,.yaml,.toml,.vtt,.srt">';
-      h += '<button class="btn-outline" onclick="document.getElementById(\'stf' + t.ticket_id + '\').click()">\ud83d\udcce Attach</button> ';
-      h += '<button class="btn-green" onclick="suppReply(' + t.ticket_id + ')">Send Reply</button></div></div>';
+      h += '<span class="acts"><button class="btn-outline" onclick="document.getElementById(\'stf' + t.ticket_id + '\').click()">' + icon("clip") + ' Attach</button>';
+      h += '<button class="btn-green" onclick="suppReply(' + t.ticket_id + ')">Send Reply</button></span></div></div>';
     });
     h += "</div>";
     p.innerHTML = h;
@@ -469,25 +643,25 @@ async function loadNetwork() {
     // WiFi client mode section
     var h = '<div class="card"><h3>WiFi Client Mode</h3>';
     h += '<p style="color:#7f8b98;font-size:12px;margin-bottom:8px">Connect RPi to an existing WiFi. First assign a wireless interface the <b>Client</b> role below and press <b>Save &amp; Apply</b>, then scan and connect. mDNS: <b>chat.local</b></p>';
-    h += '<div style="display:flex;gap:8px;margin-bottom:8px"><input id="wifi-ssid" placeholder="WiFi SSID" size="20"><input id="wifi-pass" type="password" placeholder="Password (leave empty for open)" size="20"><button class="btn-green" onclick="wifiConnect()">Connect</button></div>';
-    h += '<button class="btn-outline" onclick="wifiScan()">Scan Networks</button> <span id="wifi-scan-msg" style="font-size:11px;color:#7f8b98"></span>';
+    h += '<div class="row" style="margin-bottom:8px"><input id="wifi-ssid" placeholder="WiFi SSID" style="flex:1 1 160px;min-width:0"><input id="wifi-pass" type="password" placeholder="Password (leave empty for open)" style="flex:1 1 160px;min-width:0"><button class="btn-green" onclick="wifiConnect()">Connect</button></div>';
+    h += '<div class="row"><button class="btn-outline" onclick="wifiScan()">Scan Networks</button><span id="wifi-scan-msg" style="font-size:11px;color:#7f8b98"></span></div>';
     h += '<div id="wifi-scan-results" style="margin-top:8px;max-height:120px;overflow-y:auto"></div>';
     h += '<div style="margin-top:8px;font-size:12px;color:#7f8b98">mDNS: <span id="mdns-status" style="color:#d29922">checking...</span></div>';
     h += '</div>';
     
     // Interfaces
-    h += '<div class="card"><h3>Network Interfaces</h3><table><tr><th>Name</th><th>Role</th><th>IP</th><th>Mode</th></tr>';
+    h += '<div class="card"><h3>Network Interfaces</h3><table class="tbl-stack"><tr><th>Name</th><th>Role</th><th>IP</th><th>Mode</th></tr>';
     ifaces.items.forEach(function(i) {
       var curRole = i.role === "ap" ? "ap" : (i.role === "uplink" ? "client" : "off");
       h += '<tr><td>' + i.ifname + '</td><td>' + i.role + '</td><td>' + (i.ip_address || "-") + '</td>';
-      h += '<td><select id="mode-' + i.ifname + '" data-initial="' + curRole + '" style="padding:2px 6px;font-size:11px"><option value="ap"' + (curRole === "ap" ? " selected" : "") + '>AP</option><option value="client"' + (curRole === "client" ? " selected" : "") + '>Client</option><option value="off"' + (curRole === "off" ? " selected" : "") + '>Off</option></select></td></tr>';
+      h += '<td><select id="mode-' + i.ifname + '" data-initial="' + curRole + '"><option value="ap"' + (curRole === "ap" ? " selected" : "") + '>AP</option><option value="client"' + (curRole === "client" ? " selected" : "") + '>Client</option><option value="off"' + (curRole === "off" ? " selected" : "") + '>Off</option></select></td></tr>';
     });
     h += '</table>';
-    h += '<button class="btn-warn" onclick="saveNetworkConfig()" style="margin-top:8px"><svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px" viewBox="0 0 24 24"><path d="M5 3.5h10.5L19 7v13.5H5z"/><path d="M8.5 3.5v5.5h6V3.5"/><path d="M8.5 20.5v-6h7v6"/></svg> Save & Apply</button> <span id="net-save-msg" style="font-size:11px"></span>';
+    h += '<div class="row" style="margin-top:10px"><button class="btn-warn" onclick="saveNetworkConfig()">' + icon("save") + ' Save & Apply</button><span id="net-save-msg" style="font-size:11px"></span></div>';
     h += '</div>';
     
     // Internet access
-    h += '<div class="card"><h3>Internet Access</h3><table><tr><th>User</th><th>Internet</th><th>Toggle</th></tr>';
+    h += '<div class="card"><h3>Internet Access</h3><table class="tbl-stack"><tr><th>User</th><th>Internet</th><th>Toggle</th></tr>';
     users.items.forEach(function(u) {
       h += '<tr><td>' + esc(u.login) + '</td><td style="color:' + (u.internet_enabled ? "#4fb286" : "#f85149") + '">' + (u.internet_enabled ? "ON" : "OFF") + '</td>';
       h += '<td><button class="' + (u.internet_enabled ? "btn-danger" : "btn-green") + '" onclick="toggleInternet(' + u.user_id + ',' + (!u.internet_enabled) + ')">' + (u.internet_enabled ? "Disable" : "Enable") + '</button></td></tr>';
@@ -509,9 +683,10 @@ async function loadNetwork() {
 
 // WiFi functions
 async function wifiScan() {
-  var msg = document.getElementById("wifi-scan-msg");
+  var sm = document.getElementById("wifi-scan-msg");
   var results = document.getElementById("wifi-scan-results");
-  msg.textContent = "Scanning..."; results.innerHTML = "";
+  sm.style.color = "#7f8b98";
+  sm.textContent = "Scanning..."; results.innerHTML = "";
   try {
     var d = await apiCall("/admin/network/wifi/scan?session_token=" + encodeURIComponent(ST));
     if (d.networks && d.networks.length) {
@@ -524,8 +699,8 @@ async function wifiScan() {
     } else {
       results.innerHTML = '<span style="color:#7f8b98">No networks found</span>';
     }
-    msg.textContent = "Done (" + (d.interface || "uplink") + ")";
-  } catch(e) { msg.textContent = "Error: " + e.message; msg.style.color = "#f85149"; }
+    sm.textContent = "Done (" + (d.interface || "uplink") + ")";
+  } catch(e) { sm.textContent = "Error: " + e.message; sm.style.color = "#f85149"; }
 }
 
 async function wifiConnect() {
@@ -551,6 +726,7 @@ async function wifiConnect() {
 
 async function saveNetworkConfig() {
   var m = document.getElementById("net-save-msg");
+  m.style.color = "#7f8b98";
   m.textContent = "Saving...";
   // Collect mode changes
   var config = {};
@@ -679,10 +855,8 @@ async function loadProfile() {
     // Свой профиль
     var d = await apiCall('/account/api/profile?session_token=' + ST);
     var pr = d.profile;
-    var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯'];
-    var emoji = emojis[(pr.user_id||0) % emojis.length];
-    var h = '<div class="card" style="max-width:500px">';
-    h += '<div style="text-align:center;font-size:48px;margin-bottom:8px">' + emoji + '</div>';
+    var h = '<div class="card" style="max-width:520px">';
+    h += '<div style="text-align:center;margin-bottom:8px">' + avatarHtml(pr, 72) + '</div>';
     h += '<h3 style="text-align:center">' + esc(pr.display_name || pr.login) + '</h3>';
     h += '<div style="text-align:center;color:#7f8b98;margin-bottom:12px">@' + esc(pr.login) + ' · ' + pr.role + '</div>';
     h += '<table><tr><th>Display Name</th><td>' + esc(pr.display_name || '-') + '</td></tr>';
@@ -694,9 +868,9 @@ async function loadProfile() {
     h += '</div>';
     
     // Поиск другого пользователя
-    h += '<div class="card" style="max-width:500px;margin-top:12px"><h3>Lookup User</h3>';
-    h += '<input id="lookup-login" placeholder="User login" size="20" style="margin-right:4px">';
-    h += '<button class="btn-outline" onclick="lookupProfile()">View</button>';
+    h += '<div class="card" style="max-width:520px"><h3>Lookup User</h3>';
+    h += '<div class="row"><input id="lookup-login" placeholder="User login" style="flex:1 1 160px;min-width:0">';
+    h += '<button class="btn-outline" onclick="lookupProfile()">View</button></div>';
     h += '<div id="lookup-result" style="margin-top:8px"></div></div>';
     
     p.innerHTML = h;
@@ -715,9 +889,7 @@ async function lookupProfile() {
     var uid = found.user_id;
     var d = await apiCall('/account/api/profile/' + uid + '?session_token=' + ST);
     var pr = d.profile;
-    var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯'];
-    var emoji = emojis[(pr.user_id||0) % emojis.length];
-    var h = '<div style="text-align:center;font-size:36px;margin-bottom:4px">' + emoji + '</div>';
+    var h = '<div style="text-align:center;margin-bottom:6px">' + avatarHtml(pr, 56) + '</div>';
     h += '<h3 style="text-align:center">' + esc(pr.display_name || pr.login) + '</h3>';
     h += '<div style="text-align:center;color:#7f8b98;margin-bottom:8px">@' + esc(pr.login) + ' · ' + pr.role + ' · ' + pr.status + '</div>';
     if (pr.phone) h += '<div><b>Phone:</b> ' + esc(pr.phone) + '</div>';
@@ -725,5 +897,8 @@ async function lookupProfile() {
     document.getElementById('lookup-result').innerHTML = '<div class="card" style="margin-top:8px">' + h + '</div>';
   } catch(e) { document.getElementById('lookup-result').innerHTML = '<span style="color:#f85149">' + e.message + '</span>'; }
 }
+
+// Restore the admin session (if any) once the script is fully parsed.
+restoreSession();
 
 </script></body></html>
