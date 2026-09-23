@@ -23,6 +23,7 @@ LOCAL_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__fil
 FILES = [
     "app/static/app.js",
     "app/static/app.css",
+    "app/static/admin.html",
     "app/static/captive_login.html",
     "app/templates/index.html",
     "app/templates/admin/network/index.html",
