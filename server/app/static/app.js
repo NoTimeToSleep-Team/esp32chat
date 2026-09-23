@@ -816,13 +816,14 @@ async function renderChat() {
       item.dataset.avatar = chat.avatar_url || '';
       item.dataset.chatType = chatTypeOf(chat);
       item.dataset.chatId = chat.chat_id;
+      item._chat = chat;
       item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item, chat.avatar_url);
       list.append(item);
     });
     $('#chat-list').innerHTML = '';
     $('#chat-list').append(list);
-    // auto-select first
-    if (data.items.length && list.firstChild) {
+    // auto-select first only when no chat is open yet
+    if (data.items.length && list.firstChild && !currentChatId) {
       list.firstChild.click();
     }
     $('#chat-layout').classList.add('show-list');
@@ -1299,7 +1300,9 @@ async function updateChatOnline() {
   } catch (e) { box.textContent = ''; }
 }
 
+const MSG_CACHE = {};
 function buildMessageEl(m) {
+  MSG_CACHE[m.message_id] = m;
   const isMe = m.author_user_id === STATE.user?.id;
   var emojis = ['🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐮','🐷','🐭','🐹','🐰','🐻','🐨','🐯','🐙','🦄','🐳','🐧','🐤'];
   var uemoji = emojis[(m.author_user_id||0) % emojis.length];
@@ -1310,8 +1313,8 @@ function buildMessageEl(m) {
   const authorName = isMe ? esc(STATE.user?.login||'You') : esc(m.author_login || userName(m.author_user_id));
   const avaUrl = AVA_URL[m.author_user_id];
   if (!avaUrl) ensureAvatarUrl(m.author_user_id);
-  const canPin = !!(currentChatView && (currentChatView.is_owner || currentChatView.can_post));
   div.innerHTML = `
+    <span class="swipe-hint" aria-hidden="true">${icon('reply')}</span>
     <div class="msg-avatar" data-ava-uid="${m.author_user_id}" data-ava-emoji="${esc(initial)}" style="cursor:pointer" onclick="viewUserProfile(${m.author_user_id})" title="View profile">${avatarInnerHtml(avaUrl, initial)}</div>
     <div class="msg-body">
       ${isMe ? '' : `<div class="msg-header"><span class="msg-author">${authorName}</span></div>`}
@@ -1324,38 +1327,289 @@ function buildMessageEl(m) {
         <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
         ${isMe ? '<span class="msg-tick" title="' + t('sent') + '">' + icon('check') + '</span>' : ''}
         <span class="msg-actions">
-          <button title="${t('reply')}" aria-label="${t('reply')}" onclick="startReply(${m.message_id})">${icon('reply')}</button>
-          <button title="${t('forward')}" aria-label="${t('forward')}" onclick="startForward(${m.message_id})">${icon('forward')}</button>
-          <button title="${t('react')}" aria-label="${t('react')}" onclick="toggleReactionBar(${m.message_id}, this)">${icon('smile')}</button>
-          ${canPin ? `<button title="${t('pin')}" aria-label="${t('pin')}" onclick="pinMessage(${m.message_id})">${icon('pin')}</button>` : ''}
-          <button title="${t('copy')}" aria-label="${t('copy')}" onclick="copyTextToClipboard(${JSON.stringify(String(m.body_text || ''))})">${icon('copy')}</button>
-          ${isMe ? `<button title="${t('edit_msg')}" aria-label="${t('edit_msg')}" onclick="editMsg(${m.message_id},this)">${icon('pencil')}</button><button title="${t('delete')}" aria-label="${t('delete')}" onclick="confirmDel(${m.message_id})">${icon('trash')}</button>` : ''}
+          <button class="msg-more" title="${t('actions')}" aria-label="${t('actions')}" onclick="openMsgMenu(${m.message_id}, this)">${icon('more','fill')}</button>
         </span>
       </div>
     </div>`;
   return div;
 }
 
-function toggleReactionBar(messageId, btn) {
-  const existing = document.querySelector('.react-bar');
-  if (existing) existing.remove();
-  const bar = el('div', {class: 'react-bar'});
-  REACTIONS.forEach(emoji => {
-    const b = el('button', {class: 'react-opt', type: 'button'}, emoji);
-    b.onclick = () => { bar.remove(); toggleReaction(messageId, emoji); };
-    bar.append(b);
+const COARSE_POINTER = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+
+function openMsgMenu(messageId, anchor, x, y) {
+  const m = MSG_CACHE[messageId];
+  const node = document.querySelector('.msg[data-mid="' + messageId + '"]');
+  if (!m || !node) return;
+  const old = document.querySelector('.msg-menu');
+  if (old) old.remove();
+  const oldBack = document.querySelector('.menu-backdrop');
+  if (oldBack) oldBack.remove();
+  const isMe = m.author_user_id === STATE.user?.id;
+  const canPin = !!(currentChatView && (currentChatView.is_owner || currentChatView.can_post));
+  const sheet = COARSE_POINTER || window.innerWidth < 640;
+  const menu = el('div', {class: 'msg-menu' + (sheet ? ' sheet' : '')});
+  menu.innerHTML = `
+    <div class="msg-menu-reacts">
+      ${REACTIONS.map(e => `<button class="react-opt" data-emoji="${esc(e)}" aria-label="${esc(e)}">${esc(e)}</button>`).join('')}
+    </div>
+    <button class="msg-menu-item" data-act="reply">${icon('reply')}<span>${t('reply')}</span></button>
+    <button class="msg-menu-item" data-act="forward">${icon('forward')}<span>${t('forward')}</span></button>
+    ${canPin ? `<button class="msg-menu-item" data-act="pin">${icon('pin')}<span>${t('pin')}</span></button>` : ''}
+    <button class="msg-menu-item" data-act="copy">${icon('copy')}<span>${t('copy')}</span></button>
+    ${isMe ? `<button class="msg-menu-item" data-act="edit">${icon('pencil')}<span>${t('edit_msg')}</span></button>
+    <button class="msg-menu-item danger" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>` : ''}`;
+  document.body.append(menu);
+  const openedAt = Date.now();
+  const guardOk = () => Date.now() - openedAt > 400;
+  if (sheet) {
+    const back = el('div', {class: 'menu-backdrop'});
+    document.body.append(back);
+    back.onclick = () => { if (guardOk()) close(); };
+  } else if (anchor) {
+    const r = anchor.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.left = Math.max(8, Math.min(r.left - 150, window.innerWidth - 250)) + 'px';
+    menu.style.top = Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  } else if (typeof x === 'number' && typeof y === 'number') {
+    menu.style.position = 'fixed';
+    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - 250)) + 'px';
+    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+  } else {
+    menu.classList.add('sheet');
+    const back = el('div', {class: 'menu-backdrop'});
+    document.body.append(back);
+    back.onclick = () => { if (guardOk()) close(); };
+  }
+  function close() {
+    menu.remove();
+    const b = document.querySelector('.menu-backdrop');
+    if (b) b.remove();
+  }
+  menu.querySelectorAll('.msg-menu-item').forEach(btn => {
+    btn.onclick = () => {
+      const act = btn.dataset.act;
+      close();
+      if (act === 'reply') startReply(messageId);
+      else if (act === 'forward') startForward(messageId);
+      else if (act === 'pin') pinMessage(messageId);
+      else if (act === 'copy') copyTextToClipboard(String(m.body_text || ''));
+      else if (act === 'edit') editMsg(messageId, node);
+      else if (act === 'delete') confirmDel(messageId);
+    };
   });
-  const rect = btn.getBoundingClientRect();
-  bar.style.position = 'fixed';
-  bar.style.left = Math.max(8, Math.min(rect.left - 120, window.innerWidth - 260)) + 'px';
-  bar.style.top = Math.max(8, rect.top - 48) + 'px';
-  document.body.append(bar);
+  menu.querySelectorAll('.react-opt').forEach(btn => {
+    btn.onclick = () => { const emoji = btn.dataset.emoji; close(); toggleReaction(messageId, emoji); };
+  });
   setTimeout(() => {
-    document.addEventListener('click', function close(ev) {
-      if (!bar.contains(ev.target)) { bar.remove(); document.removeEventListener('click', close); }
+    document.addEventListener('pointerdown', function outside(ev) {
+      if (!guardOk()) return;
+      if (!menu.contains(ev.target)) { close(); document.removeEventListener('pointerdown', outside); }
     });
   }, 0);
 }
+
+function quickReact(messageId) {
+  const node = document.querySelector('.msg[data-mid="' + messageId + '"]');
+  if (node) {
+    node.classList.add('quick-react');
+    setTimeout(() => node.classList.remove('quick-react'), 450);
+  }
+  toggleReaction(messageId, '👍');
+}
+
+// --- Message gestures: swipe right = reply, long press = menu, double tap = quick reaction ---
+const MSG_GESTURE = {el:null, mid:0, x:0, y:0, dx:0, swiping:false, moved:false, longFired:false, timer:null, lastTapMid:0, lastTapAt:0};
+
+function msgGestureReset() {
+  if (MSG_GESTURE.timer) { clearTimeout(MSG_GESTURE.timer); MSG_GESTURE.timer = null; }
+  const el0 = MSG_GESTURE.el;
+  if (el0) {
+    el0.classList.remove('swiping');
+    const body = el0.querySelector('.msg-body');
+    if (body) body.style.transform = '';
+    const hint = el0.querySelector('.swipe-hint');
+    if (hint) hint.style.opacity = '';
+  }
+  MSG_GESTURE.el = null;
+  MSG_GESTURE.swiping = false;
+  MSG_GESTURE.moved = false;
+  MSG_GESTURE.longFired = false;
+  MSG_GESTURE.dx = 0;
+}
+
+document.addEventListener('pointerdown', (e) => {
+  if (!e.isPrimary || e.button > 0) return;
+  const msg = e.target.closest && e.target.closest('#msg-list .msg');
+  if (!msg) return;
+  if (e.target.closest('button, a, input, textarea, select, audio, video, .msg-avatar')) return;
+  MSG_GESTURE.el = msg;
+  MSG_GESTURE.mid = Number(msg.dataset.mid);
+  MSG_GESTURE.x = e.clientX;
+  MSG_GESTURE.y = e.clientY;
+  MSG_GESTURE.dx = 0;
+  MSG_GESTURE.swiping = false;
+  MSG_GESTURE.moved = false;
+  MSG_GESTURE.longFired = false;
+  MSG_GESTURE.timer = setTimeout(() => {
+    MSG_GESTURE.timer = null;
+    MSG_GESTURE.longFired = true;
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch (err) {} }
+    openMsgMenu(MSG_GESTURE.mid, null);
+  }, 450);
+}, {passive: true});
+
+document.addEventListener('pointermove', (e) => {
+  if (!MSG_GESTURE.el) return;
+  const dx = e.clientX - MSG_GESTURE.x;
+  const dy = e.clientY - MSG_GESTURE.y;
+  if (!MSG_GESTURE.swiping) {
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      MSG_GESTURE.moved = true;
+      if (MSG_GESTURE.timer) { clearTimeout(MSG_GESTURE.timer); MSG_GESTURE.timer = null; }
+    }
+    if (dx > 12 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      MSG_GESTURE.swiping = true;
+      MSG_GESTURE.el.classList.add('swiping');
+    }
+  }
+  if (MSG_GESTURE.swiping) {
+    const shift = Math.max(0, Math.min(dx, 90));
+    MSG_GESTURE.dx = shift;
+    const body = MSG_GESTURE.el.querySelector('.msg-body');
+    if (body) body.style.transform = 'translateX(' + shift + 'px)';
+    const hint = MSG_GESTURE.el.querySelector('.swipe-hint');
+    if (hint) hint.style.opacity = String(Math.min(1, shift / 60));
+    if (e.cancelable) e.preventDefault();
+  }
+}, {passive: false});
+
+document.addEventListener('pointerup', () => {
+  if (!MSG_GESTURE.el) return;
+  const st = MSG_GESTURE;
+  if (st.swiping && st.dx > 60 && !st.longFired) {
+    const mid = st.mid;
+    msgGestureReset();
+    startReply(mid);
+    return;
+  }
+  if (!st.moved && !st.longFired && !st.swiping && COARSE_POINTER) {
+    const now = Date.now();
+    if (st.lastTapMid === st.mid && now - st.lastTapAt < 320) {
+      const mid = st.mid;
+      st.lastTapMid = 0;
+      msgGestureReset();
+      quickReact(mid);
+      return;
+    }
+    st.lastTapMid = st.mid;
+    st.lastTapAt = now;
+  }
+  msgGestureReset();
+});
+
+document.addEventListener('pointercancel', () => { if (MSG_GESTURE.el) msgGestureReset(); });
+
+document.addEventListener('contextmenu', (e) => {
+  const msg = e.target.closest && e.target.closest('#msg-list .msg');
+  if (!msg) return;
+  e.preventDefault();
+  openMsgMenu(Number(msg.dataset.mid), null, e.clientX, e.clientY);
+});
+
+// --- Chat list gestures: swipe left = archive, swipe right = mute ---
+const LIST_SWIPE = {el:null, chat:null, x:0, y:0, dx:0, active:false, moved:false, suppressClick:false};
+
+async function toggleChatFlag(chat, key) {
+  const value = !chat[key];
+  try {
+    await api(`/chat/api/chats/${chat.chat_id}/state`, {
+      method: 'POST',
+      body: JSON.stringify(Object.assign({session_token: STATE.token}, {[key]: value})),
+    });
+    chat[key] = value;
+    toast(t(key === 'is_muted' ? (value ? 'muted_ok' : 'unmuted') : (value ? 'archived_ok' : 'unarchived')), 'success');
+    renderChat();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function listSwipePreview(item, dx) {
+  const title = item.querySelector('.chat-item-title');
+  if (!title) return;
+  let flag = title.querySelector('.chat-flag.swipe-preview');
+  if (Math.abs(dx) < 20) {
+    if (flag) flag.remove();
+    item.style.background = '';
+    return;
+  }
+  const key = dx < 0 ? 'archive' : 'bellOff';
+  if (!flag || flag.dataset.key !== key) {
+    if (flag) flag.remove();
+    flag = el('span', {class: 'chat-flag swipe-preview'});
+    flag.dataset.key = key;
+    flag.innerHTML = icon(key === 'archive' ? 'archive' : 'bellOff');
+    title.prepend(flag);
+  }
+  item.style.background = dx < 0 ? 'rgba(248,81,73,.16)' : 'rgba(94,181,247,.16)';
+}
+
+document.addEventListener('pointerdown', (e) => {
+  if (!e.isPrimary || e.button > 0) return;
+  const item = e.target.closest && e.target.closest('#chat-list .chat-item');
+  if (!item) return;
+  if (e.target.closest('button, a, input, textarea, select')) return;
+  LIST_SWIPE.el = item;
+  LIST_SWIPE.chat = item._chat || null;
+  LIST_SWIPE.x = e.clientX;
+  LIST_SWIPE.y = e.clientY;
+  LIST_SWIPE.dx = 0;
+  LIST_SWIPE.active = false;
+  LIST_SWIPE.moved = false;
+}, {passive: true});
+
+document.addEventListener('pointermove', (e) => {
+  if (!LIST_SWIPE.el) return;
+  const dx = e.clientX - LIST_SWIPE.x;
+  const dy = e.clientY - LIST_SWIPE.y;
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) LIST_SWIPE.moved = true;
+  if (!LIST_SWIPE.active && Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+    LIST_SWIPE.active = true;
+    LIST_SWIPE.el.classList.add('swiping');
+  }
+  if (!LIST_SWIPE.active) return;
+  LIST_SWIPE.dx = Math.max(-140, Math.min(140, dx));
+  LIST_SWIPE.el.style.transform = 'translateX(' + (LIST_SWIPE.dx * 0.5) + 'px)';
+  listSwipePreview(LIST_SWIPE.el, LIST_SWIPE.dx);
+  if (e.cancelable) e.preventDefault();
+}, {passive: false});
+
+document.addEventListener('pointerup', () => {
+  if (!LIST_SWIPE.el) return;
+  const item = LIST_SWIPE.el;
+  const chat = LIST_SWIPE.chat;
+  const dx = LIST_SWIPE.dx;
+  const wasActive = LIST_SWIPE.active;
+  item.style.transform = '';
+  item.style.background = '';
+  item.classList.remove('swiping');
+  const flag = item.querySelector('.chat-flag.swipe-preview');
+  if (flag) flag.remove();
+  LIST_SWIPE.el = null;
+  LIST_SWIPE.active = false;
+  if (!wasActive) return;
+  LIST_SWIPE.suppressClick = true;
+  setTimeout(() => { LIST_SWIPE.suppressClick = false; }, 350);
+  if (!chat) return;
+  if (dx <= -80) toggleChatFlag(chat, 'is_archived');
+  else if (dx >= 80) toggleChatFlag(chat, 'is_muted');
+}, {passive: true});
+
+document.addEventListener('click', (e) => {
+  if (!LIST_SWIPE.suppressClick) return;
+  const item = e.target.closest && e.target.closest('#chat-list .chat-item');
+  if (!item) return;
+  e.preventDefault();
+  e.stopPropagation();
+}, true);
 
 async function toggleReaction(messageId, emoji) {
   if (!currentChatId) return;
@@ -3701,7 +3955,13 @@ async function handleRoute() {
   const joinMatch = hash.split('?')[0].match(/^#\/join\/(.+)$/);
   if (joinMatch) {
     await renderChat();
-    await joinChatByTarget(decodeURIComponent(joinMatch[1]));
+    const joinRes = await joinChatByTarget(decodeURIComponent(joinMatch[1]));
+    const joinedChat = joinRes && joinRes.chat ? joinRes.chat : null;
+    if (joinedChat && joinedChat.chat_id) {
+      await renderChat();
+      const item = document.querySelector('#chat-list .chat-item[data-chat-id="' + joinedChat.chat_id + '"]');
+      if (item) item.click();
+    }
     return;
   }
   try {
@@ -4040,6 +4300,7 @@ var T = {
 "reply":{rus:"Ответить",eng:"Reply"},
 "forward":{rus:"Переслать",eng:"Forward"},
 "react":{rus:"Реакция",eng:"React"},
+"actions":{rus:"Действия",eng:"Actions"},
 "pin":{rus:"Закрепить",eng:"Pin"},
 "forwarded_from":{rus:"Переслано от",eng:"Forwarded from"},
 "forwarded_ok":{rus:"Сообщение переслано",eng:"Message forwarded"},

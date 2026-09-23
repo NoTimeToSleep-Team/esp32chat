@@ -106,17 +106,31 @@ async function tokenFor(login, password) {
   const replyUi = await page1.evaluate(() => ({
     quotes: document.querySelectorAll(".msg-reply").length,
     reactions: document.querySelectorAll(".msg-reactions .react").length,
-    actions: document.querySelectorAll(".msg-actions button").length,
+    actions: document.querySelectorAll(".msg-actions .msg-more").length,
   }));
   check("reply quote is rendered in the feed", replyUi.quotes >= 1, JSON.stringify(replyUi));
   check("reactions are rendered in the feed", replyUi.reactions >= 1, JSON.stringify(replyUi));
-  check("message action buttons are rendered", replyUi.actions >= 4, JSON.stringify(replyUi));
+  check("message has a single actions button", replyUi.actions >= 1, JSON.stringify(replyUi));
+  const menuItems = await page1.evaluate(() => {
+    const msg = Array.from(document.querySelectorAll(".msg")).find(m => (m.querySelector(".msg-text") || {}).textContent.includes("первое сообщение"));
+    if (!msg) return 0;
+    msg.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: 420, clientY: 300}));
+    return document.querySelectorAll(".msg-menu .msg-menu-item").length;
+  });
+  check("message menu opens with actions", menuItems >= 4, "items=" + menuItems);
+  await page1.keyboard.press("Escape");
+  await page1.evaluate(() => { const m = document.querySelector(".msg-menu"); if (m) m.remove(); const b = document.querySelector(".menu-backdrop"); if (b) b.remove(); });
   await page1.screenshot({ path: SHOTS + "chat-p1-reply.png" });
 
   // reply through the UI
   await page1.evaluate(() => {
     const msg = Array.from(document.querySelectorAll(".msg")).find(m => (m.querySelector(".msg-text") || {}).textContent.includes("первое сообщение"));
-    if (msg) { const btn = msg.querySelector(".msg-actions button"); if (btn) btn.click(); }
+    if (msg) { msg.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: 420, clientY: 300})); }
+  });
+  await page1.waitForTimeout(400);
+  await page1.evaluate(() => {
+    const btn = document.querySelector('.msg-menu .msg-menu-item[data-act="reply"]');
+    if (btn) btn.click();
   });
   await page1.waitForTimeout(500);
   const replyBar = await page1.evaluate(() => !!document.querySelector("#reply-bar"));

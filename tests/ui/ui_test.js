@@ -57,16 +57,21 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
     });
     check("sent message appears", lastText.includes(uniq), lastText.slice(0, 60));
 
-    const editClicked = await page.evaluate((needle) => {
+    const editMid = await page.evaluate((needle) => {
       const msgs = Array.from(document.querySelectorAll("#msg-list .msg"));
       const target = msgs.reverse().find(m => ((m.querySelector(".msg-text") || {}).textContent || "").includes(needle));
-      if (!target) return false;
-      const btn = Array.from(target.querySelectorAll(".msg-actions button")).find(b => (b.getAttribute("title") || "").toLowerCase().includes("редак"));
-      if (!btn) return false;
-      btn.click();
-      return true;
+      return target ? target.dataset.mid : null;
     }, uniq);
-    check("edit button clicked", editClicked);
+    let editClicked = false;
+    if (editMid) {
+      await page.click('#msg-list .msg[data-mid="' + editMid + '"]', { button: "right" });
+      await page.waitForTimeout(500);
+      if (await page.isVisible('.msg-menu .msg-menu-item[data-act="edit"]')) {
+        await page.click('.msg-menu .msg-menu-item[data-act="edit"]');
+        editClicked = true;
+      }
+    }
+    check("message menu opens and edit is clicked", editClicked);
     if (editClicked) {
       await page.waitForTimeout(800);
       check("edit modal opens (no native prompt)", await page.isVisible("#edit-text"));
@@ -81,16 +86,21 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
         const target = msgs.reverse().find(m => ((m.querySelector(".msg-text") || {}).textContent || "").includes("ui-edited"));
         return target ? target.dataset.mid : null;
       });
-      const delClicked = await page.evaluate(() => {
+      const delMid = await page.evaluate(() => {
         const msgs = Array.from(document.querySelectorAll("#msg-list .msg"));
         const target = msgs.reverse().find(m => ((m.querySelector(".msg-text") || {}).textContent || "").includes("ui-edited"));
-        if (!target) return false;
-        const btn = Array.from(target.querySelectorAll(".msg-actions button")).find(b => (b.getAttribute("title") || "").toLowerCase().includes("удал"));
-        if (!btn) return false;
-        btn.click();
-        return true;
+        return target ? target.dataset.mid : null;
       });
-      check("delete button clicked", delClicked);
+      let delClicked = false;
+      if (delMid) {
+        await page.click('#msg-list .msg[data-mid="' + delMid + '"]', { button: "right" });
+        await page.waitForTimeout(500);
+        if (await page.isVisible('.msg-menu .msg-menu-item[data-act="delete"]')) {
+          await page.click('.msg-menu .msg-menu-item[data-act="delete"]');
+          delClicked = true;
+        }
+      }
+      check("delete is clicked from the message menu", delClicked);
       if (delClicked) {
         await page.waitForTimeout(500);
         check("delete confirm overlay appears", await page.isVisible("#cfm-yes"));

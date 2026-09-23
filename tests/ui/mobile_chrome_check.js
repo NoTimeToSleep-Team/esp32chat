@@ -131,21 +131,28 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
 
   // edit message via in-app modal (native prompt does not work in iOS portal)
   const editOpened = await m.evaluate(() => {
-    const msgs = document.querySelectorAll("#msg-list .msg");
+    const msgs = Array.from(document.querySelectorAll("#msg-list .msg"));
     for (let i = msgs.length - 1; i >= 0; i--) {
-      const btns = msgs[i].querySelectorAll(".msg-actions button");
-      if (btns.length) { btns[0].click(); return true; }
+      const mid = Number(msgs[i].dataset.mid);
+      if (mid && msgs[i].classList.contains("out")) { openMsgMenu(mid, null); return true; }
     }
     return false;
   });
+  await m.waitForTimeout(500);
+  const hasEditItem = await m.isVisible('.msg-menu .msg-menu-item[data-act="edit"]');
+  if (hasEditItem) await m.click('.msg-menu .msg-menu-item[data-act="edit"]');
   await m.waitForTimeout(700);
   const editModal = await m.isVisible("#edit-text");
-  check("edit modal opens on mobile", editOpened && editModal);
+  check("edit modal opens on mobile", editOpened && hasEditItem && editModal);
   if (editModal) {
     await m.fill("#edit-text", "mobile-edited");
     await m.click("#edit-save");
-    await m.waitForTimeout(1500);
-    const edited = await m.evaluate(() => Array.from(document.querySelectorAll("#msg-list .msg .msg-text")).map(e => e.textContent).join(" | "));
+    let edited = "";
+    for (let i = 0; i < 10; i++) {
+      await m.waitForTimeout(600);
+      edited = await m.evaluate(() => Array.from(document.querySelectorAll("#msg-list .msg .msg-text")).map(e => e.textContent).join(" | "));
+      if (edited.includes("mobile-edited")) break;
+    }
     check("edit saved from mobile", edited.includes("mobile-edited"), edited.slice(0, 80));
   }
 
