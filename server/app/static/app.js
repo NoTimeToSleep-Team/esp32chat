@@ -1453,33 +1453,97 @@ function renderAbout() {
 }
 
 let currentTicketId = null;
+let supportChips = [];
+let supportNewChips = [];
+
+const SUPPORT_STATUS = {
+  open: { key: 'status_open', cls: 'open' },
+  in_progress: { key: 'status_in_progress', cls: 'in_progress' },
+  resolved: { key: 'status_resolved', cls: 'resolved' },
+  closed: { key: 'status_closed', cls: 'closed' }
+};
+
+function supportStatusLabel(status) {
+  const item = SUPPORT_STATUS[status];
+  return item ? t(item.key) : (status || '');
+}
+
+function supportStatusPill(status) {
+  const item = SUPPORT_STATUS[status];
+  return `<span class="ticket-status ${item ? item.cls : ''}">${esc(supportStatusLabel(status))}</span>`;
+}
+
+function renderSupportChips(boxSel, list) {
+  const box = $(boxSel);
+  if (!box) return;
+  box.innerHTML = '';
+  box.classList.toggle('hidden', !list.length);
+  list.forEach((item, idx) => {
+    const chip = el('span', { class: 'sup-chip' });
+    chip.innerHTML = icon('clip') + `<span>${esc(item.filename || '')}</span>`;
+    const btn = el('button', { type: 'button', title: t('cancel') });
+    btn.innerHTML = icon('x');
+    btn.onclick = () => { list.splice(idx, 1); renderSupportChips(boxSel, list); };
+    chip.append(btn);
+    box.append(chip);
+  });
+}
+
+function supportMessageHtml(m) {
+  const mine = m.author_user_id === STATE.user?.id;
+  const uid = m.author_user_id;
+  const name = mine ? t('support_you') : (m.author_login || t('support_agent'));
+  const initial = (name || '?').trim().slice(0, 1).toUpperCase();
+  const avaUrl = AVA_URL[uid];
+  if (!avaUrl) ensureAvatarUrl(uid);
+  return `
+    <div class="msg ${mine ? 'out' : ''}">
+      <div class="msg-avatar" data-ava-uid="${uid}" data-ava-emoji="${esc(initial)}">${avatarInnerHtml(avaUrl, initial)}</div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-author">${esc(name)}</span>
+          <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
+        </div>
+        <div class="msg-text">${esc(m.body_text || '')}</div>
+        ${renderAttachments(m.attachments)}
+      </div>
+    </div>`;
+}
 
 async function renderSupport() {
   if (!requireAuth()) return;
+  document.body.classList.remove('sup-thread');
+  supportChips = [];
+  supportNewChips = [];
   const c = $('#content');
   c.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">${t('support')}</div><div class="page-subtitle">${t('support_subtitle')}</div></div>
-      <button class="btn btn-success btn-sm" id="new-ticket-btn" style="${STATE.user?.role === 'guest' ? 'display:none' : ''}">+ ${t('new_ticket')}</button>
+      <button class="btn btn-primary btn-sm" id="new-ticket-btn" style="${STATE.user?.role === 'guest' ? 'display:none' : ''}">${icon('plus')} ${t('new_ticket')}</button>
     </div>
     <div id="new-ticket-modal" class="overlay hidden">
       <div class="modal">
-        <h3>New Ticket</h3>
-        <div class="form-group"><label>${t('title')}</label><input class="form-input" id="ticket-title"></div>
-        <div class="form-group"><label>${t('description')}</label><textarea class="form-input" id="ticket-body" rows="4"></textarea></div>
-        <div class="form-group"><label>${t('attachments')}</label><input class="form-input" id="ticket-file" type="file" multiple accept="${FILE_ACCEPT}"></div>
+        <h3>${t('new_ticket')}</h3>
+        <div class="form-group"><label>${t('title')}</label><input class="form-input" id="ticket-title" maxlength="256"></div>
+        <div class="form-group"><label>${t('description')}</label><textarea class="form-input" id="ticket-body" rows="4" maxlength="8000"></textarea></div>
+        <div class="form-group">
+          <label>${t('attachments')}</label>
+          <div id="ticket-chips" class="sup-chips hidden"></div>
+          <input type="file" id="ticket-file" multiple accept="${FILE_ACCEPT}" hidden>
+          <button class="btn btn-outline btn-sm" id="ticket-attach" type="button">${icon('clip')} ${t('attach')}</button>
+        </div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-outline" id="ticket-cancel">${t('cancel')}</button>
           <button class="btn btn-primary" id="ticket-submit">${t('submit')}</button>
         </div>
       </div>
     </div>
-    <div class="grid-2" id="support-layout">
-      <div id="ticket-list"><div class="loading"><div class="spinner"></div></div></div>
+    <div class="sup-layout">
+      <div class="sup-side" id="ticket-list"><div class="loading"><div class="spinner"></div></div></div>
       <div id="ticket-detail">
-        <div class="card" style="text-align:center;color:var(--text2);padding:40px">
+        <div class="sup-thread sup-thread-empty">
           <div class="empty-icon">${icon('ticket')}</div>
-          <div>${t('select_ticket')}</div>
+          <div class="empty-text">${t('select_ticket')}</div>
         </div>
       </div>
     </div>`;
@@ -1488,115 +1552,172 @@ async function renderSupport() {
     const list = $('#ticket-list');
     list.innerHTML = '';
     if (data.items?.length) {
-    const _admIsMe = function(m) { return m.author_user_id === STATE.user?.id; };
-    data.items.forEach(t => {
-        const item = el('div',{class:'ticket-item'});
+      data.items.forEach(tk => {
+        const item = el('div', { class: 'ticket-item' });
         item.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <strong>${esc(t.title)}</strong>
-            <span class="ticket-status ${t.status}">${t.status.replace('_',' ')}</span>
+          <div class="ticket-item-head">
+            <strong class="ticket-item-title">${esc(tk.title)}</strong>
+            ${supportStatusPill(tk.status)}
           </div>
-          <div style="font-size:12px;color:var(--text2)">${t.kind === 'report' ? icon('flag') + ' report · ' : ''}${fmtTime(t.created_at_ms)}</div>`;
-        item.onclick = () => loadTicketDetail(t.ticket_id, t.title, item);
+          <div class="ticket-item-meta">${tk.kind === 'report' ? icon('flag') + ' ' : ''}${fmtTime(tk.last_message_at_ms || tk.created_at_ms)}</div>`;
+        item.onclick = () => loadTicketDetail(tk.ticket_id, tk.title, item, tk.status);
         list.append(item);
       });
-      if (data.items.length && list.firstChild) list.firstChild.click();
+      if (list.firstChild) list.firstChild.click();
     } else {
       list.innerHTML = `<div class="empty"><div class="empty-text">${t('no_tickets')}</div></div>`;
     }
   } catch(e) {
     $('#ticket-list').innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
-  // support-only ticket modal handlers
   const newTicketBtn = $('#new-ticket-btn');
-  if (newTicketBtn) newTicketBtn.onclick = () => { show('#new-ticket-modal'); };
-  $('#ticket-cancel').onclick = () => { hide('#new-ticket-modal'); $('#ticket-title').value=''; $('#ticket-body').value=''; if ($('#ticket-file')) $('#ticket-file').value=''; };
-  $('#ticket-submit').onclick = async () => { 
+  if (newTicketBtn) newTicketBtn.onclick = () => { supportNewChips = []; renderSupportChips('#ticket-chips', supportNewChips); show('#new-ticket-modal'); };
+  $('#ticket-cancel').onclick = () => { hide('#new-ticket-modal'); $('#ticket-title').value=''; $('#ticket-body').value=''; supportNewChips = []; renderSupportChips('#ticket-chips', supportNewChips); };
+  $('#ticket-attach').onclick = () => $('#ticket-file').click();
+  $('#ticket-file').onchange = async () => {
+    const files = Array.from($('#ticket-file').files || []);
+    $('#ticket-file').value = '';
+    for (const file of files) {
+      try {
+        const a = await uploadAttachment(file);
+        if (a?.attachment_id) {
+          supportNewChips.push({ attachment_id: a.attachment_id, filename: a.filename || file.name });
+          renderSupportChips('#ticket-chips', supportNewChips);
+        }
+      } catch(e) { toast(e.message, 'error'); }
+    }
+  };
+  $('#ticket-submit').onclick = async () => {
     const title = $('#ticket-title').value.trim();
     const body = $('#ticket-body').value.trim();
-    const files = Array.from($('#ticket-file')?.files || []);
-    if (!title || !body) { toast('Fill in title and message', 'error'); return; }
+    if (!title || !body) { toast(t('fill_title_body'), 'error'); return; }
     const submitBtn = $('#ticket-submit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = t('sending'); }
     try {
-      const attachmentIds = [];
-      for (const file of files) { const a = await uploadAttachment(file); attachmentIds.push(a.attachment_id); }
       await api('/support/api/tickets', {
         method:'POST',
         body:JSON.stringify({
-          session_token:STATE.token, title, body_text:body, attachment_ids:attachmentIds,
+          session_token:STATE.token, title, body_text:body,
+          attachment_ids: supportNewChips.map(a => a.attachment_id),
           kind: 'support',
         })
       });
-      toast('Ticket created', 'success');
+      toast(t('ticket_created'), 'success');
       hide('#new-ticket-modal');
-      $('#ticket-title').value=''; $('#ticket-body').value=''; if ($('#ticket-file')) $('#ticket-file').value='';
+      supportNewChips = [];
       renderSupport();
     } catch(e) { toast(e.message, 'error'); }
     finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t('submit'); } }
   };
 }
 
-async function loadTicketDetail(ticketId, title, itemEl) {
-  $$('.ticket-item.selected')?.forEach(e => e.style.background='');
-  if(itemEl) itemEl.style.background='var(--bg3)';
+async function loadTicketDetail(ticketId, title, itemEl, status) {
+  $$('.ticket-item').forEach(e => e.classList.remove('selected'));
+  if (itemEl) itemEl.classList.add('selected');
   currentTicketId = ticketId;
+  supportChips = [];
+  if (window.matchMedia('(max-width:760px)').matches) document.body.classList.add('sup-thread');
   const container = $('#ticket-detail');
-  container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  container.innerHTML = `<div class="sup-thread sup-thread-empty"><div class="loading"><div class="spinner"></div></div></div>`;
   try {
     const data = await api(`/support/api/tickets/${ticketId}/messages?session_token=${encodeURIComponent(STATE.token)}`);
     const msgs = data.items || [];
     container.innerHTML = `
-      <div class="card" style="padding:16px">
-        <div class="card-title" style="font-size:16px">${esc(title)}</div>
-        <div style="margin-bottom:12px"><button class="btn btn-sm btn-outline" id="close-ticket-btn">${t('close_ticket')}</button></div>
-        <div style="max-height:40vh;overflow-y:auto;margin-bottom:12px">
-          ${msgs.length ? msgs.map(m => `
-            <div class="msg" style="margin-bottom:8px">
-              <div class="msg-avatar" style="width:28px;height:28px;font-size:11px">${m.author_user_id===STATE.user?.id?'Y':'U'}</div>
-              <div class="msg-body">
-                <div class="msg-header">
-                  <span class="msg-author">${m.author_user_id===STATE.user?.id?esc(STATE.user?.login||'You'):(m.author_login||((m.author_user_id===STATE.user?.id) ? (STATE.user?.login||'You') : (userName(m.author_user_id))))}</span>
-                  <span class="msg-time">${fmtTimeShort(m.created_at_ms)}</span>
-                </div>
-                  <div class="msg-text">${esc(m.body_text || '')}</div>
-                ${renderAttachments(m.attachments)}
-              </div>
-            </div>`).join('') : `<div style="color:var(--text2);text-align:center;padding:16px">${t('no_messages')}</div>`}
+      <div class="sup-thread">
+        <div class="sup-thread-head">
+          <button class="btn btn-outline btn-sm sup-back" id="sup-back" type="button">${icon('back')} ${t('back')}</button>
+          <div class="sup-thread-title">${esc(title)}</div>
+          <select class="sup-status-select" id="sup-status" title="${t('status')}">
+            ${Object.keys(SUPPORT_STATUS).map(k => `<option value="${k}" ${k === status ? 'selected' : ''}>${esc(supportStatusLabel(k))}</option>`).join('')}
+          </select>
         </div>
-        <div class="send-area">
-          <textarea id="support-input" placeholder="Reply..." rows="1"></textarea>
-          
-          <input id="support-file" type="file" multiple accept="${FILE_ACCEPT}" style="max-width:180px">
-          <button class="btn btn-primary btn-sm" id="support-send">Send</button>
+        <div class="sup-msgs" id="sup-msgs">
+          ${msgs.length ? msgs.map(m => supportMessageHtml(m)).join('') : `<div class="empty-text" style="text-align:center;padding:24px">${t('no_messages')}</div>`}
         </div>
-        
+        <div class="sup-composer">
+          <div id="support-chips" class="sup-chips hidden"></div>
+          <div class="sup-composer-row">
+            <input type="file" id="support-file" multiple accept="${FILE_ACCEPT}" hidden>
+            <button class="btn btn-outline btn-icon" id="support-attach" type="button" title="${t('attach')}">${icon('clip')}</button>
+            <textarea id="support-input" placeholder="${t('reply_placeholder')}" rows="1"></textarea>
+            <button class="btn btn-primary btn-icon" id="support-send" type="button" title="${t('send')}">${icon('send')}</button>
+          </div>
+        </div>
       </div>`;
-    $('#close-ticket-btn').onclick = async () => { try { await api('/support/api/tickets/' + currentTicketId + '/status', {method:'POST',body:JSON.stringify({session_token:STATE.token,status:'closed'})}); toast('Ticket closed','success'); loadTicketDetail(currentTicketId, title, null); } catch(e) { toast(e.message,'error'); } };
-    $('#support-send').onclick = async () => { 
-      const inp = $('#support-input');
-      const files = Array.from(document.getElementById('support-file')?.files || []);
-      const text = (inp?.value || '').trim();
-      if (!text && !files.length) return;
-      $('#support-send').disabled = true;
+
+    const backBtn = $('#sup-back');
+    if (backBtn) backBtn.onclick = () => document.body.classList.remove('sup-thread');
+
+    $('#sup-status').onchange = async (e) => {
+      const next = e.target.value;
       try {
-        const attachments = [];
-        for (const file of files) attachments.push(await uploadAttachment(file));
-        await api(`/support/api/tickets/${currentTicketId}/messages`, {
-          method:'POST',
-          body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:attachments.map(a=>a.attachment_id)})
+        await api(`/support/api/tickets/${ticketId}/status`, {method:'POST',body:JSON.stringify({session_token:STATE.token,status:next})});
+        toast(t('status_updated'), 'success');
+        $$('.ticket-item').forEach(item => {
+          if (item.classList.contains('selected')) {
+            const pill = item.querySelector('.ticket-status');
+            if (pill) { pill.className = 'ticket-status ' + (SUPPORT_STATUS[next]?.cls || ''); pill.textContent = supportStatusLabel(next); }
+          }
         });
-        if (inp) inp.value = '';
-        await loadTicketDetail(currentTicketId, title, null);
-      } catch(e) { toast(e.message, 'error'); }
+        const headPill = container.querySelector('.sup-thread-head .ticket-status');
+        if (headPill) { headPill.className = 'ticket-status ' + (SUPPORT_STATUS[next]?.cls || ''); headPill.textContent = supportStatusLabel(next); }
+        loadTicketDetail(ticketId, title, itemEl, next);
+      } catch(err) { toast(err.message, 'error'); }
+    };
+
+    $('#support-attach').onclick = () => $('#support-file').click();
+    $('#support-file').onchange = async () => {
+      const files = Array.from($('#support-file').files || []);
+      $('#support-file').value = '';
+      for (const file of files) {
+        try {
+          const a = await uploadAttachment(file);
+          if (a?.attachment_id) {
+            supportChips.push({ attachment_id: a.attachment_id, filename: a.filename || file.name });
+            renderSupportChips('#support-chips', supportChips);
+          }
+        } catch(err) { toast(err.message, 'error'); }
+      }
+    };
+
+    const send = async () => {
+      const inp = $('#support-input');
+      const text = (inp?.value || '').trim();
+      const ids = supportChips.map(a => a.attachment_id);
+      if (!text && !ids.length) return;
+      const btn = $('#support-send');
+      if (btn) btn.disabled = true;
+      try {
+        await api(`/support/api/tickets/${ticketId}/messages`, {
+          method:'POST',
+          body:JSON.stringify({session_token:STATE.token, body_text:text, attachment_ids:ids})
+        });
+        if (inp) { inp.value = ''; inp.style.height = ''; }
+        supportChips = [];
+        await loadTicketDetail(ticketId, title, itemEl, $('#sup-status')?.value || status);
+      } catch(err) { toast(err.message, 'error'); }
       finally { if ($('#support-send')) $('#support-send').disabled = false; }
     };
-    $('#support-input').onkeydown = e => {if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#support-send')?.click()}};
+    $('#support-send').onclick = send;
+    const input = $('#support-input');
+    if (input) {
+      input.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
+      input.oninput = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; };
+    }
+
+    const box = $('#sup-msgs');
+    if (box) {
+      if (window.matchMedia('(max-width:760px)').matches) {
+        const last = box.lastElementChild;
+        if (last && last.scrollIntoView) last.scrollIntoView({ block: 'end' });
+      } else {
+        box.scrollTop = box.scrollHeight;
+      }
+    }
   } catch(e) {
-    container.innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
+    container.innerHTML = `<div class="sup-thread sup-thread-empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
 }
-
 async function renderAdmin() {
   if (!requireAuth()) return;
   if (STATE.user?.role !== 'admin' && STATE.user?.role !== 'moderator') { window.location.hash = '#/chat'; return; }
@@ -2526,14 +2647,14 @@ var T = {
 "enter_login":{rus:"Введите логин",eng:"Enter login"},
 "lang_label":{rus:"🇷🇺 RUS",eng:"🇬🇧 ENG"},"enter_pass":{rus:"Введите пароль",eng:"Enter password"},
 "chat_subtitle":{rus:"Сообщения",eng:"Workspace messages"},
-"support_subtitle":{rus:"Тикеты помощи",eng:"Help desk tickets"},
+"support_subtitle":{rus:"Обращения в поддержку: опишите проблему, при необходимости приложите файл",eng:"Help desk tickets"},
 "account_subtitle":{rus:"Ваш профиль",eng:"Your profile"},
 "blog_subtitle":{rus:"Последние посты",eng:"Latest posts"},
 "load_older":{rus:"↑ Загрузить старые",eng:"↑ Load older messages"},
-"new_ticket":{rus:"Новый тикет",eng:"New Ticket"},
+"new_ticket":{rus:"Новое обращение",eng:"New Ticket"},
 "submit":{rus:"Отправить",eng:"Submit"},
 "save_changes":{rus:"Сохранить изменения",eng:"Save Changes"},
-"no_tickets":{rus:"Нет тикетов",eng:"No tickets"},
+"no_tickets":{rus:"Обращений пока нет",eng:"No tickets"},
 "no_messages":{rus:"Нет сообщений",eng:"No messages"},
 "no_posts":{rus:"Пока нет постов",eng:"No posts yet"},
 "type_label":{rus:"Тип",eng:"Type"},
@@ -2570,10 +2691,22 @@ var T = {
 "too_many_files":{rus:"Максимум 8 файлов на сообщение",eng:"Up to 8 files per message"},
 "file_too_large":{rus:"Файл слишком большой",eng:"File is too large"},
 "remove":{rus:"Убрать",eng:"Remove"},
-"close_ticket":{rus:"Закрыть тикет",eng:"Close Ticket"},
+"close_ticket":{rus:"Закрыть обращение",eng:"Close Ticket"},
+"back":{rus:"Назад",eng:"Back"},
+"status":{rus:"Статус",eng:"Status"},
+"status_open":{rus:"Открыто",eng:"Open"},
+"status_in_progress":{rus:"В работе",eng:"In progress"},
+"status_resolved":{rus:"Решено",eng:"Resolved"},
+"status_closed":{rus:"Закрыто",eng:"Closed"},
+"status_updated":{rus:"Статус обновлён",eng:"Status updated"},
+"support_you":{rus:"Вы",eng:"You"},
+"support_agent":{rus:"Поддержка",eng:"Support"},
+"reply_placeholder":{rus:"Ответ в обращение…",eng:"Reply…"},
+"fill_title_body":{rus:"Заполните тему и описание",eng:"Fill in title and message"},
+"ticket_created":{rus:"Обращение создано",eng:"Ticket created"},
 "sending":{rus:"Отправка...",eng:"Sending..."},
 "access_application":{rus:"Заявка на доступ",eng:"Access Application"},
-"select_ticket":{rus:"Выберите тикет для просмотра",eng:"Select a ticket to view"},
+"select_ticket":{rus:"Выберите обращение",eng:"Select a ticket to view"},
 "register_link":{rus:"Нет аккаунта? Зарегистрироваться",eng:"No account? Register"},
 "login_link":{rus:"Уже есть аккаунт? Войти",eng:"Already have an account? Sign in"},
 };
