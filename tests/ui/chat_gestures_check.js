@@ -136,14 +136,28 @@ async function openChatByTitle(page, title, chatId) {
     return a ? getComputedStyle(a).opacity : null;
   }, msgSel);
   check("desktop actions appear on hover", hoverOpacity === "1", "opacity=" + hoverOpacity);
+  const motionDesktop = await page.evaluate(() => {
+    const msg = document.querySelector("#msg-list .msg");
+    return { userSelect: msg ? getComputedStyle(msg).userSelect : null };
+  });
+  check("messages are not selectable (long press fix)", motionDesktop.userSelect === "none", JSON.stringify(motionDesktop));
+  const toastAnim = await page.evaluate(() => {
+    toast("motion check");
+    const el2 = document.querySelector(".toast");
+    return el2 ? getComputedStyle(el2).animationName : "";
+  });
+  check("toasts are animated", /toastIn/.test(toastAnim), toastAnim);
+  await page.evaluate(() => { const el2 = document.querySelector(".toast"); if (el2) el2.remove(); });
   await page.click(msgSel + " .msg-more");
   await page.waitForTimeout(400);
   const desktopMenu = await page.evaluate(() => ({
     items: document.querySelectorAll(".msg-menu .msg-menu-item").length,
     reacts: document.querySelectorAll(".msg-menu .react-opt").length,
     sheet: !!document.querySelector(".msg-menu.sheet"),
+    anim: (() => { const m = document.querySelector(".msg-menu"); return m ? getComputedStyle(m).animationName : ""; })(),
   }));
   check("actions menu opens on desktop", desktopMenu.items >= 5 && desktopMenu.reacts === 6 && !desktopMenu.sheet, JSON.stringify(desktopMenu));
+  check("actions menu has an entrance animation", /menuPop|sheetUp/.test(desktopMenu.anim), desktopMenu.anim);
   await page.click('.msg-menu .react-opt[data-emoji="🔥"]');
   await page.waitForTimeout(1500);
   const reacted = await page.evaluate((text) => {
@@ -195,8 +209,20 @@ async function openChatByTitle(page, title, chatId) {
     backdrop: !!document.querySelector(".menu-backdrop"),
   }));
   check("long press opens the action sheet", sheet.sheet && sheet.items >= 6 && sheet.reacts === 6, JSON.stringify(sheet));
+  const selectionText = await mP.evaluate(() => String(window.getSelection() || ""));
+  check("long press does not select the page", selectionText === "", JSON.stringify(selectionText));
+  const sheetAnim = await mP.evaluate(() => {
+    const m = document.querySelector(".msg-menu");
+    return m ? getComputedStyle(m).animationName : "";
+  });
+  check("action sheet has an entrance animation", /sheetUp/.test(sheetAnim), sheetAnim);
   await mP.screenshot({ path: SHOTS + "chat-gestures-sheet.png" });
-  await mP.evaluate(() => { const m = document.querySelector(".msg-menu"); if (m) m.remove(); const b = document.querySelector(".menu-backdrop"); if (b) b.remove(); });
+  await mP.evaluate(() => { const b = document.querySelector(".menu-backdrop"); if (b) b.click(); });
+  await mP.waitForTimeout(70);
+  const sheetClosing = await mP.evaluate(() => !!document.querySelector(".msg-menu.closing"));
+  await mP.waitForTimeout(400);
+  const sheetGone = await mP.evaluate(() => !document.querySelector(".msg-menu"));
+  check("action sheet closes with animation", sheetClosing && sheetGone, JSON.stringify({ sheetClosing, sheetGone }));
 
   await swipe(mP, client, mx, my, 95);
   await mP.waitForTimeout(500);
@@ -262,7 +288,18 @@ async function openChatByTitle(page, title, chatId) {
     return { bad: bad.slice(0, 6), pageOverflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth };
   });
   check("chat profile fits mobile width", profile.bad.length === 0 && profile.pageOverflow <= 1, JSON.stringify(profile));
+  const profileAnim = await mP.evaluate(() => {
+    const m = document.querySelector(".chat-profile");
+    return m ? getComputedStyle(m).animationName : "";
+  });
+  check("chat profile opens with animation", /modalIn/.test(profileAnim), profileAnim);
   await mP.screenshot({ path: SHOTS + "chat-gestures-profile.png" });
+  await mP.click("#cp-close");
+  await mP.waitForTimeout(70);
+  const profileClosing = await mP.evaluate(() => !!document.querySelector("#chat-profile-modal.closing"));
+  await mP.waitForTimeout(450);
+  const profileGone = await mP.evaluate(() => !document.querySelector("#chat-profile-modal"));
+  check("chat profile closes with animation", profileClosing && profileGone, JSON.stringify({ profileClosing, profileGone }));
   await mB.close();
 
   check("no page errors (desktop)", errs.length === 0, errs.join(" | "));

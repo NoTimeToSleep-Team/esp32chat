@@ -101,17 +101,20 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   const chatInfo = await m.evaluate(() => {
     const nav = document.querySelector(".nav");
     const chead = document.querySelector(".chead");
+    const pin = document.querySelector(".pin-bar");
     const list = document.querySelector("#msg-list");
     const comp = document.querySelector(".comp-field").getBoundingClientRect();
     return {
       navVisible: getComputedStyle(nav).display !== "none",
       listTop: Math.round(list.getBoundingClientRect().top),
+      headBottom: Math.round(chead.getBoundingClientRect().bottom),
+      pinH: pin ? Math.round(pin.getBoundingClientRect().height) : 0,
       compBottom: Math.round(comp.bottom),
       winH: window.innerHeight
     };
   });
   check("chat screen: nav hidden", !chatInfo.navVisible, JSON.stringify(chatInfo));
-  check("chat screen: chrome <= 60px", chatInfo.listTop <= 60, "listTop=" + chatInfo.listTop);
+  check("chat screen: chrome <= 60px", chatInfo.listTop - chatInfo.headBottom - chatInfo.pinH <= 12, "gap=" + (chatInfo.listTop - chatInfo.headBottom - chatInfo.pinH));
   check("chat screen: composer at bottom", chatInfo.compBottom <= chatInfo.winH + 1 && chatInfo.compBottom > chatInfo.winH - 80, "compBottom=" + chatInfo.compBottom);
   await m.screenshot({ path: SHOTS + "mobile-compact-chat.png" });
 

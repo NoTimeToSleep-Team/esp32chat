@@ -51,28 +51,51 @@ function el(tag, attrs, ...kids) {
   return e;
 }
 
-function show(el, cond) {if(cond===false)return;if(typeof el==='string')el=$(el);el&&el.classList.remove('hidden')}
+function show(el, cond) {if(cond===false)return;if(typeof el==='string')el=$(el);if(el){el.classList.remove('hidden');el.classList.remove('closing');el._closing=false}}
 function hide(el, cond) {if(cond===false)return;if(typeof el==='string')el=$(el);el&&el.classList.add('hidden')}
 
 function toast(msg, type='info') {
   const t = el('div',{class:`toast ${type}`});
   t.append(el('span',{},String(msg)));
   const persistent = type === 'error' || type === 'warn';
+  const dismiss = () => {
+    if (t._hiding) return;
+    t._hiding = true;
+    t.classList.add('hiding');
+    setTimeout(() => t.remove(), 240);
+  };
   if (persistent) {
     const existing = document.querySelectorAll('.toast').length;
     t.style.bottom = (24 + existing * 56) + 'px';
     const ok = el('button',{class:'toast-btn'},'OK');
-    ok.onclick = () => t.remove();
+    ok.onclick = dismiss;
     t.append(ok);
     debugReport({stage:'toast', action:'ui-toast', ok:false, stages_done:3, error:String(msg), t3_ms:Date.now()});
   } else {
-    setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},3000);
+    setTimeout(dismiss, 3000);
   }
   document.body.append(t);
 }
 
-function fmtTime(ms){const d=new Date(ms);return d.toLocaleString()}
-function fmtTimeShort(ms){const d=new Date(ms);const now=new Date();const same=d.toDateString()===now.toDateString()
+// Animated overlay close: adds .closing, then removes the node (or hides it).
+function closeOverlay(el, opts) {
+  opts = opts || {};
+  if (!el || el._closing) return;
+  el._closing = true;
+  el.classList.add('closing');
+  setTimeout(() => {
+    if (opts.remove === false) {
+      el.classList.remove('closing');
+      el.classList.add('hidden');
+      el._closing = false;
+    } else {
+      el.remove();
+    }
+    if (opts.onDone) opts.onDone();
+  }, 190);
+}
+
+function fmtTime(ms){const d=new Date(ms);return d.toLocaleString()}function fmtTimeShort(ms){const d=new Date(ms);const now=new Date();const same=d.toDateString()===now.toDateString()
   ?d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
   :d.toLocaleDateString([],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});return same}
 
@@ -357,9 +380,13 @@ function lightboxStep(delta) {
 function closeImageLightbox() {
   const box = document.getElementById('img-lightbox');
   if (!box) return;
-  box.classList.remove('open');
-  const img = box.querySelector('img');
-  if (img) img.removeAttribute('src');
+  box.classList.add('closing');
+  setTimeout(() => {
+    box.classList.remove('open');
+    box.classList.remove('closing');
+    const img = box.querySelector('img');
+    if (img) img.removeAttribute('src');
+  }, 180);
 }
 
 async function currentMode() {
@@ -903,18 +930,18 @@ async function renderChat() {
     syncCreateChatBtn();
     setTimeout(() => { const el2 = $('#chat-title'); if (el2) el2.focus(); }, 50);
   };
-  $('#chat-create-cancel').onclick = () => { hide('#create-chat-modal'); resetCreateChatForm(); };
+  $('#chat-create-cancel').onclick = () => { closeOverlay($('#create-chat-modal'), {remove:false}); resetCreateChatForm(); };
   const joinBtn = $('#join-chat-btn');
   if (joinBtn) joinBtn.onclick = () => { show('#join-chat-modal'); const i = $('#join-link-input'); if (i) { i.value = ''; i.focus(); } };
   const joinCancel = $('#join-cancel');
-  if (joinCancel) joinCancel.onclick = () => hide('#join-chat-modal');
+  if (joinCancel) joinCancel.onclick = () => closeOverlay($('#join-chat-modal'), {remove:false});
   const joinSubmit = $('#join-submit');
   if (joinSubmit) joinSubmit.onclick = async () => {
     const input = $('#join-link-input');
     joinSubmit.disabled = true;
     try {
       const res = await joinChatByTarget(input ? input.value : '');
-      if (res) { hide('#join-chat-modal'); if (input) input.value = ''; renderChat(); }
+      if (res) { closeOverlay($('#join-chat-modal'), {remove:false}); if (input) input.value = ''; renderChat(); }
     } finally { joinSubmit.disabled = false; }
   };
   const joinInput = $('#join-link-input');
@@ -940,7 +967,7 @@ async function renderChat() {
         })
       });
       toast(t('chat_created'), 'success');
-      hide('#create-chat-modal');
+      closeOverlay($('#create-chat-modal'), {remove:false});
       resetCreateChatForm();
       renderChat();
     } catch(e) { toast(e.message, 'error'); }
@@ -948,7 +975,7 @@ async function renderChat() {
   };
   // DM modal
   $('#dm-chat-btn').onclick = () => { show('#dm-modal'); $('#dm-user-search').value=''; doDMSearch(); $('#dm-user-search').focus(); };
-  $('#dm-cancel').onclick = () => { hide('#dm-modal'); $('#dm-user-search').value=''; };
+  $('#dm-cancel').onclick = () => { closeOverlay($('#dm-modal'), {remove:false}); $('#dm-user-search').value=''; };
   let dmSearchTimer = null;
   $('#dm-user-search').oninput = () => {
     clearTimeout(dmSearchTimer);
@@ -975,7 +1002,7 @@ async function renderChat() {
           try {
             const dm = await api('/chat/api/dm', {method:'POST',body:JSON.stringify({session_token:STATE.token,target_user_id:u.user_id})});
             toast(`Личка с ${esc(u.login)} открыта`, 'success');
-            hide('#dm-modal');
+            closeOverlay($('#dm-modal'), {remove:false});
             $('#dm-user-search').value='';
             renderChat();
             setTimeout(() => { const items = $$('#chat-list .chat-item'); if(items.length){ items[0].click(); } }, 500);
@@ -1256,7 +1283,7 @@ function openPollModal() {
   }
   addOption(); addOption();
   ov.querySelector('#poll-add-option').onclick = () => addOption();
-  const close = () => ov.remove();
+  const close = () => closeOverlay(ov);
   ov.onclick = (e) => { if (e.target === ov) close(); };
   ov.querySelector('#poll-cancel').onclick = close;
   ov.querySelector('#poll-submit').onclick = async () => {
@@ -1381,9 +1408,15 @@ function openMsgMenu(messageId, anchor, x, y) {
     back.onclick = () => { if (guardOk()) close(); };
   }
   function close() {
-    menu.remove();
+    if (menu._closing) return;
+    menu._closing = true;
+    menu.classList.add('closing');
     const b = document.querySelector('.menu-backdrop');
-    if (b) b.remove();
+    if (b) b.classList.add('closing');
+    setTimeout(() => {
+      menu.remove();
+      if (b) b.remove();
+    }, 180);
   }
   menu.querySelectorAll('.msg-menu-item').forEach(btn => {
     btn.onclick = () => {
@@ -1693,7 +1726,7 @@ async function showMessageSearch() {
     <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-outline" id="search-cancel">${t('close')}</button></div>
   </div>`;
   document.body.append(ov);
-  const close = () => ov.remove();
+  const close = () => closeOverlay(ov);
   ov.onclick = (e) => { if (e.target === ov) close(); };
   ov.querySelector('#search-close').onclick = close;
   ov.querySelector('#search-cancel').onclick = close;
@@ -1758,7 +1791,7 @@ async function startForward(messageId) {
     </div>
   </div>`;
   document.body.append(ov);
-  const close = () => ov.remove();
+  const close = () => closeOverlay(ov);
   ov.onclick = (e) => { if (e.target === ov) close(); };
   ov.querySelector('#forward-cancel').onclick = close;
   try {
@@ -2301,7 +2334,7 @@ async function showChatProfile() {
   </div>`;
   document.body.append(ov);
 
-  const close = () => ov.remove();
+  const close = () => closeOverlay(ov);
   ov.onclick = (e) => { if (e.target === ov) close(); };
   ov.querySelector('#cp-close').onclick = close;
   const reopen = () => { close(); showChatProfile(); };
@@ -4482,7 +4515,7 @@ function showProfileModal(html) {
     m = document.createElement("div");
     m.id = "profile-modal";
     m.className = "overlay";
-    m.onclick = function(e) { if (e.target === m) { m.style.animation="fadeOut .15s"; setTimeout(function(){m.remove()},140); } };
+    m.onclick = function(e) { if (e.target === m) closeOverlay(m); };
     document.body.appendChild(m);
   }
   m.innerHTML = html;
@@ -4496,7 +4529,7 @@ async function viewUserProfile(uid) {
     var emoji = p.avatar_emoji || emojis[uid % emojis.length];
     var isGuest = STATE.user?.role === 'guest';
     var h = "<div class='modal profile-modal'>";
-    h += "<button class='pm-close' onclick=\"document.getElementById('profile-modal').remove()\">&times;</button>";
+    h += "<button class='pm-close' onclick=\"closeOverlay(document.getElementById('profile-modal'))\">&times;</button>";
     h += "<div class='pm-avatar'>" + (p.avatar_url ? "<img class='ava-img' src='" + safeUrl(p.avatar_url) + "' alt=''>" : esc(emoji)) + "</div>";
     h += "<h2 class='pm-name'>" + esc(p.display_name || p.login) + "</h2>";
     h += "<div class='pm-login'>@" + esc(p.login) + "</div>";
@@ -4530,14 +4563,14 @@ async function viewUserProfile(uid) {
     if (dmBtn) dmBtn.onclick = async function() {
       try {
         await api('/chat/api/dm', {method:'POST', body:JSON.stringify({session_token:STATE.token, target_user_id: uid})});
-        var modal = document.getElementById("profile-modal"); if (modal) modal.remove();
+        var modal = document.getElementById("profile-modal"); if (modal) closeOverlay(modal);
         window.location.hash = '#/chat';
         setTimeout(function(){ renderChat(); }, 150);
       } catch(e) { toast(e.message, 'error'); }
     };
     var repBtn = document.getElementById("pm-report");
     if (repBtn) repBtn.onclick = function() {
-      var modal = document.getElementById("profile-modal"); if (modal) modal.remove();
+      var modal = document.getElementById("profile-modal"); if (modal) closeOverlay(modal);
       openReportModal(uid, p.display_name || p.login, emoji);
     };
   } catch(e) { toast(e.message, "error"); }
@@ -4585,7 +4618,7 @@ function openReportModal(uid, name, emoji) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  overlay.onclick = function(e) { if (e.target === overlay) closeOverlay(overlay); };
   var selected = 'spam';
   var reasonsBox = document.getElementById('report-reasons');
   [['spam','megaphone'],['abuse','alert'],['profanity','messageX'],['ads','megaphone'],['scam','dollar'],['other','help']].forEach(function(pair) {
@@ -4601,7 +4634,7 @@ function openReportModal(uid, name, emoji) {
     };
     reasonsBox.appendChild(b);
   });
-  document.getElementById('report-cancel').onclick = function() { overlay.remove(); };
+  document.getElementById('report-cancel').onclick = function() { closeOverlay(overlay); };
   var reportFiles = [];
   var reportPreview = document.getElementById('report-preview');
   var reportFileInput = document.getElementById('report-file');
@@ -4644,7 +4677,7 @@ function openReportModal(uid, name, emoji) {
           <p>${t('report_sent_text')}</p>
           <button class="btn btn-primary" id="report-close">${t('close')}</button>
         </div>`;
-      document.getElementById('report-close').onclick = function() { overlay.remove(); };
+      document.getElementById('report-close').onclick = function() { closeOverlay(overlay); };
     } catch(e) {
       errBox.textContent = e.message; errBox.style.display = 'block';
       btn.disabled = false; btn.textContent = t('report_send');
@@ -4706,7 +4739,7 @@ async function editMsg(mid, btn) {
   document.body.appendChild(overlay);
   var ta = overlay.querySelector('#edit-text');
   ta.value = current;
-  var close = function() { overlay.remove(); };
+  var close = function() { closeOverlay(overlay); };
   overlay.querySelector('#edit-cancel').onclick = close;
   overlay.querySelector('#edit-save').onclick = async function() {
     var newText = ta.value.trim();
@@ -4732,8 +4765,8 @@ function confirmDel(mid) {
     </div>
   </div>`;
   document.body.appendChild(overlay);
-  document.getElementById("cfm-yes").onclick = function() { overlay.remove(); delMsg(mid); };
-  document.getElementById("cfm-no").onclick = function() { overlay.remove(); };
+  document.getElementById("cfm-yes").onclick = function() { closeOverlay(overlay); delMsg(mid); };
+  document.getElementById("cfm-no").onclick = function() { closeOverlay(overlay); };
 }
 
 async function delMsg(mid) {
