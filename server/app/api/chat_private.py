@@ -67,7 +67,12 @@ def _resolve_user_id(request: Request, session_token: str) -> int:
     return session.user.user_id
 
 
-def _chat_payload(chat: ChatRoom) -> dict[str, object]:
+def _chat_payload(chat: ChatRoom, session_token: str | None = None) -> dict[str, object]:
+    avatar_url = chat.avatar_url
+    if chat.avatar_path:
+        avatar_url = f"/chat/api/chats/{chat.chat_id}/avatar?v={chat.updated_at_ms}"
+        if session_token:
+            avatar_url += f"&session_token={session_token}"
     return {
         "chat_id": chat.chat_id,
         "kind": chat.kind.value,
@@ -75,7 +80,8 @@ def _chat_payload(chat: ChatRoom) -> dict[str, object]:
         "description": chat.description,
         "owner_user_id": chat.owner_user_id,
         "is_private": chat.is_private,
-        "avatar_url": chat.avatar_url,
+        "avatar_url": avatar_url,
+        "has_avatar": bool(chat.avatar_path),
         "has_room_code": chat.has_room_code,
         "created_at_ms": chat.created_at_ms,
         "updated_at_ms": chat.updated_at_ms,
@@ -130,7 +136,7 @@ async def create_private_chat(
 
     return {
         "status": "ok",
-        "chat": _chat_payload(chat),
+        "chat": _chat_payload(chat, payload.session_token),
     }
 
 
@@ -203,5 +209,5 @@ async def update_private_config(
 
     return {
         "status": "ok",
-        "chat": _chat_payload(chat),
+        "chat": _chat_payload(chat, payload.session_token),
     }

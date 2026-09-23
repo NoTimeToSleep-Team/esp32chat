@@ -386,6 +386,32 @@ audio::-webkit-media-controls-panel{background:var(--bg3)}
 .picker-item:hover{background:var(--bg3)}
 .picker-id{color:var(--text2);font-size:12px}
 .picker-empty{padding:12px;color:var(--text2);font-size:13px;text-align:center}
+.chat-profile{max-height:86vh;overflow-y:auto}
+.cp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cp-head h3{margin:0}
+.cp-avatar-row{display:flex;gap:14px;align-items:center;margin-bottom:16px}
+.cp-avatar{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fff;overflow:hidden;flex:0 0 auto}
+.cp-avatar .ava-img{width:100%;height:100%;object-fit:cover}
+.cp-avatar-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.cp-edit-row{display:flex;gap:8px;align-items:flex-start}
+.cp-edit-row .form-input{flex:1}
+.cp-members{display:flex;flex-direction:column;gap:6px}
+.cp-member{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)}
+.cp-member:last-child{border-bottom:0}
+.cp-member-ava{width:36px;height:36px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:14px;flex:0 0 auto}
+.cp-member-ava .ava-img{width:100%;height:100%;object-fit:cover}
+.cp-member-main{flex:1;min-width:0}
+.cp-member-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-member-sub{font-size:12px;color:var(--text2);display:flex;gap:6px;align-items:center}
+.cp-member-actions{display:flex;gap:6px;align-items:center}
+.cp-me{color:var(--text2);font-weight:400}
+.cp-add-wrap{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.cp-add-wrap.hidden{display:none}
+.cp-add-actions{display:flex;gap:8px;justify-content:flex-end}
+.cp-danger{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;border-top:1px solid var(--border);padding-top:14px}
+.badge-owner{background:rgba(210,153,34,.18);color:var(--accent3)}
+.btn.danger{color:#f85149;border-color:rgba(248,81,73,.5)}
+.btn.danger:hover{background:rgba(248,81,73,.12)}
 
 /* Lightbox */
 .img-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:24px}

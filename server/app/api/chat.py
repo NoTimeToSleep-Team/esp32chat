@@ -3,13 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from app.models import ChatDraft, ChatMessage, ChatRoom, ClientKind, MessageDraft, UserRole
 from app.realtime import chat_message_event, chat_message_payload
 from app.services.activity_log import ActivityLogService
 from app.services.auth import AuthError, AuthService
+from app.services.avatars import AvatarPayloadError, decode_avatar_payload
 from app.services.chat import ChatError, ChatService
 
 
@@ -69,7 +70,12 @@ def _resolve_user_id(request: Request, session_token: str) -> int:
     return session.user.user_id
 
 
-def _chat_payload(chat: ChatRoom) -> dict[str, object]:
+def _chat_payload(chat: ChatRoom, session_token: str | None = None) -> dict[str, object]:
+    avatar_url = chat.avatar_url
+    if chat.avatar_path:
+        avatar_url = f"/chat/api/chats/{chat.chat_id}/avatar?v={chat.updated_at_ms}"
+        if session_token:
+            avatar_url += f"&session_token={session_token}"
     return {
         "chat_id": chat.chat_id,
         "kind": chat.kind.value,
@@ -77,7 +83,8 @@ def _chat_payload(chat: ChatRoom) -> dict[str, object]:
         "description": chat.description,
         "owner_user_id": chat.owner_user_id,
         "is_private": chat.is_private,
-        "avatar_url": chat.avatar_url,
+        "avatar_url": avatar_url,
+        "has_avatar": bool(chat.avatar_path),
         "has_room_code": chat.has_room_code,
         "created_at_ms": chat.created_at_ms,
         "updated_at_ms": chat.updated_at_ms,
@@ -117,7 +124,7 @@ async def list_chats(
     return {
         "status": "ok",
         "count": len(chats),
-        "items": [_chat_payload(chat) for chat in chats],
+        "items": [_chat_payload(chat, session_token) for chat in chats],
     }
 
 
@@ -175,7 +182,7 @@ async def create_chat(
             detail={"code": "invalid_chat_payload", "message": str(exc)},
         )
 
-    return {"status": "ok", "chat": _chat_payload(chat)}
+    return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
 
 
 @router.get("/chat/api/chats/{chat_id}/messages")
@@ -292,7 +299,7 @@ async def start_dm(request: Request, payload: StartDMRequest) -> dict[str, objec
         chat = chat_service.get_or_create_dm(user_id, payload.target_user_id)
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
-    return {"status": "ok", "chat": _chat_payload(chat)}
+    return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
 
 
 # --- Message deletion (moderator/admin) ---
@@ -374,6 +381,209 @@ async def bulk_add_members(request: Request, chat_id: int, payload: BulkAddMembe
         except Exception:
             pass
     return {"status": "ok", "added_count": added}
+
+
+# --- Chat profile: title, description, photo, members ---
+
+
+class UpdateChatRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    title: str | None = Field(default=None, max_length=256)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class ChatAvatarRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    image_base64: str = Field(min_length=1, max_length=4_000_000)
+    image_mime_type: str | None = Field(default=None, max_length=64)
+
+
+class ChatMemberActionRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+
+
+class TransferChatOwnerRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    target_user_id: int
+
+
+def _member_profile_payload(item: dict[str, object], session_token: str) -> dict[str, object]:
+    payload = dict(item)
+    if item.get("has_avatar"):
+        payload["avatar_url"] = (
+            f"/account/api/profile/avatar?session_token={session_token}"
+            f"&user_id={item.get('user_id')}&v={item.get('avatar_updated_at_ms') or 0}"
+        )
+    else:
+        payload["avatar_url"] = None
+    return payload
+
+
+@router.get("/chat/api/chats/{chat_id}")
+async def get_chat(
+    request: Request,
+    chat_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        chat = service.get_chat(chat_id=chat_id, requester_user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "chat": _chat_payload(chat, session_token)}
+
+
+@router.patch("/chat/api/chats/{chat_id}")
+async def update_chat(request: Request, chat_id: int, payload: UpdateChatRequest) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        chat = service.update_chat(
+            chat_id=chat_id,
+            actor_user_id=user_id,
+            title=payload.title,
+            description=payload.description,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
+
+
+@router.post("/chat/api/chats/{chat_id}/avatar")
+async def set_chat_avatar(request: Request, chat_id: int, payload: ChatAvatarRequest) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        avatar = decode_avatar_payload(
+            image_base64=payload.image_base64,
+            image_mime_type=payload.image_mime_type,
+        )
+    except AvatarPayloadError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+    try:
+        chat = service.set_chat_avatar(chat_id=chat_id, actor_user_id=user_id, avatar=avatar)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
+
+
+@router.post("/chat/api/chats/{chat_id}/avatar/remove")
+async def clear_chat_avatar(
+    request: Request,
+    chat_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        chat = service.clear_chat_avatar(chat_id=chat_id, actor_user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
+
+
+@router.get("/chat/api/chats/{chat_id}/avatar")
+async def get_chat_avatar(
+    request: Request,
+    chat_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> FileResponse:
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        file_path, mime_type = service.get_chat_avatar_file(
+            chat_id=chat_id,
+            requester_user_id=user_id,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return FileResponse(path=str(file_path), media_type=mime_type)
+
+
+@router.get("/chat/api/chats/{chat_id}/members")
+async def list_chat_members(
+    request: Request,
+    chat_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+    try:
+        items = service.list_member_profiles(chat_id=chat_id, requester_user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {
+        "status": "ok",
+        "count": len(items),
+        "items": [_member_profile_payload(item, session_token) for item in items],
+    }
+
+
+@router.delete("/chat/api/chats/{chat_id}/members/{user_id}")
+async def remove_chat_member(
+    request: Request,
+    chat_id: int,
+    user_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    actor_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.remove_member(chat_id=chat_id, target_user_id=user_id, actor_user_id=actor_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok"}
+
+
+@router.post("/chat/api/chats/{chat_id}/leave")
+async def leave_chat(
+    request: Request,
+    chat_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.leave_chat(chat_id=chat_id, user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok"}
+
+
+@router.delete("/chat/api/chats/{chat_id}")
+async def delete_chat_room(
+    request: Request,
+    chat_id: int,
+    payload: ChatMemberActionRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        service.delete_chat_room(chat_id=chat_id, actor_user_id=user_id)
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "deleted_chat_id": chat_id}
+
+
+@router.post("/chat/api/chats/{chat_id}/owner")
+async def transfer_chat_owner(
+    request: Request,
+    chat_id: int,
+    payload: TransferChatOwnerRequest,
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, payload.session_token)
+    service = _chat_service(request)
+    try:
+        chat = service.transfer_owner(
+            chat_id=chat_id,
+            actor_user_id=user_id,
+            target_user_id=payload.target_user_id,
+        )
+    except ChatError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {"status": "ok", "chat": _chat_payload(chat, payload.session_token)}
 
 
 # --- Admin cleanup ---

@@ -10,6 +10,7 @@ from pathlib import Path
 from time import time
 
 from app.models import (
+    AvatarImage,
     ChatDraft,
     ChatKind,
     ChatMember,
@@ -26,6 +27,22 @@ from app.services.media import MAX_ATTACHMENTS_PER_MESSAGE, MediaError, MediaSer
 
 def _now_ms() -> int:
     return int(time() * 1000)
+
+
+_CHAT_AVATAR_EXT_BY_MIME = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
+
+_CHAT_AVATAR_MIME_BY_EXT = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
+
+MAX_CHAT_AVATAR_BYTES = 2_000_000
 
 
 @dataclass(frozen=True)
@@ -407,6 +424,356 @@ class ChatService:
             ).fetchall()
             return [self._row_to_member(row) for row in rows]
 
+    def list_member_profiles(self, *, chat_id: int, requester_user_id: int) -> list[dict[str, object]]:
+        """Members with their login/avatar/role for the chat profile screen."""
+        with self._connect() as connection:
+            self._require_active_user(connection, requester_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if not self._can_access_chat(connection, chat_row=chat, user_id=requester_user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+
+            rows = connection.execute(
+                """
+                SELECT m.user_id AS user_id,
+                       m.role AS role,
+                       m.joined_at_ms AS joined_at_ms,
+                       u.login AS login,
+                       u.avatar_emoji AS avatar_emoji,
+                       u.avatar_path AS avatar_path,
+                       u.avatar_updated_at_ms AS avatar_updated_at_ms,
+                       u.status AS status
+                FROM chat_members m
+                LEFT JOIN users u ON u.id = m.user_id
+                WHERE m.chat_id = ?
+                ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+                         m.joined_at_ms ASC,
+                         m.user_id ASC
+                """,
+                (chat_id,),
+            ).fetchall()
+
+            owner_user_id = self._row_optional_int(chat, "owner_user_id")
+            items: list[dict[str, object]] = []
+            for row in rows:
+                user_id = int(row["user_id"])
+                items.append(
+                    {
+                        "user_id": user_id,
+                        "login": self._row_optional_str_lenient(row, "login") or f"user#{user_id}",
+                        "role": str(row["role"]),
+                        "joined_at_ms": int(row["joined_at_ms"]),
+                        "avatar_emoji": self._row_optional_str_lenient(row, "avatar_emoji"),
+                        "avatar_updated_at_ms": self._row_optional_int_lenient(row, "avatar_updated_at_ms"),
+                        "has_avatar": bool(self._row_optional_str_lenient(row, "avatar_path")),
+                        "is_owner": owner_user_id == user_id
+                        or str(row["role"]) == ChatMemberRole.OWNER.value,
+                        "is_me": user_id == requester_user_id,
+                        "status": self._row_optional_str_lenient(row, "status"),
+                    }
+                )
+            return items
+
+    def get_chat(self, *, chat_id: int, requester_user_id: int) -> ChatRoom:
+        with self._connect() as connection:
+            self._require_active_user(connection, requester_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if not self._can_access_chat(connection, chat_row=chat, user_id=requester_user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+            return self._row_to_chat(chat)
+
+    def update_chat(
+        self,
+        *,
+        chat_id: int,
+        actor_user_id: int,
+        title: str | None = None,
+        description: str | None = None,
+    ) -> ChatRoom:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Only custom chats can be edited", 409)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change chat info")
+
+            next_title = str(chat["title"]).strip()
+            if title is not None:
+                next_title = title.strip()
+                if not next_title:
+                    raise ChatError("invalid_title", "Chat title must not be empty", 422)
+
+            next_description = (
+                (description or "").strip() or None
+                if description is not None
+                else self._row_optional_str(chat, "description")
+            )
+
+            now_ms = _now_ms()
+            connection.execute(
+                """
+                UPDATE chats
+                SET title = ?, description = ?, updated_at_ms = ?
+                WHERE id = ?
+                """,
+                (next_title, next_description, now_ms, chat_id),
+            )
+
+            updated = connection.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+            if updated is None:
+                raise ChatError("chat_not_found", "Chat not found", 404)
+            return self._row_to_chat(updated)
+
+    def set_chat_avatar(self, *, chat_id: int, actor_user_id: int, avatar: AvatarImage) -> ChatRoom:
+        normalized_mime = avatar.mime_type.strip().lower()
+        extension = _CHAT_AVATAR_EXT_BY_MIME.get(normalized_mime)
+        if extension is None:
+            raise ChatError("invalid_avatar_mime", "Chat photo must be png, jpeg or webp", 422)
+        if len(avatar.content) > MAX_CHAT_AVATAR_BYTES:
+            raise ChatError("avatar_too_large", "Chat photo must be <= 2MB", 422)
+
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Only custom chats can have a photo", 409)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change the chat photo")
+
+            now_ms = _now_ms()
+            avatar_name = f"c{chat_id}_{now_ms}_{secrets.token_hex(6)}{extension}"
+            root = self._chat_avatars_root()
+            root.mkdir(parents=True, exist_ok=True)
+            try:
+                (root / avatar_name).write_bytes(avatar.content)
+            except OSError as exc:
+                raise ChatError("avatar_write_failed", "Failed to save chat photo", 500) from exc
+
+            old_path = self._row_optional_str_lenient(chat, "avatar_path")
+            connection.execute(
+                "UPDATE chats SET avatar_path = ?, updated_at_ms = ? WHERE id = ?",
+                (avatar_name, now_ms, chat_id),
+            )
+
+            updated = connection.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+            if updated is None:
+                raise ChatError("chat_not_found", "Chat not found", 404)
+            self._delete_chat_avatar_file(old_path)
+            return self._row_to_chat(updated)
+
+    def clear_chat_avatar(self, *, chat_id: int, actor_user_id: int) -> ChatRoom:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Only custom chats can have a photo", 409)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change the chat photo")
+
+            old_path = self._row_optional_str_lenient(chat, "avatar_path")
+            now_ms = _now_ms()
+            connection.execute(
+                "UPDATE chats SET avatar_path = NULL, updated_at_ms = ? WHERE id = ?",
+                (now_ms, chat_id),
+            )
+
+            updated = connection.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+            if updated is None:
+                raise ChatError("chat_not_found", "Chat not found", 404)
+            self._delete_chat_avatar_file(old_path)
+            return self._row_to_chat(updated)
+
+    def get_chat_avatar_file(self, *, chat_id: int, requester_user_id: int) -> tuple[Path, str]:
+        with self._connect() as connection:
+            self._require_active_user(connection, requester_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if not self._can_access_chat(connection, chat_row=chat, user_id=requester_user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+
+            avatar_name = self._row_optional_str_lenient(chat, "avatar_path")
+            if not avatar_name:
+                raise ChatError("avatar_not_found", "Chat has no photo", 404)
+
+            file_path = self._chat_avatars_root() / avatar_name
+            if not file_path.is_file():
+                raise ChatError("avatar_not_found", "Chat photo file is missing", 404)
+
+            mime_type = _CHAT_AVATAR_MIME_BY_EXT.get(file_path.suffix.lower(), "application/octet-stream")
+            return file_path, mime_type
+
+    def remove_member(self, *, chat_id: int, target_user_id: int, actor_user_id: int) -> None:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+            target = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if target is None:
+                raise ChatError("member_not_found", "Member not found", 404)
+
+            if target_user_id == actor_user_id:
+                if str(target["role"]) == ChatMemberRole.OWNER.value:
+                    raise ChatError(
+                        "owner_cannot_leave",
+                        "Transfer ownership or delete the chat first",
+                        409,
+                    )
+                connection.execute(
+                    "DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                    (chat_id, target_user_id),
+                )
+                return
+
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="remove members")
+            if str(target["role"]) == ChatMemberRole.OWNER.value:
+                raise ChatError("cannot_remove_owner", "The chat owner cannot be removed", 409)
+
+            connection.execute(
+                "DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            )
+
+    def leave_chat(self, *, chat_id: int, user_id: int) -> None:
+        self.remove_member(chat_id=chat_id, target_user_id=user_id, actor_user_id=user_id)
+
+    def delete_chat_room(self, *, chat_id: int, actor_user_id: int) -> None:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) == ChatKind.COMMON.value:
+                raise ChatError("common_chat_protected", "The general chat cannot be deleted", 409)
+
+            is_manager = self._is_chat_manager(connection, chat_row=chat, actor=actor)
+            member = connection.execute(
+                "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, actor_user_id),
+            ).fetchone()
+            may_delete_dialog = member is not None and self._is_private_dialog(connection, chat)
+
+            if not (is_manager or may_delete_dialog):
+                raise ChatError(
+                    "forbidden",
+                    "Only the owner or an admin can delete this chat",
+                    403,
+                )
+
+            self._delete_chat_data(connection, chat_id)
+
+    def transfer_owner(self, *, chat_id: int, actor_user_id: int, target_user_id: int) -> ChatRoom:
+        with self._connect() as connection:
+            actor = self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+
+            if str(chat["kind"]) != ChatKind.CUSTOM.value:
+                raise ChatError("invalid_chat_kind", "Ownership is transferred only in custom chats", 409)
+            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="transfer ownership")
+
+            target = connection.execute(
+                "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                (chat_id, target_user_id),
+            ).fetchone()
+            if target is None:
+                raise ChatError("member_not_found", "The new owner must be a chat member", 404)
+            if self._row_optional_int(chat, "owner_user_id") == target_user_id:
+                raise ChatError("same_owner", "This user is already the chat owner", 409)
+
+            now_ms = _now_ms()
+            connection.execute(
+                "UPDATE chats SET owner_user_id = ?, updated_at_ms = ? WHERE id = ?",
+                (target_user_id, now_ms, chat_id),
+            )
+            connection.execute(
+                "UPDATE chat_members SET role = ? WHERE chat_id = ? AND user_id = ?",
+                (ChatMemberRole.OWNER.value, chat_id, target_user_id),
+            )
+            connection.execute(
+                "UPDATE chat_members SET role = ? WHERE chat_id = ? AND user_id = ? AND role = ?",
+                (ChatMemberRole.MEMBER.value, chat_id, actor_user_id, ChatMemberRole.OWNER.value),
+            )
+
+            updated = connection.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+            if updated is None:
+                raise ChatError("chat_not_found", "Chat not found", 404)
+            return self._row_to_chat(updated)
+
+    def _chat_avatars_root(self) -> Path:
+        return self._storage_root / "chat_avatars"
+
+    def _delete_chat_avatar_file(self, avatar_name: str | None) -> None:
+        if not avatar_name:
+            return
+        try:
+            (self._chat_avatars_root() / avatar_name).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _is_chat_manager(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        actor: sqlite3.Row,
+    ) -> bool:
+        """Owner, platform admin/moderator or group admin may manage the chat."""
+        actor_id = self._row_int(actor, "id")
+        if str(actor["role"]) in {UserRole.ADMIN.value, UserRole.MODERATOR.value}:
+            return True
+
+        chat_id = self._row_int(chat_row, "id")
+        if self._row_optional_int(chat_row, "owner_user_id") == actor_id:
+            return True
+        if self._is_owner(connection, chat_id=chat_id, user_id=actor_id):
+            return True
+
+        member = connection.execute(
+            "SELECT role FROM chat_members WHERE chat_id = ? AND user_id = ?",
+            (chat_id, actor_id),
+        ).fetchone()
+        return member is not None and str(member["role"]) == "admin"
+
+    def _require_chat_manager(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        actor: sqlite3.Row,
+        action: str = "manage this chat",
+    ) -> None:
+        if not self._is_chat_manager(connection, chat_row=chat_row, actor=actor):
+            raise ChatError("forbidden", f"Only the chat owner or an admin can {action}", 403)
+
+    def _is_private_dialog(self, connection: sqlite3.Connection, chat_row: sqlite3.Row) -> bool:
+        """One-on-one private chat (not a private room with a room code)."""
+        if str(chat_row["kind"]) != ChatKind.CUSTOM.value:
+            return False
+        if not self._row_bool(chat_row, "is_private"):
+            return False
+        if self._row_optional_str_lenient(chat_row, "room_code_hash"):
+            return False
+        count_row = connection.execute(
+            "SELECT COUNT(*) AS n FROM chat_members WHERE chat_id = ?",
+            (self._row_int(chat_row, "id"),),
+        ).fetchone()
+        return count_row is not None and int(count_row["n"]) == 2
+
+    def _delete_chat_data(self, connection: sqlite3.Connection, chat_id: int) -> None:
+        row = connection.execute("SELECT avatar_path FROM chats WHERE id = ?", (chat_id,)).fetchone()
+        avatar_path = self._row_optional_str_lenient(row, "avatar_path") if row is not None else None
+
+        connection.execute(
+            "DELETE FROM chat_message_attachments WHERE message_id IN (SELECT id FROM chat_messages WHERE chat_id = ?)",
+            (chat_id,),
+        )
+        connection.execute("DELETE FROM chat_messages WHERE chat_id = ?", (chat_id,))
+        connection.execute("DELETE FROM chat_members WHERE chat_id = ?", (chat_id,))
+        connection.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
+        self._delete_chat_avatar_file(avatar_path)
+
     def configure_private_room(
         self,
         *,
@@ -703,6 +1070,7 @@ class ChatService:
             has_room_code=bool(ChatService._row_optional_str(row, "room_code_hash")),
             created_at_ms=ChatService._row_int(row, "created_at_ms"),
             updated_at_ms=ChatService._row_int(row, "updated_at_ms"),
+            avatar_path=ChatService._row_optional_str_lenient(row, "avatar_path"),
         )
 
     @staticmethod
@@ -890,6 +1258,14 @@ class ChatService:
         return int(value) if value is not None else None
 
     @staticmethod
+    def _row_optional_int_lenient(row: sqlite3.Row, key: str) -> int | None:
+        try:
+            value = row[key]
+        except Exception:
+            return None
+        return int(value) if value is not None else None
+
+    @staticmethod
     def _row_optional_str(row: sqlite3.Row, key: str) -> str | None:
         value = row[key]
         return str(value) if value is not None else None
@@ -1017,10 +1393,7 @@ class ChatService:
 
     def delete_chat(self, chat_id: int) -> None:
         with self._connect() as connection:
-            connection.execute("DELETE FROM chat_message_attachments WHERE message_id IN (SELECT id FROM chat_messages WHERE chat_id=?)", (chat_id,))
-            connection.execute("DELETE FROM chat_messages WHERE chat_id=?", (chat_id,))
-            connection.execute("DELETE FROM chat_members WHERE chat_id=?", (chat_id,))
-            connection.execute("DELETE FROM chats WHERE id=?", (chat_id,))
+            self._delete_chat_data(connection, chat_id)
 
     def clear_chat_messages(self, chat_id: int) -> int:
         with self._connect() as connection:

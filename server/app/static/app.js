@@ -681,13 +681,14 @@ async function renderChat() {
         displayTitle = parts.filter(p => p !== STATE.user?.login).join(' & ') || displayTitle;
       }
       const cav = chatAvaFor(displayTitle, chat.chat_id);
-      item.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${esc(cav.initials)}</div>
+      item.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
         <div class="chat-item-main">
           <div class="chat-item-title">${esc(displayTitle)}</div>
           <div class="chat-item-desc">${chat.description ? esc(chat.description) : '#' + chat.chat_id}</div>
         </div>`;
       item.dataset.search = (displayTitle + ' ' + (chat.description || '')).toLowerCase();
-      item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item);
+      item.dataset.avatar = chat.avatar_url || '';
+      item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item, chat.avatar_url);
       list.append(item);
     });
     $('#chat-list').innerHTML = '';
@@ -811,6 +812,7 @@ async function renderChat() {
 let currentChatId = null;
 let currentChatTitle = '';
 let currentChatDesc = '';
+let currentChatAvatarUrl = '';
 let messagesPollTimer = null;
 let pendingFiles = [];
 const MAX_ATTACH_FILES = 8;
@@ -969,12 +971,13 @@ function renderAttachPreview() {
   wireFileChips(box, pendingFiles, (i) => { pendingFiles.splice(i, 1); renderAttachPreview(); });
 }
 
-async function loadChatMessages(chatId, title, itemEl) {
+async function loadChatMessages(chatId, title, itemEl, avatarUrl) {
   $$('.chat-item.active').forEach(e => e.classList.remove('active'));
   if (itemEl) itemEl.classList.add('active');
   currentChatId = chatId;
   currentChatTitle = title;
   currentChatDesc = itemEl ? ((itemEl.querySelector('.chat-item-desc') || {}).textContent || '') : '';
+  currentChatAvatarUrl = avatarUrl || (itemEl ? (itemEl.dataset.avatar || '') : '');
   const lay = $('#chat-layout');
   if (lay) lay.classList.remove('show-list');
   const cm = $('#chat-messages');
@@ -1063,14 +1066,14 @@ async function doLoadMessages(opts) {
     container.innerHTML = `
       <div class="chead">
         <button class="chat-back" id="chat-back" title="${t('back_login')}" aria-label="${t('back_login')}">${icon('back')}</button>
-        <div class="chat-ava" style="background:${cav.color}">${esc(cav.initials)}</div>
-        <div class="chead-info">
+        <div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(currentChatAvatarUrl, cav.initials)}</div>
+        <div class="chead-info" id="chat-head-open" style="cursor:pointer">
           <div class="t1">${esc(currentChatTitle)}</div>
           <div class="t2">${esc(currentChatDesc || '#' + currentChatId)}</div>
         </div>
         <span class="spacer"></span>
         <button class="icon-btn" id="chat-reload" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
-        <button class="icon-btn" id="chat-more" title="${t('description')}" aria-label="${t('description')}">${icon('more', 'fill')}</button>
+        <button class="icon-btn" id="chat-more" title="${t('chat_profile')}" aria-label="${t('chat_profile')}">${icon('more', 'fill')}</button>
       </div>
       <div id="msg-list" class="msg-list"></div>
       <div class="comp">
@@ -1127,7 +1130,9 @@ async function doLoadMessages(opts) {
     const reloadEl = $('#chat-reload');
     if (reloadEl) reloadEl.onclick = () => doLoadMessages({force:true});
     const moreEl = $('#chat-more');
-    if (moreEl) moreEl.onclick = showChatInfo;
+    if (moreEl) moreEl.onclick = () => showChatProfile();
+    const headOpen = $('#chat-head-open');
+    if (headOpen) headOpen.onclick = () => showChatProfile();
     $('#send-btn').onclick = sendMessage;
     const msgFile = $('#msg-file');
     if ($('#attach-btn')) $('#attach-btn').onclick = () => msgFile && msgFile.click();
@@ -1213,24 +1218,296 @@ function daySepEl(ms) {
   return el('div',{class:'day-sep'}, dayLabel(ms));
 }
 
-function showChatInfo() {
-  const old = document.getElementById('chat-info-modal');
+// ===== Chat profile: photo, title, description, members, leave/delete =====
+function applyChatHeader(chat) {
+  if (!chat) return;
+  currentChatTitle = chat.title;
+  currentChatDesc = chat.description || '';
+  currentChatAvatarUrl = chat.avatar_url || '';
+  const cav = chatAvaFor(chat.title, chat.chat_id);
+  const ava = document.querySelector('.chead .chat-ava');
+  if (ava) { ava.style.background = cav.color; ava.innerHTML = avatarInnerHtml(currentChatAvatarUrl, cav.initials); }
+  const t1 = document.querySelector('.chead .t1');
+  if (t1) t1.textContent = chat.title;
+  const t2 = document.querySelector('.chead .t2');
+  if (t2) t2.textContent = chat.description || ('#' + chat.chat_id);
+  const item = document.querySelector('#chat-list .chat-item.active');
+  if (item) {
+    item.dataset.avatar = currentChatAvatarUrl;
+    item.dataset.search = (chat.title + ' ' + (chat.description || '')).toLowerCase();
+    const tEl = item.querySelector('.chat-item-title'); if (tEl) tEl.textContent = chat.title;
+    const dEl = item.querySelector('.chat-item-desc'); if (dEl) dEl.textContent = chat.description || ('#' + chat.chat_id);
+    const aEl = item.querySelector('.chat-ava');
+    if (aEl) { aEl.style.background = cav.color; aEl.innerHTML = avatarInnerHtml(currentChatAvatarUrl, cav.initials); }
+  }
+}
+
+async function showChatProfile() {
+  if (!currentChatId) return;
+  const token = encodeURIComponent(STATE.token);
+  let chat = null;
+  let members = [];
+  try {
+    const res = await Promise.all([
+      api(`/chat/api/chats/${currentChatId}?session_token=${token}`),
+      api(`/chat/api/chats/${currentChatId}/members?session_token=${token}`),
+    ]);
+    chat = res[0].chat;
+    members = res[1].items || [];
+  } catch (e) { toast(e.message, 'error'); return; }
+
+  const old = document.getElementById('chat-profile-modal');
   if (old) old.remove();
-  const ov = el('div',{class:'overlay',id:'chat-info-modal'});
-  ov.innerHTML = `<div class="modal">
-    <h3>${esc(currentChatTitle || t('chat'))}</h3>
-    <div class="chat-info-row"><span class="k">ID</span><span>#${esc(String(currentChatId || ''))}</span></div>
-    <div class="chat-info-row"><span class="k">${t('description')}</span><span>${esc(currentChatDesc || '—')}</span></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-      <button class="btn btn-outline" id="chat-info-close">${t('close')}</button>
-      <button class="btn btn-primary" id="chat-info-reload">${t('refresh')}</button>
+
+  const me = members.find(m => m.is_me);
+  const myRole = me ? me.role : 'member';
+  const isOwner = myRole === 'owner' || (chat.owner_user_id === STATE.user?.id);
+  const isPlatform = ['admin', 'moderator'].includes(STATE.user?.role);
+  const canManage = isOwner || isPlatform;
+  const canDelete = canManage || !!chat.is_private;
+  const cav = chatAvaFor(chat.title, chat.chat_id);
+
+  const ov = el('div', {class: 'overlay', id: 'chat-profile-modal'});
+  ov.innerHTML = `<div class="modal modal-wide chat-profile">
+    <div class="cp-head">
+      <h3>${t('chat_profile')}</h3>
+      <button class="icon-btn" id="cp-close" title="${t('close')}" aria-label="${t('close')}">${icon('x')}</button>
+    </div>
+    <div class="cp-avatar-row">
+      <div class="cp-avatar" id="cp-avatar" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
+      <div class="cp-avatar-actions">
+        <input type="file" id="cp-avatar-file" accept="image/png,image/jpeg,image/webp" style="display:none">
+        ${canManage ? `<button class="btn btn-sm btn-outline" id="cp-avatar-upload">${t('upload_photo')}</button>` : ''}
+        ${canManage && chat.has_avatar ? `<button class="btn btn-sm btn-outline" id="cp-avatar-remove">${t('chat_photo_remove')}</button>` : ''}
+        <div class="form-hint">${t('chat_photo_hint')}</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>${t('title')}</label>
+      <div class="cp-edit-row">
+        <input class="form-input" id="cp-title" maxlength="256" value="${esc(chat.title)}"${canManage ? '' : ' disabled'}>
+        ${canManage ? `<button class="btn btn-sm btn-primary" id="cp-title-save" disabled>${t('save')}</button>` : ''}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>${t('description')}</label>
+      <div class="cp-edit-row">
+        <textarea class="form-input" id="cp-desc" rows="2" maxlength="2000"${canManage ? '' : ' disabled'}>${esc(chat.description || '')}</textarea>
+        ${canManage ? `<button class="btn btn-sm btn-primary" id="cp-desc-save" disabled>${t('save')}</button>` : ''}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>${t('chat_members')} · <span id="cp-members-count">${members.length}</span></label>
+      <div id="cp-members" class="cp-members"></div>
+      ${canManage ? `<div id="cp-add-wrap" class="cp-add-wrap hidden">
+        <div class="member-chips" id="cp-add-chips"></div>
+        <div class="picker-box">
+          <input class="form-input" id="cp-add-search" placeholder="${t('chat_members_ph')}" autocomplete="off">
+          <div class="picker-list hidden" id="cp-add-list"></div>
+        </div>
+        <div class="cp-add-actions">
+          <button class="btn btn-sm btn-outline" id="cp-add-cancel">${t('cancel')}</button>
+          <button class="btn btn-sm btn-primary" id="cp-add-submit" disabled>${t('add')}</button>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-outline" id="cp-add-open" style="margin-top:8px">+ ${t('add_members')}</button>` : ''}
+    </div>
+    <div class="cp-danger">
+      ${!isOwner ? `<button class="btn btn-outline" id="cp-leave">${t('leave_chat')}</button>` : ''}
+      ${canDelete ? `<button class="btn btn-outline danger" id="cp-delete">${t('delete_chat')}</button>` : ''}
     </div>
   </div>`;
   document.body.append(ov);
+
   const close = () => ov.remove();
   ov.onclick = (e) => { if (e.target === ov) close(); };
-  ov.querySelector('#chat-info-close').onclick = close;
-  ov.querySelector('#chat-info-reload').onclick = () => { close(); doLoadMessages({force:true}); };
+  ov.querySelector('#cp-close').onclick = close;
+
+  function memberRow(m) {
+    const row = el('div', {class: 'cp-member'});
+    const initials = (m.login || '?').slice(0, 2).toUpperCase();
+    const roleBadge = m.is_owner
+      ? ` <span class="badge badge-owner">${t('chat_owner')}</span>`
+      : (m.role === 'admin' ? ` <span class="badge badge-admin">${t('chat_admin')}</span>` : '');
+    row.innerHTML = `<div class="cp-member-ava">${avatarInnerHtml(m.avatar_url, m.avatar_emoji || initials)}</div>
+      <div class="cp-member-main">
+        <div class="cp-member-name">${esc(m.login)}${m.is_me ? ` <span class="cp-me">(${t('you')})</span>` : ''}</div>
+        <div class="cp-member-sub">#${m.user_id}${roleBadge}</div>
+      </div>`;
+    const actions = el('div', {class: 'cp-member-actions'});
+    if (isOwner && !m.is_owner) {
+      const ownBtn = el('button', {class: 'btn btn-sm btn-outline', title: t('make_owner')});
+      ownBtn.textContent = t('make_owner');
+      ownBtn.onclick = async () => {
+        if (!confirm(t('confirm_make_owner').replace('{login}', m.login))) return;
+        ownBtn.disabled = true;
+        try {
+          await api(`/chat/api/chats/${currentChatId}/owner`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, target_user_id: m.user_id})});
+          toast(t('owner_transferred'), 'success');
+          close();
+          showChatProfile();
+        } catch (e) { toast(e.message, 'error'); ownBtn.disabled = false; }
+      };
+      actions.append(ownBtn);
+    }
+    if (canManage && !m.is_owner && !m.is_me) {
+      const delBtn = el('button', {class: 'icon-btn', title: t('remove')});
+      delBtn.innerHTML = icon('trash');
+      delBtn.onclick = async () => {
+        if (!confirm(t('confirm_remove_member').replace('{login}', m.login))) return;
+        delBtn.disabled = true;
+        try {
+          await api(`/chat/api/chats/${currentChatId}/members/${m.user_id}`, {method: 'DELETE', body: JSON.stringify({session_token: STATE.token})});
+          toast(t('member_removed'), 'success');
+          close();
+          showChatProfile();
+        } catch (e) { toast(e.message, 'error'); delBtn.disabled = false; }
+      };
+      actions.append(delBtn);
+    }
+    if (actions.childNodes.length) row.append(actions);
+    return row;
+  }
+
+  const membersBox = ov.querySelector('#cp-members');
+  members.forEach(m => membersBox.append(memberRow(m)));
+
+  // title / description
+  const titleInput = ov.querySelector('#cp-title');
+  const titleSave = ov.querySelector('#cp-title-save');
+  if (titleInput && titleSave) {
+    titleInput.oninput = () => { titleSave.disabled = titleInput.value.trim() === (chat.title || '').trim(); };
+    titleSave.onclick = async () => {
+      titleSave.disabled = true;
+      try {
+        const res = await api(`/chat/api/chats/${currentChatId}`, {method: 'PATCH', body: JSON.stringify({session_token: STATE.token, title: titleInput.value.trim()})});
+        chat = res.chat;
+        applyChatHeader(chat);
+        toast(t('chat_updated'), 'success');
+      } catch (e) { toast(e.message, 'error'); }
+      finally { titleSave.disabled = true; }
+    };
+  }
+  const descInput = ov.querySelector('#cp-desc');
+  const descSave = ov.querySelector('#cp-desc-save');
+  if (descInput && descSave) {
+    descInput.oninput = () => { descSave.disabled = descInput.value.trim() === (chat.description || '').trim(); };
+    descSave.onclick = async () => {
+      descSave.disabled = true;
+      try {
+        const res = await api(`/chat/api/chats/${currentChatId}`, {method: 'PATCH', body: JSON.stringify({session_token: STATE.token, description: descInput.value.trim()})});
+        chat = res.chat;
+        applyChatHeader(chat);
+        toast(t('chat_updated'), 'success');
+      } catch (e) { toast(e.message, 'error'); }
+      finally { descSave.disabled = true; }
+    };
+  }
+
+  // chat photo
+  const avatarFile = ov.querySelector('#cp-avatar-file');
+  const avatarUpload = ov.querySelector('#cp-avatar-upload');
+  if (avatarUpload && avatarFile) avatarUpload.onclick = () => avatarFile.click();
+  if (avatarFile) {
+    avatarFile.onchange = async () => {
+      const file = avatarFile.files && avatarFile.files[0];
+      avatarFile.value = '';
+      if (!file) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type || '')) { toast(t('avatar_bad_type'), 'error'); return; }
+      if (file.size > 2 * 1024 * 1024) { toast(t('avatar_too_large'), 'error'); return; }
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const res = await api(`/chat/api/chats/${currentChatId}/avatar`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, image_base64: dataUrl, image_mime_type: file.type})});
+        chat = res.chat;
+        applyChatHeader(chat);
+        toast(t('chat_photo_ok'), 'success');
+        close();
+        showChatProfile();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+  }
+  const avatarRemove = ov.querySelector('#cp-avatar-remove');
+  if (avatarRemove) {
+    avatarRemove.onclick = async () => {
+      avatarRemove.disabled = true;
+      try {
+        const res = await api(`/chat/api/chats/${currentChatId}/avatar/remove`, {method: 'POST', body: JSON.stringify({session_token: STATE.token})});
+        chat = res.chat;
+        applyChatHeader(chat);
+        toast(t('chat_photo_removed'), 'success');
+        close();
+        showChatProfile();
+      } catch (e) { toast(e.message, 'error'); avatarRemove.disabled = false; }
+    };
+  }
+
+  // add members
+  const addWrap = ov.querySelector('#cp-add-wrap');
+  const addOpen = ov.querySelector('#cp-add-open');
+  if (addWrap && addOpen) {
+    const picker = createUserPicker({
+      chips: ov.querySelector('#cp-add-chips'),
+      list: ov.querySelector('#cp-add-list'),
+      input: ov.querySelector('#cp-add-search'),
+      exclude: members.map(m => m.user_id),
+      onchange: (sel) => { const b = ov.querySelector('#cp-add-submit'); if (b) b.disabled = sel.length === 0; },
+    });
+    addOpen.onclick = () => {
+      addWrap.classList.toggle('hidden');
+      if (!addWrap.classList.contains('hidden')) {
+        const inp = ov.querySelector('#cp-add-search');
+        if (inp) inp.focus();
+      }
+    };
+    ov.querySelector('#cp-add-cancel').onclick = () => { addWrap.classList.add('hidden'); picker.reset(); };
+    ov.querySelector('#cp-add-submit').onclick = async () => {
+      const btn = ov.querySelector('#cp-add-submit');
+      btn.disabled = true;
+      let added = 0;
+      try {
+        for (const u of picker.selected.slice()) {
+          await api(`/chat/api/chats/${currentChatId}/members`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, user_id: u.user_id})});
+          added++;
+        }
+        if (added) toast(t('member_added'), 'success');
+        close();
+        showChatProfile();
+      } catch (e) { toast(e.message, 'error'); btn.disabled = false; }
+    };
+  }
+
+  // leave / delete
+  const leaveBtn = ov.querySelector('#cp-leave');
+  if (leaveBtn) {
+    leaveBtn.onclick = async () => {
+      if (!confirm(t('confirm_leave_chat'))) return;
+      leaveBtn.disabled = true;
+      try {
+        await api(`/chat/api/chats/${currentChatId}/leave`, {method: 'POST', body: JSON.stringify({session_token: STATE.token})});
+        toast(t('chat_left'), 'success');
+        close();
+        renderChat();
+      } catch (e) { toast(e.message, 'error'); leaveBtn.disabled = false; }
+    };
+  }
+  const deleteBtn = ov.querySelector('#cp-delete');
+  if (deleteBtn) {
+    deleteBtn.onclick = async () => {
+      if (!confirm(t('confirm_delete_chat'))) return;
+      deleteBtn.disabled = true;
+      try {
+        await api(`/chat/api/chats/${currentChatId}`, {method: 'DELETE', body: JSON.stringify({session_token: STATE.token})});
+        toast(t('chat_deleted'), 'success');
+        close();
+        renderChat();
+      } catch (e) { toast(e.message, 'error'); deleteBtn.disabled = false; }
+    };
+  }
 }
 
 // ===== Devices =====
@@ -2720,6 +2997,29 @@ var T = {
 "chat_members_required":{rus:"Добавьте хотя бы одного участника",eng:"Add at least one member"},
 "chat_created":{rus:"Чат создан",eng:"Chat created"},
 "nothing_found":{rus:"Никого не найдено",eng:"Nothing found"},
+"chat_profile":{rus:"Профиль чата",eng:"Chat profile"},
+"chat_updated":{rus:"Чат обновлён",eng:"Chat updated"},
+"chat_photo_remove":{rus:"Убрать фото",eng:"Remove photo"},
+"chat_photo_hint":{rus:"PNG, JPEG или WEBP · до 2 МБ",eng:"PNG, JPEG or WEBP · up to 2 MB"},
+"chat_photo_ok":{rus:"Фото чата обновлено",eng:"Chat photo updated"},
+"chat_photo_removed":{rus:"Фото чата убрано",eng:"Chat photo removed"},
+"chat_owner":{rus:"Владелец",eng:"Owner"},
+"chat_admin":{rus:"Админ",eng:"Admin"},
+"add_members":{rus:"Добавить участников",eng:"Add members"},
+"add":{rus:"Добавить",eng:"Add"},
+"leave_chat":{rus:"Выйти из чата",eng:"Leave chat"},
+"delete_chat":{rus:"Удалить чат",eng:"Delete chat"},
+"make_owner":{rus:"Сделать владельцем",eng:"Make owner"},
+"chat_left":{rus:"Вы вышли из чата",eng:"You left the chat"},
+"chat_deleted":{rus:"Чат удалён",eng:"Chat deleted"},
+"member_added":{rus:"Участник добавлен",eng:"Member added"},
+"member_removed":{rus:"Участник удалён",eng:"Member removed"},
+"owner_transferred":{rus:"Владение передано",eng:"Ownership transferred"},
+"confirm_make_owner":{rus:"Сделать {login} владельцем чата?",eng:"Make {login} the chat owner?"},
+"confirm_remove_member":{rus:"Удалить {login} из чата?",eng:"Remove {login} from the chat?"},
+"confirm_leave_chat":{rus:"Выйти из чата?",eng:"Leave the chat?"},
+"confirm_delete_chat":{rus:"Удалить чат для всех? Это действие необратимо.",eng:"Delete the chat for everyone? This cannot be undone."},
+"you":{rus:"вы",eng:"you"},
 "menu":{rus:"Меню",eng:"Menu"},
 "edit_msg":{rus:"Редактировать сообщение",eng:"Edit message"},
 "voice_msg":{rus:"Голосовое сообщение",eng:"Voice message"},

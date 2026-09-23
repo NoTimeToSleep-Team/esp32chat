@@ -28,6 +28,7 @@ class ChatRoom:
     has_room_code: bool
     created_at_ms: int
     updated_at_ms: int
+    avatar_path: str | None = None
 
 
 @dataclass(frozen=True)
