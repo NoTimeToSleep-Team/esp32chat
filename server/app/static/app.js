@@ -400,8 +400,15 @@ async function currentMode() {
 }
 
 function requireAuth() {
-  if (!STATE.token) {window.location.hash='#/login';return false}
+  if (!STATE.token) {replaceRoute('#/login');return false}
   return true;
+}
+
+/* Replace the current history entry instead of pushing a new one: the login page must not
+   stay in the history, otherwise the Android back gesture previews it before returning. */
+function replaceRoute(hash) {
+  try { history.replaceState(null, '', hash); } catch (e) {}
+  handleRoute();
 }
 
 function setAuth(data) {
@@ -419,7 +426,7 @@ function clearAuth() {
   localStorage.removeItem('lc_user');
   STATE.chatCache = {};
   updateNav();
-  window.location.hash = '#/login';
+  replaceRoute('#/login');
 }
 
 function updateNav() {
@@ -521,7 +528,7 @@ async function renderLogin() {
     try {
       const data = await api('/auth/login', {method:'POST',body:JSON.stringify({login,password:pass,client_kind:'web'})});
       if (data.status !== 'ok') throw new Error(data.message || 'Auth failed');
-      setAuth(data); window.location.hash = '#/chat';
+      setAuth(data); replaceRoute('#/chat');
     } catch(e) { show('#login-error'); $('#login-error').textContent = e.message; $('#login-btn').disabled = false; $('#login-btn').textContent = 'Sign In'; }
   }
   async function doRegister() {
@@ -540,7 +547,7 @@ async function renderLogin() {
     try {
       const data = await api('/auth/register', {method:'POST',body:JSON.stringify({login,password:pass,phone,device_id:'web-'+Date.now().toString(36),client_kind:'web'})});
       if (data.status !== 'ok') throw new Error(data.message || 'Registration failed');
-      setAuth(data); window.location.hash = '#/chat';
+      setAuth(data); replaceRoute('#/chat');
     } catch(e) { show('#login-error'); $('#login-error').textContent = e.message; $('#login-btn').disabled = false; $('#login-btn').textContent = 'Create Account'; }
   }
   async function doGuestLogin() {
@@ -549,7 +556,7 @@ async function renderLogin() {
     try {
       const data = await api('/auth/guest', {method:'POST',body:JSON.stringify({client_kind:'web'})});
       if (data.status !== 'ok') throw new Error(data.message || 'Guest login failed');
-      setAuth(data); window.location.hash = '#/chat';
+      setAuth(data); replaceRoute('#/chat');
     } catch(e) { show('#login-error'); $('#login-error').textContent = e.message; $('#guest-btn').disabled = false; $('#guest-btn').textContent = 'Continue as guest'; }
   }
   async function doApplication() {
@@ -1186,6 +1193,7 @@ async function loadChatMessages(chatId, title, itemEl, avatarUrl) {
   currentChatAvatarUrl = avatarUrl || (itemEl ? (itemEl.dataset.avatar || '') : '');
   const lay = $('#chat-layout');
   if (lay) lay.classList.remove('show-list');
+  openConversationOnMobile();
   const cm = $('#chat-messages');
   if (cm) { cm.classList.remove('fade-switch'); void cm.offsetWidth; cm.classList.add('fade-switch'); }
   msgLoadOffset = 0;
@@ -1201,6 +1209,51 @@ async function loadChatMessages(chatId, title, itemEl, avatarUrl) {
 }
 
 let msgLoadOffset = 0;
+
+/* ===== Mobile back handling =====
+   Opening a conversation only toggles CSS, so the system back gesture used to leave the
+   chat page (on Android it also previewed the previous history entry — the login page).
+   One history entry is pushed per opened conversation: back pops it and returns to the
+   chat list instead of leaving the page. */
+let chatBackTrap = false;
+let chatOpenOnMobile = false;
+
+function mobileChatLayout() {
+  return window.matchMedia('(max-width: 820px)').matches;
+}
+
+function pushChatBackTrap() {
+  if (chatBackTrap || !mobileChatLayout()) return;
+  try {
+    history.pushState({ lcChat: currentChatId }, '', location.href);
+    chatBackTrap = true;
+  } catch (e) { chatBackTrap = false; }
+}
+
+function openConversationOnMobile() {
+  chatOpenOnMobile = mobileChatLayout();
+  pushChatBackTrap();
+}
+
+function showChatList() {
+  chatOpenOnMobile = false;
+  const lay = document.getElementById('chat-layout');
+  if (lay) lay.classList.add('show-list');
+}
+
+function releaseChatBackTrap() {
+  if (!chatBackTrap) return false;
+  chatBackTrap = false;
+  try { history.back(); } catch (e) {}
+  return true;
+}
+
+window.addEventListener('popstate', function () {
+  if (!chatOpenOnMobile) { chatBackTrap = false; return; }
+  // The system back gesture arrived while a conversation is open: show the chat list.
+  showChatList();
+  chatBackTrap = false;
+});
 
 const REACTIONS = ['👍', '❤️', '😂', '🔥', '👏', '🤔'];
 
@@ -1383,8 +1436,8 @@ function openMsgMenu(messageId, anchor, x, y) {
     <button class="msg-menu-item" data-act="forward">${icon('forward')}<span>${t('forward')}</span></button>
     ${canPin ? `<button class="msg-menu-item" data-act="pin">${icon('pin')}<span>${t('pin')}</span></button>` : ''}
     <button class="msg-menu-item" data-act="copy">${icon('copy')}<span>${t('copy')}</span></button>
-    ${isMe ? `<button class="msg-menu-item" data-act="edit">${icon('pencil')}<span>${t('edit_msg')}</span></button>
-    <button class="msg-menu-item danger" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>` : ''}`;
+    ${isMe && !m.poll ? `<button class="msg-menu-item" data-act="edit">${icon('pencil')}<span>${t('edit_msg')}</span></button>` : ''}
+    ${isMe ? `<button class="msg-menu-item danger" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>` : ''}`;
   document.body.append(menu);
   const openedAt = Date.now();
   const guardOk = () => Date.now() - openedAt > 400;
@@ -1929,10 +1982,11 @@ async function doLoadMessages(opts) {
     const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
     if (lastMsg && currentChatView && (currentChatView.last_read_message_id || 0) < lastMsg.message_id) {
       currentChatView.last_read_message_id = lastMsg.message_id;
-      api(`/chat/api/chats/${currentChatId}/read`, {method:'POST', body: JSON.stringify({session_token: STATE.token, message_id: lastMsg.message_id})})
+      const readChatId = currentChatId;
+      api(`/chat/api/chats/${readChatId}/read`, {method:'POST', body: JSON.stringify({session_token: STATE.token, message_id: lastMsg.message_id})})
         .then(() => {
-          const activeItem = document.querySelector('#chat-list .chat-item.active');
-          if (activeItem) { const badge = activeItem.querySelector('.chat-badge'); if (badge) badge.remove(); }
+          const item = document.querySelector(`#chat-list .chat-item[data-chat-id="${readChatId}"]`);
+          if (item) { const badge = item.querySelector('.chat-badge'); if (badge) badge.remove(); }
         })
         .catch(() => {});
     }
@@ -1956,7 +2010,7 @@ async function doLoadMessages(opts) {
       if (list.scrollTop < 40 && list.querySelector('.load-older')) doLoadMessages({older:true});
     };
     const backEl = $('#chat-back');
-    if (backEl) backEl.onclick = () => { const lay = $('#chat-layout'); if (lay) lay.classList.add('show-list'); };
+    if (backEl) backEl.onclick = () => { showChatList(); releaseChatBackTrap(); };
     const reloadEl = $('#chat-reload');
     if (reloadEl) reloadEl.onclick = () => doLoadMessages({force:true});
     const searchBtn = $('#chat-search-btn');
@@ -2224,6 +2278,7 @@ async function showChatProfile() {
   const isPlatform = ['admin', 'moderator'].includes(STATE.user?.role);
   const canManage = isOwner || isPlatform || myRole === 'admin';
   const isMember = view.is_member !== false;
+  const isCommon = chat.kind === 'common';
   const canDelete = isOwner || isPlatform || chatTypeOf(chat) === 'dm';
   const cav = chatAvaFor(chat.title, chat.chat_id);
   const permissionsList = ['change_info', 'delete_messages', 'invite_users', 'pin_messages', 'manage_invites', 'restrict_members'];
@@ -2328,7 +2383,7 @@ async function showChatProfile() {
     </div>` : ''}
     <div class="cp-danger">
       ${!isMember ? `<button class="btn btn-primary" id="cp-join">${t('subscribe')}</button>` : ''}
-      ${isMember && !isOwner ? `<button class="btn btn-outline" id="cp-leave">${t('leave_chat')}</button>` : ''}
+      ${isMember && !isOwner && !isCommon ? `<button class="btn btn-outline" id="cp-leave">${t('leave_chat')}</button>` : ''}
       ${isMember && canDelete ? `<button class="btn btn-outline danger" id="cp-delete">${t('delete_chat')}</button>` : ''}
     </div>
   </div>`;
@@ -3976,9 +4031,9 @@ async function checkWarnings() {
 
 async function handleRoute() {
   const hash = window.location.hash || '#/login';
-  if (hash === '#/login' && STATE.token) {window.location.hash = '#/chat'; return}
+  if (hash === '#/login' && STATE.token) {replaceRoute('#/chat');return}
   const publicRoutes = ['#/login', '#/about'];
-  if (!publicRoutes.includes(hash.split('?')[0]) && !STATE.token) {window.location.hash = '#/login'; return}
+  if (!publicRoutes.includes(hash.split('?')[0]) && !STATE.token) {replaceRoute('#/login');return}
   updateNav();
   checkWarnings();
   const contentEl = document.getElementById('content');
@@ -4007,7 +4062,7 @@ async function handleRoute() {
       case '#/support': await renderSupport(); break;
       case '#/admin': await renderAdmin(); break;
       case '#/about': renderAbout(); break;
-      default: window.location.hash = '#/chat';
+      default: replaceRoute('#/chat');
     }
   } catch(e) {
     console.error('Route render error:', e);

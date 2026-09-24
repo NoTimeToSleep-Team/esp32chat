@@ -300,6 +300,28 @@ async function openChatByTitle(page, title, chatId) {
   await mP.waitForTimeout(450);
   const profileGone = await mP.evaluate(() => !document.querySelector("#chat-profile-modal"));
   check("chat profile closes with animation", profileClosing && profileGone, JSON.stringify({ profileClosing, profileGone }));
+
+  // --- back gesture: conversation -> chat list, no login flash ---
+  await mP.evaluate(() => {
+    const item = document.querySelector("#chat-list .chat-item");
+    if (item) item.click();
+  });
+  await mP.waitForTimeout(1600);
+  const conversationOpen = await mP.evaluate(() => {
+    const lay = document.getElementById("chat-layout");
+    return !!lay && !lay.classList.contains("show-list");
+  });
+  await mP.goBack();
+  await mP.waitForTimeout(600);
+  const afterBack = await mP.evaluate(() => ({
+    listShown: document.getElementById("chat-layout").classList.contains("show-list"),
+    staticLogin: getComputedStyle(document.getElementById("static-login")).display,
+    loginRendered: !!document.querySelector("#content .login-page"),
+  }));
+  check("back gesture from a conversation shows the chat list",
+    conversationOpen && afterBack.listShown === true, JSON.stringify({ conversationOpen, afterBack }));
+  check("back gesture never shows the login page",
+    afterBack.staticLogin === "none" && !afterBack.loginRendered, JSON.stringify(afterBack));
   await mB.close();
 
   check("no page errors (desktop)", errs.length === 0, errs.join(" | "));

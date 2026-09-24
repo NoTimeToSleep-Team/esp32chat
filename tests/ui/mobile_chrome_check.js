@@ -133,11 +133,19 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   }
 
   // edit message via in-app modal (native prompt does not work in iOS portal)
+  // polls have no editable text bubble, so fall back to sending a fresh message
+  const hasEditableOut = await m.evaluate(() =>
+    Array.from(document.querySelectorAll("#msg-list .msg.out")).some(x => x.querySelector(".msg-text")));
+  if (!hasEditableOut) {
+    await m.fill("#msg-input", "mobile edit target " + Date.now());
+    await m.click("#send-btn");
+    await m.waitForTimeout(2000);
+  }
   const editOpened = await m.evaluate(() => {
     const msgs = Array.from(document.querySelectorAll("#msg-list .msg"));
     for (let i = msgs.length - 1; i >= 0; i--) {
       const mid = Number(msgs[i].dataset.mid);
-      if (mid && msgs[i].classList.contains("out")) { openMsgMenu(mid, null); return true; }
+      if (mid && msgs[i].classList.contains("out") && msgs[i].querySelector(".msg-text")) { openMsgMenu(mid, null); return true; }
     }
     return false;
   });

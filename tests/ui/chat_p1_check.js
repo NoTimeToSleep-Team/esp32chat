@@ -217,6 +217,36 @@ async function tokenFor(login, password) {
   });
   check("unread badge disappears after opening the chat", badgeGone === true);
 
+  // --- common chat (General) unread must clear too ---
+  // Regression: common chats have no chat_members row, so the read marker had nowhere to go.
+  const commonList = await api("GET", `/chat/api/chats?session_token=${encodeURIComponent(u1Token)}`);
+  const commonRow = (commonList.json.items || []).find(c => c.chat_id === 1);
+  if (!commonRow || Number(commonRow.unread_count || 0) === 0) {
+    await api("POST", "/chat/api/chats/1/messages", { session_token: adminToken, body_text: "общий чат " + Math.random().toString(36).slice(2, 5) });
+  }
+  await page1.evaluate(() => { window.location.hash = "#/account"; });
+  await page1.waitForTimeout(500);
+  await page1.evaluate(() => { window.location.hash = "#/chat"; });
+  await page1.waitForTimeout(2200);
+  const commonBadge = await page1.evaluate(() => {
+    const item = Array.from(document.querySelectorAll("#chat-list .chat-item"))
+      .find(i => (i.querySelector(".chat-item-title") || {}).textContent.includes("General"));
+    const badge = item ? item.querySelector(".chat-badge") : null;
+    return { found: !!item, badge: badge ? badge.textContent : null };
+  });
+  check("common chat shows an unread badge", commonBadge.found && commonBadge.badge !== null, JSON.stringify(commonBadge));
+  await page1.evaluate(() => {
+    const item = Array.from(document.querySelectorAll("#chat-list .chat-item"))
+      .find(i => (i.querySelector(".chat-item-title") || {}).textContent.includes("General"));
+    if (item) item.click();
+  });
+  await page1.waitForTimeout(2500);
+  const commonAfter = await api("GET", `/chat/api/chats?session_token=${encodeURIComponent(u1Token)}`);
+  const commonAfterRow = (commonAfter.json.items || []).find(c => c.chat_id === 1);
+  check("common chat unread is cleared on the server after reading",
+    !!commonAfterRow && Number(commonAfterRow.unread_count || 0) === 0 && commonAfterRow.is_member === true,
+    JSON.stringify(commonAfterRow && { unread: commonAfterRow.unread_count, is_member: commonAfterRow.is_member }));
+
   // --- mute / archive / pin ---
   const muted = await api("POST", `/chat/api/chats/${chatId}/state`, { session_token: u1Token, is_muted: true, is_pinned: true });
   check("mute and pin are saved", muted.status === 200 && muted.json.state.is_muted && muted.json.state.is_pinned, JSON.stringify(muted.json).slice(0, 160));

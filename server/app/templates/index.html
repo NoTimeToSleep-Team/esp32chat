@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="theme-color" content="#0e1621">
 <title>Local Chat</title>
-<link rel="stylesheet" href="/static/app.css?v=1789904100">
+<link rel="stylesheet" href="/static/app.css?v=1789904200">
 </head>
 <body>
 <div id="static-login" class="auth-wrap">
@@ -74,7 +74,7 @@
   </noscript>
 </main>
 
-<script src="/static/app.js?v=1789904100"></script>
+<script src="/static/app.js?v=1789904200"></script>
 
 <script>
 var _st = localStorage.getItem("lc_session_token");
@@ -92,6 +92,8 @@ function onStaticLoginSuccess(d) {
   document.querySelector(".nav").style.display = "";
   document.getElementById("nav-user").textContent = d.user.login;
   document.getElementById("nav-right").style.display = "";
+  // Replace the login entry: otherwise the back gesture returns to the login page.
+  try { history.replaceState(null, "", "#/chat"); } catch (e) {}
   if (window.lcStaticLoginComplete) {
     window.lcStaticLoginComplete();
   } else {

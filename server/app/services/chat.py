@@ -1401,6 +1401,29 @@ class ChatService:
                 (chat_id, user_id),
             ).fetchone()
             if row is None:
+                # Common (server-wide) chats have no membership rows, so the read marker
+                # had nowhere to go and the unread badge could never be cleared.
+                # Create the row lazily: joined_at_ms = 0 keeps history fully visible,
+                # exactly as it was while there was no membership row.
+                chat_row = connection.execute(
+                    "SELECT kind FROM chats WHERE id = ?",
+                    (chat_id,),
+                ).fetchone()
+                if chat_row is None or str(chat_row["kind"]) != ChatKind.COMMON.value:
+                    return
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO chat_members(
+                        chat_id,
+                        user_id,
+                        role,
+                        joined_at_ms,
+                        last_read_message_id
+                    )
+                    VALUES (?, ?, 'member', 0, ?)
+                    """,
+                    (chat_id, user_id, max(int(message_id), 0)),
+                )
                 return
             current = self._row_optional_int_lenient(row, "last_read_message_id") or 0
             if int(message_id) > current:
