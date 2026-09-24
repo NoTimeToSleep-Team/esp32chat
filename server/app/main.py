@@ -61,7 +61,8 @@ from app.security import InMemoryRateLimiter, SecurityAuditService
 from app.services.chat import ChatService
 from app.services.debug_log import DebugLogService
 from app.services.module_registry import ModuleRegistryService
-from app.services.auto_moderator import AutoModerator
+from app.services.auto_moderator import AutoModerator  # noqa: F401 (legacy scanner)
+from app.services.auto_moderation import AutoModerationService
 from app.api.system_health import router as system_health_router
 
 
@@ -122,9 +123,11 @@ def create_app() -> FastAPI:
         chat_service = ChatService(app.state.data_layer.database_path)
         default_chat = chat_service.ensure_default_common_chat()
 
-        auto_moderator = AutoModerator(app.state.data_layer.database_path)
-        auto_moderator.start()
-        app.state.auto_moderator = auto_moderator
+        # Auto-moderation: word-list detector that files reports into the
+        # regular moderation queue. The legacy 10s scanner is no longer started.
+        app.state.auto_moderation = AutoModerationService(
+            app.state.data_layer.database_path
+        )
 
         if _is_pn532_enabled(app):
             _include_rfid_router_once(app)
@@ -151,10 +154,6 @@ def create_app() -> FastAPI:
         try:
             yield
         finally:
-            try:
-                auto_moderator.stop()
-            except Exception:
-                pass
             uptime_ms = int((monotonic() - app.state.started_at_monotonic) * 1000)
             logger.info(
                 "Application shutdown profile=%s uptime_ms=%s",

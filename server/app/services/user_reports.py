@@ -10,6 +10,8 @@ ALLOWED_REASONS = ("spam", "abuse", "profanity", "ads", "scam", "other")
 MAX_COMMENT_LENGTH = 1000
 MAX_WARNS = 3
 WARN_BAN_MINUTES = 3 * 24 * 60
+AUTO_REPORTER_ID = 0
+AUTO_REPORTER_LOGIN = "Авто-модерация"
 
 
 def _now_ms() -> int:
@@ -123,6 +125,65 @@ class UserReportsService:
                     """,
                     (report_id, attachment_id, position),
                 )
+            connection.commit()
+        finally:
+            connection.close()
+        report = self.get(report_id)
+        if report is None:
+            raise UserReportsError("not_found", "Report was not found after creation", 500)
+        return report
+
+    def create_auto(
+        self,
+        *,
+        target_user_id: int,
+        target_login: str | None,
+        reason: str,
+        matched_words: str,
+        message_id: int,
+        chat_id: int,
+        comment: str,
+    ) -> dict:
+        """File an auto-moderation report (source='auto') into the normal queue."""
+        reason = (reason or "").strip().lower()
+        if reason not in ALLOWED_REASONS:
+            raise UserReportsError(
+                "invalid_reason",
+                "reason must be one of: " + ", ".join(ALLOWED_REASONS),
+                422,
+            )
+        comment = (comment or "").strip()[:MAX_COMMENT_LENGTH]
+        connection = self._connect()
+        try:
+            try:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO user_reports (
+                        reporter_user_id, reporter_login, target_user_id, target_login,
+                        reason, comment, status, created_at_ms,
+                        source, matched_words, message_id, chat_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, 'auto', ?, ?, ?)
+                    """,
+                    (
+                        AUTO_REPORTER_ID,
+                        AUTO_REPORTER_LOGIN,
+                        int(target_user_id),
+                        target_login,
+                        reason,
+                        comment,
+                        _now_ms(),
+                        matched_words,
+                        int(message_id),
+                        int(chat_id),
+                    ),
+                )
+            except sqlite3.OperationalError as exc:
+                raise UserReportsError(
+                    "auto_columns_missing",
+                    "Auto-moderation columns are missing (run migration 0033)",
+                    500,
+                ) from exc
+            report_id = int(cursor.lastrowid)
             connection.commit()
         finally:
             connection.close()

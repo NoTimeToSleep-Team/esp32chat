@@ -3466,11 +3466,31 @@ async function renderAdminReports() {
   container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   let userData = { reports: [], pending_count: 0 };
   let autoData = { reports: [], pending_count: 0 };
+  let automodData = null;
+  let html0 = '';
   let userErr = null, autoErr = null;
   try { userData = await api(`/reports/api/list?session_token=${encodeURIComponent(STATE.token)}&limit=100`); } catch(e) { userErr = e.message; }
   try { autoData = await api(`/moderation/api/admin/reports?session_token=${encodeURIComponent(STATE.token)}&limit=100`); } catch(e) { autoErr = e.message; }
+  try { automodData = await api(`/reports/api/auto-moderation?session_token=${encodeURIComponent(STATE.token)}`); } catch(e) { automodData = null; }
 
-  let html = `<div class="admin-card"><h3>${icon('flag')} ${t('admin_user_reports')} <span style="color:var(--accent4)">(${userData.pending_count||0})</span></h3>`;
+  // settings card
+  if (automodData && automodData.status === 'ok') {
+    const s = automodData.settings || {};
+    const base = automodData.base_words || {};
+    html0 = `<div class="admin-card"><h3>${icon('bot')} ${t('automod_title')} <span class="badge badge-type" style="vertical-align:middle">${s.enabled ? 'ON' : 'OFF'}</span></h3>      <label class="check-row"><input type="checkbox" id="automod-enabled" ${s.enabled ? 'checked' : ''}> ${t('automod_enabled')}</label>
+      <div class="form-group"><label>${t('automod_extra')}</label><textarea class="form-input" id="automod-extra" rows="2" placeholder="${t('automod_extra_hint')}">${esc(s.extra_words || '')}</textarea></div>
+      <div class="form-group"><label>${t('automod_whitelist')}</label><textarea class="form-input" id="automod-whitelist" rows="2" placeholder="${t('automod_whitelist_hint')}">${esc(s.whitelist || '')}</textarea></div>
+      <details style="margin:8px 0"><summary style="cursor:pointer;color:var(--text2)">${t('automod_base')} (${automodData.base_count})</summary>
+        <div style="font-size:12px;color:var(--text2);margin-top:6px;max-height:120px;overflow-y:auto">${t('reason_profanity')}: ${esc((base.profanity||[]).join(', '))}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:6px;max-height:120px;overflow-y:auto">${t('reason_abuse')}: ${esc((base.abuse||[]).join(', '))}</div>
+      </details>
+      <button class="btn btn-sm btn-primary" id="automod-save">${t('automod_save')}</button>
+    </div>`;
+  } else {
+    html0 = '';
+  }
+
+  let html = html0 + `<div class="admin-card"><h3>${icon('flag')} ${t('admin_user_reports')} <span style="color:var(--accent4)">(${userData.pending_count||0})</span></h3>`;
   if (userErr) html += `<div class="empty"><div class="empty-text">${esc(userErr)}</div></div>`;
   else if (!userData.reports?.length) html += `<div class="empty"><div class="empty-text">${t('no_reports')}</div></div>`;
   else {
@@ -3480,7 +3500,8 @@ async function renderAdminReports() {
           <span><strong>${esc(r.reporter_login)}</strong> → <strong>${esc(r.target_login||('User #'+r.target_user_id))}</strong></span>
           <span style="font-size:11px;color:var(--text2)">#${r.id} · ${esc(r.status)}</span>
         </div>
-        <div style="margin:4px 0"><span class="report-reason-badge">${esc(reportReasonLabel(r.reason))}</span> <span style="font-size:11px;color:var(--text2)">${fmtTime(r.created_at_ms)}${r.target_reports_count > 1 ? ' · ' + t('reports_against') + ': ' + r.target_reports_count : ''}</span></div>
+        <div style="margin:4px 0"><span class="report-reason-badge">${esc(reportReasonLabel(r.reason))}</span>${r.source === 'auto' ? ` <span class="badge badge-type">${t('automod_badge')}</span>` : ''} <span style="font-size:11px;color:var(--text2)">${fmtTime(r.created_at_ms)}${r.target_reports_count > 1 ? ' · ' + t('reports_against') + ': ' + r.target_reports_count : ''}</span></div>
+        ${r.source === 'auto' && r.matched_words ? `<div style="font-size:12px;color:var(--accent3);margin:4px 0">${t('automod_words')}: ${esc(r.matched_words)}</div>` : ''}
         ${r.comment ? `<div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">${esc(r.comment)}</div>` : ''}
         ${(r.attachments||[]).length ? renderAttachments(r.attachments) : ''}
         ${r.status === 'pending' ? `<div style="margin-top:6px">
@@ -3494,27 +3515,42 @@ async function renderAdminReports() {
   }
   html += '</div>';
 
-  html += `<div class="admin-card"><h3>${icon('bot')} ${t('admin_auto_reports')} <span style="color:var(--accent4)">(${autoData.pending_count||0})</span></h3>`;
-  if (autoErr) html += `<div class="empty"><div class="empty-text">${esc(autoErr)}</div></div>`;
-  else if (!autoData.reports?.length) html += `<div class="empty"><div class="empty-text">${t('no_reports')}</div></div>`;
-  else {
-    html += (autoData.reports||[]).map(r => `
-      <div class="user-row" style="display:block;border-left:3px solid ${r.status==='pending'?'var(--accent3)':'var(--border)'};padding-left:12px">
-        <div style="display:flex;justify-content:space-between">
-          <strong>${esc(r.user_login||('User #'+r.user_id))}</strong>
-          <span style="font-size:11px;color:var(--text2)">#${r.id} ${esc(r.status)}</span>
-        </div>
-        <div style="font-size:12px;color:var(--accent4);margin:4px 0">Words: ${esc(r.found_words||'')}</div>
-        <div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;max-height:80px;overflow-y:auto">${esc(r.message_text||'')}</div>
-        ${r.status === 'pending' ? `<div style="margin-top:6px">
-            <button class="btn btn-sm btn-danger" data-rrep="${r.id}" data-raction="ban">Ban</button>
-            <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="warn">Warn (${r.user_warn_count||0}/3)</button>
-            <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="dismiss">Dismiss</button>
-          </div>` : `<div style="font-size:11px;color:var(--text2)">Resolved: ${esc(r.action||'?')} by ${esc(r.resolved_by||'?')}</div>`}
-      </div>`).join('');
+  if (autoData.reports?.length) {
+    html += `<div class="admin-card"><h3>${icon('bot')} ${t('admin_auto_reports_legacy')} <span style="color:var(--accent4)">(${autoData.pending_count||0})</span></h3>`;
+    if (autoErr) html += `<div class="empty"><div class="empty-text">${esc(autoErr)}</div></div>`;
+    else {
+      html += (autoData.reports||[]).map(r => `
+        <div class="user-row" style="display:block;border-left:3px solid ${r.status==='pending'?'var(--accent3)':'var(--border)'};padding-left:12px">
+          <div style="display:flex;justify-content:space-between">
+            <strong>${esc(r.user_login||('User #'+r.user_id))}</strong>
+            <span style="font-size:11px;color:var(--text2)">#${r.id} ${esc(r.status)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--accent4);margin:4px 0">Words: ${esc(r.found_words||'')}</div>
+          <div style="font-size:12px;background:var(--bg);padding:6px;border-radius:4px;margin:4px 0;max-height:80px;overflow-y:auto">${esc(r.message_text||'')}</div>
+          ${r.status === 'pending' ? `<div style="margin-top:6px">
+              <button class="btn btn-sm btn-danger" data-rrep="${r.id}" data-raction="ban">Ban</button>
+              <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="warn">Warn (${r.user_warn_count||0}/3)</button>
+              <button class="btn btn-sm btn-outline" data-rrep="${r.id}" data-raction="dismiss">Dismiss</button>
+            </div>` : `<div style="font-size:11px;color:var(--text2)">Resolved: ${esc(r.action||'?')} by ${esc(r.resolved_by||'?')}</div>`}
+        </div>`).join('');
+    }
+    html += '</div>';
   }
-  html += '</div>';
   container.innerHTML = html;
+
+  const automodSave = document.getElementById('automod-save');
+  if (automodSave) automodSave.onclick = async () => {
+    try {
+      await api('/reports/api/auto-moderation', {method:'POST', body:JSON.stringify({
+        session_token: STATE.token,
+        enabled: document.getElementById('automod-enabled').checked,
+        extra_words: document.getElementById('automod-extra').value,
+        whitelist: document.getElementById('automod-whitelist').value,
+      })});
+      toast(t('automod_saved'), 'success');
+      renderAdminReports();
+    } catch(e) { toast(e.message, 'error'); }
+  };
 
   container.querySelectorAll('[data-urep]').forEach(btn => {
     btn.onclick = async () => {
@@ -4527,6 +4563,18 @@ var T = {
 "reason_other":{rus:"Другое",eng:"Other"},
 "admin_user_reports":{rus:"Жалобы пользователей",eng:"User reports"},
 "admin_auto_reports":{rus:"Авто-модерация",eng:"Auto-moderation"},
+"admin_auto_reports_legacy":{rus:"Авто-отчёты (старый сканер)",eng:"Auto reports (legacy scanner)"},
+"automod_title":{rus:"Авто-модерация чата",eng:"Chat auto-moderation"},
+"automod_enabled":{rus:"Включена — мат и оскорбления автоматически попадают в очередь жалоб (только репорт, мут/бан модератор выдаёт вручную)",eng:"Enabled — profanity and insults are filed into the reports queue (reports only; warn/ban is manual)"},
+"automod_extra":{rus:"Свои слова (через запятую)",eng:"Extra words (comma separated)"},
+"automod_extra_hint":{rus:"например: обормот, неформал",eng:"e.g. buffoon, twit"},
+"automod_whitelist":{rus:"Белый список (эти слова не проверяются)",eng:"Whitelist (never flagged)"},
+"automod_whitelist_hint":{rus:"например: бляха, бляшка",eng:"e.g. word, another"},
+"automod_base":{rus:"Базовый словарь",eng:"Base dictionary"},
+"automod_save":{rus:"Сохранить",eng:"Save"},
+"automod_saved":{rus:"Настройки авто-модерации сохранены",eng:"Auto-moderation settings saved"},
+"automod_badge":{rus:"авто",eng:"auto"},
+"automod_words":{rus:"Слова",eng:"Words"},
 "no_reports":{rus:"Жалоб нет",eng:"No reports"},
 "warn_banner":{rus:"У вас предупреждений: {n}/{max}. При {max} — бан на 3 дня.",eng:"You have {n}/{max} warnings. At {max} — a 3-day ban."},
 "warn_given":{rus:"Предупреждение {n}/{max} выдано",eng:"Warning {n}/{max} issued"},

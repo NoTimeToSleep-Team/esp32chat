@@ -6,6 +6,7 @@ from app.models import ClientKind, MessageDraft
 from app.realtime import ChatRealtimeBroker, chat_message_event, chat_message_payload
 from app.services.auth import AuthError, AuthService
 from app.services.chat import ChatError, ChatService
+from app.api._automod import moderate_message
 from pydantic import BaseModel, Field
 
 
@@ -204,6 +205,7 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
                         "delivered_to": delivered,
                     }
                 )
+                moderate_message(websocket.app, message)
                 continue
 
             await websocket.send_json(

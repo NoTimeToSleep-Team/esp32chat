@@ -31,6 +31,13 @@ class ResolveUserReportRequest(BaseModel):
     action: str = Field(default="dismiss", max_length=16)
 
 
+class AutoModerationSettingsRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    enabled: bool | None = None
+    extra_words: str | None = Field(default=None, max_length=4000)
+    whitelist: str | None = Field(default=None, max_length=4000)
+
+
 def _reports_service(request: Request) -> UserReportsService:
     return UserReportsService(db_path=request.app.state.data_layer.database_path)
 
@@ -249,3 +256,48 @@ async def resolve_reports(
     if warn_info is not None:
         response["warn"] = warn_info
     return response
+
+
+# ----- auto-moderation settings (admin/moderator only) -----
+
+
+def _automod_service(request: Request):
+    service = getattr(request.app.state, "auto_moderation", None)
+    if service is None:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "automod_unavailable", "message": "Auto-moderation is not available"},
+        )
+    return service
+
+
+@router.get("/reports/api/auto-moderation")
+async def get_auto_moderation_settings(request: Request, session_token: str = Query(..., min_length=8, max_length=512)):
+    _session(request, session_token, staff=True)
+    service = _automod_service(request)
+    settings = service.settings(fresh=True)
+    base = service.base_words()
+    return {
+        "status": "ok",
+        "settings": settings,
+        "base_words": base,
+        "base_count": len(base.get("profanity", [])) + len(base.get("abuse", [])),
+    }
+
+
+@router.post("/reports/api/auto-moderation")
+async def update_auto_moderation_settings(request: Request, payload: AutoModerationSettingsRequest):
+    _session(request, payload.session_token, staff=True)
+    service = _automod_service(request)
+    settings = service.update_settings(
+        enabled=payload.enabled,
+        extra_words=payload.extra_words,
+        whitelist=payload.whitelist,
+    )
+    base = service.base_words()
+    return {
+        "status": "ok",
+        "settings": settings,
+        "base_words": base,
+        "base_count": len(base.get("profanity", [])) + len(base.get("abuse", [])),
+    }

@@ -22,6 +22,7 @@ from app.services.auth import AuthError, AuthService
 from app.services.avatars import AvatarPayloadError, decode_avatar_payload
 from app.services.chat import ChatError, ChatService
 from app.services.presence import presence
+from app.api._automod import moderate_message
 
 
 router = APIRouter(tags=["chat"])
@@ -337,6 +338,8 @@ async def post_chat_message(
                 "message": str(exc),
             },
         )
+
+    moderate_message(request, message)
 
     broker = getattr(request.app.state, "realtime_broker", None)
     delivered_to = 0
@@ -1024,6 +1027,7 @@ async def forward_chat_message(
         )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    moderate_message(request, message)
     return {"status": "ok", "message": _message_payload(message), "target_chat_id": payload.target_chat_id}
 
 
@@ -1411,4 +1415,5 @@ async def edit_message(request: Request, chat_id: int, message_id: int, payload:
         msg = chat_service.edit_message(chat_id=chat_id, message_id=message_id, actor_user_id=session.user.user_id, body_text=payload.body_text)
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    moderate_message(request, msg)
     return {"status": "ok", "message": {"message_id": msg.message_id, "body_text": msg.body_text, "edited_at_ms": msg.edited_at_ms}}
