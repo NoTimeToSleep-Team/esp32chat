@@ -786,8 +786,8 @@ audio::-webkit-media-controls-panel{background:var(--bg3)}
   .send-area{flex-wrap:nowrap;align-items:flex-end;gap:6px}
   .send-area textarea{flex:1 1 auto;min-width:0;min-height:44px}
   .send-area .btn{flex:0 0 auto;justify-content:center;height:44px;padding:0 12px}
-  .tabs{gap:2px}
-  .tab{font-size:12px;padding:8px 12px}
+  .tabs{gap:2px;flex-wrap:wrap;overflow-x:visible;row-gap:2px}
+  .tab{font-size:12px;padding:8px 10px;flex:0 0 auto}
   table{font-size:11px}
   td,th{padding:4px 6px}
   #profile-modal > div{margin:8px;max-height:90vh;overflow-y:auto}

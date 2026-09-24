@@ -206,6 +206,28 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   }));
   check("other pages scroll normally (body static)", otherPage.bodyPos === "static" && !otherPage.chatMode, JSON.stringify(otherPage));
 
+  // admin tabs must all fit the phone screen (they used to overflow off-screen)
+  await m.evaluate(() => { window.location.hash = "#/admin"; });
+  await m.waitForTimeout(1800);
+  const adminTabs = await m.evaluate(() => {
+    const tabs = Array.from(document.querySelectorAll(".tab"));
+    const bad = tabs.filter(t => {
+      const r = t.getBoundingClientRect();
+      return r.left < 0 || r.right > window.innerWidth + 1;
+    }).map(t => t.dataset.tab + "@" + Math.round(t.getBoundingClientRect().right));
+    return { total: tabs.length, bad, winW: window.innerWidth };
+  });
+  check("admin tabs all fit the mobile screen", adminTabs.total >= 9 && adminTabs.bad.length === 0, JSON.stringify(adminTabs));
+  await m.click('.tab[data-tab="reports"]');
+  await m.waitForTimeout(1200);
+  const reportsTab = await m.evaluate(() => ({
+    active: (document.querySelector(".tab.active") || {}).dataset ? document.querySelector(".tab.active").dataset.tab : null,
+    panelVisible: (() => { const p = document.getElementById("admin-reports"); return p ? !p.classList.contains("hidden") : null; })(),
+    settingsCard: !!document.getElementById("automod-enabled"),
+  }));
+  check("reports tab is reachable and renders on mobile", reportsTab.active === "reports" && reportsTab.panelVisible === true && reportsTab.settingsCard === true, JSON.stringify(reportsTab));
+  await m.screenshot({ path: SHOTS + "mobile-admin-tabs.png" });
+
   await m.close();
   check("no page errors", errs.length === 0, errs.join(" | "));
   await browser.close();
