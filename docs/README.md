@@ -4,6 +4,7 @@ Documentation for architecture, glossary, MVP boundaries, device matrix, accepta
 
 Current documents:
 
+- `rpi-ops-notes.md` — доступ к плате, маршрут до RPi, деплой и тесты на живом портале
 - `glossary.md`
 - `mvp-scope.md`
 - `architecture.md`
