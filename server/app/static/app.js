@@ -2279,7 +2279,7 @@ async function showChatProfile() {
   const canManage = isOwner || isPlatform || myRole === 'admin';
   const isMember = view.is_member !== false;
   const isCommon = chat.kind === 'common';
-  const canDelete = isOwner || isPlatform || chatTypeOf(chat) === 'dm';
+  const canDelete = !isCommon && (isOwner || isPlatform || chatTypeOf(chat) === 'dm');
   const cav = chatAvaFor(chat.title, chat.chat_id);
   const permissionsList = ['change_info', 'delete_messages', 'invite_users', 'pin_messages', 'manage_invites', 'restrict_members'];
 
@@ -2728,22 +2728,50 @@ async function showChatProfile() {
   }
   if (requestsBox) loadRequests();
 
-  // per-user chat state: mute / archive / pin / clear history
-  const stateBtn = (selector, patch, okKey) => {
+  // per-user chat state: mute / archive / pin / clear history.
+  // Buttons update in place (no modal rebuild), so the sheet does not jump back to the top.
+  const syncMuteFlag = (chatId, muted) => {
+    const item = document.querySelector(`#chat-list .chat-item[data-chat-id="${chatId}"]`);
+    if (!item) return;
+    const title = item.querySelector('.chat-item-title');
+    const flag = title ? title.querySelector(`.chat-flag[title="${t('muted')}"]`) : null;
+    if (muted && title && !flag) {
+      const span = el('span', {class: 'chat-flag', title: t('muted')});
+      span.innerHTML = icon('bellOff');
+      title.append(span);
+    } else if (!muted && flag) {
+      flag.remove();
+    }
+    const badge = item.querySelector('.chat-badge');
+    if (badge) badge.classList.toggle('muted', !!muted);
+  };
+  const stateBtn = (selector, key, on, off) => {
     const btn = ov.querySelector(selector);
     if (!btn) return;
     btn.onclick = async () => {
+      const value = !view[key];
       btn.disabled = true;
       try {
-        await api(`/chat/api/chats/${currentChatId}/state`, {method: 'POST', body: JSON.stringify(Object.assign({session_token: STATE.token}, patch))});
-        toast(t(okKey), 'success');
-        reopen();
-      } catch (e) { toast(e.message, 'error'); btn.disabled = false; }
+        await api(`/chat/api/chats/${currentChatId}/state`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, [key]: value})});
+        view[key] = value;
+        btn.textContent = t(value ? on.label : off.label);
+        btn.classList.toggle('btn-primary', value);
+        btn.classList.toggle('btn-outline', !value);
+        toast(t(value ? on.toast : off.toast), 'success');
+        if (key === 'is_muted') syncMuteFlag(currentChatId, value);
+      } catch (e) { toast(e.message, 'error'); }
+      finally { btn.disabled = false; }
     };
   };
-  stateBtn('#cp-mute', {is_muted: !view.is_muted}, view.is_muted ? 'unmuted' : 'muted_ok');
-  stateBtn('#cp-archive', {is_archived: !view.is_archived}, view.is_archived ? 'unarchived' : 'archived_ok');
-  stateBtn('#cp-pin', {is_pinned: !view.is_pinned}, view.is_pinned ? 'unpinned_chat' : 'pinned_chat_ok');
+  stateBtn('#cp-mute', 'is_muted',
+    {label: 'unmute', toast: 'muted_ok'},
+    {label: 'mute', toast: 'unmuted'});
+  stateBtn('#cp-archive', 'is_archived',
+    {label: 'unarchive', toast: 'archived_ok'},
+    {label: 'archive', toast: 'unarchived'});
+  stateBtn('#cp-pin', 'is_pinned',
+    {label: 'unpin_chat', toast: 'pinned_chat_ok'},
+    {label: 'pin_chat', toast: 'unpinned_chat_ok'});
   const clearBtn = ov.querySelector('#cp-clear');
   if (clearBtn) {
     clearBtn.onclick = async () => {

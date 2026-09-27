@@ -375,7 +375,7 @@ audio::-webkit-media-controls-panel{background:var(--bg3)}
 .badge-guest{background:rgba(127,139,152,.2);color:var(--text2)}
 
 /* Toast */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 16px;border-radius:14px;font-size:14px;font-weight:500;z-index:200;animation:toastIn var(--dur-slow) var(--ease-spring) both;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;max-width:min(92vw,520px)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 16px;border-radius:14px;font-size:14px;font-weight:500;z-index:1000;animation:toastIn var(--dur-slow) var(--ease-spring) both;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;max-width:min(92vw,520px)}
 .toast.hiding{animation:toastOut var(--dur-fast) var(--ease) both}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,26px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
 @keyframes toastOut{from{opacity:1;transform:translate(-50%,0) scale(1)}to{opacity:0;transform:translate(-50%,18px) scale(.96)}}
