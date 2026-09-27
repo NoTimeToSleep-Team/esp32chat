@@ -1602,7 +1602,7 @@ document.addEventListener('contextmenu', (e) => {
   openMsgMenu(Number(msg.dataset.mid), null, e.clientX, e.clientY);
 });
 
-// --- Chat list gestures: swipe left = archive, swipe right = mute ---
+// --- Chat list gestures: swipe left = archive (swipe-right mute removed until notifications exist) ---
 const LIST_SWIPE = {el:null, chat:null, x:0, y:0, dx:0, active:false, moved:false, suppressClick:false};
 
 async function toggleChatFlag(chat, key) {
@@ -1622,20 +1622,17 @@ function listSwipePreview(item, dx) {
   const title = item.querySelector('.chat-item-title');
   if (!title) return;
   let flag = title.querySelector('.chat-flag.swipe-preview');
-  if (Math.abs(dx) < 20) {
+  if (dx > -20) {
     if (flag) flag.remove();
     item.style.background = '';
     return;
   }
-  const key = dx < 0 ? 'archive' : 'bellOff';
-  if (!flag || flag.dataset.key !== key) {
-    if (flag) flag.remove();
+  if (!flag) {
     flag = el('span', {class: 'chat-flag swipe-preview'});
-    flag.dataset.key = key;
-    flag.innerHTML = icon(key === 'archive' ? 'archive' : 'bellOff');
+    flag.innerHTML = icon('archive');
     title.prepend(flag);
   }
-  item.style.background = dx < 0 ? 'rgba(248,81,73,.16)' : 'rgba(94,181,247,.16)';
+  item.style.background = 'rgba(248,81,73,.16)';
 }
 
 document.addEventListener('pointerdown', (e) => {
@@ -1686,7 +1683,6 @@ document.addEventListener('pointerup', () => {
   setTimeout(() => { LIST_SWIPE.suppressClick = false; }, 350);
   if (!chat) return;
   if (dx <= -80) toggleChatFlag(chat, 'is_archived');
-  else if (dx >= 80) toggleChatFlag(chat, 'is_muted');
 }, {passive: true});
 
 document.addEventListener('click', (e) => {
@@ -2375,7 +2371,7 @@ async function showChatProfile() {
     ${isMember ? `<div class="form-group">
       <label>${t('chat_notifications')}</label>
       <div class="cp-state">
-        <button class="btn btn-sm ${view.is_muted ? 'btn-primary' : 'btn-outline'}" id="cp-mute">${view.is_muted ? t('unmute') : t('mute')}</button>
+        ${view.is_muted ? `<button class="btn btn-sm btn-primary" id="cp-mute">${t('unmute')}</button>` : ''}
         <button class="btn btn-sm ${view.is_archived ? 'btn-primary' : 'btn-outline'}" id="cp-archive">${view.is_archived ? t('unarchive') : t('archive')}</button>
         <button class="btn btn-sm ${view.is_pinned ? 'btn-primary' : 'btn-outline'}" id="cp-pin">${view.is_pinned ? t('unpin_chat') : t('pin_chat')}</button>
         <button class="btn btn-sm btn-outline danger" id="cp-clear">${t('clear_history')}</button>
@@ -2771,7 +2767,7 @@ async function showChatProfile() {
     {label: 'archive', toast: 'unarchived'});
   stateBtn('#cp-pin', 'is_pinned',
     {label: 'unpin_chat', toast: 'pinned_chat_ok'},
-    {label: 'pin_chat', toast: 'unpinned_chat_ok'});
+    {label: 'pin_chat', toast: 'unpinned_chat'});
   const clearBtn = ov.querySelector('#cp-clear');
   if (clearBtn) {
     clearBtn.onclick = async () => {

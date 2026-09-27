@@ -270,10 +270,9 @@ async function openChatByTitle(page, title, chatId) {
     const it = document.querySelector('#chat-list .chat-item[data-chat-id="' + id + '"]');
     return it ? !!it.querySelector(".chat-flag") : false;
   }, chatId);
-  check("swipe right mutes the chat",
-    !!(mutedApi.json.view && mutedApi.json.view.is_muted) && mutedFlag,
+  check("swipe right does not mute anymore (mute removed with notifications)",
+    !(mutedApi.json.view && mutedApi.json.view.is_muted) && !mutedFlag,
     JSON.stringify({ muted: mutedApi.json.view && mutedApi.json.view.is_muted, mutedFlag }));
-  await api("POST", `/chat/api/chats/${chatId}/state`, { session_token: adminToken, is_muted: false });
 
   // chat profile fits mobile width
   await openChatByTitle(mP, grpTitle, chatId);

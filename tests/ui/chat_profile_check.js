@@ -206,12 +206,20 @@ async function loginToken(login, password) {
     await page.waitForTimeout(1500);
     await page.click("#chat-more");
     await page.waitForTimeout(1300);
-    const commonUi = await page.evaluate(() => ({
-      deleteBtn: !!document.getElementById("cp-delete"),
-      leaveBtn: !!document.getElementById("cp-leave"),
-      muteBtn: !!document.getElementById("cp-mute"),
-    }));
-    check("general chat shows no delete/leave buttons but keeps mute", commonUi.deleteBtn === false && commonUi.leaveBtn === false && commonUi.muteBtn === true, JSON.stringify(commonUi));
+    const commonUi = await page.evaluate(() => {
+      const view = window.currentChatView || {};
+      return {
+        muted: !!view.is_muted,
+        deleteBtn: !!document.getElementById("cp-delete"),
+        leaveBtn: !!document.getElementById("cp-leave"),
+        archiveBtn: !!document.getElementById("cp-archive"),
+        pinBtn: !!document.getElementById("cp-pin"),
+        muteBtn: !!document.getElementById("cp-mute"),
+      };
+    });
+    check("general chat: no delete/leave, mute only as an unmute escape hatch",
+      commonUi.deleteBtn === false && commonUi.leaveBtn === false && commonUi.muteBtn === commonUi.muted && commonUi.archiveBtn === true && commonUi.pinBtn === true,
+      JSON.stringify(commonUi));
     await page.evaluate(() => { const m = document.getElementById("chat-profile-modal"); if (m) m.remove(); });
   } else {
     check("general chat found in the chat list", false, "no common chat in the list");
@@ -243,30 +251,33 @@ async function loginToken(login, password) {
   check("member rows are rendered on mobile", mobile.members >= 1, JSON.stringify(mobile));
   await mPage.screenshot({ path: SHOTS + "chat-profile-mobile.png" });
 
-  // mobile: toggling mute must not jump the sheet back to the top, and the toast must stay visible
+  // mobile: toggling a chat-state button must not jump the sheet back to the top, and the toast must stay visible
   await mPage.evaluate(() => { const m = document.querySelector("#chat-profile-modal .chat-profile"); if (m) m.scrollTop = m.scrollHeight; });
   await mPage.waitForTimeout(400);
-  const beforeMute = await mPage.evaluate(() => {
+  const beforePin = await mPage.evaluate(() => {
     const m = document.querySelector("#chat-profile-modal .chat-profile");
-    return { top: m.scrollTop, max: m.scrollHeight - m.clientHeight, label: (document.getElementById("cp-mute") || {}).textContent || "" };
+    return { top: m.scrollTop, max: m.scrollHeight - m.clientHeight, label: (document.getElementById("cp-pin") || {}).textContent || "" };
   });
-  await mPage.click("#cp-mute");
+  await mPage.click("#cp-pin");
   await mPage.waitForTimeout(1300);
-  const afterMute = await mPage.evaluate(() => {
+  const afterPin = await mPage.evaluate(() => {
     const m = document.querySelector("#chat-profile-modal .chat-profile");
     const toast = document.querySelector(".toast");
     const tr = toast ? toast.getBoundingClientRect() : null;
     const hit = tr ? document.elementFromPoint(tr.left + tr.width / 2, tr.top + tr.height / 2) : null;
     return {
       top: m ? m.scrollTop : null,
-      label: (document.getElementById("cp-mute") || {}).textContent || "",
+      label: (document.getElementById("cp-pin") || {}).textContent || "",
       toastText: toast ? toast.textContent : null,
       toastOnTop: !!(toast && hit && (hit === toast || toast.contains(hit))),
+      muted: !!((window.currentChatView || {}).is_muted),
+      muteBtn: !!document.getElementById("cp-mute"),
     };
   });
-  check("mute toggle keeps the profile sheet scroll position", beforeMute.top > 0 && afterMute.top >= beforeMute.top - 4, JSON.stringify({ beforeMute, afterMute }));
-  check("mute toggle updates the button in place", !!afterMute.label && afterMute.label !== beforeMute.label, JSON.stringify(afterMute));
-  check("confirmation toast is visible above the modal", (afterMute.toastText === "Уведомления отключены" || afterMute.toastText === "Уведомления включены") && afterMute.toastOnTop, JSON.stringify(afterMute));
+  check("chat-state toggle keeps the profile sheet scroll position", beforePin.top > 0 && afterPin.top >= beforePin.top - 4, JSON.stringify({ beforePin, afterPin }));
+  check("chat-state toggle updates the button in place", !!afterPin.label && afterPin.label !== beforePin.label, JSON.stringify(afterPin));
+  check("confirmation toast is visible above the modal", (afterPin.toastText === "Чат закреплён в списке" || afterPin.toastText === "Чат откреплён") && afterPin.toastOnTop, JSON.stringify(afterPin));
+  check("mute toggle exists only for already-muted chats (no new muting)", afterPin.muteBtn === afterPin.muted, JSON.stringify(afterPin));
 
   check("no mobile page errors", mErrs.length === 0, mErrs.join(" | "));
   await mBrowser.close();
