@@ -95,9 +95,9 @@ tr:last-child td{border-bottom:none}
     <div id="loginMsg"></div>
   </div>
   <div id="main" style="display:none"><div id="msg"></div>
-  <div class="tabs" id="tabs"><div class="tab active" onclick="switchTab('users')">Users</div><div class="tab" onclick="switchTab('cleanup')">Cleanup</div><div class="tab" onclick="switchTab('system')">System</div><div class="tab" onclick="switchTab('passwords')">Passwords</div><div class="tab" onclick="switchTab('support')">Support</div><div class="tab" onclick="switchTab('mode')">Mode</div><div class="tab" onclick="switchTab('activity')">Activity</div><div class="tab" onclick="switchTab('network')">Network</div><div class="tab" onclick="switchTab('reports')">Reports</div>
+  <div class="tabs" id="tabs"><div class="tab active" onclick="switchTab('users')">Users</div><div class="tab" onclick="switchTab('cleanup')">Cleanup</div><div class="tab" onclick="switchTab('system')">System</div><div class="tab" onclick="switchTab('passwords')">Passwords</div><div class="tab" onclick="switchTab('support')">Support</div><div class="tab" onclick="switchTab('mode')">Mode</div><div class="tab" onclick="switchTab('activity')">Activity</div><div class="tab" onclick="switchTab('reports')">Reports</div>
   <div class="tab" onclick="switchTab('profile')">Profile</div></div>
-<div id="panel-users" class="panel active"></div><div id="panel-cleanup" class="panel"></div><div id="panel-system" class="panel"></div><div id="panel-passwords" class="panel"></div><div id="panel-support" class="panel"></div><div id="panel-mode" class="panel"></div><div id="panel-activity" class="panel"></div><div id="panel-network" class="panel"></div><div id="panel-reports" class="panel"></div>
+<div id="panel-users" class="panel active"></div><div id="panel-cleanup" class="panel"></div><div id="panel-system" class="panel"></div><div id="panel-passwords" class="panel"></div><div id="panel-support" class="panel"></div><div id="panel-mode" class="panel"></div><div id="panel-activity" class="panel"></div><div id="panel-reports" class="panel"></div>
 <div id="panel-profile" class="panel"></div></div>
 </div>
 <script>
@@ -343,7 +343,6 @@ function switchTab(t) {
   if (t === "passwords") loadPasswords();
   if (t === "mode") loadMode();
   if (t === "activity") loadActivity();
-  if (t === "network") loadNetwork();
   if (t === "reports") loadReports();
   if (t === "profile") loadProfile();
 }
@@ -630,122 +629,6 @@ async function loadActivity() {
     h += "</table></div>";
     p.innerHTML = h;
   } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
-}
-
-// NETWORK
-async function loadNetwork() {
-  var p = document.getElementById("panel-network");
-  p.innerHTML = '<div class="card">Loading...</div>';
-  try {
-    var ifaces = await apiCall("/admin/network/interfaces?session_token=" + ST);
-    var users = await apiCall("/admin/network/users?session_token=" + ST);
-    
-    // WiFi client mode section
-    var h = '<div class="card"><h3>WiFi Client Mode</h3>';
-    h += '<p style="color:#7f8b98;font-size:12px;margin-bottom:8px">Connect RPi to an existing WiFi. First assign a wireless interface the <b>Client</b> role below and press <b>Save &amp; Apply</b>, then scan and connect. mDNS: <b>chat.local</b></p>';
-    h += '<div class="row" style="margin-bottom:8px"><input id="wifi-ssid" placeholder="WiFi SSID" style="flex:1 1 160px;min-width:0"><input id="wifi-pass" type="password" placeholder="Password (leave empty for open)" style="flex:1 1 160px;min-width:0"><button class="btn-green" onclick="wifiConnect()">Connect</button></div>';
-    h += '<div class="row"><button class="btn-outline" onclick="wifiScan()">Scan Networks</button><span id="wifi-scan-msg" style="font-size:11px;color:#7f8b98"></span></div>';
-    h += '<div id="wifi-scan-results" style="margin-top:8px;max-height:120px;overflow-y:auto"></div>';
-    h += '<div style="margin-top:8px;font-size:12px;color:#7f8b98">mDNS: <span id="mdns-status" style="color:#d29922">checking...</span></div>';
-    h += '</div>';
-    
-    // Interfaces
-    h += '<div class="card"><h3>Network Interfaces</h3><table class="tbl-stack"><tr><th>Name</th><th>Role</th><th>IP</th><th>Mode</th></tr>';
-    ifaces.items.forEach(function(i) {
-      var curRole = i.role === "ap" ? "ap" : (i.role === "uplink" ? "client" : "off");
-      h += '<tr><td>' + i.ifname + '</td><td>' + i.role + '</td><td>' + (i.ip_address || "-") + '</td>';
-      h += '<td><select id="mode-' + i.ifname + '" data-initial="' + curRole + '"><option value="ap"' + (curRole === "ap" ? " selected" : "") + '>AP</option><option value="client"' + (curRole === "client" ? " selected" : "") + '>Client</option><option value="off"' + (curRole === "off" ? " selected" : "") + '>Off</option></select></td></tr>';
-    });
-    h += '</table>';
-    h += '<div class="row" style="margin-top:10px"><button class="btn-warn" onclick="saveNetworkConfig()">' + icon("save") + ' Save & Apply</button><span id="net-save-msg" style="font-size:11px"></span></div>';
-    h += '</div>';
-    
-    // Internet access
-    h += '<div class="card"><h3>Internet Access</h3><table class="tbl-stack"><tr><th>User</th><th>Internet</th><th>Toggle</th></tr>';
-    users.items.forEach(function(u) {
-      h += '<tr><td>' + esc(u.login) + '</td><td style="color:' + (u.internet_enabled ? "#4fb286" : "#f85149") + '">' + (u.internet_enabled ? "ON" : "OFF") + '</td>';
-      h += '<td><button class="' + (u.internet_enabled ? "btn-danger" : "btn-green") + '" onclick="toggleInternet(' + u.user_id + ',' + (!u.internet_enabled) + ')">' + (u.internet_enabled ? "Disable" : "Enable") + '</button></td></tr>';
-    });
-    h += '</table></div>';
-    
-    p.innerHTML = h;
-    
-    // Check mDNS status
-    try {
-      fetch("http://chat.local:18080/health").then(function() {
-        document.getElementById("mdns-status").innerHTML = '<span style="color:#4fb286">active (chat.local)</span>';
-      }).catch(function() {
-        document.getElementById("mdns-status").innerHTML = '<span style="color:#7f8b98">not active</span>';
-      });
-    } catch(e) {}
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + '</div>'; }
-}
-
-// WiFi functions
-async function wifiScan() {
-  var sm = document.getElementById("wifi-scan-msg");
-  var results = document.getElementById("wifi-scan-results");
-  sm.style.color = "#7f8b98";
-  sm.textContent = "Scanning..."; results.innerHTML = "";
-  try {
-    var d = await apiCall("/admin/network/wifi/scan?session_token=" + encodeURIComponent(ST));
-    if (d.networks && d.networks.length) {
-      var h = '<table><tr><th>SSID</th><th>Signal</th><th>Security</th></tr>';
-      d.networks.forEach(function(n) {
-        h += '<tr><td>' + esc(n.ssid) + '</td><td>' + (n.signal || "-") + '</td><td>' + (n.secure ? "<svg style='width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px' viewBox='0 0 24 24'><rect x='4.5' y='10' width='15' height='10.5' rx='2.5'/><path d='M8 10V7.8a4 4 0 0 1 8 0V10'/></svg>" : "<svg style='width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px' viewBox='0 0 24 24'><rect x='4.5' y='10' width='15' height='10.5' rx='2.5'/><path d='M8 10V7.8a4 4 0 0 1 7.2-2.4'/></svg>") + '</td></tr>';
-      });
-      h += '</table>';
-      results.innerHTML = h;
-    } else {
-      results.innerHTML = '<span style="color:#7f8b98">No networks found</span>';
-    }
-    sm.textContent = "Done (" + (d.interface || "uplink") + ")";
-  } catch(e) { sm.textContent = "Error: " + e.message; sm.style.color = "#f85149"; }
-}
-
-async function wifiConnect() {
-  var ssid = document.getElementById("wifi-ssid").value.trim();
-  var pass = document.getElementById("wifi-pass").value.trim();
-  if (!ssid) { msg("Enter SSID"); return; }
-  msg("Connecting to " + ssid + "...");
-  try {
-    await apiCall("/admin/network/wifi/connect", "POST", { session_token: ST, ssid: ssid, password: pass || "" });
-    msg("Waiting for IP...");
-    // Check real status after 3+6+9 seconds
-    for (var i = 0; i < 3; i++) {
-      await new Promise(function(r) { setTimeout(r, 3000); });
-      var st = await apiCall("/admin/network/wifi/status?session_token=" + ST);
-      if (st.ip_address) {
-        msg('<span style="color:#4fb286">Connected! IP: ' + st.ip_address + '</span>');
-        return;
-      }
-    }
-    msg('<span style="color:#d29922">Not connected — no IP after 9s. Check password.</span>');
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + '</span>'); }
-}
-
-async function saveNetworkConfig() {
-  var m = document.getElementById("net-save-msg");
-  m.style.color = "#7f8b98";
-  m.textContent = "Saving...";
-  // Collect mode changes
-  var config = {};
-  document.querySelectorAll("[id^='mode-']").forEach(function(sel) {
-    if (sel.dataset && sel.dataset.initial === sel.value) return;
-    var iface = sel.id.replace("mode-", "");
-    config[iface] = sel.value;
-  });
-  if (!Object.keys(config).length) { m.textContent = "No changes to save"; return; }
-  try {
-    await apiCall("/admin/network/config/save", "POST", { session_token: ST, config: config });
-    m.innerHTML = '<span style="color:#4fb286">Saved! Restarting network...</span>';
-    setTimeout(function() { loadNetwork(); }, 3000);
-  } catch(e) { m.textContent = "Error: " + e.message; m.style.color = "#f85149"; }
-}
-
-async function toggleInternet(uid, enable) {
-  try { await apiCall("/admin/network/users/internet", "POST", { session_token: ST, user_id: uid, enabled: enable }); msg('<span style="color:#4fb286">Internet ' + (enable ? "enabled" : "disabled") + "</span>"); loadNetwork(); }
-  catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
 }
 
 // REPORTS: user reports (dedicated API) + auto-moderation

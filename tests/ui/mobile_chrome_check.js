@@ -206,27 +206,39 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   }));
   check("other pages scroll normally (body static)", otherPage.bodyPos === "static" && !otherPage.chatMode, JSON.stringify(otherPage));
 
-  // admin tabs must all fit the phone screen (they used to overflow off-screen)
-  await m.evaluate(() => { window.location.hash = "#/admin"; });
-  await m.waitForTimeout(1800);
-  const adminTabs = await m.evaluate(() => {
-    const tabs = Array.from(document.querySelectorAll(".tab"));
-    const bad = tabs.filter(t => {
-      const r = t.getBoundingClientRect();
-      return r.left < 0 || r.right > window.innerWidth + 1;
-    }).map(t => t.dataset.tab + "@" + Math.round(t.getBoundingClientRect().right));
-    return { total: tabs.length, bad, winW: window.innerWidth };
+  // regression: a support ticket view must not lock scrolling on other pages
+  await m.evaluate(() => { window.location.hash = "#/support"; });
+  await m.waitForTimeout(2200);
+  const ticketOpened = await m.evaluate(() => {
+    const item = document.querySelector(".ticket-item");
+    if (item) { item.click(); return true; }
+    return false;
   });
-  check("admin tabs all fit the mobile screen", adminTabs.total >= 9 && adminTabs.bad.length === 0, JSON.stringify(adminTabs));
-  await m.click('.tab[data-tab="reports"]');
-  await m.waitForTimeout(1200);
-  const reportsTab = await m.evaluate(() => ({
-    active: (document.querySelector(".tab.active") || {}).dataset ? document.querySelector(".tab.active").dataset.tab : null,
-    panelVisible: (() => { const p = document.getElementById("admin-reports"); return p ? !p.classList.contains("hidden") : null; })(),
-    settingsCard: !!document.getElementById("automod-enabled"),
+  await m.waitForTimeout(1500);
+  await m.evaluate(() => { window.location.hash = "#/blog"; });
+  await m.waitForTimeout(1800);
+  const lockState = await m.evaluate(() => ({
+    bodyOverflow: getComputedStyle(document.body).overflowY,
+    hasSupClass: document.body.classList.contains("sup-thread"),
+    docH: document.scrollingElement.scrollHeight,
+    winH: document.scrollingElement.clientHeight
   }));
-  check("reports tab is reachable and renders on mobile", reportsTab.active === "reports" && reportsTab.panelVisible === true && reportsTab.settingsCard === true, JSON.stringify(reportsTab));
-  await m.screenshot({ path: SHOTS + "mobile-admin-tabs.png" });
+  check("scroll is unlocked after leaving support", ticketOpened && lockState.bodyOverflow !== "hidden" && !lockState.hasSupClass, JSON.stringify(lockState));
+  if (lockState.docH > lockState.winH + 2) {
+    const b0 = await m.evaluate(() => document.scrollingElement.scrollTop);
+    await swipe(195, 700, 320);
+    await m.waitForTimeout(600);
+    const b1 = await m.evaluate(() => document.scrollingElement.scrollTop);
+    check("other pages scroll after visiting support", b1 > b0, b0 + " -> " + b1);
+  } else {
+    check("other pages scroll after visiting support", true, "skipped, page fits");
+  }
+
+  // #/admin opens the standalone admin page (the SPA admin was removed)
+  await m.evaluate(() => { window.location.hash = "#/admin"; });
+  await m.waitForTimeout(2000);
+  const adminRedirect = await m.evaluate(() => ({ path: location.pathname, loginVisible: !!document.getElementById("l") }));
+  check("admin opens the standalone page", adminRedirect.path === "/admin" && adminRedirect.loginVisible, JSON.stringify(adminRedirect));
 
   await m.close();
   check("no page errors", errs.length === 0, errs.join(" | "));

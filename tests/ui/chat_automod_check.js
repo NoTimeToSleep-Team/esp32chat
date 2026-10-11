@@ -139,22 +139,27 @@ async function setAutomod(adminToken, payload) {
     check("auto report can be resolved with warn", res.status === 200, JSON.stringify(res.json).slice(0, 140));
   }
 
-  // --- admin UI ---
-  await page.evaluate(() => { window.location.hash = "#/admin"; });
+  // --- standalone admin UI (reports tab) ---
+  await page.goto(BASE + "/admin");
+  await page.waitForTimeout(900);
+  await page.fill("#l", "admin");
+  await page.fill("#p", "7428");
+  await page.evaluate(() => document.querySelector("#login form").dispatchEvent(new Event("submit", { cancelable: true })));
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => switchTab("reports"));
   await page.waitForTimeout(1500);
-  await page.click('.tab[data-tab="reports"]');
-  await page.waitForTimeout(1200);
-  const ui = await page.evaluate(() => ({
-    settingsCard: !!document.getElementById("automod-enabled") && !!document.getElementById("automod-save"),
-    enabledChecked: document.getElementById("automod-enabled") ? document.getElementById("automod-enabled").checked : null,
-    autoBadge: Array.from(document.querySelectorAll("#admin-reports .user-row .badge-type")).some(b => b.textContent === "авто"),
-    autoWords: Array.from(document.querySelectorAll("#admin-reports .user-row")).some(row => /Слова:/.test(row.textContent || "")),
-    legacyCard: (document.getElementById("admin-reports").textContent || "").includes("старый сканер"),
-  }));
-  check("settings card is rendered in the admin reports tab", ui.settingsCard, JSON.stringify(ui).slice(0, 200));
-  check("settings reflect enabled=true", ui.enabledChecked === true, "checked=" + ui.enabledChecked);
-  check("auto reports show the auto badge", ui.autoBadge, JSON.stringify(ui).slice(0, 200));
-  check("auto reports show matched words", ui.autoWords, JSON.stringify(ui).slice(0, 200));
+  const ui = await page.evaluate(() => {
+    const panel = document.getElementById("panel-reports");
+    const text = panel ? panel.textContent : "";
+    return {
+      panelVisible: panel ? panel.classList.contains("active") : null,
+      userSection: text.includes("User Reports"),
+      pendingReports: /([1-9]\d* pending)/.test(text),
+      profanityCard: text.includes("Profanity")
+    };
+  });
+  check("reports tab shows the report queue", ui.panelVisible === true && ui.userSection && ui.pendingReports, JSON.stringify(ui).slice(0, 220));
+  check("auto-moderation reports are visible in the user report queue", ui.profanityCard, JSON.stringify(ui).slice(0, 220));
   await page.screenshot({ path: SHOTS + "automod-admin.png" });
 
   check("no page errors", errs.length === 0, errs.join(" | "));

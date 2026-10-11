@@ -140,9 +140,12 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
   await page.waitForTimeout(1500);
   check("account page rendered", await page.isVisible("#content .page-title"));
   await page.evaluate(() => { window.location.hash = "#/admin"; });
-  await page.waitForTimeout(2000);
-  check("admin page rendered (tabs)", await page.evaluate(() => document.querySelectorAll("#content .tabs .tab").length > 0));
+  await page.waitForTimeout(2500);
+  const adminPage = await page.evaluate(() => ({ path: location.pathname, loginVisible: !!document.getElementById("l") }));
+  check("admin opens the standalone page", adminPage.path === "/admin" && adminPage.loginVisible, JSON.stringify(adminPage));
   await page.screenshot({ path: SHOTS + "ui-test-admin.png" });
+  await page.goto(BASE + "/");
+  await page.waitForTimeout(2000);
 
   await page.click("#logout-btn");
   await page.waitForTimeout(2000);

@@ -305,6 +305,11 @@ def create_app() -> FastAPI:
         template = Path(__file__).resolve().parent / "templates" / "index.html"
         return HTMLResponse(content=template.read_text(encoding="utf-8"))
 
+    @app.get("/admin", tags=["meta"], response_class=HTMLResponse)
+    async def admin_page() -> HTMLResponse:
+        template = Path(__file__).resolve().parent / "static" / "admin.html"
+        return HTMLResponse(content=template.read_text(encoding="utf-8"))
+
     @app.get("/api/status", tags=["meta"])
     async def api_status() -> dict[str, str]:
         return {

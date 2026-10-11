@@ -19,12 +19,22 @@ function summary() {
 }
 
 async function login(page, user, password, settleMs) {
+  // Suites assert Russian-localized labels; the app itself defaults to English.
+  // Set the language before app scripts run, then re-apply once the app is up.
+  await page.addInitScript(() => { try { localStorage.setItem("lc_lang", "rus"); } catch (e) {} });
   await page.goto(BASE + "/");
   await page.waitForTimeout(700);
   await page.fill("#sl", user || "admin");
   await page.fill("#sp", password || "7428");
   await page.click("#sbtn");
   await page.waitForTimeout(settleMs || 2500);
+  await page.evaluate(() => {
+    try {
+      localStorage.setItem("lc_lang", "rus");
+      if (typeof applyLang === "function") { window.LANG = "rus"; applyLang(); }
+    } catch (e) {}
+  });
+  await page.waitForTimeout(300);
 }
 
 async function launch(opts) {
