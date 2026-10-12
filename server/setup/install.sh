@@ -65,7 +65,7 @@ resolve_url() {
     fi
     url="$(printf '%s' "${json}" \
         | sed -n 's/.*"browser_download_url": *"\([^"]*lc-server[^"]*\.tar\.gz\)".*/\1/p' \
-        | head -1)"
+        | head -1)" || true   # head may SIGPIPE the upstream; pipefail must not kill us
     [[ -n "${url}" ]] || die "no lc-server-*.tar.gz asset found in the release"
     printf '%s' "${url}"
 }
@@ -93,7 +93,7 @@ else
 fi
 
 tar -xzf "${TARBALL}" -C "${WORK}" || die "cannot extract the archive"
-PKG="$(tar -tzf "${TARBALL}" | head -1 | cut -d/ -f1)"
+PKG="$(tar -tzf "${TARBALL}" | head -1 | cut -d/ -f1)" || true
 [[ -n "${PKG}" ]] || die "the archive is empty"
 
 export SOURCE_ROOT="${WORK}/${PKG}/server"

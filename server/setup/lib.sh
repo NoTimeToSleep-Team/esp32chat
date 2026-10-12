@@ -42,7 +42,7 @@ lc_release_url() {
     fi
     url="$(printf '%s' "${json}" \
         | sed -n 's/.*"browser_download_url": *"\([^"]*lc-server[^"]*\.tar\.gz\)".*/\1/p' \
-        | head -1)"
+        | head -1)" || true   # head may SIGPIPE the upstream; pipefail must not kill us
     [[ -n "${url}" ]] || lc_fail "no lc-server-*.tar.gz asset found in the release"
     printf '%s' "${url}"
 }
@@ -77,7 +77,7 @@ lc_fetch_release() {
 
     tar -xzf "${tarball}" -C "${dest_dir}" \
         || lc_fail "cannot extract the archive"
-    pkg_root="$(tar -tzf "${tarball}" | head -1 | cut -d/ -f1)"
+    pkg_root="$(tar -tzf "${tarball}" | head -1 | cut -d/ -f1)" || true
     [[ -n "${pkg_root}" ]] || lc_fail "the archive is empty"
     rm -f "${tarball}" "${tarball}.sha256"
     printf '%s' "${dest_dir}/${pkg_root}"
