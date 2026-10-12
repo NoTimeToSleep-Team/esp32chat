@@ -1,0 +1,136 @@
+{
+  "schema_version": "v0.1.0",
+  "min_python": "3.10",
+  "apt_packages": [
+    "python3",
+    "python3-venv",
+    "python3-pip",
+    "curl",
+    "rsync",
+    "whiptail",
+    "ca-certificates",
+    "openssl"
+  ],
+  "base_env": {
+    "LCS_PROFILE": "prod",
+    "LCS_HOST": "0.0.0.0",
+    "LCS_RELOAD": "false",
+    "LCS_LOG_LEVEL": "info",
+    "LCS_DATABASE_URL": "sqlite:///data/sqlite/local_chat.db",
+    "LCS_STORAGE_ROOT": "$APP_ROOT/data",
+    "LCS_ALLOWED_ORIGINS": "http://localhost",
+    "LCS_REQUEST_TIMEOUT_MS": "15000",
+    "LCS_RATE_LIMIT_WINDOW_MS": "60000",
+    "LCS_RATE_LIMIT_MAX_REQUESTS": "240",
+    "LCS_AUTH_RATE_LIMIT_WINDOW_MS": "60000",
+    "LCS_AUTH_RATE_LIMIT_MAX_REQUESTS": "30",
+    "LCS_BRUTEFORCE_WINDOW_MS": "900000",
+    "LCS_BRUTEFORCE_LOGIN_ATTEMPT_LIMIT": "5",
+    "LCS_BRUTEFORCE_IP_ATTEMPT_LIMIT": "25",
+    "LCS_BRUTEFORCE_BLOCK_MS": "900000"
+  },
+  "fields": [
+    {
+      "key": "ADMIN_USERNAME",
+      "section": "admin",
+      "label": "Administrator login",
+      "label_ru": "Логин администратора",
+      "type": "text",
+      "default": "admin",
+      "minlen": 3,
+      "maxlen": 32,
+      "required": true,
+      "persist": true
+    },
+    {
+      "key": "ADMIN_PASSWORD",
+      "section": "admin",
+      "label": "Administrator password",
+      "label_ru": "Пароль администратора",
+      "type": "password",
+      "minlen": 8,
+      "maxlen": 128,
+      "required": true,
+      "confirm": true,
+      "persist": false
+    },
+    {
+      "key": "AP_ENABLED",
+      "section": "wifi",
+      "label": "Enable the Wi-Fi access point",
+      "label_ru": "Включить точку доступа Wi-Fi",
+      "type": "bool",
+      "default": true,
+      "persist": true
+    },
+    {
+      "key": "AP_SSID",
+      "section": "wifi",
+      "label": "Wi-Fi network name (SSID)",
+      "label_ru": "Имя Wi-Fi сети (SSID)",
+      "type": "text",
+      "default": "LC-Hub",
+      "maxlen": 32,
+      "required": true,
+      "persist": true
+    },
+    {
+      "key": "AP_PASSPHRASE",
+      "section": "wifi",
+      "label": "Wi-Fi password (8-63 characters)",
+      "label_ru": "Пароль Wi-Fi (8-63 символов)",
+      "type": "password",
+      "minlen": 8,
+      "maxlen": 63,
+      "required_if": "AP_ENABLED",
+      "confirm": true,
+      "persist": true
+    },
+    {
+      "key": "AP_CHANNEL",
+      "section": "wifi",
+      "label": "Wi-Fi channel",
+      "label_ru": "Канал Wi-Fi",
+      "type": "choice",
+      "choices": ["auto", "1", "6", "11"],
+      "default": "auto",
+      "persist": true
+    },
+    {
+      "key": "AP_COUNTRY",
+      "section": "wifi",
+      "label": "Country code (Wi-Fi regulatory)",
+      "label_ru": "Код страны (регуляторика Wi-Fi)",
+      "type": "text",
+      "default": "RU",
+      "minlen": 2,
+      "maxlen": 2,
+      "required": true,
+      "persist": true
+    },
+    {
+      "key": "LCS_PORT",
+      "section": "portal",
+      "label": "Portal port",
+      "label_ru": "Порт портала",
+      "type": "int",
+      "default": 18080,
+      "min": 1,
+      "max": 65535,
+      "required": true,
+      "persist": true
+    },
+    {
+      "key": "LC_REGISTRATION_MODE",
+      "section": "access",
+      "label": "Registration mode",
+      "label_ru": "Режим регистрации",
+      "type": "choice",
+      "choices": ["open", "closed"],
+      "choices_ru": ["Свободная регистрация", "Закрытая (только по заявкам)"],
+      "default": "open",
+      "persist": true
+    }
+  ],
+  "actions": ["create_admin", "set_mode", "apply_ap", "restart_service"]
+}

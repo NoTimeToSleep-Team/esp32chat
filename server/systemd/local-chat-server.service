@@ -1,5 +1,5 @@
 [Unit]
-Description=Local Chat Server (RPi-Only v1.00.00)
+Description=Local Chat Server (v0.1)
 After=network-online.target
 Wants=network-online.target
 

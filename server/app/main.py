@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.version import __version__
 from app.api.account import router as account_router
 from app.api.admin.content import router as admin_content_router
 from app.api.admin.mode import router as admin_mode_router
@@ -163,7 +164,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Local Chat Server",
-        version="0.6.6",
+        version=__version__,
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,

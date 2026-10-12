@@ -18,6 +18,9 @@ server/data/avatars/
 server/data/media/
 server/data/logs/
 
+# Release artifacts (installer)
+dist/
+
 # Logs
 *.log
 

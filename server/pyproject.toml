@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "local-chat-server"
-version = "0.6.6"
+dynamic = ["version"]
 description = "Server foundation for local distributed chat system"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,3 +24,6 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+[tool.hatch.version]
+path = "app/version.py"

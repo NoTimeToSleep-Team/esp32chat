@@ -6,6 +6,8 @@ from time import monotonic
 
 from fastapi import APIRouter, Request
 
+from app.version import __version__
+
 
 router = APIRouter(tags=["health"])
 
@@ -52,6 +54,7 @@ async def health(request: Request) -> dict[str, object]:
     return {
         "status": "ok",
         "service": "local-chat-server",
+        "version": __version__,
         "profile": settings.profile,
         "timestamp_ms": int(datetime.now(tz=timezone.utc).timestamp() * 1000),
         "uptime_ms": _uptime_ms(request),
