@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """Schema-driven installer helper (v0.1, pure stdlib, python>=3.10).
 
-Bash-движки (install_pi.sh, wizard.sh) читают манифест settings-schema.json
-только через этот модуль: поля мастера, дефолты, базовые LCS_*-настройки,
-apt-пакеты, минимальная версия Python, валидация и запись значений в app.env.
+The bash engines (install_pi.sh, wizard.sh) read settings-schema.json only
+through this module: wizard fields, defaults, base LCS_* environment, apt
+packages, the minimum Python version, validation and writing values into
+app.env.
 
-Команды:
-    manifest.py min_python                       -> строка версии
-    manifest.py apt_packages                     -> пакеты через пробел
-    manifest.py base_env                         -> KEY=VALUE (по строке на пару)
-    manifest.py defaults                         -> KEY=VALUE дефолтов полей
-    manifest.py fields [ru|en]                   -> TSV: key, type, section, label,
+Commands:
+    manifest.py min_python                       -> version string
+    manifest.py apt_packages                     -> space-separated package list
+    manifest.py base_env                         -> KEY=VALUE lines
+    manifest.py defaults                         -> KEY=VALUE lines of field defaults
+    manifest.py fields [lang]                    -> \x1f-separated columns:
+                                                    key, type, section, label,
                                                     default, choices, required_if,
                                                     confirm, persist
-    manifest.py choices KEY [ru|en]              -> строки "значение<TAB>подпись"
-    manifest.py validate KEY VALUE               -> 0/1, ошибка в stderr
-    manifest.py set-env ENV_FILE KEY VALUE       -> вписать/обновить пару в KEY=VALUE файл
+    manifest.py choices KEY                      -> "value\x1flabel" lines
+    manifest.py validate KEY VALUE               -> 0/1, error on stderr
+    manifest.py set-env ENV_FILE KEY VALUE       -> insert/update a pair in a KEY=VALUE file
 """
 
 import json
@@ -29,10 +31,10 @@ def load(path: str | None = None) -> dict:
         return json.load(handle)
 
 
-def label_of(field: dict, lang: str) -> str:
-    if lang == "ru" and field.get("label_ru"):
-        return field["label_ru"]
-    return field.get("label") or field.get("label_ru") or field["key"]
+def label_of(field: dict, lang: str = "en") -> str:
+    # The v0.1 manifest is English-only; the "lang" argument is kept for future
+    # localization support.
+    return field.get("label") or field["key"]
 
 
 def _flag(value) -> str:
@@ -66,9 +68,9 @@ def cmd_defaults(schema: dict) -> int:
     return 0
 
 
-def cmd_fields(schema: dict, lang: str) -> int:
-    # Разделитель \x1f (unit separator): TAB использовать нельзя — bash `read`
-    # схлопывает подряд идущие IFS-whitespace, а у нас есть пустые колонки.
+def cmd_fields(schema: dict, lang: str = "en") -> int:
+    # \x1f (unit separator) is used instead of TAB: bash `read` collapses runs
+    # of IFS whitespace (tab included) and the rows contain empty columns.
     for field in schema.get("fields", []):
         columns = [
             field["key"],
@@ -85,16 +87,13 @@ def cmd_fields(schema: dict, lang: str) -> int:
     return 0
 
 
-def cmd_choices(schema: dict, key: str, lang: str) -> int:
+def cmd_choices(schema: dict, key: str, lang: str = "en") -> int:
     field = next((f for f in schema.get("fields", []) if f["key"] == key), None)
     if field is None:
         print(f"unknown field: {key}", file=sys.stderr)
         return 1
-    choices = field.get("choices", [])
-    translated = field.get("choices_ru" if lang == "ru" else "choices", []) or []
-    for index, value in enumerate(choices):
-        label = translated[index] if index < len(translated) else value
-        print(f"{value}\x1f{label}")
+    for value in field.get("choices", []):
+        print(f"{value}\x1f{value}")
     return 0
 
 
@@ -185,12 +184,12 @@ def main(argv: list[str]) -> int:
     if command == "defaults":
         return cmd_defaults(schema)
     if command == "fields":
-        return cmd_fields(schema, argv[1] if len(argv) > 1 else "ru")
+        return cmd_fields(schema, argv[1] if len(argv) > 1 else "en")
     if command == "choices":
         if len(argv) < 2:
-            print("usage: manifest.py choices KEY [ru|en]", file=sys.stderr)
+            print("usage: manifest.py choices KEY", file=sys.stderr)
             return 1
-        return cmd_choices(schema, argv[1], argv[2] if len(argv) > 2 else "ru")
+        return cmd_choices(schema, argv[1])
     if command == "validate":
         if len(argv) < 3:
             print("usage: manifest.py validate KEY VALUE", file=sys.stderr)

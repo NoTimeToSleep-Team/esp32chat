@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
-# LC v0.1 — общая библиотека установщика.
-# Источники: server/setup/lib.sh (в репозитории и в установленном дереве).
-# Подключается: bootstrap install.sh, scripts/lc.sh (через APP_ROOT/setup/lib.sh).
+# LC v0.1 — shared installer library.
+# Lives at server/setup/lib.sh (in the repo and in the installed tree).
+# Sourced by: scripts/lc.sh (through ${APP_ROOT}/setup/lib.sh).
 
 LC_REPO="${LC_REPO:-NoTimeToSleep-Team/esp32chat}"
 
 lc_log() {
-    # ВАЖНО: в stderr. stdout у функций качалки занят под результат (путь пакета).
+    # IMPORTANT: to stderr — stdout of the fetch helpers carries the result
+    # (the package path) captured by the caller.
     echo "[lc] $(date '+%H:%M:%S') $*" >&2
 }
 
 lc_fail() {
-    lc_log "ОШИБКА: $*" >&2
+    lc_log "ERROR: $*" >&2
     exit 1
 }
 
-# Возвращает URL релизного тарбола:
-#   1) LC_TARBALL_URL (URL или локальный путь, включая file://);
-#   2) конкретная версия LC_VERSION -> releases/tags/v<ver>;
-#   3) последний релиз на GitHub.
+# Prints the release tarball URL:
+#   1) LC_TARBALL_URL (URL or local path, file:// included);
+#   2) a specific version LC_VERSION -> releases/tags/v<version>;
+#   3) the latest GitHub release (falls back to the newest release overall
+#      when only pre-releases exist).
 lc_release_url() {
     if [[ -n "${LC_TARBALL_URL:-}" ]]; then
         printf '%s' "${LC_TARBALL_URL}"
@@ -33,16 +35,20 @@ lc_release_url() {
     fi
 
     local json url
-    json="$(curl -fsSL --retry 3 "${api_url}")" \
-        || lc_fail "не удалось получить информацию о релизе (${api_url})"
+    json="$(curl -fsSL --retry 3 "${api_url}" 2>/dev/null || true)"
+    if [[ -z "${json}" ]]; then
+        json="$(curl -fsSL --retry 3 "https://api.github.com/repos/${LC_REPO}/releases?per_page=1")" \
+            || lc_fail "cannot reach GitHub releases for ${LC_REPO}"
+    fi
     url="$(printf '%s' "${json}" \
         | sed -n 's/.*"browser_download_url": *"\([^"]*lc-server[^"]*\.tar\.gz\)".*/\1/p' \
         | head -1)"
-    [[ -n "${url}" ]] || lc_fail "в релизе не найден тарбол lc-server-*.tar.gz"
+    [[ -n "${url}" ]] || lc_fail "no lc-server-*.tar.gz asset found in the release"
     printf '%s' "${url}"
 }
 
-# Качает тарбол + .sha256, проверяет, распаковывает в $1 и печатает корень пакета.
+# Downloads the tarball + its .sha256, verifies, extracts into $1 and prints
+# the package root directory.
 lc_fetch_release() {
     local dest_dir="$1"
     local url sha_url tarball pkg_root
@@ -52,27 +58,27 @@ lc_fetch_release() {
     tarball="${dest_dir}/$(basename "${url}")"
     mkdir -p "${dest_dir}"
 
-    lc_log "скачиваю ${url}"
+    lc_log "downloading ${url}"
     curl -fsSL --retry 3 -o "${tarball}" "${url}" \
-        || lc_fail "не удалось скачать тарбол: ${url}"
+        || lc_fail "cannot download the tarball: ${url}"
 
     if ! curl -fsSL --retry 3 -o "${tarball}.sha256" "${sha_url}"; then
         rm -f "${tarball}.sha256"
         if [[ "${LC_SKIP_SHA:-0}" == "1" ]]; then
-            lc_log "ВНИМАНИЕ: sha256 не проверен (файл недоступен, LC_SKIP_SHA=1)"
+            lc_log "WARNING: sha256 not verified (file unavailable, LC_SKIP_SHA=1)"
         else
-            lc_fail "не удалось скачать контрольную сумму: ${sha_url}"
+            lc_fail "cannot download the checksum: ${sha_url}"
         fi
     else
         ( cd "${dest_dir}" && sha256sum -c "$(basename "${tarball}").sha256" ) >&2 \
-            || lc_fail "контрольная сумма тарбола не сошлась"
-        lc_log "sha256 проверен"
+            || lc_fail "checksum mismatch — the archive is corrupted or was replaced"
+        lc_log "sha256 verified"
     fi
 
     tar -xzf "${tarball}" -C "${dest_dir}" \
-        || lc_fail "не удалось распаковать тарбол"
+        || lc_fail "cannot extract the archive"
     pkg_root="$(tar -tzf "${tarball}" | head -1 | cut -d/ -f1)"
-    [[ -n "${pkg_root}" ]] || lc_fail "пустой тарбол"
+    [[ -n "${pkg_root}" ]] || lc_fail "the archive is empty"
     rm -f "${tarball}" "${tarball}.sha256"
     printf '%s' "${dest_dir}/${pkg_root}"
 }

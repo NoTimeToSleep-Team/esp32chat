@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# lc — команды обслуживания Local Chat Server (v0.1).
-# Устанавливается симлинком в /usr/local/bin/lc (см. install_pi.sh).
+# lc — Local Chat Server management commands (v0.1).
+# Installed as a symlink to /usr/local/bin/lc (see install_pi.sh).
 #
-#   lc status    — служба + health-проверка
-#   lc setup     — повторить мастер настройки (sudo)
-#   lc update    — обновиться новым релизным тарболом (данные и настройки сохраняются)
-#   lc backup    — архив data/ и app.env
-#   lc logs      — журнал установки + журнал службы
-#   lc uninstall — остановить и удалить (данные сохраняются; --purge удаляет всё)
-#   lc version   — версия сервера
+#   lc status     — service + health check
+#   lc setup      — re-run the setup wizard (sudo)
+#   lc start      — start the server now (sudo)
+#   lc stop       — stop the server (sudo)
+#   lc update     — update from a new release tarball (data/ and app.env are kept)
+#   lc backup     — archive data/ and app.env
+#   lc logs       — install log + service journal
+#   lc uninstall  — stop and remove (data kept; --purge removes everything)
+#   lc version    — server version
 set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/local-chat-server}"
@@ -18,7 +20,7 @@ INSTALL_LOG="/var/log/lc-install.log"
 
 require_root() {
     if [[ "${EUID}" -ne 0 ]]; then
-        echo "Нужен root: sudo lc $1" >&2
+        echo "Root required: sudo lc $1" >&2
         exit 1
     fi
 }
@@ -35,27 +37,47 @@ systemd_ok() {
 
 cmd_status() {
     echo "Local Chat Server"
-    echo "  версия: $(cmd_version)"
+    echo "  version: $(cmd_version)"
     if systemd_ok; then
-        echo "  служба: $(systemctl is-active ${SERVICE_NAME})"
+        echo "  service: $(systemctl is-active ${SERVICE_NAME})"
     else
-        echo "  служба: systemd недоступен"
+        echo "  service: systemd not available"
     fi
-    echo "  порт:   $(port)"
+    echo "  port:    $(port)"
     if curl -fsS "http://127.0.0.1:$(port)/health" >/dev/null 2>&1; then
-        echo "  health: ok (http://127.0.0.1:$(port)/health)"
+        echo "  health:  ok (http://127.0.0.1:$(port)/health)"
     else
-        echo "  health: НЕ ОТВЕЧАЕТ"
+        echo "  health:  NOT RESPONDING"
     fi
 }
 
 cmd_setup() {
     require_root setup
     if [[ ! -f "${APP_ROOT}/setup/wizard.sh" ]]; then
-        echo "Мастер не найден: ${APP_ROOT}/setup/wizard.sh" >&2
+        echo "Wizard not found: ${APP_ROOT}/setup/wizard.sh" >&2
         exit 1
     fi
     exec bash "${APP_ROOT}/setup/wizard.sh" "$@"
+}
+
+cmd_start() {
+    require_root start
+    if ! systemd_ok; then
+        echo "systemd is not available on this system" >&2
+        exit 1
+    fi
+    systemctl start "${SERVICE_NAME}"
+    echo "Server started (port $(port))"
+}
+
+cmd_stop() {
+    require_root stop
+    if ! systemd_ok; then
+        echo "systemd is not available on this system" >&2
+        exit 1
+    fi
+    systemctl stop "${SERVICE_NAME}"
+    echo "Server stopped"
 }
 
 cmd_version() {
@@ -69,13 +91,13 @@ cmd_update() {
 
     LC_WORK="$(mktemp -d)"
     trap '[[ -n "${LC_WORK:-}" ]] && rm -rf "${LC_WORK}"' EXIT
-    lc_log "скачиваю новый релиз…"
+    lc_log "downloading the new release…"
     LC_PKG_ROOT="$(lc_fetch_release "${LC_WORK}")"
 
-    lc_log "обновляю код (data/ и app.env сохраняются)"
+    lc_log "updating the code (data/ and app.env are preserved)"
     SOURCE_ROOT="${LC_PKG_ROOT}/server" \
         bash "${LC_PKG_ROOT}/server/scripts/install_pi.sh" --no-setup
-    lc_log "обновление завершено: $(cmd_version)"
+    lc_log "update complete: $(cmd_version)"
 }
 
 cmd_backup() {
@@ -87,22 +109,22 @@ cmd_backup() {
     tar -czf "${out}" -C "${APP_ROOT}" data config/app.env 2>/dev/null \
         || tar -czf "${out}" -C "${APP_ROOT}" data
     chmod 600 "${out}"
-    echo "Бэкап создан: ${out}"
+    echo "Backup created: ${out}"
 }
 
 cmd_logs() {
-    echo "=== журнал установки (${INSTALL_LOG}) ==="
+    echo "=== install log (${INSTALL_LOG}) ==="
     if [[ -f "${INSTALL_LOG}" ]]; then
         tail -n 80 "${INSTALL_LOG}"
     else
-        echo "(пусто)"
+        echo "(empty)"
     fi
     echo ""
-    echo "=== служба ${SERVICE_NAME} (последние 100 строк) ==="
+    echo "=== service ${SERVICE_NAME} (last 100 lines) ==="
     if systemd_ok; then
         journalctl -u "${SERVICE_NAME}" -n 100 --no-pager 2>/dev/null || true
     else
-        tail -n 100 "${APP_ROOT}/data/logs/smoke-server.log" 2>/dev/null || echo "(нет журнала)"
+        tail -n 100 "${APP_ROOT}/data/logs/smoke-server.log" 2>/dev/null || echo "(no log)"
     fi
 }
 
@@ -111,12 +133,12 @@ cmd_uninstall() {
     local purge=0
     [[ "${1:-}" == "--purge" ]] && purge=1
 
-    echo "Удаление Local Chat Server из ${APP_ROOT}"
+    echo "Removing Local Chat Server from ${APP_ROOT}"
     if [[ "${purge}" != "1" ]]; then
-        echo "Данные (${APP_ROOT}/data) будут сохранены."
+        echo "Data (${APP_ROOT}/data) will be kept."
     fi
-    read -r -p "Точно? Введите yes: " answer
-    [[ "${answer}" == "yes" ]] || { echo "Отменено"; exit 0; }
+    read -r -p "Are you sure? Type yes: " answer
+    [[ "${answer}" == "yes" ]] || { echo "Cancelled"; exit 0; }
 
     if systemd_ok; then
         systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
@@ -128,35 +150,39 @@ cmd_uninstall() {
 
     if [[ "${purge}" == "1" ]]; then
         rm -rf "${APP_ROOT}"
-        echo "Удалено полностью (включая данные)."
+        echo "Removed completely (data included)."
     else
         mv "${APP_ROOT}" "${APP_ROOT}.removed-$(date +%Y%m%d-%H%M%S)"
-        echo "Код удалён; данные сохранены в ${APP_ROOT}.removed-*"
+        echo "Code removed; data kept in ${APP_ROOT}.removed-*"
     fi
 }
 
 usage() {
     cat <<EOF
-lc — управление Local Chat Server
-  lc status          состояние службы и портала
-  lc setup           мастер настройки (sudo lc setup)
-  lc update          обновить на новый релиз (sudo)
-  lc backup          бэкап данных и настроек (sudo)
-  lc logs            журналы
-  lc uninstall       удалить (sudo; данные сохраняются)
-  lc uninstall --purge  удалить полностью, включая данные (sudo)
-  lc version         версия сервера
+lc — Local Chat Server management
+  lc status            service and portal status
+  lc setup             setup wizard (sudo lc setup)
+  lc start             start the server now (sudo)
+  lc stop              stop the server (sudo)
+  lc update            update to a new release (sudo)
+  lc backup            back up data and settings (sudo)
+  lc logs              logs
+  lc uninstall         remove (sudo; data is kept)
+  lc uninstall --purge remove completely, data included (sudo)
+  lc version           server version
 EOF
 }
 
 case "${1:-}" in
     status) cmd_status ;;
     setup) shift; cmd_setup "$@" ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
     update) cmd_update ;;
     backup) cmd_backup ;;
     logs) cmd_logs ;;
     uninstall) cmd_uninstall "${2:-}" ;;
     version) cmd_version ;;
     -h|--help|help|"") usage ;;
-    *) echo "неизвестная команда: ${1:-}" >&2; usage; exit 2 ;;
+    *) echo "unknown command: ${1:-}" >&2; usage; exit 2 ;;
 esac

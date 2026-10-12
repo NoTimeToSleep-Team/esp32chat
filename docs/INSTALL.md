@@ -1,92 +1,106 @@
-# Установка Local Chat Server (v0.1)
+# Installing Local Chat Server (v0.1)
 
-Сервер + веб-портал для Raspberry Pi 4/5. Установка одной командой, после неё
-сразу запускается мастер настройки (whiptail).
+The chat server + web portal for Raspberry Pi 4/5. One command installs
+everything (the installer downloads the release archive itself), followed by a
+whiptail setup wizard.
 
-## Требования
+## Requirements
 
-- Raspberry Pi 4/5, **Raspberry Pi OS Bookworm и новее, 64-bit** (Python ≥ 3.10).
-- Bullseye 64-bit (Python 3.9) не поддерживается — установщик вежливо объяснит
-  и подскажет обновиться.
-- Интернет для доустановки пакетов и зависимостей Python.
+- Raspberry Pi 4/5, **Raspberry Pi OS Bookworm or newer, 64-bit** (Python ≥ 3.10).
+- Bullseye 64-bit (Python 3.9) is not supported — the installer explains why
+  and suggests upgrading.
+- Internet access for apt packages and Python dependencies.
 
-## Установка (одна команда)
+## Install (one command)
 
 ```bash
 curl -fsSL https://github.com/NoTimeToSleep-Team/esp32chat/releases/latest/download/install.sh | sudo bash
 ```
 
-- Конкретная версия: `LC_VERSION=0.1.0 curl -fsSL … | sudo bash`.
-- Свой источник тарбола (офлайн/тест): `LC_TARBALL_URL=file:///tmp/lc-server-v0.1.0.tar.gz bash install.sh`.
-- Неинтерактивная установка без мастера: `… | sudo bash -s -- --no-setup`.
-- Значения мастера из файла: `… | sudo bash -s -- --preseed /path/preseed.txt`
-  (файл `KEY=VALUE`; ключи — из `server/setup/settings-schema.json`).
+Run it as any regular user — `sudo` asks for the password once. The installer:
 
-Установщик сам готовит себе место: проверяет ОС/архитектуру/Python/диск,
-доустанавливает пакеты (переживает занятый apt-лок, чистит устаревшие локи,
-повторяет попытки), поднимает venv и systemd-службу, ждёт `/health` и запускает
-мастер. Лог — `/var/log/lc-install.log`. Повторный запуск = обновление, данные не
-затираются.
+- downloads the release tarball and verifies its sha256;
+- checks OS/architecture/Python/disk space, installs missing apt packages
+  (waits out busy apt locks, cleans stale locks, retries);
+- lays out `/opt/local-chat-server`, creates a venv, installs dependencies;
+- generates `app.env` with a random session secret, starts and enables the
+  systemd service, waits for `/health`;
+- launches the setup wizard.
 
-## Мастер настройки (whiptail)
+Log: `/var/log/lc-install.log`. Re-running = update; `data/` is never wiped.
 
-Запускается сразу после установки. Экраны: администратор (логин/пароль) →
-точка доступа Wi-Fi (вкл/выкл, SSID, пароль, канал, страна) → порт (18080) →
-режим регистрации → сводка → применение.
+Options:
 
-- `Esc` на любом шаге — отмена без изменений.
-- Повторить: `sudo lc setup` (текущие значения подставляются как дефолты).
-- Логин администратора по умолчанию — `admin`, пароль задаётся в мастере.
-- Session secret генерируется автоматически.
-
-## Обслуживание
-
-```
-lc status              состояние службы и health
-lc setup               повторить мастер
-lc update              обновление новым релизом (data/ и app.env сохраняются)
-lc backup              архив data/ + app.env
-lc logs                журнал установки + журнал службы
-lc uninstall           удалить (данные сохраняются); --purge — удалить всё
-lc version             версия
+```bash
+LC_VERSION=0.1.0 curl -fsSL …/install.sh | sudo bash     # pin a version
+LC_TARBALL_URL=file:///tmp/lc-server-v0.1.0.tar.gz bash install.sh   # offline/custom
+curl -fsSL …/install.sh | sudo bash -s -- --no-setup   # skip the wizard
+curl -fsSL …/install.sh | sudo bash -s -- --preseed ./preseed.txt   # wizard answers from a file
 ```
 
-## Раскладка
+## Setup wizard (whiptail)
+
+Runs right after the install. Steps: administrator (login/password) → Wi-Fi
+access point (on/off, SSID, password, channel, country) → portal port (18080)
+→ registration mode → **start on boot or start manually** → summary → apply.
+
+- `Esc` on any step cancels without changes.
+- Re-run: `sudo lc setup` (current values are offered as defaults).
+- Default administrator login is `admin`; the password is set in the wizard.
+- The session secret is generated automatically.
+
+## Management
 
 ```
-/opt/local-chat-server/        код, venv, data/, config/app.env
+lc status              service and health
+lc setup               re-run the wizard
+lc start               start the server now
+lc stop                stop the server
+lc update              update from a new release (data/ and app.env kept)
+lc backup              archive data/ + app.env
+lc logs                install log + service journal
+lc uninstall           remove (data kept); --purge removes everything
+lc version             version
+```
+
+## Layout
+
+```
+/opt/local-chat-server/        code, venv, data/, config/app.env
 /etc/systemd/system/local-chat-server.service
 /usr/local/bin/lc
 /var/log/lc-install.log
 ```
 
-- Пользователь службы: `localchat`; портал слушает `0.0.0.0:<LCS_PORT>` (18080).
-- Настройки: `config/app.env` (файл 600, содержит секреты).
+- Service user: `localchat`; the portal listens on `0.0.0.0:<LCS_PORT>` (18080).
+- Settings: `config/app.env` (mode 600, contains secrets).
 
 ## Schema-driven
 
-Все изменяемые настройки установки — в `server/setup/settings-schema.json`
-(apt-пакеты, min-Python, поля мастера, действия). Движки (`install_pi.sh`,
-`wizard.sh`) манифест только читают: **новый параметр = новая запись в
-манифесте, скрипты не меняются.**
+All changeable installer settings live in
+`server/setup/settings-schema.json` (apt packages, minimum Python, wizard
+fields, defaults). The engines (`install_pi.sh`, `wizard.sh`) only read the
+manifest: **a new server setting = a new manifest entry; the scripts do not
+change.**
 
-## Сборка релизного тарбола
+## Building the release tarball
 
 ```bash
 bash server/scripts/make_release_tarball.sh
-# dist/lc-server-v0.1.0.tar.gz + .sha256 (server/ без data/.venv/__pycache__)
+# dist/lc-server-v0.1.0.tar.gz + .sha256 (server/ only, no data/.venv/__pycache__)
 ```
 
-## Известные ограничения v0.1 (pre-release)
+## Known limitations (v0.1, pre-release)
 
-- **Живой RPi 4/5 не проверен** (плата была недоступна). Полный цикл прогонялся в
-  WSL Debian (x86_64, systemd): установка → мастер → health → логин → update →
-  backup → uninstall. Логика идентична, но на «железе» нужен приёмочный прогон.
-- Точка доступа настраивается существующим скриптом (`configure_pi_ap_nat.sh`,
-  dhcpcd-подход). На Bookworm с NetworkManager AP может потребовать ручной
-  доводки — на живой плате не проверено.
-- Только чистые установки; миграция со старой раскладки (`/home/gamecat/lc-server`)
-  не поддерживается.
-- Мастер на русском (поля переключаются `LC_LANG=en`).
-- Пароль администратора кратко виден в списке процессов (передаётся аргументом CLI).
-- `x86_64` установщик допускает с предупреждением — только для тестов.
+- The full cycle was verified in WSL Debian (x86_64, systemd): install → wizard
+  → health → admin login → update → backup → uninstall; and the schema-driven
+  acceptance check passed. A real RPi 4/5 acceptance run is pending.
+- The access point reuses the existing `configure_pi_ap_nat.sh` (dhcpcd-based):
+  on Bookworm with NetworkManager it may need manual tweaks (not verified on
+  real hardware).
+- Fresh installs only; migrating the legacy layout (`/home/gamecat/lc-server`)
+  is not supported.
+- The wizard is English-only in v0.1.
+- The administrator password is briefly visible in the process list (passed as
+  a CLI argument).
+- `x86_64` is allowed with a warning — for testing only.

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# LC v0.1 — движок установки/обновления сервера (schema-driven).
+# LC v0.1 — server install/update engine (schema-driven).
 #
-# Логика не зависит от конкретных настроек: apt-пакеты, базовые LCS_*-настройки,
-# поля мастера и действия берутся из server/setup/settings-schema.json через
-# manifest.py. Повторный запуск = обновление: данные (data/) и app.env не затираются.
+# The engine does not hard-code settings: apt packages, base LCS_* environment,
+# wizard fields and defaults come from server/setup/settings-schema.json via
+# manifest.py. Re-running the engine = update; data/ and app.env are preserved.
 #
-# Использование:
+# Usage:
 #   sudo bash install_pi.sh [--no-setup] [--preseed FILE]
-#   --no-setup  не запускать мастер настройки после установки
-#   --preseed F  подставить значения мастера из файла KEY=VALUE
+#   --no-setup  do not run the setup wizard after installing
+#   --preseed F  take wizard values from a KEY=VALUE file
 set -euo pipefail
 
 APP_USER="${APP_USER:-localchat}"
@@ -28,67 +28,67 @@ MANIFEST_PY="${SETUP_DIR}/manifest.py"
 
 usage() {
     cat <<EOF
-Установка/обновление Local Chat Server (v0.1)
+Install/update Local Chat Server (v0.1)
   sudo bash install_pi.sh [--no-setup] [--preseed FILE]
-  --no-setup   не запускать мастер настройки после установки
-  --preseed F  подставить значения мастера из файла KEY=VALUE
+  --no-setup   do not run the setup wizard after installing
+  --preseed F  take wizard values from a KEY=VALUE file
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-setup) SKIP_SETUP=1; shift ;;
-        --preseed) PRESEED_FILE="${2:?нужен путь к файлу после --preseed}"; shift 2 ;;
+        --preseed) PRESEED_FILE="${2:?path required after --preseed}"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
-        *) echo "неизвестный аргумент: $1" >&2; usage; exit 2 ;;
+        *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
     esac
 done
 
-# ---- журнал и базовые проверки ----
+# ---- logging and basic checks ----
 if [[ -d /var/log && -w /var/log ]]; then
     exec > >(tee -a "${INSTALL_LOG}") 2>&1
 fi
 log() { echo "[lc-install] $(date '+%H:%M:%S') $*"; }
-die() { log "ОШИБКА: $*"; exit 1; }
+die() { log "ERROR: $*"; exit 1; }
 
-[[ "${EUID}" -eq 0 ]] || die "нужен root: sudo bash $0"
-[[ -f "${MANIFEST_PY}" ]] || die "не найден манифест: ${MANIFEST_PY}"
+[[ "${EUID}" -eq 0 ]] || die "root required: sudo bash $0"
+[[ -f "${MANIFEST_PY}" ]] || die "manifest not found: ${MANIFEST_PY}"
 
-# Манифест читается python3, но python3 может отсутствовать в минимальной системе.
-# Тогда используется загрузочный список пакетов (тот же набор, что в манифесте);
-# после apt python3 появится и дальше всё работает через манифест.
+# The manifest is read with python3, but python3 may be absent on a minimal
+# system. In that case a bootstrap package list (same set as in the manifest)
+# is used; after apt, everything runs through the manifest again.
 FALLBACK_PACKAGES="python3 python3-venv python3-pip curl rsync whiptail ca-certificates openssl"
 
-# ---- preflight: платформа ----
+# ---- preflight: platform ----
 # shellcheck disable=SC1091
 . /etc/os-release 2>/dev/null || true
 OS_ID="${ID:-}"
 OS_VER="${VERSION_ID:-0}"
 if [[ "${OS_ID}" != "debian" && "${OS_ID}" != "raspbian" ]]; then
-    die "поддерживается Raspberry Pi OS / Debian (64-bit). Найдено: ${PRETTY_NAME:-неизвестная система}"
+    die "Raspberry Pi OS / Debian (64-bit) required. Found: ${PRETTY_NAME:-unknown system}"
 fi
 if (( ${OS_VER%%.*} < 12 )); then
-    die "эта ОС (${PRETTY_NAME:-Debian ${OS_VER}}) слишком старая: серверу нужен Python >= ${MIN_PYTHON}. Обновитесь до Raspberry Pi OS Bookworm (Debian 12) 64-bit и запустите установку снова."
+    die "this OS (${PRETTY_NAME:-Debian ${OS_VER}}) is too old: the server needs Python >= ${MIN_PYTHON:-3.10}. Upgrade to Raspberry Pi OS Bookworm (Debian 12) 64-bit and re-run the installer."
 fi
 
 ARCH="$(uname -m)"
 if [[ "${ARCH}" == "aarch64" || "${ARCH}" == "arm64" ]]; then
-    log "платформа: ARM 64-bit (Raspberry Pi)"
+    log "platform: ARM 64-bit (Raspberry Pi)"
 elif [[ "${ARCH}" == "x86_64" ]]; then
-    log "ВНИМАНИЕ: x86_64 — это не Raspberry Pi. Продолжаю, но это тестовая/виртуальная среда."
+    log "WARNING: x86_64 is not a Raspberry Pi. Continuing, but this is a test/virtual environment."
 else
-    die "неподдерживаемая архитектура: ${ARCH}"
+    die "unsupported architecture: ${ARCH}"
 fi
 
 FREE_KB="$(df -Pk "$(dirname "${APP_ROOT}")" 2>/dev/null | awk 'NR==2 {print $4}')" || true
 if [[ -n "${FREE_KB}" && "${FREE_KB}" -lt 300000 ]]; then
-    die "мало места на диске (${FREE_KB} KB свободно, нужно ~300 MB)"
+    die "not enough disk space (${FREE_KB} KB free, ~300 MB required)"
 fi
 
-# ---- самообслуживание apt (ожидание лока, повторы, уборка устаревших локов) ----
+# ---- apt self-heal (lock wait, stale-lock cleanup, retries) ----
 apt_lock_stale() {
-    # 0 — локи либо отсутствуют, либо явно устаревшие (никто их не держит);
-    # 1 — похоже, кто-то работает с apt прямо сейчас.
+    # 0 — locks are absent or clearly stale (nobody holds them);
+    # 1 — someone seems to be using apt right now.
     local lock
     for lock in /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock; do
         [[ -f "${lock}" ]] || continue
@@ -99,7 +99,7 @@ apt_lock_stale() {
             && pgrep -f 'apt-get|/usr/bin/apt |dpkg ' >/dev/null 2>&1; then
             return 1
         fi
-        # локу больше 2 минут и никто его не держит — устаревший
+        # lock older than 2 minutes with no holder — stale
         if [[ $(( $(date +%s) - $(stat -c %Y "${lock}" 2>/dev/null || echo 0) )) -lt 120 ]]; then
             return 1
         fi
@@ -115,10 +115,10 @@ apt_wait() {
                 /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null || true
             return 0
         fi
-        log "apt занят другим процессом (попытка ${i}/60) — жду 5с"
+        log "apt is busy with another process (attempt ${i}/60) — waiting 5s"
         sleep 5
     done
-    die "apt-lock не освободился за 5 минут. Дождитесь завершения других apt-процессов и повторите установку."
+    die "the apt lock was not released within 5 minutes. Wait for other apt processes to finish and re-run the installer."
 }
 
 apt_run() {
@@ -128,13 +128,13 @@ apt_run() {
         if DEBIAN_FRONTEND=noninteractive apt-get -y -o DPkg::Lock::Timeout=300 "$@"; then
             return 0
         fi
-        log "apt-get $* — попытка ${attempt} не удалась, повтор через 5с"
+        log "apt-get $* — attempt ${attempt} failed, retrying in 5s"
         sleep 5
     done
-    die "apt-get $* не удалось после 3 попыток. Проверьте сеть/репозитории и повторите."
+    die "apt-get $* failed after 3 attempts. Check the network/repositories and re-run."
 }
 
-log "обновляю списки пакетов"
+log "updating package lists"
 apt_run update
 
 PACKAGES="${FALLBACK_PACKAGES}"
@@ -143,16 +143,16 @@ if command -v python3 >/dev/null 2>&1; then
     PACKAGES="$(python3 "${MANIFEST_PY}" apt_packages)"
     MIN_PYTHON="$(python3 "${MANIFEST_PY}" min_python)"
 else
-    log "python3 отсутствует — ставлю загрузочный набор пакетов"
+    log "python3 is missing — installing the bootstrap package set"
 fi
-log "доустанавливаю пакеты: ${PACKAGES}"
+log "installing packages: ${PACKAGES}"
 # shellcheck disable=SC2086
 apt_run install ${PACKAGES}
 
 python3 -c 'import sys; p = sys.argv[1].split("."); sys.exit(0 if sys.version_info >= (int(p[0]), int(p[1]) if len(p) > 1 else 0) else 1)' "${MIN_PYTHON}" \
-    || die "нужен Python >= ${MIN_PYTHON}, а установлен $(python3 -V 2>&1). Обновите ОС."
+    || die "Python >= ${MIN_PYTHON} required, but $(python3 -V 2>&1) is installed. Upgrade the OS."
 
-# ---- служебный пользователь ----
+# ---- service user ----
 if ! getent group "${APP_GROUP}" >/dev/null; then
     groupadd --system "${APP_GROUP}"
 fi
@@ -160,11 +160,11 @@ if ! id -u "${APP_USER}" >/dev/null 2>&1; then
     useradd --system --gid "${APP_GROUP}" --home "${APP_ROOT}" --shell /usr/sbin/nologin "${APP_USER}"
 fi
 
-# ---- раскладка в /opt/local-chat-server ----
-log "раскладываю код в ${APP_ROOT}"
+# ---- layout at /opt/local-chat-server ----
+log "laying out the code at ${APP_ROOT}"
 mkdir -p "${APP_ROOT}"
 for dir in app migrations scripts systemd setup; do
-    [[ -d "${SOURCE_ROOT}/${dir}" ]] || die "в источнике нет каталога ${dir}/"
+    [[ -d "${SOURCE_ROOT}/${dir}" ]] || die "no ${dir}/ in the source"
     mkdir -p "${APP_ROOT}/${dir}"
     rsync -a --delete \
         --exclude '__pycache__' --exclude '*.pyc' \
@@ -183,13 +183,13 @@ for d in sqlite media avatars uploads rfid backups logs incidents; do
     mkdir -p "${APP_ROOT}/data/${d}"
 done
 
-# ---- venv и зависимости (с повторами) ----
-log "готовлю Python-окружение"
+# ---- venv and dependencies (with retries) ----
+log "preparing the Python environment"
 if [[ ! -x "${VENV_PATH}/bin/python" ]]; then
     python3 -m venv "${VENV_PATH}"
 fi
 "${VENV_PATH}/bin/python" -m pip install --upgrade pip wheel >/dev/null 2>&1 \
-    || log "ВНИМАНИЕ: не удалось обновить pip (продолжаю)"
+    || log "WARNING: failed to upgrade pip (continuing)"
 
 PIP_OK=0
 for attempt in 1 2 3; do
@@ -197,13 +197,13 @@ for attempt in 1 2 3; do
         PIP_OK=1
         break
     fi
-    log "pip install — попытка ${attempt} не удалась, повтор через 5с"
+    log "pip install — attempt ${attempt} failed, retrying in 5s"
     sleep 5
 done
-[[ "${PIP_OK}" == "1" ]] || die "не удалось установить зависимости Python (3 попытки). Проверьте сеть и повторите."
+[[ "${PIP_OK}" == "1" ]] || die "failed to install Python dependencies (3 attempts). Check the network and re-run."
 
-# ---- app.env: базовые настройки + дефолты полей + секрет ----
-log "формирую ${ENV_FILE}"
+# ---- app.env: base settings + field defaults + secret ----
+log "generating ${ENV_FILE}"
 mkdir -p "${APP_ROOT}/config"
 touch "${ENV_FILE}"
 
@@ -231,7 +231,7 @@ if ! grep -q '^LCS_SESSION_SECRET=.\{16,\}' "${ENV_FILE}" \
     SECRET="$(openssl rand -hex 32 2>/dev/null || python3 -c 'import secrets; print(secrets.token_hex(32))')"
     sed -i "/^LCS_SESSION_SECRET=/d" "${ENV_FILE}"
     echo "LCS_SESSION_SECRET=${SECRET}" >> "${ENV_FILE}"
-    log "сгенерирован LCS_SESSION_SECRET"
+    log "generated LCS_SESSION_SECRET"
 fi
 chmod 600 "${ENV_FILE}"
 chown root:root "${ENV_FILE}"
@@ -239,7 +239,7 @@ chown root:root "${ENV_FILE}"
 PORT="$(sed -n 's/^LCS_PORT=//p' "${ENV_FILE}" | tail -1)"
 PORT="${PORT:-18080}"
 
-# ---- права ----
+# ---- ownership ----
 chown -R "${APP_USER}:${APP_GROUP}" "${APP_ROOT}/data"
 chown -R root:root "${APP_ROOT}/app" "${APP_ROOT}/migrations" "${APP_ROOT}/scripts" \
     "${APP_ROOT}/systemd" "${APP_ROOT}/setup" "${APP_ROOT}/config"
@@ -254,16 +254,26 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
     if systemctl is-active --quiet "${SERVICE_NAME}"; then
         systemctl restart "${SERVICE_NAME}"
     else
-        systemctl enable "${SERVICE_NAME}" >/dev/null 2>&1
         systemctl start "${SERVICE_NAME}"
     fi
+
+    AUTOSTART="$(sed -n 's/^LC_AUTOSTART=//p' "${ENV_FILE}" | tail -1)"
+    case "${AUTOSTART}" in
+        0|false|no|off)
+            systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1 || true
+            log "autostart disabled — start the server manually with: sudo lc start"
+            ;;
+        *)
+            systemctl enable "${SERVICE_NAME}" >/dev/null 2>&1 || true
+            ;;
+    esac
     SYSTEMD_OK=1
-    log "служба ${SERVICE_NAME} запущена"
+    log "service ${SERVICE_NAME} started"
 else
-    log "ВНИМАНИЕ: systemd недоступен (тестовая среда?) — проверю сервер смоук-прогоном"
+    log "WARNING: systemd is not available (test environment?) — running a smoke check instead"
 fi
 
-# ---- health-check ----
+# ---- health check ----
 wait_health() {
     local base="$1" attempt
     for attempt in $(seq 1 30); do
@@ -277,11 +287,11 @@ wait_health() {
 
 if [[ "${SYSTEMD_OK}" == "1" ]]; then
     if wait_health "http://127.0.0.1:${PORT}"; then
-        log "health-check прошёл: http://127.0.0.1:${PORT}/health"
+        log "health check passed: http://127.0.0.1:${PORT}/health"
     else
-        log "health-check не прошёл; состояние службы:"
+        log "health check failed; service status:"
         systemctl --no-pager --full status "${SERVICE_NAME}" || true
-        die "сервер не ответил на /health. Журнал: journalctl -u ${SERVICE_NAME} -n 50"
+        die "the server did not answer on /health. Logs: journalctl -u ${SERVICE_NAME} -n 50"
     fi
 else
     mkdir -p "${APP_ROOT}/data/logs"
@@ -290,34 +300,34 @@ else
             > "${APP_ROOT}/data/logs/smoke-server.log" 2>&1 \
         & echo $! > "${APP_ROOT}/data/logs/smoke-server.pid" )
     if wait_health "http://127.0.0.1:${PORT}"; then
-        log "смоук-прогон прошёл: сервер поднялся и ответил на /health"
+        log "smoke check passed: the server started and answered on /health"
     else
-        log "журнал смоук-прогона:"
+        log "smoke check log:"
         tail -n 40 "${APP_ROOT}/data/logs/smoke-server.log" || true
-        die "сервер не ответил на /health"
+        die "the server did not answer on /health"
     fi
     kill "$(cat "${APP_ROOT}/data/logs/smoke-server.pid")" 2>/dev/null || true
 fi
 
-# ---- команда lc ----
+# ---- lc command ----
 ln -sfn "${APP_ROOT}/scripts/lc.sh" /usr/local/bin/lc
 
-# ---- мастер настройки ----
+# ---- setup wizard ----
 if [[ "${SKIP_SETUP}" == "1" ]]; then
-    log "мастер пропущен (--no-setup) — настройте позже: sudo lc setup"
+    log "wizard skipped (--no-setup) — configure later with: sudo lc setup"
 elif [[ ! -t 0 || -n "${LC_NO_WIZARD:-}" ]]; then
-    log "неинтерактивный режим — мастер пропущен (запустите: sudo lc setup)"
+    log "non-interactive mode — wizard skipped (run it later with: sudo lc setup)"
 elif [[ -f "${APP_ROOT}/setup/wizard.sh" ]]; then
     if bash "${APP_ROOT}/setup/wizard.sh" ${PRESEED_FILE:+--preseed "${PRESEED_FILE}"}; then
-        log "мастер завершён"
+        log "setup wizard finished"
     else
-        log "мастер отменён или завершился с ошибкой — настройте позже: sudo lc setup"
+        log "setup wizard was cancelled or failed — configure later with: sudo lc setup"
     fi
 fi
 
-# ---- итог ----
+# ---- summary ----
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')" || IP=""
-log "УСТАНОВКА ЗАВЕРШЕНА"
-log "  Портал:   http://${IP:-127.0.0.1}:${PORT}  (локально: http://127.0.0.1:${PORT})"
-log "  Служба:   systemctl status ${SERVICE_NAME}"
-log "  Команды:  lc status | lc setup | lc logs | lc update | lc backup | lc uninstall"
+log "INSTALLATION COMPLETE"
+log "  Portal:    http://${IP:-127.0.0.1}:${PORT}  (locally: http://127.0.0.1:${PORT})"
+log "  Service:   systemctl status ${SERVICE_NAME}"
+log "  Commands:  lc status | lc setup | lc logs | lc update | lc backup | lc uninstall"
