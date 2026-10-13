@@ -41,6 +41,7 @@ class RegistrationService:
         phone: str,
         device_id: str,
         client_kind: ClientKind,
+        enforce_password_minimum: bool = True,
     ) -> AuthResult:
         normalized_login = login.strip()
         normalized_phone = self._normalize_phone(phone)
@@ -48,7 +49,7 @@ class RegistrationService:
 
         if not normalized_login:
             raise RegistrationError("invalid_login", "Login must not be empty", 422)
-        if len(password) < 8:
+        if enforce_password_minimum and len(password) < 8:
             raise RegistrationError("weak_password", "Password must be at least 8 characters", 422)
         if normalized_phone and not _PHONE_RE.fullmatch(normalized_phone):
             raise RegistrationError(

@@ -55,8 +55,10 @@ def cmd_create_admin(args) -> None:
     username = args.username.strip()
     if len(username) < 3 or len(username) > 32:
         raise SystemExit("username must be 3..32 characters")
-    if len(args.password) < 8:
-        raise SystemExit("password must be at least 8 characters")
+    # Deliberate exception: admins are NOT bound by the 8-character minimum
+    # (the web registration flow still enforces it for regular users).
+    if not args.password:
+        raise SystemExit("password must not be empty")
 
     from app.services.auth import hash_password
 
@@ -88,6 +90,7 @@ def cmd_create_admin(args) -> None:
             phone="",
             device_id="cli-admin-" + secrets.token_hex(4),
             client_kind=ClientKind.WEB,
+            enforce_password_minimum=False,
         )
     except RegistrationError as exc:
         raise SystemExit(f"cannot create admin: {exc}")
