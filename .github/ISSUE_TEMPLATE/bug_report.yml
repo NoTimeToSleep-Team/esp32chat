@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a problem with the server, installer, portal or firmware.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill this out. Please check
+        `docs/INSTALL.md` and existing issues before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, or `lc version` output.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installer / setup wizard
+        - Web portal
+        - API / realtime
+        - Firmware client
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: |
+        What did you do, what did you expect, and what happened instead?
+        Include exact commands and relevant log lines
+        (`/var/log/lc-install.log`, `journalctl -u local-chat-server`).
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Hardware and OS.
+      placeholder: Raspberry Pi 5, Raspberry Pi OS Bookworm 64-bit
+    validations:
+      required: true

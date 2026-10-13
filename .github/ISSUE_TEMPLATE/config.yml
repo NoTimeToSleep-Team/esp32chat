@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation and management guide
+    url: https://github.com/NoTimeToSleep-Team/esp32chat/blob/main/docs/INSTALL.md
+    about: Read this first — install, wizard, update, backup and uninstall.

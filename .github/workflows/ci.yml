@@ -1,0 +1,23 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bash syntax (installer, CLI, scripts)
+        run: |
+          fail=0
+          for f in $(git ls-files '*.sh'); do
+            bash -n "$f" || { echo "bash syntax error: $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: Python syntax (compile sources)
+        run: python3 -m compileall -q server/app server/setup server/scripts
