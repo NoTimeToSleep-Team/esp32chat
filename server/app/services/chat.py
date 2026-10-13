@@ -1161,6 +1161,48 @@ class ChatService:
             )
             return {"status": "joined", "chat": self._row_to_chat(row)}
 
+    def search_public_chats(
+        self,
+        *,
+        user_id: int,
+        query: str,
+        limit: int = 10,
+    ) -> list[ChatRoom]:
+        """Public joinable chats matching a name, excluding chats the user is already in."""
+        needle = (query or "").strip().casefold()
+        if len(needle) < 2:
+            return []
+
+        safe_limit = min(max(int(limit), 1), 50)
+        with self._connect() as connection:
+            self._require_active_user(connection, user_id)
+            rows = connection.execute(
+                """
+                SELECT c.*
+                FROM chats c
+                WHERE c.is_public = 1
+                  AND NOT EXISTS (
+                      SELECT 1 FROM chat_members m
+                      WHERE m.chat_id = c.id AND m.user_id = ?
+                  )
+                ORDER BY c.updated_at_ms DESC
+                LIMIT 300
+                """,
+                (user_id,),
+            ).fetchall()
+
+        # SQLite's LIKE is ASCII-only for case folding, so match in Python to
+        # support Cyrillic names.
+        matches: list[ChatRoom] = []
+        for row in rows:
+            title = self._row_optional_str_lenient(row, "title") or ""
+            username = self._row_optional_str_lenient(row, "username") or ""
+            if needle in title.casefold() or needle in username.casefold():
+                matches.append(self._row_to_chat(row))
+            if len(matches) >= safe_limit:
+                break
+        return matches
+
     def list_join_requests(self, *, chat_id: int, actor_user_id: int) -> list[dict[str, object]]:
         with self._connect() as connection:
             actor = self._require_active_user(connection, actor_user_id)

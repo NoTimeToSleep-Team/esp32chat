@@ -788,7 +788,7 @@ async function renderChat() {
           <div class="chat-side-title only-desktop"><span>${t('chat')}</span><button class="mini" id="chat-refresh" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button></div>
           <div class="chat-top">
             <button class="mini only-mobile" id="chat-menu-btn" title="${t('menu')}" aria-label="${t('menu')}">${icon('menu')}</button>
-            <div class="chat-search">${icon('search')}<input id="chat-search-input" placeholder="${t('search_user')}"></div>
+            <div class="chat-search">${icon('search')}<input id="chat-search-input" placeholder="${t('chat_search_ph')}"></div>
             <button class="mini" id="chat-archive-btn" title="${t('archive')}" aria-label="${t('archive')}" style="display:none">${icon('archive')}<span class="mini-badge" id="chat-archive-count"></span></button>
             <button class="mini only-mobile mini-pill" id="chat-dm-btn" title="${t('dm')}" aria-label="${t('dm')}"><span class="mi-ico">${icon('mail')}</span><span class="mi-lbl">${t('dm')}</span></button>
             <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
@@ -807,68 +807,152 @@ async function renderChat() {
     const data = await api(`/chat/api/chats?session_token=${encodeURIComponent(STATE.token)}`);
     if (!data.items?.length) {
       $('#chat-list').innerHTML = `<div class="empty"><div class="empty-text">${t('no_chats')}</div></div>`;
-      return;
-    }
-    const list = el('div');
-    const archived = data.items.filter(c => c.is_archived);
-    const archiveBtn = $('#chat-archive-btn');
-    if (archiveBtn) {
-      archiveBtn.style.display = archived.length ? '' : 'none';
-      const cnt = $('#chat-archive-count');
-      if (cnt) cnt.textContent = archived.length ? String(archived.length) : '';
-      archiveBtn.classList.toggle('active', !!STATE.showArchived);
-      archiveBtn.onclick = () => { STATE.showArchived = !STATE.showArchived; renderChat(); };
-    }
-    const visibleChats = data.items.filter(c => STATE.showArchived || !c.is_archived);
-    visibleChats.forEach(chat => {
-      const item = el('div',{class:'chat-item'});
-      let displayTitle = chat.title;
-      if (displayTitle.includes(' & ')) {
-        const parts = displayTitle.split(' & ');
-        displayTitle = parts.filter(p => p !== STATE.user?.login).join(' & ') || displayTitle;
+      $('#chat-layout').classList.add('show-list');
+    } else {
+      const list = el('div');
+      const archived = data.items.filter(c => c.is_archived);
+      const archiveBtn = $('#chat-archive-btn');
+      if (archiveBtn) {
+        archiveBtn.style.display = archived.length ? '' : 'none';
+        const cnt = $('#chat-archive-count');
+        if (cnt) cnt.textContent = archived.length ? String(archived.length) : '';
+        archiveBtn.classList.toggle('active', !!STATE.showArchived);
+        archiveBtn.onclick = () => { STATE.showArchived = !STATE.showArchived; renderChat(); };
       }
-      const cav = chatAvaFor(displayTitle, chat.chat_id);
-      const typeIcon = chat.chat_type === 'group' ? '' : `<span class="chat-type-ico" title="${esc(chatTypeLabel(chat))}">${chatTypeIcon(chat)}</span>`;
-      const flags = [];
-      if (chat.is_pinned) flags.push(`<span class="chat-flag" title="${t('pinned_chat')}">${icon('pin')}</span>`);
-      if (chat.is_muted) flags.push(`<span class="chat-flag" title="${t('muted')}">${icon('bellOff')}</span>`);
-      const unread = Number(chat.unread_count || 0);
-      const badge = unread > 0 ? `<span class="chat-badge${chat.is_muted ? ' muted' : ''}">${unread > 99 ? '99+' : unread}</span>` : '';
-      const draft = (chat.draft_text || '').trim();
-      const desc = draft
-        ? `<span class="chat-draft">${t('draft')}: ${esc(draft.slice(0, 60))}</span>`
-        : (chat.description ? esc(chat.description) : '#' + chat.chat_id);
-      item.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
-        <div class="chat-item-main">
-          <div class="chat-item-title">${typeIcon}${esc(displayTitle)}${flags.join('')}</div>
-          <div class="chat-item-desc">${desc}</div>
-        </div>
-        ${badge}`;
-      item.dataset.search = (displayTitle + ' ' + (chat.description || '')).toLowerCase();
-      item.dataset.avatar = chat.avatar_url || '';
-      item.dataset.chatType = chatTypeOf(chat);
-      item.dataset.chatId = chat.chat_id;
-      item._chat = chat;
-      item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item, chat.avatar_url);
-      list.append(item);
-    });
-    $('#chat-list').innerHTML = '';
-    $('#chat-list').append(list);
-    // auto-select first only when no chat is open yet
-    if (data.items.length && list.firstChild && !currentChatId) {
-      list.firstChild.click();
+      const visibleChats = data.items.filter(c => STATE.showArchived || !c.is_archived);
+      visibleChats.forEach(chat => {
+        const item = el('div',{class:'chat-item'});
+        let displayTitle = chat.title;
+        if (displayTitle.includes(' & ')) {
+          const parts = displayTitle.split(' & ');
+          displayTitle = parts.filter(p => p !== STATE.user?.login).join(' & ') || displayTitle;
+        }
+        const cav = chatAvaFor(displayTitle, chat.chat_id);
+        const typeIcon = chat.chat_type === 'group' ? '' : `<span class="chat-type-ico" title="${esc(chatTypeLabel(chat))}">${chatTypeIcon(chat)}</span>`;
+        const flags = [];
+        if (chat.is_pinned) flags.push(`<span class="chat-flag" title="${t('pinned_chat')}">${icon('pin')}</span>`);
+        if (chat.is_muted) flags.push(`<span class="chat-flag" title="${t('muted')}">${icon('bellOff')}</span>`);
+        const unread = Number(chat.unread_count || 0);
+        const badge = unread > 0 ? `<span class="chat-badge${chat.is_muted ? ' muted' : ''}">${unread > 99 ? '99+' : unread}</span>` : '';
+        const draft = (chat.draft_text || '').trim();
+        const desc = draft
+          ? `<span class="chat-draft">${t('draft')}: ${esc(draft.slice(0, 60))}</span>`
+          : (chat.description ? esc(chat.description) : '#' + chat.chat_id);
+        item.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
+          <div class="chat-item-main">
+            <div class="chat-item-title">${typeIcon}${esc(displayTitle)}${flags.join('')}</div>
+            <div class="chat-item-desc">${desc}</div>
+          </div>
+          ${badge}`;
+        item.dataset.search = (displayTitle + ' ' + (chat.description || '')).toLowerCase();
+        item.dataset.avatar = chat.avatar_url || '';
+        item.dataset.chatType = chatTypeOf(chat);
+        item.dataset.chatId = chat.chat_id;
+        item._chat = chat;
+        item.onclick = () => loadChatMessages(chat.chat_id, chat.title, item, chat.avatar_url);
+        list.append(item);
+      });
+      $('#chat-list').innerHTML = '';
+      $('#chat-list').append(list);
+      // auto-select first only when no chat is open yet
+      if (data.items.length && list.firstChild && !currentChatId) {
+        list.firstChild.click();
+      }
+      $('#chat-layout').classList.add('show-list');
     }
-    $('#chat-layout').classList.add('show-list');
   } catch(e) {
     $('#chat-list').innerHTML = `<div class="empty"><div class="empty-text">${esc(e.message)}</div></div>`;
   }
+  // A chat joined through an invite link while the visitor was on the login
+  // screen: open it as soon as the chat list is on screen.
+  if (pendingOpenChatId) {
+    const wantedChatId = pendingOpenChatId;
+    pendingOpenChatId = null;
+    const wantedItem = document.querySelector('#chat-list .chat-item[data-chat-id="' + wantedChatId + '"]');
+    if (wantedItem) wantedItem.click();
+  }
   const chatSearchEl = $('#chat-search-input');
-  if (chatSearchEl) chatSearchEl.oninput = () => {
-    const q = chatSearchEl.value.trim().toLowerCase();
-    $$('#chat-list .chat-item').forEach(it => {
-      it.style.display = (!q || (it.dataset.search || '').includes(q)) ? '' : 'none';
-    });
-  };
+  if (chatSearchEl) {
+    let publicSearchTimer = null;
+    const renderSearchExtras = async () => {
+      const query = chatSearchEl.value.trim();
+      const listWrap = $('#chat-list');
+      if (!listWrap) return;
+      let box = $('#chat-search-extra');
+      if (!box) {
+        box = el('div', {id: 'chat-search-extra'});
+        listWrap.append(box);
+      }
+      box.innerHTML = '';
+      const emptyEl = listWrap.querySelector('.empty');
+      if (query.length < 2) {
+        if (emptyEl) emptyEl.style.display = '';
+        return;
+      }
+      if (/#\/join\//i.test(query) || /^https?:\/\//i.test(query)) {
+        const linkRow = el('div', {class: 'chat-item chat-extra'});
+        linkRow.dataset.extra = '1';
+        linkRow.innerHTML = `<div class="chat-ava" style="background:var(--accent)">${avatarInnerHtml(null, '🔗')}</div>
+          <div class="chat-item-main">
+            <div class="chat-item-title">${t('open_join_link')}</div>
+            <div class="chat-item-desc">${esc(query.slice(0, 80))}</div>
+          </div>`;
+        linkRow.onclick = async () => { const res = await joinChatByTarget(query); if (res) renderChat(); };
+        box.append(linkRow);
+      }
+      let foundPublic = [];
+      try {
+        const res = await api(`/chat/api/chats/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(query)}`);
+        foundPublic = (res && res.items) || [];
+      } catch (e) { foundPublic = []; }
+      if (foundPublic.length) {
+        const head = el('div', {class: 'chat-search-head'});
+        head.textContent = t('public_chats');
+        box.append(head);
+        foundPublic.forEach(chat => {
+          const title = chat.title || '';
+          const cav = chatAvaFor(title, chat.chat_id);
+          const row = el('div', {class: 'chat-item chat-extra'});
+          row.dataset.extra = '1';
+          row.innerHTML = `<div class="chat-ava" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
+            <div class="chat-item-main">
+              <div class="chat-item-title">${icon('megaphone')}${esc(title)}</div>
+              <div class="chat-item-desc">${esc(chat.username ? '@' + chat.username : (chat.description || ''))}</div>
+              <button class="btn btn-sm btn-primary chat-subscribe-btn" type="button">${t('subscribe')}</button>
+            </div>`;
+          const btn = row.querySelector('.chat-subscribe-btn');
+          btn.onclick = async (ev) => {
+            ev.stopPropagation();
+            btn.disabled = true;
+            const res = await subscribeToChat(chat.chat_id);
+            if (!res) { btn.disabled = false; return; }
+            await renderChat();
+            const item = document.querySelector('#chat-list .chat-item[data-chat-id="' + chat.chat_id + '"]');
+            if (item) item.click();
+          };
+          box.append(row);
+        });
+      }
+      if (emptyEl) emptyEl.style.display = box.children.length ? 'none' : '';
+    };
+    chatSearchEl.oninput = () => {
+      const q = chatSearchEl.value.trim().toLowerCase();
+      $$('#chat-list .chat-item').forEach(it => {
+        if (it.dataset.extra) return;
+        it.style.display = (!q || (it.dataset.search || '').includes(q)) ? '' : 'none';
+      });
+      clearTimeout(publicSearchTimer);
+      publicSearchTimer = setTimeout(renderSearchExtras, 250);
+    };
+    chatSearchEl.onkeydown = (e) => {
+      if (e.key !== 'Enter') return;
+      const query = chatSearchEl.value.trim();
+      if (/#\/join\//i.test(query) || /^https?:\/\//i.test(query)) {
+        e.preventDefault();
+        joinChatByTarget(query).then(res => { if (res) renderChat(); });
+      }
+    };
+  }
   const chatRefreshEl = $('#chat-refresh');
   if (chatRefreshEl) chatRefreshEl.onclick = () => renderChat();
   const chatRefreshM = $('#chat-refresh-m');
@@ -2300,7 +2384,7 @@ async function showChatProfile() {
         <div class="cp-count">${view.member_count || members.length} ${memberWord}</div>
       </div>
     </div>
-    ${chat.is_public && chat.username ? `<div class="cp-link-row">${icon('link')}<span class="cp-link" id="cp-public-link">#/join/${esc(chat.username)}</span><button class="icon-btn" id="cp-copy-link" title="${t('copy')}" aria-label="${t('copy')}">${icon('copy')}</button></div>` : ''}
+    ${chat.is_public && chat.username ? `<div class="cp-link-row">${icon('link')}<span class="cp-link" id="cp-public-link">${esc(fullJoinLink(chat.username))}</span><button class="icon-btn" id="cp-copy-link" title="${t('copy')}" aria-label="${t('copy')}">${icon('copy')}</button></div>` : ''}
     <div class="form-group">
       <label>${t('title')}</label>
       <div class="cp-edit-row">
@@ -2635,7 +2719,7 @@ async function showChatProfile() {
         const expires = inv.expires_at_ms ? new Date(inv.expires_at_ms).toLocaleDateString() : t('unlimited');
         const flags = [uses + ' ' + t('uses'), expires];
         if (inv.requires_approval) flags.push(t('invite_approval_short'));
-        row.innerHTML = `<div class="cp-invite-main"><div class="cp-invite-code">#/join/${esc(inv.code)}</div><div class="cp-invite-meta">${esc(flags.join(' · '))}</div></div>`;
+        row.innerHTML = `<div class="cp-invite-main"><div class="cp-invite-code">${esc(fullJoinLink(inv.code))}</div><div class="cp-invite-meta">${esc(flags.join(' · '))}</div></div>`;
         const actions = el('div', {class: 'cp-member-actions'});
         const copyBtn = el('button', {class: 'icon-btn', title: t('copy')});
         copyBtn.innerHTML = icon('copy');
@@ -3446,8 +3530,41 @@ async function checkWarnings() {
   } catch(e) {}
 }
 
+let pendingOpenChatId = null;
+
+function stashPendingJoin(target) {
+  try { sessionStorage.setItem('lc_pending_join', target); } catch (e) {}
+}
+
+function takePendingJoin() {
+  try {
+    const value = sessionStorage.getItem('lc_pending_join');
+    if (value) sessionStorage.removeItem('lc_pending_join');
+    return value;
+  } catch (e) { return null; }
+}
+
+/* Invite links must survive the login/registration detour: when a visitor opens
+   #/join/<code> without a session, remember the target and finish the join as
+   soon as a session exists. */
+async function applyPendingJoin() {
+  if (!STATE.token) return;
+  const target = takePendingJoin();
+  if (!target) return;
+  const res = await joinChatByTarget(target);
+  const chat = res && res.chat ? res.chat : null;
+  if (chat && chat.chat_id) pendingOpenChatId = chat.chat_id;
+}
+
 async function handleRoute() {
   const hash = window.location.hash || '#/login';
+  const joinHashMatch = hash.split('?')[0].match(/^#\/join\/(.+)$/);
+  if (joinHashMatch && !STATE.token) {
+    stashPendingJoin(decodeURIComponent(joinHashMatch[1]));
+  } else if (STATE.token) {
+    if (joinHashMatch) takePendingJoin();
+    else await applyPendingJoin();
+  }
   if (hash === '#/login' && STATE.token) {replaceRoute('#/chat');return}
   const publicRoutes = ['#/login', '#/about'];
   if (!publicRoutes.includes(hash.split('?')[0]) && !STATE.token) {replaceRoute('#/login');return}
@@ -3632,7 +3749,10 @@ var T = {
 "optional":{rus:"необязательно",eng:"optional"},
 "chat_public":{rus:"Публичный чат (ссылка по имени)",eng:"Public chat (link by name)"},
 "chat_username_ph":{rus:"имя ссылки, например my_chat",eng:"link name, e.g. my_chat"},
-"chat_public_hint":{rus:"Публичный чат можно открыть по ссылке вида #/join/имя.",eng:"A public chat opens by a link like #/join/name."},
+"chat_public_hint":{rus:"Публичный чат можно найти поиском по имени или открыть по ссылке вида #/join/имя.",eng:"A public chat can be found by name in search or opened by a link like #/join/name."},
+"chat_search_ph":{rus:"Поиск чатов, имя или ссылка…",eng:"Search chats, name or link…"},
+"public_chats":{rus:"Публичные чаты",eng:"Public chats"},
+"open_join_link":{rus:"Открыть по ссылке/коду",eng:"Open by link/code"},
 "chat_history":{rus:"История для новых участников",eng:"History for new members"},
 "chat_history_hint":{rus:"Если выключено, новые участники увидят только сообщения после вступления.",eng:"When off, new members see only messages posted after they joined."},
 "join_by_link":{rus:"Вступить",eng:"Join"},

@@ -206,6 +206,31 @@ async def list_chats(
     }
 
 
+@router.get("/chat/api/chats/search")
+async def search_public_chats(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    q: str = Query(default="", max_length=128),
+    limit: int = Query(default=10, ge=1, le=50),
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, session_token)
+    service = _chat_service(request)
+
+    try:
+        chats = service.search_public_chats(user_id=user_id, query=q, limit=limit)
+    except ChatError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+    return {
+        "status": "ok",
+        "count": len(chats),
+        "items": [_chat_payload(chat, session_token) for chat in chats],
+    }
+
+
 @router.get("/chat/api/updates")
 async def list_chat_updates(
     request: Request,
