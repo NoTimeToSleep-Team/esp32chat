@@ -6,17 +6,11 @@ __pycache__/
 .venv/
 venv/
 
-# Runtime data (SQLite, WAL/SHM)
-server/data/sqlite/
+# Runtime data (SQLite, WAL/SHM, uploads, avatars, backups, logs)
+server/data/
 *.db-shm
 *.db-wal
 *.db-journal
-
-# Runtime artifacts (uploads, avatars, backups)
-server/data/backups/
-server/data/avatars/
-server/data/media/
-server/data/logs/
 
 # Release artifacts (installer)
 dist/
