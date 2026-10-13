@@ -1,37 +1,18 @@
 # Docs
 
-Documentation for architecture, glossary, MVP boundaries, device matrix, acceptance criteria, and operations.
+Project documentation.
 
-Current documents:
+User-facing:
 
-- `rpi-ops-notes.md` — доступ к плате, маршрут до RPi, деплой и тесты на живом портале
-- `RELEASE_V0.1_PLAN.md` — план релиза v0.1: установка через curl, whiptail-мастер настройки, schema-driven установщик, порядок работ
-- `glossary.md`
-- `mvp-scope.md`
-- `architecture.md`
-- `device-matrix.md`
-- `integration-device.md`
-- `integration-chat.md`
-- `integration-ops.md`
-- `autonomy-matrix.md`
-- `acceptance.md`
-- `verification-plan.md`
-- `verification-report-2026-04-03.md`
-- `hardware-validation-checklist.md`
-- `hardware-validation-log-template.md`
-- `hardware-validation-log-bootstrap.md`
-- `hardware-validation-log-2026-04-03-session-01.md`
-- `hardware-validation-log-2026-04-03-session-02.md`
-- `hardware-runbook.md`
-- `field-ready-gate.md`
-- `field-ready-status.md`
-- `tools/new_hardware_log.py`
-- `tools/evaluate_hardware_log.py`
-- `tools/evaluate_field_ready_gate.py`
-- `tools/evaluate_all_hardware_logs.py`
-- `post-rc-backlog.md`
-- `known-limitations.md`
-- `operator-guide.md`
-- `release-candidate.md`
+- `INSTALL.md` — installation, setup wizard, management CLI, uninstall.
+- `architecture.md` — server architecture and data flows.
+- `device-matrix.md` — device roles, constraints and autonomy notes.
+- `glossary.md` — project terms.
 
-Roadmap-driven documentation additions are tracked in `PLAN.md` and context files.
+Development notes:
+
+- `frontend-spec.md` — web portal frontend specification.
+- `CHAT_FEATURES_PLAN.md` — chat feature checklist and implementation notes.
+- `RELEASE_V0.1_PLAN.md` — v0.1 release plan and schema-driven installer notes.
+- `rpi-ops-notes.md` — board access, deploy and on-device test notes.
+- `tools/` — helper scripts for hardware logs and verification sweeps.
