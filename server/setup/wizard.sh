@@ -59,16 +59,19 @@ VALUES_FILE="$(mktemp)"
 ANSWERS_FILE="${APP_ROOT}/config/wizard-answers.env"
 trap 'rm -f "${VALUES_FILE}"' EXIT
 
-val() { grep "^$1=" "${VALUES_FILE}" 2>/dev/null | tail -1 | cut -d= -f2-; }
+val() { grep "^$1=" "${VALUES_FILE}" 2>/dev/null | tail -1 | cut -d= -f2- || true; }
 set_val() {
     sed -i "/^$1=/d" "${VALUES_FILE}" 2>/dev/null || true
     printf '%s=%s\n' "$1" "$2" >> "${VALUES_FILE}"
 }
 
-current_env_value() { sed -n "s/^$1=//p" "${ENV_FILE}" 2>/dev/null | tail -1; }
+# NOTE: every value helper must end with "|| true": with set -e + pipefail a
+# missing file (app.env does not exist yet during a fresh install) fails the
+# pipeline and would kill the script silently.
+current_env_value() { sed -n "s/^$1=//p" "${ENV_FILE}" 2>/dev/null | tail -1 || true; }
 preseed_value() {
     if [[ -n "${PRESEED_FILE}" && -f "${PRESEED_FILE}" ]]; then
-        sed -n "s/^$1=//p" "${PRESEED_FILE}" 2>/dev/null | tail -1
+        sed -n "s/^$1=//p" "${PRESEED_FILE}" 2>/dev/null | tail -1 || true
     fi
 }
 

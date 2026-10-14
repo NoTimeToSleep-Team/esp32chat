@@ -191,7 +191,7 @@ if ! python3 -c 'import sys' >/dev/null 2>&1; then
     log "python3 is not usable — restoring the interpreter files"
     PY_TMP="$(mktemp -d)"
     PY_PKGS="python3-minimal"
-    for extra in $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-minimal$/ {print $2}'); do
+    for extra in $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-minimal$/ {print $2}' || true); do
         PY_PKGS="${PY_PKGS} ${extra}"
     done
     for p in ${PY_PKGS}; do
@@ -215,7 +215,7 @@ if ! python3 -c 'import sys' >/dev/null 2>&1; then
 fi
 
 SELFHEAL_PKGS="${PACKAGES} python3-minimal"
-for extra in $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+(-minimal|-venv|-pip)?$/ {print $2}'); do
+for extra in $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+(-minimal|-venv|-pip)?$/ {print $2}' || true); do
     SELFHEAL_PKGS="${SELFHEAL_PKGS} ${extra}"
 done
 REINSTALL=""
@@ -226,10 +226,10 @@ for pkg in ${SELFHEAL_PKGS}; do
     done < <(dpkg -L "${pkg}" 2>/dev/null | grep -E '^/usr/(s?bin|games)/' || true)
 done
 if ! python3 -c 'import venv' >/dev/null 2>&1; then
-    REINSTALL="${REINSTALL} python3-venv $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-venv$/ {print $2}')"
+    REINSTALL="${REINSTALL} python3-venv $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-venv$/ {print $2}' || true)"
 fi
 if ! python3 -m pip --version >/dev/null 2>&1; then
-    REINSTALL="${REINSTALL} python3-pip $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-pip$/ {print $2}')"
+    REINSTALL="${REINSTALL} python3-pip $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-pip$/ {print $2}' || true)"
 fi
 [[ -s /etc/ssl/certs/ca-certificates.crt ]] || REINSTALL="${REINSTALL} ca-certificates"
 REINSTALL="$(echo ${REINSTALL} | tr ' ' '\n' | sort -u | tr '\n' ' ')"
@@ -352,7 +352,7 @@ fi
 chmod 600 "${ENV_FILE}"
 chown root:root "${ENV_FILE}"
 
-PORT="$(sed -n 's/^LCS_PORT=//p' "${ENV_FILE}" | tail -1)"
+PORT="$(sed -n 's/^LCS_PORT=//p' "${ENV_FILE}" | tail -1 || true)"
 PORT="${PORT:-18080}"
 
 # ---- ownership ----
@@ -375,7 +375,7 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
         systemctl start "${SERVICE_NAME}"
     fi
 
-    AUTOSTART="$(sed -n 's/^LC_AUTOSTART=//p' "${ENV_FILE}" | tail -1)"
+    AUTOSTART="$(sed -n 's/^LC_AUTOSTART=//p' "${ENV_FILE}" | tail -1 || true)"
     case "${AUTOSTART}" in
         0|false|no|off)
             systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1 || true

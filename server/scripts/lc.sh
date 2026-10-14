@@ -31,7 +31,7 @@ require_root() {
 
 port() {
     local p
-    p="$(sed -n 's/^LCS_PORT=//p' "${ENV_FILE}" 2>/dev/null | tail -1)"
+    p="$(sed -n 's/^LCS_PORT=//p' "${ENV_FILE}" 2>/dev/null | tail -1 || true)"
     echo "${p:-18080}"
 }
 
@@ -85,7 +85,7 @@ cmd_stop() {
 }
 
 cmd_version() {
-    sed -n 's/^__version__ = "\([^"]*\)"/\1/p' "${APP_ROOT}/app/version.py" 2>/dev/null | head -1
+    sed -n 's/^__version__ = "\([^"]*\)"/\1/p' "${APP_ROOT}/app/version.py" 2>/dev/null | head -1 || true
 }
 
 cmd_update() {
