@@ -135,34 +135,44 @@ async function api(url, opts={}) {
   if (opts.sessionHeader) headers['X-Session-Token'] = STATE.token;
   const traceId = newTraceId('tr');
   headers['X-Debug-Trace'] = traceId;
-  const controller = new AbortController();
-  const timeoutMs = opts.timeoutMs || 10000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  const t1 = Date.now();
-  try {
-    const r = await fetch(url, {...opts, headers, signal: controller.signal});
-    const t2 = Date.now();
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      const errMsg = apiErrorMessage(d, r.status);
-      debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, status: r.status, stages_done: 2, error: errMsg, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
-      const err = new Error(errMsg);
-      err.status = r.status;
-      err.code = (d && d.detail && d.detail.code) ? String(d.detail.code) : null;
-      throw err;
+  const method = (opts.method || 'GET').toUpperCase();
+  const maxAttempts = method === 'GET' ? 2 : 1; // one silent retry for reads
+  for (let attempt = 1; ; attempt++) {
+    const controller = new AbortController();
+    const timeoutMs = opts.timeoutMs || 10000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const t1 = Date.now();
+    try {
+      const r = await fetch(url, {...opts, headers, signal: controller.signal});
+      const t2 = Date.now();
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const errMsg = apiErrorMessage(d, r.status);
+        debugReport({trace_id: traceId, action: url, method, ok: false, status: r.status, stages_done: 2, error: errMsg, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+        const err = new Error(errMsg);
+        err.status = r.status;
+        err.code = (d && d.detail && d.detail.code) ? String(d.detail.code) : null;
+        throw err;
+      }
+      debugReport({trace_id: traceId, action: url, method, ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+      return d;
+    } catch(e) {
+      if (e.name === 'TypeError' && attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        continue;
+      }
+      if (e.name === 'AbortError') {
+        debugReport({trace_id: traceId, action: url, method, ok: false, stages_done: 1, error: 'Request timeout', t1_ms: t1, t3_ms: Date.now()});
+        throw new Error(t('net_timeout'));
+      }
+      if (e.name === 'TypeError') {
+        debugReport({trace_id: traceId, action: url, method, ok: false, stages_done: 1, error: 'Server unreachable', t1_ms: t1, t3_ms: Date.now()});
+        throw new Error(t('net_unreachable'));
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
-    return d;
-  } catch(e) {
-    if (e.name === 'AbortError') {
-      debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, stages_done: 1, error: 'Request timeout', t1_ms: t1, t3_ms: Date.now()});
-      throw new Error('Request timeout');
-    }
-    if (e.name!=='TypeError') throw e;
-    debugReport({trace_id: traceId, action: url, method: (opts.method||'GET'), ok: false, stages_done: 1, error: 'Server unreachable', t1_ms: t1, t3_ms: Date.now()});
-    throw new Error('Server unreachable');
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -185,7 +195,7 @@ async function uploadAttachment(file) {
   } catch(e) {
     if (e.name === 'TypeError') {
       debugReport({trace_id: traceId, action: '/media/api/attachments', method: 'POST', ok: false, stages_done: 1, error: 'Server unreachable', t1_ms: t1, t3_ms: Date.now()});
-      throw new Error('Server unreachable');
+      throw new Error(t('net_unreachable'));
     }
     throw e;
   }
@@ -199,6 +209,38 @@ function attachmentUrl(a) {
 
 function safeUrl(u) {
   return u.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* Shrink a picked picture in the browser before uploading: phone photos are
+   usually far above the avatar size limits and slow to send over Wi-Fi. */
+function downscaleImageFile(file, maxSide) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const side = maxSide || 512;
+        let w = img.naturalWidth || img.width;
+        let h = img.naturalHeight || img.height;
+        if (!w || !h) throw new Error('image decode failed');
+        const k = Math.min(1, side / Math.max(w, h));
+        w = Math.max(1, Math.round(w * k));
+        h = Math.max(1, Math.round(h * k));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const out = canvas.toDataURL('image/jpeg', 0.85);
+        URL.revokeObjectURL(url);
+        resolve(out);
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        reject(new Error('image decode failed'));
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image decode failed')); };
+    img.src = url;
+  });
 }
 
 // ===== Minimal inline SVG icon set (replaces emoji glyphs) =====
@@ -629,6 +671,20 @@ async function subscribeToChat(chatId) {
   } catch (e) { toast(e.message, 'error'); return null; }
 }
 
+/* Telegram-style: direct messages are started from the chat search. */
+async function openDmWithUser(userId, login) {
+  try {
+    const dm = await api('/chat/api/dm', {method:'POST', body: JSON.stringify({session_token: STATE.token, target_user_id: userId})});
+    toast(t('dm_open_toast').replace('{login}', login || ''), 'success');
+    await renderChat();
+    const chatId = dm && dm.chat ? dm.chat.chat_id : null;
+    if (chatId) {
+      const item = document.querySelector('#chat-list .chat-item[data-chat-id="' + chatId + '"]');
+      if (item) item.click();
+    }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 // ===== Shared people picker (create chat, chat profile, invites) =====
 function createUserPicker(opts) {
   const chipsEl = opts.chips;
@@ -720,7 +776,6 @@ async function renderChat() {
       <div><div class="page-title">${t('chat')}</div><div class="page-subtitle">${t('chat_subtitle')}</div></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm btn-outline" id="join-chat-btn">${icon('link')} <span class="only-desktop-inline">${t('join_by_link')}</span></button>
-        <button class="btn btn-sm btn-outline" id="dm-chat-btn">+ ${t('dm')}</button>
         <button class="btn btn-success btn-sm" id="create-chat-btn">+ ${t('new_chat')}</button>
       </div>
     </div>
@@ -772,16 +827,6 @@ async function renderChat() {
         </div>
       </div>
     </div>
-    <div id="dm-modal" class="overlay hidden">
-      <div class="modal">
-        <h3>Новая личка</h3>
-        <div class="form-group"><input class="form-input" id="dm-user-search" placeholder="Поиск по логину..."></div>
-        <div id="dm-user-list" style="max-height:240px;overflow-y:auto"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-          <button class="btn btn-outline" id="dm-cancel">Cancel</button>
-        </div>
-      </div>
-    </div>
     <div class="chat-layout show-list" id="chat-layout">
       <aside class="chat-side">
         <div class="chat-side-head">
@@ -790,7 +835,6 @@ async function renderChat() {
             <button class="mini only-mobile" id="chat-menu-btn" title="${t('menu')}" aria-label="${t('menu')}">${icon('menu')}</button>
             <div class="chat-search">${icon('search')}<input id="chat-search-input" placeholder="${t('chat_search_ph')}"></div>
             <button class="mini" id="chat-archive-btn" title="${t('archive')}" aria-label="${t('archive')}" style="display:none">${icon('archive')}<span class="mini-badge" id="chat-archive-count"></span></button>
-            <button class="mini only-mobile mini-pill" id="chat-dm-btn" title="${t('dm')}" aria-label="${t('dm')}"><span class="mi-ico">${icon('mail')}</span><span class="mi-lbl">${t('dm')}</span></button>
             <button class="mini only-mobile" id="chat-refresh-m" title="${t('refresh')}" aria-label="${t('refresh')}">${icon('refresh')}</button>
             <button class="mini only-mobile" id="chat-new-btn" title="${t('new_chat')}" aria-label="${t('new_chat')}">${icon('plus')}</button>
           </div>
@@ -933,6 +977,30 @@ async function renderChat() {
           box.append(row);
         });
       }
+      let foundUsers = [];
+      try {
+        const resU = await api(`/chat/api/users/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(query)}`);
+        foundUsers = (resU && resU.items) || [];
+      } catch (e) { foundUsers = []; }
+      const people = foundUsers.filter(u => u.user_id !== STATE.user?.id && u.role !== 'guest');
+      if (people.length) {
+        const headU = el('div', {class: 'chat-search-head'});
+        headU.textContent = t('people');
+        box.append(headU);
+        people.forEach(u => {
+          const row = el('div', {class: 'chat-item chat-extra'});
+          row.dataset.extra = '1';
+          const initials = (u.login || '?').slice(0, 2).toUpperCase();
+          const roleBadge = (u.role === 'admin' || u.role === 'moderator') ? ` <span class="badge badge-${u.role}">${u.role}</span>` : '';
+          row.innerHTML = `<div class="chat-ava" style="background:#3d5a80">${esc(initials)}</div>
+            <div class="chat-item-main">
+              <div class="chat-item-title">${esc(u.login)}${roleBadge}</div>
+              <div class="chat-item-desc">${t('open_dm_hint')}</div>
+            </div>`;
+          row.onclick = () => openDmWithUser(u.user_id, u.login);
+          box.append(row);
+        });
+      }
       if (emptyEl) emptyEl.style.display = box.children.length ? 'none' : '';
     };
     chatSearchEl.oninput = () => {
@@ -963,8 +1031,6 @@ async function renderChat() {
     document.body.classList.add('menu-open');
     $('#nav-links').classList.add('open');
   };
-  const chatDmBtn = $('#chat-dm-btn');
-  if (chatDmBtn) chatDmBtn.onclick = () => { const b = $('#dm-chat-btn'); if (b) b.click(); };
   const chatNewBtn = $('#chat-new-btn');
   if (chatNewBtn) chatNewBtn.onclick = () => { const b = $('#create-chat-btn'); if (b) b.click(); };
   const chatCreatePicker = createUserPicker({
@@ -1062,45 +1128,7 @@ async function renderChat() {
     } catch(e) { toast(e.message, 'error'); }
     finally { syncCreateChatBtn(); }
   };
-  // DM modal
-  $('#dm-chat-btn').onclick = () => { show('#dm-modal'); $('#dm-user-search').value=''; doDMSearch(); $('#dm-user-search').focus(); };
-  $('#dm-cancel').onclick = () => { closeOverlay($('#dm-modal'), {remove:false}); $('#dm-user-search').value=''; };
-  let dmSearchTimer = null;
-  $('#dm-user-search').oninput = () => {
-    clearTimeout(dmSearchTimer);
-    dmSearchTimer = setTimeout(doDMSearch, 300);
-  };
-  async function doDMSearch() {
-    const q = $('#dm-user-search').value.trim();
-    const list = $('#dm-user-list');
-    if (!q) { list.innerHTML = '<div style="color:var(--text2);text-align:center;padding:16px">Введите логин для поиска</div>'; return; }
-    list.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    try {
-      const data = await api(`/chat/api/users/search?session_token=${encodeURIComponent(STATE.token)}&q=${encodeURIComponent(q)}`);
-      if (!data.items?.length) { list.innerHTML = '<div style="color:var(--text2);text-align:center;padding:16px">Пользователи не найдены</div>'; return; }
-      list.innerHTML = '';
-      data.items.forEach(u => {
-        if (u.user_id === STATE.user?.id) return;
-        if (u.role === 'guest') return; // one-off accounts: nothing to write to
-        const item = el('div',{class:'dm-user-item',style:'padding:10px;cursor:pointer;border-bottom:1px solid var(--border);border-radius:4px'});
-        const roleBadge = (u.role === 'admin' || u.role === 'moderator') ? ` <span class="badge badge-${u.role}">${u.role}</span>` : '';
-        item.innerHTML = `<strong>${esc(u.login)}</strong>${roleBadge} <span style="color:var(--text2);font-size:12px">#${u.user_id}</span>`;
-        item.onmouseenter = () => item.style.background = 'var(--bg3)';
-        item.onmouseleave = () => item.style.background = '';
-        item.onclick = async () => { 
-          try {
-            const dm = await api('/chat/api/dm', {method:'POST',body:JSON.stringify({session_token:STATE.token,target_user_id:u.user_id})});
-            toast(`Личка с ${esc(u.login)} открыта`, 'success');
-            closeOverlay($('#dm-modal'), {remove:false});
-            $('#dm-user-search').value='';
-            renderChat();
-            setTimeout(() => { const items = $$('#chat-list .chat-item'); if(items.length){ items[0].click(); } }, 500);
-          } catch(e) { toast(e.message, 'error'); }
-        };
-        list.append(item);
-      });
-    } catch(e) { list.innerHTML = `<div style="color:var(--accent4);text-align:center;padding:16px">${esc(e.message)}</div>`; }
-  }
+  // DM creation now lives in the chat search (type a login and pick the person).
 }
 
 let currentChatId = null;
@@ -1287,7 +1315,10 @@ async function loadChatMessages(chatId, title, itemEl, avatarUrl) {
     if (viewData.chat) currentChatAvatarUrl = viewData.chat.avatar_url || currentChatAvatarUrl;
   } catch (e) { currentChatView = null; }
   await doLoadMessages({force:true});
-  // messagesPollTimer = setInterval(doLoadMessages, 10000); // отключено — только при отправке
+  // Gentle refresh so messages from other people show up without a reload.
+  messagesPollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') doLoadMessages({});
+  }, 5000);
 }
 
 let msgLoadOffset = 0;
@@ -2332,9 +2363,29 @@ function fullJoinLink(target) {
   return base + '#/join/' + target;
 }
 
+let chatProfileBusy = false;
 async function showChatProfile() {
-  if (!currentChatId) return;
+  if (!currentChatId || chatProfileBusy) return;
+  chatProfileBusy = true;
   const token = encodeURIComponent(STATE.token);
+
+  // Open the sheet right away so taps give instant feedback; data fills in after.
+  const oldShell = document.getElementById('chat-profile-modal');
+  if (oldShell) oldShell.remove();
+  const ov = el('div', {class: 'overlay', id: 'chat-profile-modal'});
+  ov.innerHTML = `<div class="modal modal-wide chat-profile">
+    <div class="cp-head">
+      <h3>${t('chat_profile')}</h3>
+      <button class="icon-btn" id="cp-close" title="${t('close')}" aria-label="${t('close')}">${icon('x')}</button>
+    </div>
+    <div class="loading"><div class="spinner"></div></div>
+  </div>`;
+  document.body.append(ov);
+  let closed = false;
+  const closeShell = () => { closed = true; chatProfileBusy = false; ov.remove(); };
+  ov.onclick = (e) => { if (e.target === ov) closeShell(); };
+  ov.querySelector('#cp-close').onclick = closeShell;
+
   let view = null;
   let members = [];
   try {
@@ -2344,7 +2395,9 @@ async function showChatProfile() {
     ]);
     view = res[0].view || {chat: res[0].chat};
     members = res[1].items || [];
-  } catch (e) { toast(e.message, 'error'); return; }
+  } catch (e) { closeShell(); toast(e.message, 'error'); return; }
+  if (closed) { chatProfileBusy = false; return; }
+  chatProfileBusy = false;
 
   const chat = view.chat || {};
   currentChatView = view;
@@ -2361,14 +2414,10 @@ async function showChatProfile() {
   const cav = chatAvaFor(chat.title, chat.chat_id);
   const permissionsList = ['change_info', 'delete_messages', 'invite_users', 'pin_messages', 'manage_invites', 'restrict_members'];
 
-  const old = document.getElementById('chat-profile-modal');
-  if (old) old.remove();
-
   const slowOptions = [0, 10, 30, 60, 300, 900, 3600].map(v =>
     `<option value="${v}"${(chat.slow_mode_seconds || 0) === v ? ' selected' : ''}>${v === 0 ? t('slow_off') : (v < 60 ? v + ' ' + t('sec') : Math.round(v / 60) + ' ' + t('min'))}</option>`
   ).join('');
 
-  const ov = el('div', {class: 'overlay', id: 'chat-profile-modal'});
   ov.innerHTML = `<div class="modal modal-wide chat-profile">
     <div class="cp-head">
       <h3>${t('chat_profile')} <span class="badge badge-type">${chatTypeLabel(chat)}</span></h3>
@@ -2377,8 +2426,10 @@ async function showChatProfile() {
     <div class="cp-avatar-row">
       <div class="cp-avatar" id="cp-avatar" style="background:${cav.color}">${avatarInnerHtml(chat.avatar_url, cav.initials)}</div>
       <div class="cp-avatar-actions">
-        <input type="file" id="cp-avatar-file" accept="image/png,image/jpeg,image/webp" style="display:none">
+        <input type="file" id="cp-avatar-file" accept="image/*" style="display:none">
+        <input type="file" id="cp-avatar-camera" accept="image/*" capture="environment" style="display:none">
         ${canManage ? `<button class="btn btn-sm btn-outline" id="cp-avatar-upload">${t('upload_photo')}</button>` : ''}
+        ${canManage ? `<button class="btn btn-sm btn-outline" id="cp-avatar-take">${icon('camera')} ${t('take_photo')}</button>` : ''}
         ${canManage && chat.has_avatar ? `<button class="btn btn-sm btn-outline" id="cp-avatar-remove">${t('chat_photo_remove')}</button>` : ''}
         <div class="form-hint">${t('chat_photo_hint')}</div>
         <div class="cp-count">${view.member_count || members.length} ${memberWord}</div>
@@ -2631,27 +2682,31 @@ async function showChatProfile() {
 
   // chat photo
   const avatarFile = ov.querySelector('#cp-avatar-file');
+  const avatarCam = ov.querySelector('#cp-avatar-camera');
   const avatarUpload = ov.querySelector('#cp-avatar-upload');
+  const avatarTake = ov.querySelector('#cp-avatar-take');
   if (avatarUpload && avatarFile) avatarUpload.onclick = () => avatarFile.click();
+  if (avatarTake && avatarCam) avatarTake.onclick = () => avatarCam.click();
+  if (avatarCam) avatarCam.onchange = () => {
+    if (avatarFile && avatarCam.files && avatarCam.files[0]) { avatarFile.files = avatarCam.files; avatarFile.onchange(); }
+    avatarCam.value = '';
+  };
   if (avatarFile) {
     avatarFile.onchange = async () => {
       const file = avatarFile.files && avatarFile.files[0];
       avatarFile.value = '';
       if (!file) return;
-      if (!/^image\/(png|jpeg|webp)$/.test(file.type || '')) { toast(t('avatar_bad_type'), 'error'); return; }
-      if (file.size > 2 * 1024 * 1024) { toast(t('avatar_too_large'), 'error'); return; }
+      if (!/^image\//i.test(file.type || '')) { toast(t('avatar_bad_type'), 'error'); return; }
       try {
-        const dataUrl = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        const res = await api(`/chat/api/chats/${currentChatId}/avatar`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, image_base64: dataUrl, image_mime_type: file.type})});
+        const dataUrl = await downscaleImageFile(file, 512);
+        const res = await api(`/chat/api/chats/${currentChatId}/avatar`, {method: 'POST', body: JSON.stringify({session_token: STATE.token, image_base64: dataUrl, image_mime_type: 'image/jpeg'})});
         applyChatHeader(res.chat);
         toast(t('chat_photo_ok'), 'success');
         reopen();
-      } catch (e) { toast(e.message, 'error'); }
+      } catch (e) {
+        const m = (e && e.message) === 'image decode failed' ? t('photo_process_failed') : ((e && e.message) || t('photo_process_failed'));
+        toast(m, 'error');
+      }
     };
   }
   const avatarRemove = ov.querySelector('#cp-avatar-remove');
@@ -3083,8 +3138,10 @@ async function renderAccount() {
             <div style="font-size:18px;font-weight:600">${esc(p.display_name||p.login)}</div>
             <div style="font-size:13px;color:var(--text2)">@${esc(p.login)} · <span class="badge badge-${p.role}">${p.role}</span></div>
             <div class="ava-actions">
-              <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
-              <button class="btn btn-sm btn-outline" id="avatar-upload">${icon('camera')} ${t('upload_photo')}</button>
+              <input id="avatar-file" type="file" accept="image/*" style="display:none">
+              <input id="avatar-camera" type="file" accept="image/*" capture="environment" style="display:none">
+              <button class="btn btn-sm btn-outline" id="avatar-upload">${t('upload_photo')}</button>
+              <button class="btn btn-sm btn-outline" id="avatar-take">${icon('camera')} ${t('take_photo')}</button>
             </div>
             <div class="ava-hint">${t('avatar_hint')}</div>
           </div>
@@ -3111,28 +3168,36 @@ async function renderAccount() {
         
       </div>`;
 
-    // Photo avatar upload (server keeps png/jpeg/webp up to 2 MB)
+    // Photo avatar upload: the browser shrinks the picture to 512px JPEG first,
+    // so phone photos never hit the 2 MB limit and upload fast on Wi-Fi.
     var avaFile = document.getElementById("avatar-file");
+    var avaCam = document.getElementById("avatar-camera");
     var avaBtn = document.getElementById("avatar-upload");
-    if (avaBtn && avaFile) {
-      avaBtn.onclick = function() { avaFile.click(); };
-      avaFile.onchange = function() {
+    var avaTake = document.getElementById("avatar-take");
+    if (avaBtn && avaFile) avaBtn.onclick = function() { avaFile.click(); };
+    if (avaTake && avaCam) avaTake.onclick = function() { avaCam.click(); };
+    if (avaCam) avaCam.onchange = function() {
+      if (avaFile && avaCam.files && avaCam.files[0]) { avaFile.files = avaCam.files; avaFile.onchange(); }
+      avaCam.value = "";
+    };
+    if (avaFile) {
+      avaFile.onchange = async function() {
         var f = avaFile.files && avaFile.files[0];
         avaFile.value = "";
         if (!f) return;
-        if (!/^image\/(png|jpeg|webp)$/i.test(f.type)) { toast(t('avatar_bad_type'), 'error'); return; }
-        if (f.size > 2 * 1024 * 1024) { toast(t('avatar_too_big'), 'error'); return; }
-        var reader = new FileReader();
-        reader.onload = async function() {
-          try {
-            var res = await api('/account/api/avatar', {method:'POST', body:JSON.stringify({session_token: STATE.token, image_base64: String(reader.result), image_mime_type: f.type})});
-            var url = (res && (res.avatar_url || (res.profile && res.profile.avatar_url))) || null;
-            var emoji = (STATE.user && STATE.user.avatar_emoji) || localStorage.getItem('lc_my_emoji') || '🐱';
-            setOwnAvatarDisplay(url, emoji);
-            toast(t('avatar_photo_ok'), 'success');
-          } catch(err) { toast(err.message, 'error'); }
-        };
-        reader.readAsDataURL(f);
+        if (!/^image\//i.test(f.type || '')) { toast(t('avatar_bad_type'), 'error'); return; }
+        try {
+          var dataUrl = await downscaleImageFile(f, 512);
+          var res = await api('/account/api/avatar', {method:'POST', body:JSON.stringify({session_token: STATE.token, image_base64: dataUrl, image_mime_type: 'image/jpeg'})});
+          var url = (res && (res.avatar_url || (res.profile && res.profile.avatar_url))) || null;
+          var emoji = (STATE.user && STATE.user.avatar_emoji) || localStorage.getItem('lc_my_emoji') || '🐱';
+          setOwnAvatarDisplay(url, emoji);
+          toast(t('avatar_photo_ok'), 'success');
+        } catch(err) {
+          var m = (err && err.message) || t('photo_process_failed');
+          if (m === 'image decode failed') m = t('photo_process_failed');
+          toast(m, 'error');
+        }
       };
     }
 
@@ -3627,6 +3692,17 @@ window.onload = async () => {
       if (session.user && session.session) {
         setAuth(session);
         window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+        // Match the manual-login appearance: hide the form, show the app.
+        const sl = document.getElementById('static-login');
+        const ct = document.getElementById('content');
+        const nv = document.querySelector('.nav');
+        if (sl) sl.style.display = 'none';
+        if (ct) ct.style.display = '';
+        if (nv) nv.style.display = '';
+        const nvRight = document.getElementById('nav-right');
+        if (nvRight) nvRight.style.display = '';
+        const nvUser = document.getElementById('nav-user');
+        if (nvUser && session.user) nvUser.textContent = session.user.login || '';
       }
     } catch(e) { /* token invalid, proceed normally */ }
   }
@@ -3753,6 +3829,13 @@ var T = {
 "chat_search_ph":{rus:"Поиск чатов, имя или ссылка…",eng:"Search chats, name or link…"},
 "public_chats":{rus:"Публичные чаты",eng:"Public chats"},
 "open_join_link":{rus:"Открыть по ссылке/коду",eng:"Open by link/code"},
+"net_unreachable":{rus:"Нет связи с сервером — проверьте Wi-Fi и попробуйте ещё раз",eng:"Cannot reach the server — check Wi-Fi and try again"},
+"net_timeout":{rus:"Сервер не ответил вовремя — попробуйте ещё раз",eng:"The server did not respond in time — please try again"},
+"people":{rus:"Люди",eng:"People"},
+"open_dm_hint":{rus:"Написать в личку",eng:"Open direct messages"},
+"dm_open_toast":{rus:"Личка с {login} открыта",eng:"Direct chat with {login} opened"},
+"take_photo":{rus:"Сфоткать",eng:"Take photo"},
+"photo_process_failed":{rus:"Не удалось обработать фото",eng:"Could not process the photo"},
 "chat_history":{rus:"История для новых участников",eng:"History for new members"},
 "chat_history_hint":{rus:"Если выключено, новые участники увидят только сообщения после вступления.",eng:"When off, new members see only messages posted after they joined."},
 "join_by_link":{rus:"Вступить",eng:"Join"},
