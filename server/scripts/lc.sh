@@ -158,18 +158,37 @@ cmd_uninstall() {
 }
 
 usage() {
-    cat <<EOF
-lc — Local Chat Server management
-  lc status            service and portal status
-  lc setup             setup wizard (sudo lc setup)
-  lc start             start the server now (sudo)
-  lc stop              stop the server (sudo)
-  lc update            update to a new release (sudo)
-  lc backup            back up data and settings (sudo)
-  lc logs              logs
-  lc uninstall         remove (sudo; data is kept)
-  lc uninstall --purge remove completely, data included (sudo)
-  lc version           server version
+    cat <<'EOF'
+lc — Local Chat Server management (v0.1)
+
+Usage:
+  lc <command> [arguments]
+
+Commands:
+  status                  Show the server state: version, service, port, /health.
+  version                 Print the installed server version.
+  start                   Start the server service now. (sudo)
+  stop                    Stop the server service now. (sudo)
+  setup [--preseed FILE]  Run the setup wizard: administrator, Wi-Fi AP, port,
+                          registration mode, autostart. (sudo)
+                            --preseed FILE  read the answers from a KEY=VALUE
+                                            file instead of asking questions
+  update                  Download and install the newest release from GitHub;
+                          data/ and config/app.env are kept. (sudo)
+  backup                  Archive data/ and config/app.env into
+                          data/backups/lc-backup-<timestamp>.tar.gz. (sudo)
+  logs                    Show the install log and the last 100 service log lines.
+  uninstall               Stop and remove the server code; data is kept. (sudo)
+  uninstall --purge       Also delete data and settings — irreversible. (sudo)
+  help                    Show this help (same as -h / --help).
+
+Examples:
+  sudo lc update          update from the newest GitHub release
+  sudo lc setup           change the Wi-Fi AP, admin password, registration mode
+  lc status               quick check that the server is alive
+  sudo lc uninstall --purge   remove the server completely, data included
+
+Documentation: docs/INSTALL.md in the release archive.
 EOF
 }
 
