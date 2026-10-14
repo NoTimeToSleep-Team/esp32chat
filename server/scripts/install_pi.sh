@@ -173,6 +173,35 @@ log "installing packages: ${PACKAGES}"
 # shellcheck disable=SC2086
 apt_run install ${PACKAGES}
 
+# ---- self-heal: packages that are "installed" but actually broken ----
+# A manually deleted binary (or a botched upgrade) leaves dpkg thinking the
+# package is fine, so a plain "apt-get install" does nothing. Check the files
+# and modules the installer relies on and force-reinstall what is missing.
+SELFHEAL_PKGS="${PACKAGES} python3-minimal"
+for extra in $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+(-minimal|-venv|-pip)?$/ {print $2}'); do
+    SELFHEAL_PKGS="${SELFHEAL_PKGS} ${extra}"
+done
+REINSTALL=""
+for pkg in ${SELFHEAL_PKGS}; do
+    dpkg -s "${pkg}" >/dev/null 2>&1 || continue
+    while read -r f; do
+        [[ -e "${f}" ]] || REINSTALL="${REINSTALL} ${pkg}"
+    done < <(dpkg -L "${pkg}" 2>/dev/null | grep -E '^/usr/(s?bin|games)/' || true)
+done
+if ! python3 -c 'import venv' >/dev/null 2>&1; then
+    REINSTALL="${REINSTALL} python3-venv $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-venv$/ {print $2}')"
+fi
+if ! python3 -m pip --version >/dev/null 2>&1; then
+    REINSTALL="${REINSTALL} python3-pip $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-pip$/ {print $2}')"
+fi
+[[ -s /etc/ssl/certs/ca-certificates.crt ]] || REINSTALL="${REINSTALL} ca-certificates"
+REINSTALL="$(echo ${REINSTALL} | tr ' ' '\n' | sort -u | tr '\n' ' ')"
+if [[ -n "${REINSTALL// /}" ]]; then
+    log "repairing broken packages:${REINSTALL}"
+    # shellcheck disable=SC2086
+    apt_run install --reinstall ${REINSTALL} || true
+fi
+
 python3 -c 'import sys; p = sys.argv[1].split("."); sys.exit(0 if sys.version_info >= (int(p[0]), int(p[1]) if len(p) > 1 else 0) else 1)' "${MIN_PYTHON}" \
     || die "Python >= ${MIN_PYTHON} required, but $(python3 -V 2>&1) is installed. Upgrade the OS."
 
@@ -209,7 +238,10 @@ done
 
 # ---- venv and dependencies (with retries) ----
 log "preparing the Python environment"
-if [[ ! -x "${VENV_PATH}/bin/python" ]]; then
+if [[ ! -x "${VENV_PATH}/bin/python" ]] \
+    || ! "${VENV_PATH}/bin/python" -m pip --version >/dev/null 2>&1; then
+    log "creating the Python virtualenv"
+    rm -rf "${VENV_PATH}"
     python3 -m venv "${VENV_PATH}"
 fi
 "${VENV_PATH}/bin/python" -m pip install --upgrade pip wheel >/dev/null 2>&1 \
