@@ -35,7 +35,8 @@ done
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 
 INTERACTIVE=0
-if command -v whiptail >/dev/null 2>&1 && [[ -t 0 ]]; then
+# A preseed file always means non-interactive: apply the values without asking.
+if [[ -z "${PRESEED_FILE}" ]] && command -v whiptail >/dev/null 2>&1 && [[ -t 0 ]]; then
     INTERACTIVE=1
 fi
 

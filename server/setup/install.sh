@@ -19,7 +19,7 @@ set -euo pipefail
 
 LC_REPO="${LC_REPO:-NoTimeToSleep-Team/esp32chat}"
 
-SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd)"
 
 log() { echo "[lc] $(date '+%H:%M:%S') $*" >&2; }
 die() { echo "[lc] ERROR: $*" >&2; exit 1; }
@@ -27,7 +27,7 @@ die() { echo "[lc] ERROR: $*" >&2; exit 1; }
 # 0) Running as a regular user? Re-exec through sudo (sudo asks for the
 # password once — this is what makes "one command as a random user" work).
 if [[ "${EUID}" -ne 0 ]]; then
-    if [[ -f "${BASH_SOURCE[0]}" && -r "${BASH_SOURCE[0]}" ]]; then
+    if [[ -f "${BASH_SOURCE[0]:-}" && -r "${BASH_SOURCE[0]:-}" ]]; then
         echo "Administrator rights are required — re-running via sudo…"
         exec sudo bash "${BASH_SOURCE[0]}" "$@"
     fi

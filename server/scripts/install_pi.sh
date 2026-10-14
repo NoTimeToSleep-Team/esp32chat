@@ -89,18 +89,23 @@ fi
 apt_lock_stale() {
     # 0 — locks are absent or clearly stale (nobody holds them);
     # 1 — someone seems to be using apt right now.
-    local lock
+    # fuser/pgrep reliably see live apt/dpkg processes (the installer runs as
+    # root); the age heuristic is only a fallback when fuser is unavailable —
+    # otherwise our own just-finished apt run looks "busy" for 2 minutes.
+    local lock have_fuser=0
+    command -v fuser >/dev/null 2>&1 && have_fuser=1
     for lock in /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock; do
         [[ -f "${lock}" ]] || continue
-        if command -v fuser >/dev/null 2>&1 && fuser "${lock}" >/dev/null 2>&1; then
+        if [[ "${have_fuser}" == "1" ]] && fuser "${lock}" >/dev/null 2>&1; then
             return 1
         fi
         if command -v pgrep >/dev/null 2>&1 \
             && pgrep -f 'apt-get|/usr/bin/apt |dpkg ' >/dev/null 2>&1; then
             return 1
         fi
-        # lock older than 2 minutes with no holder — stale
-        if [[ $(( $(date +%s) - $(stat -c %Y "${lock}" 2>/dev/null || echo 0) )) -lt 120 ]]; then
+        # no fuser available: fall back to the age heuristic
+        if [[ "${have_fuser}" != "1" ]] \
+            && [[ $(( $(date +%s) - $(stat -c %Y "${lock}" 2>/dev/null || echo 0) )) -lt 120 ]]; then
             return 1
         fi
     done
@@ -315,10 +320,17 @@ ln -sfn "${APP_ROOT}/scripts/lc.sh" /usr/local/bin/lc
 # ---- setup wizard ----
 if [[ "${SKIP_SETUP}" == "1" ]]; then
     log "wizard skipped (--no-setup) — configure later with: sudo lc setup"
+elif [[ -n "${PRESEED_FILE}" ]]; then
+    log "applying the preseeded setup (no questions asked)"
+    if bash "${APP_ROOT}/setup/wizard.sh" --preseed "${PRESEED_FILE}"; then
+        log "setup finished (preseed)"
+    else
+        log "preseeded setup failed — configure later with: sudo lc setup"
+    fi
 elif [[ ! -t 0 || -n "${LC_NO_WIZARD:-}" ]]; then
     log "non-interactive mode — wizard skipped (run it later with: sudo lc setup)"
 elif [[ -f "${APP_ROOT}/setup/wizard.sh" ]]; then
-    if bash "${APP_ROOT}/setup/wizard.sh" ${PRESEED_FILE:+--preseed "${PRESEED_FILE}"}; then
+    if bash "${APP_ROOT}/setup/wizard.sh"; then
         log "setup wizard finished"
     else
         log "setup wizard was cancelled or failed — configure later with: sudo lc setup"
