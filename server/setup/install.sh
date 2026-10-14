@@ -24,6 +24,16 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd)"
 log() { echo "[lc] $(date '+%H:%M:%S') $*" >&2; }
 die() { echo "[lc] ERROR: $*" >&2; exit 1; }
 
+command -v curl >/dev/null 2>&1 \
+    || die "curl is required to download the release. Install it first: sudo apt-get update && sudo apt-get install -y curl"
+
+# A wrong clock (a fresh Raspberry Pi without an RTC) breaks every HTTPS
+# download with a wall of TLS errors — say it up front.
+LC_YEAR="$(date +%Y 2>/dev/null || echo 0)"
+if (( LC_YEAR < 2024 || LC_YEAR > 2033 )); then
+    die "the system clock looks wrong ($(date '+%Y-%m-%d %H:%M')). HTTPS downloads will fail. Set the clock (e.g. 'sudo timedatectl set-ntp true' or 'sudo date -s \"YYYY-MM-DD HH:MM:SS\"') and re-run."
+fi
+
 # 0) Running as a regular user? Re-exec through sudo (sudo asks for the
 # password once — this is what makes "one command as a random user" work).
 if [[ "${EUID}" -ne 0 ]]; then
@@ -46,12 +56,25 @@ fi
 
 # 2) Otherwise: download the release tarball, verify and install.
 
+# Resolve the latest release tag without the GitHub API (which is rate-limited
+# to 60 requests/hour for anonymous users and is a single point of failure):
+# follow the /releases/latest redirect and read the tag from the final URL.
+latest_tag_via_redirect() {
+    local effective
+    effective="$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+        "https://github.com/${LC_REPO}/releases/latest" 2>/dev/null || true)"
+    case "${effective}" in
+        */tag/v*) printf '%s' "${effective##*/tag/v}" ;;
+        *) return 1 ;;
+    esac
+}
+
 resolve_url() {
     if [[ -n "${LC_TARBALL_URL:-}" ]]; then
         printf '%s' "${LC_TARBALL_URL}"
         return 0
     fi
-    local api json url
+    local api json url ver
     if [[ -n "${LC_VERSION:-}" ]]; then
         api="https://api.github.com/repos/${LC_REPO}/releases/tags/v${LC_VERSION}"
     else
@@ -60,13 +83,24 @@ resolve_url() {
     json="$(curl -fsSL --retry 3 "${api}" 2>/dev/null || true)"
     if [[ -z "${json}" ]]; then
         # /latest returns 404 while only pre-releases exist — take the newest release overall
-        json="$(curl -fsSL --retry 3 "https://api.github.com/repos/${LC_REPO}/releases?per_page=1")" \
-            || die "cannot reach GitHub releases for ${LC_REPO}"
+        json="$(curl -fsSL --retry 3 "https://api.github.com/repos/${LC_REPO}/releases?per_page=1" 2>/dev/null || true)"
     fi
     url="$(printf '%s' "${json}" \
         | sed -n 's/.*"browser_download_url": *"\([^"]*lc-server[^"]*\.tar\.gz\)".*/\1/p' \
         | head -1)" || true   # head may SIGPIPE the upstream; pipefail must not kill us
-    [[ -n "${url}" ]] || die "no lc-server-*.tar.gz asset found in the release"
+
+    if [[ -z "${url}" ]]; then
+        # The API is rate-limited or down — the releases are still downloadable
+        # directly, so resolve the tag via the /releases/latest redirect.
+        if [[ -n "${LC_VERSION:-}" ]]; then
+            ver="${LC_VERSION}"
+        else
+            ver="$(latest_tag_via_redirect)" \
+                || die "cannot reach GitHub releases for ${LC_REPO}"
+        fi
+        url="https://github.com/${LC_REPO}/releases/download/v${ver}/lc-server-v${ver}.tar.gz"
+        log "GitHub API unavailable — using the direct URL for v${ver}"
+    fi
     printf '%s' "${url}"
 }
 

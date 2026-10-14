@@ -237,8 +237,16 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
         log "autostart disabled — start the server manually with: sudo lc start"
     fi
     systemctl daemon-reload
+    systemctl unmask "${SERVICE_NAME}" >/dev/null 2>&1 || true
     systemctl restart "${SERVICE_NAME}" \
         || log "WARNING: failed to restart ${SERVICE_NAME}"
+    # Wait briefly so "All done" is true: the server needs a few seconds.
+    for _ in $(seq 1 20); do
+        if curl -fsS "http://127.0.0.1:$(val LCS_PORT)/health" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+    done
 fi
 
 # ---- done ----

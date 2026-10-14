@@ -54,6 +54,15 @@ die() { log "ERROR: $*"; exit 1; }
 [[ "${EUID}" -eq 0 ]] || die "root required: sudo bash $0"
 [[ -f "${MANIFEST_PY}" ]] || die "manifest not found: ${MANIFEST_PY}"
 
+# Only one install/update at a time: a second run would fight over the same
+# files (rsync, pip, app.env) and can corrupt the virtualenv.
+if [[ -d /run && -w /run ]] && command -v flock >/dev/null 2>&1; then
+    exec 9>"/run/local-chat-install.lock"
+    if ! flock -n 9; then
+        die "another install or update is already running (/run/local-chat-install.lock). Wait for it to finish and re-run."
+    fi
+fi
+
 # The manifest is read with python3, but python3 may be absent on a minimal
 # system. In that case a bootstrap package list (same set as in the manifest)
 # is used; after apt, everything runs through the manifest again.
@@ -130,6 +139,13 @@ apt_run() {
     local attempt
     for attempt in 1 2 3; do
         apt_wait
+        # An interrupted dpkg (power loss, a kill) leaves a state apt refuses
+        # to work with — finish the pending configuration first.
+        if [[ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ]] \
+            || dpkg --audit 2>/dev/null | grep -q .; then
+            log "dpkg has unfinished operations — running dpkg --configure -a"
+            dpkg --configure -a >/dev/null 2>&1 || true
+        fi
         if DEBIAN_FRONTEND=noninteractive apt-get -y -o DPkg::Lock::Timeout=300 "$@"; then
             return 0
         fi
@@ -256,6 +272,8 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
     install -m 0644 "${SOURCE_ROOT}/systemd/${SERVICE_NAME}.service" \
         "/etc/systemd/system/${SERVICE_NAME}.service"
     systemctl daemon-reload
+    # A runtime mask (/run/systemd/system) would still block the start.
+    systemctl unmask "${SERVICE_NAME}" >/dev/null 2>&1 || true
     if systemctl is-active --quiet "${SERVICE_NAME}"; then
         systemctl restart "${SERVICE_NAME}"
     else
