@@ -8,6 +8,8 @@
 #   lc stop       — stop the server (sudo)
 #   lc update     — update from a new release tarball (data/ and app.env are kept)
 #   lc backup     — archive data/ and app.env
+#   lc export     — bundle data/ + app.env for moving to another server
+#   lc import     — restore an export on this server (safety backup first)
 #   lc logs       — install log + service journal
 #   lc uninstall  — stop and remove (data kept; --purge removes everything)
 #   lc version    — server version
@@ -15,6 +17,8 @@ set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/local-chat-server}"
 SERVICE_NAME="local-chat-server"
+APP_USER="${APP_USER:-localchat}"
+APP_GROUP="${APP_GROUP:-localchat}"
 ENV_FILE="${APP_ROOT}/config/app.env"
 INSTALL_LOG="/var/log/lc-install.log"
 
@@ -112,6 +116,134 @@ cmd_backup() {
     echo "Backup created: ${out}"
 }
 
+cmd_export() {
+    require_root export
+    local stamp out info_dir stopped=0 ok=1
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    out="${1:-${APP_ROOT}/data/backups/lc-export-${stamp}.tar.gz}"
+    info_dir="$(mktemp -d)"
+    mkdir -p "$(dirname "${out}")"
+    {
+        echo "Local Chat Server export"
+        echo "version: $(cmd_version)"
+        echo "date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        echo "host: $(hostname)"
+    } > "${info_dir}/EXPORT_INFO.txt"
+
+    # A consistent sqlite snapshot: stop the server while the archive is built.
+    if systemd_ok && systemctl is-active --quiet "${SERVICE_NAME}"; then
+        echo "Stopping the server for a consistent snapshot…"
+        if systemctl stop "${SERVICE_NAME}"; then stopped=1; fi
+    fi
+    if ! tar -czf "${out}" -C "${APP_ROOT}" \
+        --exclude='data/backups' --exclude='data/logs' --exclude='data/incidents' \
+        data config/app.env \
+        -C "${info_dir}" EXPORT_INFO.txt; then
+        ok=0
+        rm -f "${out}"
+    fi
+    if [[ "${stopped}" == "1" ]]; then
+        systemctl start "${SERVICE_NAME}" 2>/dev/null || true
+    fi
+    rm -rf "${info_dir}"
+    if [[ "${ok}" != "1" ]]; then
+        echo "Export failed" >&2
+        exit 1
+    fi
+    ( cd "$(dirname "${out}")" && sha256sum "$(basename "${out}")" ) > "${out}.sha256"
+    chmod 600 "${out}" "${out}.sha256" 2>/dev/null || true
+    echo "Export created: ${out}"
+    echo "  size:   $(du -h "${out}" | cut -f1)"
+    echo "  sha256: $(cut -d' ' -f1 "${out}.sha256")"
+    echo "Copy the file (and its .sha256) to the other server and run there:"
+    echo "  sudo lc import $(basename "${out}")"
+}
+
+cmd_import() {
+    require_root import
+    local src="" assume_yes=0 arg listing info_ver newer="" pre stopped=0 tmp ok=1
+    for arg in "$@"; do
+        case "${arg}" in
+            --yes) assume_yes=1 ;;
+            *) src="${arg}" ;;
+        esac
+    done
+    [[ -n "${src}" ]] || { echo "usage: sudo lc import <export-file.tar.gz> [--yes]" >&2; exit 2; }
+    [[ -f "${src}" ]] || { echo "not found: ${src}" >&2; exit 2; }
+
+    if [[ -f "${src}.sha256" ]]; then
+        ( cd "$(dirname "${src}")" && sha256sum -c "$(basename "${src}").sha256" ) >&2 \
+            || { echo "checksum mismatch — refusing to import" >&2; exit 1; }
+    fi
+    listing="$(tar -tzf "${src}" 2>/dev/null || true)"
+    if ! grep -q '^data/sqlite/' <<< "${listing}"; then
+        echo "this file does not look like an LC export (no data/sqlite inside)" >&2
+        exit 1
+    fi
+
+    info_ver="$(tar -xzOf "${src}" EXPORT_INFO.txt 2>/dev/null | sed -n 's/^version: //p' | head -1 || true)"
+    if [[ -n "${info_ver}" && "${info_ver}" != "$(cmd_version)" ]]; then
+        newer="$(printf '%s\n%s\n' "${info_ver}" "$(cmd_version)" | sort -V | tail -1)"
+        if [[ "${newer}" == "${info_ver}" ]]; then
+            echo "WARNING: the export is from a newer version (${info_ver} vs $(cmd_version))." >&2
+            echo "         Run 'sudo lc update' first if the import misbehaves." >&2
+        fi
+    fi
+
+    echo "Import: ${src}"
+    [[ -n "${info_ver}" ]] && echo "  exported from version: ${info_ver}"
+    echo "  local version:         $(cmd_version)"
+    echo "The current data will be REPLACED (a safety backup is taken first)."
+    if [[ "${assume_yes}" != "1" ]]; then
+        read -r -p "Type yes to continue: " answer
+        [[ "${answer}" == "yes" ]] || { echo "Cancelled"; exit 0; }
+    fi
+
+    pre="/var/backups/lc-pre-import-$(date +%Y%m%d-%H%M%S).tar.gz"
+    mkdir -p /var/backups
+    tar -czf "${pre}" -C "${APP_ROOT}" data config/app.env 2>/dev/null || true
+    chmod 600 "${pre}" 2>/dev/null || true
+    echo "Safety backup: ${pre}"
+
+    if systemd_ok && systemctl is-active --quiet "${SERVICE_NAME}"; then
+        if systemctl stop "${SERVICE_NAME}"; then stopped=1; fi
+    fi
+
+    tmp="$(mktemp -d)"
+    if ! tar -xzf "${src}" -C "${tmp}"; then
+        ok=0
+    elif [[ ! -d "${tmp}/data" ]]; then
+        ok=0
+    else
+        rm -rf "${APP_ROOT}/data"
+        mv "${tmp}/data" "${APP_ROOT}/data"
+        if [[ -f "${tmp}/config/app.env" ]]; then
+            install -m 0600 -o root -g root "${tmp}/config/app.env" "${APP_ROOT}/config/app.env"
+        fi
+        chown -R "${APP_USER}:${APP_GROUP}" "${APP_ROOT}/data" 2>/dev/null || true
+    fi
+    rm -rf "${tmp}"
+
+    if [[ "${stopped}" == "1" || "${ok}" == "1" ]]; then
+        systemctl start "${SERVICE_NAME}" 2>/dev/null || true
+    fi
+    if [[ "${ok}" != "1" ]]; then
+        echo "Import failed — the old data is intact (see the safety backup)." >&2
+        exit 1
+    fi
+
+    local i
+    for i in $(seq 1 30); do
+        if curl -fsS "http://127.0.0.1:$(port)/health" >/dev/null 2>&1; then break; fi
+        sleep 2
+    done
+    if curl -fsS "http://127.0.0.1:$(port)/health" >/dev/null 2>&1; then
+        echo "Import finished — the server is up: http://127.0.0.1:$(port)/"
+    else
+        echo "Import finished, but /health is not answering yet — check: lc logs" >&2
+    fi
+}
+
 cmd_logs() {
     echo "=== install log (${INSTALL_LOG}) ==="
     if [[ -f "${INSTALL_LOG}" ]]; then
@@ -177,6 +309,12 @@ Commands:
                           data/ and config/app.env are kept. (sudo)
   backup                  Archive data/ and config/app.env into
                           data/backups/lc-backup-<timestamp>.tar.gz. (sudo)
+  export [FILE]           Bundle data/ + config/app.env for moving to another
+                          server (default: data/backups/lc-export-<stamp>.tar.gz;
+                          a .sha256 is written next to the archive). (sudo)
+  import FILE [--yes]     Replace this server's data with an export file
+                          (checks the .sha256 if present; keeps a safety backup
+                          in /var/backups). (sudo)
   logs                    Show the install log and the last 100 service log lines.
   uninstall               Stop and remove the server code; data is kept. (sudo)
   uninstall --purge       Also delete data and settings — irreversible. (sudo)
@@ -186,6 +324,8 @@ Examples:
   sudo lc update          update from the newest GitHub release
   sudo lc setup           change the Wi-Fi AP, admin password, registration mode
   lc status               quick check that the server is alive
+  sudo lc export /tmp/lc-export.tar.gz   bundle the data for another server
+  sudo lc import /tmp/lc-export.tar.gz   restore that data on this server
   sudo lc uninstall --purge   remove the server completely, data included
 
 Documentation: docs/INSTALL.md in the release archive.
@@ -199,6 +339,8 @@ case "${1:-}" in
     stop) cmd_stop ;;
     update) cmd_update ;;
     backup) cmd_backup ;;
+    export) shift; cmd_export "$@" ;;
+    import) shift; cmd_import "$@" ;;
     logs) cmd_logs ;;
     uninstall) cmd_uninstall "${2:-}" ;;
     version) cmd_version ;;

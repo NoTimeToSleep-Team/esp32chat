@@ -146,9 +146,26 @@ After install the portal is available at `http://<pi-address>:18080`.
 | `lc start` / `lc stop` | start / stop the server now |
 | `lc update` | update from the newest release (`data/` and `app.env` are kept) |
 | `lc backup` | archive `data/` + `app.env` |
+| `lc export [FILE]` | bundle `data/` + `app.env` for moving to another server (a `.sha256` is written too) |
+| `lc import FILE [--yes]` | restore an export on this server (checks the checksum, keeps a safety backup) |
 | `lc logs` | install log and service journal |
 | `lc uninstall` | remove the service; `data/` is kept (`--purge` removes everything) |
 | `lc version` | server version |
+
+### Moving the server to another device
+
+```bash
+# on the old server
+sudo lc export /tmp/lc-export.tar.gz
+
+# copy /tmp/lc-export.tar.gz (+ its .sha256) to the new device,
+# install the server there (one command), then:
+sudo lc import /tmp/lc-export.tar.gz
+```
+
+The export contains the database, uploads, avatars and settings. `lc import`
+verifies the checksum, keeps a safety backup of the current data in
+`/var/backups/` and restarts the service.
 
 ## On-device layout
 

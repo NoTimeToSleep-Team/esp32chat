@@ -1,8 +1,9 @@
 # Installing Local Chat Server (v0.1)
 
 The chat server + web portal for Raspberry Pi 4/5. One command installs
-everything (the installer downloads the release archive itself), followed by a
-whiptail setup wizard.
+everything: the installer downloads the release archive, asks the setup
+questions (download → setup → install), and then lays out the server with the
+answers.
 
 ## Requirements
 
@@ -22,10 +23,13 @@ Run it as any regular user — `sudo` asks for the password once. The installer:
 - downloads the release tarball and verifies its sha256;
 - checks OS/architecture/Python/disk space, installs missing apt packages
   (waits out busy apt locks, cleans stale locks, retries);
+- **asks the setup questions first** — administrator, Wi-Fi AP, port,
+  registration mode, autostart (with `--preseed FILE` they come from a file);
 - lays out `/opt/local-chat-server`, creates a venv, installs dependencies;
 - generates `app.env` with a random session secret, starts and enables the
   systemd service, waits for `/health`;
-- launches the setup wizard.
+- applies the answers: creates the administrator, sets the registration mode,
+  configures the access point, enables autostart.
 
 Log: `/var/log/lc-install.log`. Re-running = update; `data/` is never wiped.
 
@@ -40,9 +44,11 @@ curl -fsSL …/install.sh | sudo bash -s -- --preseed ./preseed.txt   # wizard a
 
 ## Setup wizard (whiptail)
 
-Runs right after the install. Steps: administrator (login/password) → Wi-Fi
-access point (on/off, SSID, password, channel, country) → portal port (18080)
-→ registration mode → **start on boot or start manually** → summary → apply.
+Runs during the install, before the server is laid out — the answers decide
+how the server is installed, and cancelling (Esc) leaves the system untouched.
+Steps: administrator (login/password) → Wi-Fi access point (on/off, SSID,
+password, channel, country) → portal port (18080) → registration mode →
+**start on boot or start manually** → summary → apply.
 
 - `Esc` on any step cancels without changes.
 - Re-run: `sudo lc setup` (current values are offered as defaults).
@@ -58,6 +64,8 @@ lc start               start the server now
 lc stop                stop the server
 lc update              update from a new release (data/ and app.env kept)
 lc backup              archive data/ + app.env
+lc export [FILE]       bundle data/ + app.env for moving to another server
+lc import FILE [--yes] restore an export here (safety backup first)
 lc logs                install log + service journal
 lc uninstall           remove (data kept); --purge removes everything
 lc version             version
@@ -92,9 +100,11 @@ bash server/scripts/make_release_tarball.sh
 
 ## Known limitations (v0.1, pre-release)
 
-- The full cycle was verified in WSL Debian (x86_64, systemd): install → wizard
-  → health → admin login → update → backup → uninstall; and the schema-driven
-  acceptance check passed. A real RPi 4/5 acceptance run is pending.
+- Verified on a real Raspberry Pi 5 (64-bit): one-command install → wizard →
+  health → admin login → update (data kept) → export/import between servers →
+  uninstall; plus a stress suite: missing or broken system packages, busy apt
+  locks, a blocked GitHub API, a wrong clock, concurrent installs and killed
+  installs.
 - The access point reuses the existing `configure_pi_ap_nat.sh` (dhcpcd-based):
   on Bookworm with NetworkManager it may need manual tweaks (not verified on
   real hardware).

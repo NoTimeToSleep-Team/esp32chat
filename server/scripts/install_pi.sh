@@ -242,6 +242,28 @@ fi
 python3 -c 'import sys; p = sys.argv[1].split("."); sys.exit(0 if sys.version_info >= (int(p[0]), int(p[1]) if len(p) > 1 else 0) else 1)' "${MIN_PYTHON}" \
     || die "Python >= ${MIN_PYTHON} required, but $(python3 -V 2>&1) is installed. Upgrade the OS."
 
+# ---- setup (collect) — BEFORE the install: the answers decide how we install,
+# and a cancelled wizard leaves the system untouched ----
+WIZARD_RAN=0
+if [[ "${SKIP_SETUP}" == "1" ]]; then
+    log "wizard skipped (--no-setup) — configure later with: sudo lc setup"
+elif [[ -n "${PRESEED_FILE}" ]]; then
+    log "applying the preseeded setup (no questions asked)"
+    if bash "${SOURCE_ROOT}/setup/wizard.sh" --collect --preseed "${PRESEED_FILE}"; then
+        WIZARD_RAN=1
+    else
+        log "preseeded setup failed — configure later with: sudo lc setup"
+    fi
+elif [[ -z "${LC_NO_WIZARD:-}" ]] && { : </dev/tty; } 2>/dev/null; then
+    if [[ -f "${SOURCE_ROOT}/setup/wizard.sh" ]] && bash "${SOURCE_ROOT}/setup/wizard.sh" --collect; then
+        WIZARD_RAN=1
+    else
+        log "setup wizard was cancelled or failed — configure later with: sudo lc setup"
+    fi
+else
+    log "non-interactive mode — wizard skipped (run it later with: sudo lc setup)"
+fi
+
 # ---- service user ----
 if ! getent group "${APP_GROUP}" >/dev/null; then
     groupadd --system "${APP_GROUP}"
@@ -262,7 +284,8 @@ for dir in app migrations scripts systemd setup; do
 done
 mkdir -p "${APP_ROOT}/config"
 rsync -a --delete \
-    --exclude 'app.env' --exclude '__pycache__' --exclude '*.pyc' \
+    --exclude 'app.env' --exclude 'wizard-answers.env' \
+    --exclude '__pycache__' --exclude '*.pyc' \
     "${SOURCE_ROOT}/config/" "${APP_ROOT}/config/"
 install -m 0644 "${SOURCE_ROOT}/pyproject.toml" "${APP_ROOT}/pyproject.toml"
 if [[ -f "${SOURCE_ROOT}/README.md" ]]; then
@@ -407,23 +430,13 @@ fi
 # ---- lc command ----
 ln -sfn "${APP_ROOT}/scripts/lc.sh" /usr/local/bin/lc
 
-# ---- setup wizard ----
-if [[ "${SKIP_SETUP}" == "1" ]]; then
-    log "wizard skipped (--no-setup) — configure later with: sudo lc setup"
-elif [[ -n "${PRESEED_FILE}" ]]; then
-    log "applying the preseeded setup (no questions asked)"
-    if bash "${APP_ROOT}/setup/wizard.sh" --preseed "${PRESEED_FILE}"; then
-        log "setup finished (preseed)"
+# ---- setup (apply) — after the install: create the admin, set the mode, … ----
+if [[ "${WIZARD_RAN}" == "1" ]]; then
+    log "applying the setup answers"
+    if bash "${APP_ROOT}/setup/wizard.sh" --apply; then
+        log "setup finished"
     else
-        log "preseeded setup failed — configure later with: sudo lc setup"
-    fi
-elif [[ ! -t 0 || -n "${LC_NO_WIZARD:-}" ]]; then
-    log "non-interactive mode — wizard skipped (run it later with: sudo lc setup)"
-elif [[ -f "${APP_ROOT}/setup/wizard.sh" ]]; then
-    if bash "${APP_ROOT}/setup/wizard.sh"; then
-        log "setup wizard finished"
-    else
-        log "setup wizard was cancelled or failed — configure later with: sudo lc setup"
+        log "applying the setup answers failed — configure later with: sudo lc setup"
     fi
 fi
 

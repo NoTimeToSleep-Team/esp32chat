@@ -8,6 +8,13 @@
 # Modes:
 #   interactive   — whiptail dialogs (Esc on any step cancels without changes)
 #   --preseed F   — values from a KEY=VALUE file, no prompts (for automation)
+#
+# Phases (the installer runs collect → install → apply):
+#   --collect     — ask/validate/save the answers, write config/app.env,
+#                   store every answer in config/wizard-answers.env, exit
+#   --apply       — load the saved answers and create the admin, set the mode,
+#                   configure the AP, enable autostart, restart the service
+#   (no phase)    — collect + apply in one go (used by: sudo lc setup)
 set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/local-chat-server}"
@@ -17,6 +24,7 @@ SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_PY="${SETUP_DIR}/manifest.py"
 SCHEMA_FILE="${SETUP_DIR}/settings-schema.json"
 PRESEED_FILE=""
+PHASE="all"
 TITLE="Local Chat Server — Setup"
 
 log() { echo "[lc-wizard] $*"; }
@@ -25,7 +33,9 @@ fail() { log "ERROR: $*"; exit 1; }
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --preseed) PRESEED_FILE="${2:?path required after --preseed}"; shift 2 ;;
-        -h|--help) echo "usage: sudo wizard.sh [--preseed FILE]"; exit 0 ;;
+        --collect) PHASE="collect"; shift ;;
+        --apply) PHASE="apply"; shift ;;
+        -h|--help) echo "usage: sudo wizard.sh [--preseed FILE] [--collect|--apply]"; exit 0 ;;
         *) fail "unknown argument: $1" ;;
     esac
 done
@@ -36,11 +46,17 @@ command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 
 INTERACTIVE=0
 # A preseed file always means non-interactive: apply the values without asking.
-if [[ -z "${PRESEED_FILE}" ]] && command -v whiptail >/dev/null 2>&1 && [[ -t 0 ]]; then
-    INTERACTIVE=1
+# Otherwise use whiptail when the process has a controlling terminal — this
+# also works for the documented one-liner (curl … | sudo bash), where stdin is
+# the pipe but /dev/tty is still the user's terminal.
+if [[ -z "${PRESEED_FILE}" ]] && command -v whiptail >/dev/null 2>&1; then
+    if { : </dev/tty; } 2>/dev/null; then
+        INTERACTIVE=1
+    fi
 fi
 
 VALUES_FILE="$(mktemp)"
+ANSWERS_FILE="${APP_ROOT}/config/wizard-answers.env"
 trap 'rm -f "${VALUES_FILE}"' EXIT
 
 val() { grep "^$1=" "${VALUES_FILE}" 2>/dev/null | tail -1 | cut -d= -f2-; }
@@ -69,21 +85,34 @@ validate() {
     python3 "${MANIFEST_PY}" validate "$1" "$2" 2>&1
 }
 
-# ---- initial values: preseed > app.env > manifest default ----
-while IFS=$'\x1f' read -r key type section label default choices required_if confirm persist; do
-    cur="$(preseed_value "${key}")"
-    [[ -n "${cur}" ]] || cur="$(current_env_value "${key}")"
-    [[ -n "${cur}" ]] || cur="${default}"
-    set_val "${key}" "${cur}"
-done < <(python3 "${MANIFEST_PY}" fields en)
-
-if [[ "${INTERACTIVE}" == "1" ]]; then
-    whiptail --title "${TITLE}" --msgbox \
-        "Welcome!\n\nInstallation is complete. Now let's configure the portal:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode.\n\nPress Esc on any step to cancel without changes." \
-        15 68 </dev/tty || cancel
+# ---- initial values: saved answers (apply) / preseed > app.env > default ----
+if [[ "${PHASE}" == "apply" ]]; then
+    [[ -f "${ANSWERS_FILE}" ]] || fail "no collected answers found (${ANSWERS_FILE}) — run: sudo lc setup"
+    # The answers contain the password — remove the file as soon as we exit.
+    trap 'rm -f "${VALUES_FILE}" "${ANSWERS_FILE}"' EXIT
+    while IFS='=' read -r k v; do
+        [[ -n "${k}" ]] || continue
+        set_val "${k}" "${v}"
+    done < "${ANSWERS_FILE}"
+else
+    while IFS=$'\x1f' read -r key type section label default choices required_if confirm persist; do
+        cur="$(preseed_value "${key}")"
+        [[ -n "${cur}" ]] || cur="$(current_env_value "${key}")"
+        [[ -n "${cur}" ]] || cur="${default}"
+        set_val "${key}" "${cur}"
+    done < <(python3 "${MANIFEST_PY}" fields en)
 fi
 
-# ---- one screen per manifest field ----
+if [[ "${INTERACTIVE}" == "1" && "${PHASE}" != "apply" ]]; then
+    welcome_text="Welcome!\n\nLet's configure the portal first:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode.\n\nThe server is installed right after this.\nPress Esc on any step to cancel without changes."
+    if [[ "${PHASE}" == "all" ]]; then
+        welcome_text="Welcome!\n\nLet's configure the portal:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode.\n\nThe current values are offered as defaults.\nPress Esc on any step to cancel without changes."
+    fi
+    whiptail --title "${TITLE}" --msgbox "${welcome_text}" 16 68 </dev/tty || cancel
+fi
+
+# ---- collect: one screen per manifest field ----
+if [[ "${PHASE}" != "apply" ]]; then
 while IFS=$'\x1f' read -r key type section label default choices required_if confirm persist; do
     if [[ -n "${required_if}" && "${required_if}" != "-" ]]; then
         if ! bool_yes "$(val "${required_if}")"; then
@@ -181,11 +210,13 @@ else
     log "Summary:"
     summary | sed 's/^/  /'
 fi
+fi   # end of the collect phase
 
 # ---- apply ----
 PY_CMD="${APP_ROOT}/.venv/bin/python"
 [[ -x "${PY_CMD}" ]] || PY_CMD="python3"
 
+if [[ "${PHASE}" != "apply" ]]; then
 log "saving settings to ${ENV_FILE}"
 mkdir -p "$(dirname "${ENV_FILE}")"
 touch "${ENV_FILE}"
@@ -196,6 +227,25 @@ while IFS=$'\x1f' read -r key type section label default choices required_if con
     python3 "${MANIFEST_PY}" set-env "${ENV_FILE}" "${key}" "${value}"
 done < <(python3 "${MANIFEST_PY}" fields en)
 chmod 600 "${ENV_FILE}"
+
+# The install runs between the collect and apply phases — keep every answer
+# (including the password, mode 600) for the apply step.
+log "saving the collected answers"
+mkdir -p "$(dirname "${ANSWERS_FILE}")"
+: > "${ANSWERS_FILE}"
+chmod 600 "${ANSWERS_FILE}"
+while IFS=$'\x1f' read -r key type section label default choices required_if confirm persist; do
+    printf '%s=%s\n' "${key}" "$(val "${key}")" >> "${ANSWERS_FILE}"
+done < <(python3 "${MANIFEST_PY}" fields en)
+if [[ "${PHASE}" == "all" ]]; then
+    trap 'rm -f "${VALUES_FILE}" "${ANSWERS_FILE}"' EXIT
+fi
+fi
+
+if [[ "${PHASE}" == "collect" ]]; then
+    log "settings collected — continuing with the installation"
+    exit 0
+fi
 
 log "creating the administrator"
 ( cd "${APP_ROOT}" \
