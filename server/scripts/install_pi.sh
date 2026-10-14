@@ -152,6 +152,11 @@ apt_run() {
         if DEBIAN_FRONTEND=noninteractive apt-get -y -o DPkg::Lock::Timeout=300 "$@"; then
             return 0
         fi
+        # A half-upgraded package family (e.g. python3.13 vs libpython3.13)
+        # blocks every install with unmet dependencies — let apt settle it.
+        if DEBIAN_FRONTEND=noninteractive apt-get -y --fix-broken install >/dev/null 2>&1; then
+            log "apt dependencies settled (--fix-broken)"
+        fi
         log "apt-get $* — attempt ${attempt} failed, retrying in 5s"
         sleep 5
     done
@@ -177,6 +182,38 @@ apt_run install ${PACKAGES}
 # A manually deleted binary (or a botched upgrade) leaves dpkg thinking the
 # package is fine, so a plain "apt-get install" does nothing. Check the files
 # and modules the installer relies on and force-reinstall what is missing.
+#
+# python3 comes first, and its files are restored directly: on Debian the
+# apt-listchanges pre-install hook is a Python script, so a missing
+# interpreter aborts every apt transaction — apt cannot repair python3.
+# dpkg-deb extraction has no such hooks.
+if ! python3 -c 'import sys' >/dev/null 2>&1; then
+    log "python3 is not usable — restoring the interpreter files"
+    PY_TMP="$(mktemp -d)"
+    PY_PKGS="python3-minimal"
+    for extra in $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+-minimal$/ {print $2}'); do
+        PY_PKGS="${PY_PKGS} ${extra}"
+    done
+    for p in ${PY_PKGS}; do
+        V="$(dpkg-query -W -f='${Version}' "${p}" 2>/dev/null)"
+        ( cd "${PY_TMP}" && { apt-get download "${p}=${V}" 2>/dev/null || apt-get download "${p}"; } ) >/dev/null 2>&1 || true
+    done
+    for deb in "${PY_TMP}"/*.deb; do
+        [[ -f "${deb}" ]] || continue
+        dpkg-deb -x "${deb}" "${PY_TMP}/x" 2>/dev/null || true
+    done
+    if [[ -d "${PY_TMP}/x/usr/bin" ]]; then
+        for f in "${PY_TMP}"/x/usr/bin/*; do
+            b="$(basename "${f}")"
+            [[ -e "/usr/bin/${b}" ]] || cp -a "${f}" "/usr/bin/${b}"
+        done
+        log "interpreter restored: $(python3 -V 2>&1 || echo 'still broken')"
+    else
+        log "WARNING: could not fetch the interpreter package — continuing"
+    fi
+    rm -rf "${PY_TMP}"
+fi
+
 SELFHEAL_PKGS="${PACKAGES} python3-minimal"
 for extra in $(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^python3\.[0-9]+(-minimal|-venv|-pip)?$/ {print $2}'); do
     SELFHEAL_PKGS="${SELFHEAL_PKGS} ${extra}"
