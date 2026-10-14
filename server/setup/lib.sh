@@ -80,6 +80,20 @@ lc_release_url() {
     printf '%s' "${url}"
 }
 
+# Downloads with a few attempts: TLS hiccups ("unexpected eof", connection
+# resets) are common on flaky links and are not covered by curl --retry.
+lc_download() {
+    local url="$1" dest="$2" attempt
+    for attempt in 1 2 3; do
+        if curl -fsSL --retry 3 --retry-connrefused -o "${dest}" "${url}"; then
+            return 0
+        fi
+        lc_log "download failed (attempt ${attempt}/3): ${url}"
+        sleep 3
+    done
+    return 1
+}
+
 # Downloads the tarball + its .sha256, verifies, extracts into $1 and prints
 # the package root directory.
 lc_fetch_release() {
@@ -93,10 +107,10 @@ lc_fetch_release() {
     mkdir -p "${dest_dir}"
 
     lc_log "downloading ${url}"
-    curl -fsSL --retry 3 -o "${tarball}" "${url}" \
+    lc_download "${url}" "${tarball}" \
         || lc_fail "cannot download the tarball: ${url}"
 
-    if ! curl -fsSL --retry 3 -o "${tarball}.sha256" "${sha_url}"; then
+    if ! lc_download "${sha_url}" "${tarball}.sha256"; then
         rm -f "${tarball}.sha256"
         if [[ "${LC_SKIP_SHA:-0}" == "1" ]]; then
             lc_log "WARNING: sha256 not verified (file unavailable, LC_SKIP_SHA=1)"

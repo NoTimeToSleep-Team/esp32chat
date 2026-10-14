@@ -108,8 +108,11 @@ apt_lock_stale() {
         if [[ "${have_fuser}" == "1" ]] && fuser "${lock}" >/dev/null 2>&1; then
             return 1
         fi
+        # Match real apt/dpkg processes by name (comm), not by command line:
+        # a command-line match (e.g. some log filter containing "dpkg ") would
+        # keep the installer waiting for five minutes for nothing.
         if command -v pgrep >/dev/null 2>&1 \
-            && pgrep -f 'apt-get|/usr/bin/apt |dpkg ' >/dev/null 2>&1; then
+            && pgrep -x 'apt|apt-get|aptitude|dpkg|dpkg-deb|dpkg-preconfigu|unattended-upgr' >/dev/null 2>&1; then
             return 1
         fi
         # no fuser available: fall back to the age heuristic

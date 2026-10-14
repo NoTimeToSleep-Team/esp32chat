@@ -24,6 +24,20 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd)"
 log() { echo "[lc] $(date '+%H:%M:%S') $*" >&2; }
 die() { echo "[lc] ERROR: $*" >&2; exit 1; }
 
+# Downloads with a few attempts: TLS hiccups ("unexpected eof", connection
+# resets) are common on flaky links and are not covered by curl --retry.
+download() {
+    local url="$1" dest="$2" attempt
+    for attempt in 1 2 3; do
+        if curl -fsSL --retry 3 --retry-connrefused -o "${dest}" "${url}"; then
+            return 0
+        fi
+        log "download failed (attempt ${attempt}/3): ${url}"
+        sleep 3
+    done
+    return 1
+}
+
 command -v curl >/dev/null 2>&1 \
     || die "curl is required to download the release. Install it first: sudo apt-get update && sudo apt-get install -y curl"
 
@@ -110,10 +124,10 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 TARBALL="${WORK}/$(basename "${URL}")"
 
-curl -fsSL --retry 3 -o "${TARBALL}" "${URL}" \
+download "${URL}" "${TARBALL}" \
     || die "cannot download ${URL}"
 
-if ! curl -fsSL --retry 3 -o "${TARBALL}.sha256" "${URL}.sha256"; then
+if ! download "${URL}.sha256" "${TARBALL}.sha256"; then
     rm -f "${TARBALL}.sha256"
     if [[ "${LC_SKIP_SHA:-0}" == "1" ]]; then
         log "WARNING: sha256 not verified (LC_SKIP_SHA=1)"
