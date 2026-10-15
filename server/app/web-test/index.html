@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0b0e">
 <meta name="robots" content="noindex">
-<title>Пачка — тест интерфейса</title>
+<title>Local Chat — тест интерфейса</title>
 <style>
 :root{
   --bg:#0b0b0e; --card:#1c1c1f; --card2:#232327; --hair:rgba(255,255,255,.07);
   --text:#f2f2f4; --sub:#8e8e93; --muted:#6a6a70;
-  --accent:#5856e0; --link:#7b87ff; --green:#34c759;
+  --accent:#5856e0; --link:#7b87ff; --green:#34c759; --orange:#ff9f2e; --red:#ef4e63;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
@@ -23,11 +23,13 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .i.s22{width:22px;height:22px}.i.s24{width:24px;height:24px}.i.s26{width:26px;height:26px}
 
 /* ---------- top bars ---------- */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;gap:10px}
+.topbar .ttl{font-size:20px;font-weight:700}
+.topbar .sub{font-size:13px;color:var(--sub);margin-top:2px}
 .user-chip{display:flex;align-items:center;gap:10px;background:var(--card);border:0;color:var(--text);font-size:17px;font-weight:600;padding:7px 18px 7px 9px;border-radius:999px;font-family:inherit;cursor:pointer}
 .user-chip .logo{width:30px;height:30px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none}
 .user-chip .logo svg{width:17px;height:17px;display:block}
-.icon-btn{width:42px;height:42px;border-radius:999px;border:0;background:var(--card);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit}
+.icon-btn{width:42px;height:42px;border-radius:999px;border:0;background:var(--card);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;flex:none}
 
 /* ---------- quick cards ---------- */
 .quick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px 14px 2px}
@@ -36,8 +38,9 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .qcard .qt{margin-top:auto;font-size:15px;font-weight:600}
 .qcard .qs{font-size:13px;color:var(--sub);margin-top:2px}
 
-/* ---------- group cards ---------- */
+/* ---------- group cards / rows ---------- */
 .scroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:104px}
+.scroll.nopad{padding-bottom:16px}
 .group{background:var(--card);border-radius:20px;margin:12px 14px;padding:4px 0 6px}
 .group-head{display:flex;align-items:center;gap:9px;padding:12px 16px 4px;color:var(--sub);font-size:15px}
 .group-head .tri{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #6f6f75;flex:none}
@@ -45,13 +48,19 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .group-head .dots{color:#6f6f75;display:flex;cursor:pointer}
 .row{display:flex;align-items:center;gap:12px;width:100%;padding:11px 16px;background:none;border:0;color:var(--text);font-size:17px;font-family:inherit;text-align:left;position:relative;cursor:pointer}
 .row:not(:last-child)::after{content:"";position:absolute;left:68px;right:16px;bottom:0;height:1px;background:var(--hair)}
+.row.no-line::after{display:none}
 .row .rname{display:flex;align-items:center;gap:7px;min-width:0}
 .row .rname .i{color:#cfcfd4}
 .row .me{font-size:13px;color:var(--sub);font-weight:400;margin-left:4px}
 .row.muted{color:var(--muted)}
 .row .chev-end{margin-left:auto;color:#5f5f66}
+.row .rsub{font-size:13px;color:var(--sub);margin-top:1px}
+.row .rmeta{margin-left:auto;display:flex;align-items:center;gap:8px}
+.row .rmeta .i{color:#5f5f66}
+.row.danger{color:var(--red)}
 .avatar{width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#fff;flex:none;letter-spacing:.3px}
 .avatar.sm{width:36px;height:36px;font-size:13px}
+.avatar.lg{width:44px;height:44px;font-size:16px}
 .av-da{background:linear-gradient(135deg,#ff9f2e,#ffc733)}
 .av-ay{background:#a855f7}
 .av-ry{background:#2fa36b}
@@ -63,6 +72,7 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .av-n{background:#35b8cf}
 .av-mk{background:#c425d6}
 .av-ghost{background:#2a2a2e;color:#8e8e93}
+.av-dev{background:#2c2c31;color:#c9c9ce}
 
 /* ---------- bottom nav ---------- */
 .tabbar{position:absolute;left:12px;right:12px;bottom:10px;display:flex;gap:10px;z-index:5}
@@ -70,6 +80,7 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .tab{width:54px;height:46px;border:0;background:none;color:#9a9aa0;display:flex;align-items:center;justify-content:center;border-radius:999px;cursor:pointer;font-family:inherit}
 .tab.active{background:#2e2e33;color:#fff}
 .tabbar .search{width:66px;height:66px;border-radius:999px;background:rgba(28,28,31,.92);backdrop-filter:blur(14px);border:0;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.5)}
+.tabbar .search.active{background:#2e2e33}
 
 /* ---------- chat ---------- */
 .chat-head{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
@@ -91,7 +102,7 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .m-head .checks+.m-time{margin-left:6px}
 .m-time{font-size:13px;color:var(--sub);margin-left:auto}
 .m-head .checks~.m-time{margin-left:0}
-.m-text{font-size:16px;line-height:1.42;margin-top:3px;overflow-wrap:break-word}
+.m-text{font-size:16px;line-height:1.42;margin-top:3px;overflow-wrap:break-word;cursor:pointer}
 .m-text a{color:var(--link);text-decoration:none}
 .m-text.deleted{color:var(--muted)}
 .day{background:#26262a;color:#c9c9ce;font-size:13px;padding:4px 13px;border-radius:999px;width:max-content;margin:16px auto}
@@ -104,17 +115,87 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .c-icons .send{margin-left:auto;color:#5a5a60}
 .c-icons .send.ready{color:var(--link)}
 
-/* ---------- profile ---------- */
+/* ---------- profile / account ---------- */
 .profile-hero{background:var(--card);border-radius:22px;margin:14px 14px 4px;padding:26px 18px 18px;text-align:center}
 .hero-ava{width:96px;height:96px;border-radius:999px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:600;background:linear-gradient(135deg,#ff9f2e,#ffc733);color:#fff}
 .hero-name{font-size:22px;font-weight:700;margin-top:14px}
+.hero-login{font-size:14px;color:var(--sub);margin-top:4px}
 .hero-status{display:flex;align-items:center;justify-content:center;gap:7px;color:var(--sub);font-size:15px;margin-top:6px}
 .dot{width:9px;height:9px;border-radius:999px;background:var(--green)}
 .hero-btn{margin-top:18px;width:100%;height:52px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;cursor:pointer}
 .sect-label{color:var(--sub);font-size:15px;margin:18px 22px 8px}
+.kv{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;position:relative;font-size:16px}
+.kv:not(:last-child)::after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:1px;background:var(--hair)}
+.kv .k{color:var(--sub)}
+.kv .v{font-weight:600}
+.badge{font-size:12px;color:var(--sub);background:#2a2a2e;border-radius:999px;padding:2px 9px;margin-left:6px}
+
+/* ---------- pills / statuses ---------- */
+.pill{font-size:12.5px;border-radius:999px;padding:3px 10px;font-weight:600;white-space:nowrap}
+.st-open{background:rgba(88,86,224,.2);color:#a5a3ff}
+.st-progress{background:rgba(255,159,46,.18);color:#ffb95e}
+.st-resolved{background:rgba(52,199,89,.16);color:#5fd97e}
+.st-closed{background:#2a2a2e;color:#9a9aa0}
+
+/* ---------- blog ---------- */
+.post{background:var(--card);border-radius:20px;margin:12px 14px;padding:16px;cursor:pointer}
+.post .p-title{font-size:17px;font-weight:700}
+.post .p-meta{font-size:13px;color:var(--sub);margin-top:3px}
+.post .p-body{font-size:15px;color:#c9c9ce;margin-top:8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.post-view{background:var(--card);border-radius:20px;margin:12px 14px;padding:18px}
+.post-view .p-title{font-size:20px;font-weight:700;line-height:1.3}
+.post-view .p-meta{font-size:13px;color:var(--sub);margin-top:5px}
+.post-view .p-body{font-size:16px;line-height:1.5;margin-top:12px;white-space:pre-line}
+
+/* ---------- forms / inputs ---------- */
+.inp{width:100%;background:var(--card);border:1px solid var(--hair);border-radius:14px;color:var(--text);font-size:16px;font-family:inherit;padding:13px 14px;outline:none}
+.inp::placeholder{color:var(--muted)}
+.inp.area{min-height:110px;resize:none}
+.form{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.btn-accent{width:100%;height:50px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-line{width:100%;height:48px;border:1px solid var(--hair);border-radius:16px;background:none;color:var(--text);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.seg{display:flex;gap:8px;padding:0 14px;flex-wrap:wrap}
+.chip{background:var(--card);border:1px solid var(--hair);color:var(--sub);border-radius:999px;padding:9px 15px;font-size:14.5px;font-family:inherit;cursor:pointer}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ---------- devices ---------- */
+.dev-status{font-size:13px;color:var(--sub);margin-left:auto}
+.dev-status.on{color:#5fd97e}
+
+/* ---------- search ---------- */
+.search-wrap{padding:6px 14px 0}
+.search-wrap .inp{background:var(--card2)}
+
+/* ---------- login ---------- */
+.login{padding:28px 22px;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+.login .brand{display:flex;align-items:center;gap:12px}
+.login .brand .logo{width:46px;height:46px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center}
+.login .brand .logo svg{width:24px;height:24px;display:block}
+.login .brand .name{font-size:24px;font-weight:800}
+.login .tagline{color:var(--sub);font-size:15px;margin-top:10px}
+.login .points{list-style:none;padding:0;margin:18px 0 0;display:flex;flex-direction:column;gap:9px}
+.login .points li{display:flex;align-items:center;gap:9px;color:#c9c9ce;font-size:14.5px}
+.login .points .i{color:var(--green)}
+.login .l-card{margin-top:26px;display:flex;flex-direction:column;gap:10px}
+.login .l-link{color:var(--link);font-size:14.5px;text-align:center;margin-top:14px;cursor:pointer}
+.login .l-guest{margin-top:auto;padding-top:18px}
+.login .netline{display:flex;align-items:center;gap:8px;color:var(--sub);font-size:13px;margin-top:16px}
+.login .netline .dot{width:8px;height:8px}
+
+/* ---------- sheet ---------- */
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:30}
+.sheet-bg.show{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:10px;right:10px;bottom:10px;background:#202024;border-radius:22px;padding:8px 0 10px;transform:translateY(110%);transition:.25s;z-index:31;max-height:70%;overflow-y:auto}
+.sheet.show{transform:translateY(0)}
+.sheet .s-title{font-size:13px;color:var(--sub);text-align:center;padding:10px 16px 6px}
+.sheet .srow{display:flex;align-items:center;gap:14px;width:100%;padding:13px 20px;background:none;border:0;color:var(--text);font-size:16.5px;font-family:inherit;text-align:left;cursor:pointer}
+.sheet .srow:active{background:#2a2a2e}
+.sheet .srow.danger{color:var(--red)}
+.sheet .srow .i{color:#c9c9ce}
+.sheet .srow.danger .i{color:var(--red)}
 
 /* ---------- toast ---------- */
-.toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%) translateY(8px);background:#2c2c31;color:#eaeaea;font-size:14px;padding:9px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:20;max-width:82%;text-align:center}
+.toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%) translateY(8px);background:#2c2c31;color:#eaeaea;font-size:14px;padding:9px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:82%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
@@ -135,6 +216,7 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4l2.3 4.9 5.2.7-3.8 3.7.9 5.2-4.6-2.5-4.6 2.5.9-5.2L4.5 9.6l5.2-.7z"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M4.5 10.5L12 4l7.5 6.5"/><path d="M6.5 9.5V20h11V9.5"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H13l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5z"/><path d="M8.5 10h7"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/><path d="M9.5 12.5h5M9.5 15.5h5"/></symbol>
   <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
@@ -145,67 +227,90 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <symbol id="i-smile-plus" viewBox="0 0 24 24"><circle cx="11" cy="13" r="7.2"/><path d="M8.2 15.3a4.5 4.5 0 0 0 5.6 0"/><path d="M8.6 11h.01M13.4 11h.01"/><path d="M18.6 3.2v4.2M16.5 5.3h4.2"/></symbol>
   <symbol id="i-checks" viewBox="0 0 24 24"><path d="M2.5 12.6l3.6 3.6L13.5 8.8"/><path d="M10.5 15.4l.9.9L22.2 5.8"/></symbol>
   <symbol id="i-person-big" viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M5 20c1.3-3.6 4-5.4 7-5.4s5.7 1.8 7 5.4"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9.5 3.5V7M14.5 3.5V7M9.5 17v3.5M14.5 17v3.5M3.5 9.5H7M3.5 14.5H7M17 9.5h3.5M17 14.5h3.5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M13.5 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h6.5"/><path d="M11 12h9.5"/><path d="M17 8.5L20.5 12 17 15.5"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="10" rx="3"/><path d="M6 11.5a6 6 0 0 0 12 0"/><path d="M12 17.5V21"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9.5 14.5l5-5"/><path d="M11 6.5l1.5-1.5a4 4 0 0 1 5.7 5.7L16.5 12.5"/><path d="M13 17.5l-1.5 1.5a4 4 0 0 1-5.7-5.7L7.5 11.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3L18 18M18 6l-1.7 1.7M7.7 16.3L6 18"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 3.5v17"/><path d="M6 4.5h11l-2.5 3.5L17 11.5H6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
 </defs></svg>
 
 <div id="app">
 
-  <!-- ================= ЭКРАН 1: СПИСОК ЧАТОВ ================= -->
-  <section class="screen" id="screen-chats">
+  <!-- ================= ВХОД ================= -->
+  <section class="screen hidden" id="screen-login">
+    <div class="login">
+      <div class="brand">
+        <span class="logo"><svg viewBox="0 0 24 24"><path d="M7 4h10v16l-5-4-5 4z" fill="#111"/></svg></span>
+        <span class="name">Local Chat</span>
+      </div>
+      <div class="tagline">Локальный чат в вашей сети</div>
+      <ul class="points">
+        <li><svg class="i s18"><use href="#i-check"/></svg>Работает без интернета</li>
+        <li><svg class="i s18"><use href="#i-check"/></svg>Телефон, ноутбук, устройства</li>
+        <li><svg class="i s18"><use href="#i-check"/></svg>Сообщения и файлы остаются внутри сети</li>
+      </ul>
+      <div class="l-card">
+        <input class="inp" id="login-user" placeholder="Логин" autocomplete="username">
+        <input class="inp" id="login-pass" type="password" placeholder="Пароль" autocomplete="current-password">
+        <button class="btn-accent" onclick="go('chats')">Войти</button>
+      </div>
+      <div class="l-link" onclick="demo()">Нет аккаунта? Зарегистрироваться</div>
+      <div class="l-guest">
+        <button class="btn-line" onclick="go('chats')">Продолжить как гость</button>
+        <div class="netline"><span class="dot"></span>local-chat</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ЧАТЫ ================= -->
+  <section class="screen hidden" id="screen-chats">
     <header class="topbar">
-      <button class="user-chip" onclick="demo()">
+      <button class="user-chip" onclick="go('account')">
         <span class="logo"><svg viewBox="0 0 24 24"><path d="M7 4h10v16l-5-4-5 4z" fill="#111"/></svg></span>
         Данила
       </button>
-      <button class="icon-btn" onclick="demo()"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      <button class="icon-btn" onclick="go('newchat')" title="Новый чат"><svg class="i s22"><use href="#i-plus"/></svg></button>
     </header>
 
     <div class="quick">
-      <button class="qcard" onclick="demo()"><svg class="i s24"><use href="#i-user"/></svg><div class="qt">Личные</div><div class="qs">Сообщения</div></button>
+      <button class="qcard" onclick="go('chat')"><svg class="i s24"><use href="#i-chat"/></svg><div class="qt">Личные</div><div class="qs">Сообщения</div></button>
       <button class="qcard" onclick="demo()"><svg class="i s24"><use href="#i-star"/></svg><div class="qt">Важные</div><div class="qs">0 шт.</div></button>
       <button class="qcard" onclick="demo()"><svg class="i s24"><use href="#i-pencil"/></svg><div class="qt">Черновики</div><div class="qs">0 шт.</div></button>
     </div>
 
     <div class="scroll">
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Беседы и каналы</span><span class="grow"></span><span class="dots" onclick="demo()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
+        <div class="group-head"><span class="tri"></span><span>Чаты</span><span class="grow"></span><span class="dots" onclick="demo()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
         <button class="row" onclick="go('chat')"><span class="avatar av-ay">АЯ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Английский язык</span></button>
-        <button class="row" onclick="demo()"><span class="avatar av-ry">РЯ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Русский язык</span></button>
-        <button class="row" onclick="demo()"><span class="avatar av-ma">МА</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Математика</span></button>
-        <button class="row" onclick="demo()"><span class="avatar av-ra">РА</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Расписание</span></button>
-        <button class="row" onclick="demo()"><span class="avatar av-oi">ОИ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Общая информация</span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-search"/></svg>Обзор</button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-plus"/></svg>Создать</button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-ry">РЯ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Русский язык</span></button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-ma">МА</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Математика</span></button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-oi">ОИ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Общая информация</span></button>
+        <button class="row" onclick="go('search')"><svg class="i s24" style="margin:8px"><use href="#i-search"/></svg>Поиск чатов</button>
+        <button class="row" onclick="go('newchat')"><svg class="i s24" style="margin:8px"><use href="#i-plus"/></svg>Новый чат</button>
       </div>
 
       <div class="group">
         <div class="group-head"><span class="tri"></span><span>Личные сообщения</span><span class="grow"></span><span class="dots" onclick="demo()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
-        <button class="row" onclick="demo()"><span class="avatar av-mv">МВ</span>Мария Волощенко</button>
-        <button class="row" onclick="demo()"><span class="avatar av-vh">ВХ</span>Вероника Харламова</button>
-        <button class="row" onclick="go('profile')"><span class="avatar av-da">ДА</span>Данила Алексеев<span class="me">Вы</span></button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-mv">МВ</span>Мария Волощенко</button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-vh">ВХ</span>Вероника Харламова</button>
+        <button class="row" onclick="go('account')"><span class="avatar av-da">ДА</span>Данила Алексеев<span class="me">Вы</span></button>
         <button class="row muted" onclick="demo()"><span class="avatar av-n">Н</span>Надежда</button>
       </div>
     </div>
-
-    <nav class="tabbar">
-      <div class="pill">
-        <button class="tab active" data-tab="chats" onclick="go('chats')"><svg class="i s24"><use href="#i-home"/></svg></button>
-        <button class="tab" onclick="demo()"><svg class="i s24"><use href="#i-chat"/></svg></button>
-        <button class="tab" onclick="demo()"><svg class="i s24"><use href="#i-check-circle"/></svg></button>
-        <button class="tab" data-tab="profile" onclick="go('profile')"><svg class="i s24"><use href="#i-menu"/></svg></button>
-      </div>
-      <button class="search" onclick="demo()"><svg class="i s24"><use href="#i-search"/></svg></button>
-    </nav>
   </section>
 
-  <!-- ================= ЭКРАН 2: ЧАТ ================= -->
+  <!-- ================= ЧАТ ================= -->
   <section class="screen hidden" id="screen-chat">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('chats')"><svg class="i s22"><use href="#i-back"/></svg></button>
       <div class="chat-title">
         <div class="t"><svg class="i s15"><use href="#i-lock"/></svg>Английский язык</div>
-        <div class="s">Закрытая беседа, 5 участников</div>
+        <div class="s">Группа · 5 участников</div>
       </div>
-      <button class="icon-btn" onclick="demo()"><svg class="i s22"><use href="#i-dots"/></svg></button>
+      <button class="icon-btn" onclick="openChatMenu()"><svg class="i s22"><use href="#i-dots"/></svg></button>
     </header>
 
     <div class="pinned">
@@ -213,7 +318,7 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
         <div class="p-label">Закреплённое сообщение</div>
         <div class="p-text">Данила, доброе утро! Направляю постоянную ссылку на урок и домашнее задание</div>
       </div>
-      <button class="p-off" onclick="demo()"><svg class="i s22"><use href="#i-pin-off"/></svg></button>
+      <button class="p-off" onclick="demo('Сообщение откреплено')" title="Открепить"><svg class="i s22"><use href="#i-pin-off"/></svg></button>
     </div>
 
     <div class="msgs" id="msgs">
@@ -221,7 +326,7 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
         <span class="avatar sm av-da">ДА</span>
         <div class="m-main">
           <div class="m-head"><span class="m-name">Данила Алексеев</span><span class="m-time">19:42</span></div>
-          <div class="m-text">I made sentences, I prepare retelling of the text</div>
+          <div class="m-text" onclick="openMsgMenu(this)">I made sentences, I prepare retelling of the text</div>
         </div>
       </div>
 
@@ -229,7 +334,7 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
         <span class="avatar sm av-mk">МК</span>
         <div class="m-main">
           <div class="m-head"><span class="m-name">Мария Кушнир</span><span class="m-time">19:59</span></div>
-          <div class="m-text"><a href="#" onclick="demo();return false">https://wordwall.net/resource/121408961?wwmethod=link</a><br><br>learn the vocabulary from the text</div>
+          <div class="m-text"><a href="#" onclick="demo('Открытие ссылок — тестовая версия');return false">https://wordwall.net/resource/121408961?wwmethod=link</a><br><br><span onclick="openMsgMenu(this)">learn the vocabulary from the text</span></div>
         </div>
       </div>
 
@@ -251,58 +356,311 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
         <span class="avatar sm av-da">ДА</span>
         <div class="m-main">
           <div class="m-head"><span class="m-name">Данила Алексеев</span><span class="checks"><svg class="i s16"><use href="#i-checks"/></svg></span><span class="m-time">16:36</span></div>
-          <div class="m-text">Some people from a village wanted to have a big wine feast in a few days. They took a very big barrel from the nearest town and put it in the square. They agreed that everyone would pour a bottle of good wine into it, so there would be a lot for the feast.<br><br>One man thought he was very clever. He said to himself: "If I put water in instead of wine, nobody will see it, because there will be so much wine that the water will disappear in it".<br><br>On the night of the feast, all the people came to the square with their cups. They opened the tap, but only water came out. Everyone in the village had had the same thought</div>
+          <div class="m-text" onclick="openMsgMenu(this)">Some people from a village wanted to have a big wine feast in a few days. They took a very big barrel from the nearest town and put it in the square. They agreed that everyone would pour a bottle of good wine into it, so there would be a lot for the feast.<br><br>One man thought he was very clever. He said to himself: "If I put water in instead of wine, nobody will see it, because there will be so much wine that the water will disappear in it".<br><br>On the night of the feast, all the people came to the square with their cups. They opened the tap, but only water came out. Everyone in the village had had the same thought</div>
         </div>
       </div>
     </div>
 
     <div class="composer">
-      <input id="msg-input" placeholder="Сообщение в Английский язык" autocomplete="off">
+      <input id="msg-input" placeholder="Введите сообщение..." autocomplete="off">
       <div class="c-icons">
-        <button class="ic" onclick="demo()"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
-        <button class="ic" onclick="demo()"><svg class="i s22"><use href="#i-at"/></svg></button>
+        <button class="ic" onclick="demo('Прикрепить файл — тестовая версия')" title="Прикрепить файл"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
+        <button class="ic" onclick="demo()" title="Упоминание"><svg class="i s22"><use href="#i-at"/></svg></button>
         <button class="ic aa" onclick="demo()">Aa</button>
-        <button class="ic send" id="send" onclick="sendMsg()"><svg class="i s24"><use href="#i-send"/></svg></button>
+        <button class="ic" onclick="demo('Голосовое сообщение — тестовая версия')" title="Голосовое сообщение"><svg class="i s22"><use href="#i-mic"/></svg></button>
+        <button class="ic send" id="send" onclick="sendMsg()" title="Отправить"><svg class="i s24"><use href="#i-send"/></svg></button>
       </div>
     </div>
   </section>
 
-  <!-- ================= ЭКРАН 3: ПРОФИЛЬ ================= -->
-  <section class="screen hidden" id="screen-profile">
-    <div class="scroll" style="padding-bottom:104px">
+  <!-- ================= НОВЫЙ ЧАТ ================= -->
+  <section class="screen hidden" id="screen-newchat">
+    <header class="chat-head">
+      <button class="icon-btn" onclick="go('chats')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="chat-title"><div class="t">Новый чат</div><div class="s">Группа или личка</div></div>
+      <span style="width:42px"></span>
+    </header>
+    <div class="scroll nopad">
+      <div class="form">
+        <input class="inp" placeholder="Например: Друзья" maxlength="64">
+        <textarea class="inp area" placeholder="О чём этот чат (необязательно)" maxlength="200"></textarea>
+        <input class="inp" placeholder="Поиск по логину...">
+        <button class="btn-accent" onclick="demo('Чат создан')">Создать</button>
+        <button class="btn-line" onclick="go('chats')">Отмена</button>
+      </div>
+      <div class="sect-label">Подсказка</div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="k">Добавьте хотя бы одного участника — без этого чат будет пустым.</span></div></div>
+    </div>
+  </section>
+
+  <!-- ================= БЛОГ ================= -->
+  <section class="screen hidden" id="screen-blog">
+    <header class="topbar">
+      <div><div class="ttl">Блог</div><div class="sub">Последние посты</div></div>
+      <button class="icon-btn" onclick="demo('Написать пост — тестовая версия (только admin)')" title="Написать пост"><svg class="i s22"><use href="#i-plus"/></svg></button>
+    </header>
+    <div class="scroll">
+      <div class="post" onclick="openPost(0)">
+        <div class="p-title">Сервер обновлён до v0.1.10</div>
+        <div class="p-meta">admin · 15 октября 2026</div>
+        <div class="p-body">Мастер настройки теперь умеет импортировать данные из файла экспорта, а команда lc import перед заменой данных всегда сохраняет точку отката. Обновление ставится командой sudo lc update.</div>
+      </div>
+      <div class="post" onclick="openPost(1)">
+        <div class="p-title">Local Chat работает без интернета</div>
+        <div class="p-meta">admin · 12 октября 2026</div>
+        <div class="p-body">Сервер поднимает собственную точку доступа Wi-Fi и продолжает работать, даже если внешней сети нет. Сообщения, файлы и аккаунты остаются внутри вашей сети.</div>
+      </div>
+      <div class="post" onclick="openPost(2)">
+        <div class="p-title">Как подключить M5Cardputer</div>
+        <div class="p-meta">admin · 10 октября 2026</div>
+        <div class="p-body">Сопряжение занимает минуту: включите устройство, откройте раздел «Устройства», введите 6-значный код с его экрана — и устройство появится в списке ваших.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ПОСТ ================= -->
+  <section class="screen hidden" id="screen-post">
+    <header class="chat-head">
+      <button class="icon-btn" onclick="go('blog')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="chat-title"><div class="t">Пост</div><div class="s">Блог</div></div>
+      <span style="width:42px"></span>
+    </header>
+    <div class="scroll nopad">
+      <div class="post-view">
+        <div class="p-title" id="post-title"></div>
+        <div class="p-meta" id="post-meta"></div>
+        <div class="p-body" id="post-body"></div>
+      </div>
+      <div class="group" style="margin-top:0"><button class="row no-line" onclick="go('blog')"><svg class="i s24" style="margin:8px"><use href="#i-back"/></svg>Назад к ленте</button></div>
+    </div>
+  </section>
+
+  <!-- ================= ПОДДЕРЖКА ================= -->
+  <section class="screen hidden" id="screen-support">
+    <header class="topbar">
+      <div><div class="ttl">Поддержка</div><div class="sub">Опишите проблему, при необходимости приложите файл</div></div>
+      <button class="icon-btn" onclick="go('newticket')" title="Новое обращение"><svg class="i s22"><use href="#i-plus"/></svg></button>
+    </header>
+    <div class="scroll">
+      <div class="group">
+        <div class="group-head"><span class="tri"></span><span>Мои обращения</span><span class="grow"></span><span class="badge">2</span></div>
+        <button class="row" onclick="openTicket(0)">
+          <span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>
+          <span style="min-width:0"><span style="display:block">Не приходит код сопряжения</span><span class="rsub">M5StickC Plus 2 · сегодня, 10:12</span></span>
+          <span class="rmeta"><span class="pill st-open" id="t0-pill">Открыто</span></span>
+        </button>
+        <button class="row" onclick="openTicket(1)">
+          <span class="avatar av-dev"><svg class="i s18"><use href="#i-user"/></svg></span>
+          <span style="min-width:0"><span style="display:block">Как сменить аватар?</span><span class="rsub">Аккаунт · вчера</span></span>
+          <span class="rmeta"><span class="pill st-resolved" id="t1-pill">Решено</span></span>
+        </button>
+      </div>
+      <div class="group">
+        <button class="row no-line" onclick="go('newticket')"><svg class="i s24" style="margin:8px"><use href="#i-plus"/></svg>Новое обращение</button>
+        <button class="row no-line" onclick="demo('Жалоба на пользователя — тестовая версия')"><svg class="i s24" style="margin:8px"><use href="#i-flag"/></svg>Жалоба на пользователя</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ОБРАЩЕНИЕ ================= -->
+  <section class="screen hidden" id="screen-ticket">
+    <header class="chat-head">
+      <button class="icon-btn" onclick="go('support')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="chat-title"><div class="t" id="ticket-title">Обращение</div><div class="s" id="ticket-status">Открыто</div></div>
+      <button class="icon-btn" onclick="demo('Обновить статус — тестовая версия')" title="Статус"><svg class="i s22"><use href="#i-gear"/></svg></button>
+    </header>
+    <div class="msgs" id="ticket-msgs"></div>
+    <div class="composer">
+      <input id="reply-input" placeholder="Ответ в обращение…" autocomplete="off">
+      <div class="c-icons">
+        <button class="ic" onclick="demo('Вложение — тестовая версия')" title="Прикрепить файл"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
+        <button class="ic" onclick="demo('Обращение закрыто')" title="Закрыть обращение"><svg class="i s22"><use href="#i-check-circle"/></svg></button>
+        <button class="ic send" id="reply-send" onclick="sendReply()" title="Отправить"><svg class="i s24"><use href="#i-send"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= НОВОЕ ОБРАЩЕНИЕ ================= -->
+  <section class="screen hidden" id="screen-newticket">
+    <header class="chat-head">
+      <button class="icon-btn" onclick="go('support')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="chat-title"><div class="t">Новое обращение</div><div class="s">Поддержка</div></div>
+      <span style="width:42px"></span>
+    </header>
+    <div class="scroll nopad">
+      <div class="sect-label" style="margin-top:6px">Тип</div>
+      <div class="seg">
+        <button class="chip active" onclick="pickKind(this)">Запрос в поддержку</button>
+        <button class="chip" onclick="pickKind(this)">Жалоба на пользователя</button>
+      </div>
+      <div class="form" style="margin-top:12px">
+        <input class="inp" placeholder="Тема" maxlength="120">
+        <textarea class="inp area" placeholder="Опишите проблему" maxlength="2000"></textarea>
+        <button class="btn-line" onclick="demo('Вложение — тестовая версия')">Прикрепить файл</button>
+        <button class="btn-accent" onclick="demo('Обращение создано');go('support')">Отправить</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= УСТРОЙСТВА ================= -->
+  <section class="screen hidden" id="screen-devices">
+    <header class="topbar">
+      <div><div class="ttl">Устройства</div><div class="sub">Сопряжение и управление устройствами</div></div>
+    </header>
+    <div class="scroll">
+      <div class="group">
+        <div class="group-head"><span class="tri"></span><span>Сопряжение по коду</span></div>
+        <div style="padding:6px 16px 14px">
+          <div style="font-size:13.5px;color:var(--sub);margin-bottom:10px">Включите устройство и введите 6-значный код с его экрана. Код действует 5 минут и срабатывает один раз.</div>
+          <div style="display:flex;gap:10px">
+            <input class="inp" id="pair-code" placeholder="000000" maxlength="6" inputmode="numeric" style="flex:1">
+            <button class="btn-accent" style="width:130px" onclick="pairDevice()">Сопрячь</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><span class="tri"></span><span>Мои устройства</span><span class="grow"></span><span class="badge" id="dev-count">2</span></div>
+        <div id="my-devices"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><span class="tri"></span><span>Каталог устройств</span></div>
+        <button class="row" onclick="openDevice('M5Cardputer')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>M5Cardputer</button>
+        <button class="row" onclick="openDevice('M5Cardputer Adv')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>M5Cardputer Adv</button>
+        <button class="row" onclick="openDevice('M5StickC Plus 2')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>M5StickC Plus 2</button>
+        <button class="row" onclick="openDevice('T-Embed CC1101')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>T-Embed CC1101</button>
+        <button class="row" onclick="openDevice('Flipper Zero')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>Flipper Zero</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= УСТРОЙСТВО ================= -->
+  <section class="screen hidden" id="screen-device">
+    <header class="chat-head">
+      <button class="icon-btn" onclick="go('devices')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="chat-title"><div class="t" id="device-title">Устройство</div><div class="s">Каталог устройств</div></div>
+      <span style="width:42px"></span>
+    </header>
+    <div class="scroll nopad">
+      <div class="post-view">
+        <div class="p-title" id="device-name"></div>
+        <div class="p-body">Портативный клиент Local Chat: чаты, блог и поддержка прямо с устройства. Работает по Wi-Fi внутри сети сервера.</div>
+      </div>
+      <div class="sect-label">Установка</div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="k" style="font-size:15px;line-height:1.45">Скачайте прошивку из релиза и прошейте устройство по инструкции из архива.</span></div></div>
+      <div class="sect-label">Первичная привязка</div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="k" style="font-size:15px;line-height:1.45">Включите устройство, дождитесь экрана сопряжения и введите его 6-значный код в разделе «Устройства».</span></div></div>
+      <div class="sect-label">Смена комбинации входа</div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="k" style="font-size:15px;line-height:1.45">Новая комбинация задаётся на самом устройстве и подтверждается на сервере.</span></div></div>
+      <div class="form">
+        <button class="btn-accent" onclick="demo('Отмечено: «у меня есть устройство»')">Отметить «у меня есть устройство»</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= АККАУНТ ================= -->
+  <section class="screen hidden" id="screen-account">
+    <div class="scroll">
       <div class="profile-hero">
         <div class="hero-ava">ДА</div>
         <div class="hero-name">Данила Алексеев</div>
-        <div class="hero-status"><span class="dot"></span>В сети</div>
-        <button class="hero-btn" onclick="demo()"><svg class="i s22"><use href="#i-smile-plus"/></svg>Установить статус</button>
+        <div class="hero-login">@admin · admin</div>
+        <div class="hero-status"><span class="dot"></span>в сети</div>
+        <button class="hero-btn" onclick="demo('Смена аватара — тестовая версия (PNG, JPEG или WEBP · до 2 МБ)')"><svg class="i s22"><use href="#i-smile-plus"/></svg>Сменить аватар</button>
       </div>
 
-      <div class="sect-label">Настройки</div>
+      <div class="sect-label">Профиль</div>
       <div class="group" style="margin-top:0">
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-bell-off"/></svg>Приостановить уведомления<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-phone"/></svg>Уведомления<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-clock"/></svg>Часовой пояс<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-user"/></svg>Имя<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-phone"/></svg>Телефон<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-pencil"/></svg>О себе<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+      </div>
+
+      <div class="sect-label">Ограничения аккаунта</div>
+      <div class="group" style="margin-top:0">
+        <div class="kv"><span class="k">Роль</span><span class="v">admin</span></div>
+        <div class="kv"><span class="k">Лимит чатов</span><span class="v">20</span></div>
+        <div class="kv"><span class="k">Создано чатов</span><span class="v">4</span></div>
+        <div class="kv"><span class="k">Осталось</span><span class="v">16</span></div>
       </div>
 
       <div class="sect-label">Другие разделы</div>
       <div class="group" style="margin-top:0">
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-user"/></svg>Мой профиль<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-users"/></svg>Участники<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-pencil"/></svg>Черновики<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-clock-arrow"/></svg>Отложенные сообщения<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+        <button class="row" onclick="go('devices')"><svg class="i s24" style="margin:8px"><use href="#i-chip"/></svg>Устройства<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+        <button class="row" onclick="go('about')"><svg class="i s24" style="margin:8px"><use href="#i-info"/></svg>О проекте<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+        <button class="row" onclick="demo('Админ-панель — тестовая версия (открывается отдельно: /admin)')"><svg class="i s24" style="margin:8px"><use href="#i-gear"/></svg>Админ-панель<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+        <button class="row danger" onclick="demo('Вы вышли из системы (тест)');go('login')"><svg class="i s24" style="margin:8px"><use href="#i-out"/></svg>Выйти</button>
       </div>
     </div>
-
-    <nav class="tabbar">
-      <div class="pill">
-        <button class="tab" data-tab="chats" onclick="go('chats')"><svg class="i s24"><use href="#i-home"/></svg></button>
-        <button class="tab" onclick="demo()"><svg class="i s24"><use href="#i-chat"/></svg></button>
-        <button class="tab" onclick="demo()"><svg class="i s24"><use href="#i-check-circle"/></svg></button>
-        <button class="tab active" data-tab="profile" onclick="go('profile')"><svg class="i s24"><use href="#i-menu"/></svg></button>
-      </div>
-      <button class="search" onclick="demo()"><svg class="i s24"><use href="#i-search"/></svg></button>
-    </nav>
   </section>
+
+  <!-- ================= О ПРОЕКТЕ ================= -->
+  <section class="screen hidden" id="screen-about">
+    <header class="chat-head">
+      <button class="icon-btn" onclick="go('account')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="chat-title"><div class="t">О проекте</div><div class="s">Local Chat</div></div>
+      <span style="width:42px"></span>
+    </header>
+    <div class="scroll nopad">
+      <div class="post-view">
+        <div class="p-title">Local Chat</div>
+        <div class="p-body">Local Chat — локальный чат-сервер на Raspberry Pi 5. Автономная система без интернета. Чат, блог, тикеты, админ-панель.</div>
+      </div>
+      <div class="group" style="margin-top:0">
+        <div class="kv"><span class="k">Версия сервера</span><span class="v">0.1.10</span></div>
+        <div class="kv"><span class="k">Сервер</span><span class="v">Raspberry Pi 5</span></div>
+        <div class="kv"><span class="k">Интернет</span><span class="v">не требуется</span></div>
+      </div>
+      <div class="group">
+        <button class="row no-line" onclick="demo('Авторы — тестовая версия')"><svg class="i s24" style="margin:8px"><use href="#i-users"/></svg>Авторы<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ПОИСК ================= -->
+  <section class="screen hidden" id="screen-search">
+    <header class="chat-head">
+      <button class="icon-btn" onclick="go('chats')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="chat-title"><div class="t">Поиск</div><div class="s">Чаты и люди</div></div>
+      <span style="width:42px"></span>
+    </header>
+    <div class="search-wrap">
+      <input class="inp" id="search-input" placeholder="Поиск чатов, имя или ссылка…" autocomplete="off">
+    </div>
+    <div class="scroll">
+      <div class="group" id="search-chats">
+        <div class="group-head"><span class="tri"></span><span>Чаты</span></div>
+        <button class="row" onclick="go('chat')"><span class="avatar av-ay">АЯ</span>Английский язык</button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-oi">ОИ</span>Общая информация</button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-ma">МА</span>Математика</button>
+      </div>
+      <div class="group" id="search-people">
+        <div class="group-head"><span class="tri"></span><span>Люди</span></div>
+        <button class="row" onclick="go('chat')"><span class="avatar av-mk">МК</span>Мария Кушнир</button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-mv">МВ</span>Мария Волощенко</button>
+        <button class="row" onclick="go('chat')"><span class="avatar av-vh">ВХ</span>Вероника Харламова</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= НИЖНЯЯ НАВИГАЦИЯ ================= -->
+  <nav class="tabbar hidden" id="tabbar">
+    <div class="pill">
+      <button class="tab" data-tab="chats" onclick="go('chats')"><svg class="i s24"><use href="#i-home"/></svg></button>
+      <button class="tab" data-tab="blog" onclick="go('blog')"><svg class="i s24"><use href="#i-doc"/></svg></button>
+      <button class="tab" data-tab="support" onclick="go('support')"><svg class="i s24"><use href="#i-check-circle"/></svg></button>
+      <button class="tab" data-tab="account" onclick="go('account')"><svg class="i s24"><use href="#i-user"/></svg></button>
+    </div>
+    <button class="search" id="search-btn" onclick="go('search')"><svg class="i s24"><use href="#i-search"/></svg></button>
+  </nav>
+
+  <!-- ================= ЛИСТЫ / ШТОРКИ ================= -->
+  <div class="sheet-bg" id="sheet-bg" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet">
+    <div class="s-title" id="sheet-title"></div>
+    <div id="sheet-rows"></div>
+  </div>
 
   <div class="toast" id="toast"></div>
 </div>
@@ -310,72 +668,262 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 <script>
 (function(){
   "use strict";
-  var screens = { chats: document.getElementById("screen-chats"),
-                  chat: document.getElementById("screen-chat"),
-                  profile: document.getElementById("screen-profile") };
+
+  var SCREENS = ["login","chats","chat","newchat","blog","post","support","ticket","newticket","devices","device","account","about","search"];
+  var cfg = {
+    login:    { tab:null,     tabbar:false },
+    chats:    { tab:"chats",  tabbar:true  },
+    chat:     { tab:null,     tabbar:false },
+    newchat:  { tab:null,     tabbar:false },
+    blog:     { tab:"blog",   tabbar:true  },
+    post:     { tab:null,     tabbar:false },
+    support:  { tab:"support",tabbar:true  },
+    ticket:   { tab:null,     tabbar:false },
+    newticket:{ tab:null,     tabbar:false },
+    devices:  { tab:"account",tabbar:true  },
+    device:   { tab:null,     tabbar:false },
+    account:  { tab:"account",tabbar:true  },
+    about:    { tab:"account",tabbar:true  },
+    search:   { tab:null,     tabbar:true, searchActive:true }
+  };
+
+  var app = document.getElementById("app");
+  var tabbar = document.getElementById("tabbar");
   var toastEl = document.getElementById("toast");
   var toastTimer = null;
 
-  function toast(msg){
+  function el(id){ return document.getElementById(id); }
+
+  window.toast = function(msg){
     toastEl.textContent = msg;
     toastEl.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1800);
-  }
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1900);
+  };
+  window.demo = function(msg){ toast(msg || "Тестовая версия — этот раздел пока не работает"); };
 
   function show(name){
-    for (var key in screens) screens[key].classList.toggle("hidden", key !== name);
-    var tabs = document.querySelectorAll(".tab[data-tab]");
-    for (var i = 0; i < tabs.length; i++) {
-      tabs[i].classList.toggle("active", tabs[i].getAttribute("data-tab") === name);
+    for (var i = 0; i < SCREENS.length; i++) {
+      el("screen-" + SCREENS[i]).classList.toggle("hidden", SCREENS[i] !== name);
     }
+    var c = cfg[name] || {};
+    tabbar.classList.toggle("hidden", !c.tabbar);
+    var tabs = tabbar.querySelectorAll(".tab");
+    for (var j = 0; j < tabs.length; j++) {
+      tabs[j].classList.toggle("active", tabs[j].getAttribute("data-tab") === c.tab);
+    }
+    el("search-btn").classList.toggle("active", !!c.searchActive);
+    app.scrollTop = 0;
   }
 
   window.go = function(name){
     show(name);
     if (location.hash !== "#/" + name) location.hash = "#/" + name;
   };
-  window.demo = function(){ toast("Тестовая версия — этот раздел пока не работает"); };
-
   window.addEventListener("hashchange", function(){
-    var name = location.hash.replace(/^#\//, "") || "chats";
-    if (screens[name]) show(name);
+    var name = location.hash.replace(/^#\//, "") || "login";
+    if (SCREENS.indexOf(name) >= 0) show(name);
   });
 
-  // --- composer (демо: сообщение добавляется локально) ---
-  var input = document.getElementById("msg-input");
-  var sendBtn = document.getElementById("send");
-  var msgs = document.getElementById("msgs");
+  /* ---------- шторка действий ---------- */
+  var sheet = el("sheet"), sheetBg = el("sheet-bg"), sheetRows = el("sheet-rows");
+  window.openSheet = function(title, items){
+    el("sheet-title").textContent = title;
+    sheetRows.innerHTML = "";
+    items.forEach(function(it){
+      var b = document.createElement("button");
+      b.className = "srow" + (it.danger ? " danger" : "");
+      b.innerHTML = '<svg class="i s22"><use href="#' + it.icon + '"/></svg>' + it.label;
+      b.onclick = function(){ closeSheet(); if (it.action) it.action(); };
+      sheetRows.appendChild(b);
+    });
+    sheet.classList.add("show");
+    sheetBg.classList.add("show");
+  };
+  window.closeSheet = function(){
+    sheet.classList.remove("show");
+    sheetBg.classList.remove("show");
+  };
 
+  window.openMsgMenu = function(node){
+    openSheet("Действия", [
+      { icon:"i-chat",   label:"Ответить",              action:function(){ toast("Ответ на сообщение"); } },
+      { icon:"i-send",   label:"Переслать",             action:function(){ toast("Переслано (тест)"); } },
+      { icon:"i-smile-plus", label:"Реакция",           action:function(){ toast("Реакции — тестовая версия"); } },
+      { icon:"i-pin-off",label:"Закрепить",             action:function(){ toast("Сообщение закреплено"); } },
+      { icon:"i-doc",    label:"Копировать",            action:function(){ toast("Скопировано"); } }
+    ]);
+  };
+  window.openChatMenu = function(){
+    openSheet("Английский язык", [
+      { icon:"i-user",   label:"Профиль чата",          action:function(){ toast("Профиль чата — тестовая версия"); } },
+      { icon:"i-users",  label:"Участники (5)",         action:function(){ toast("Участники — тестовая версия"); } },
+      { icon:"i-link",   label:"Ссылки-приглашения",    action:function(){ toast("Ссылки-приглашения — тестовая версия"); } },
+      { icon:"i-gear",   label:"Настройки чата",        action:function(){ toast("Настройки чата — тестовая версия"); } },
+      { icon:"i-out",    label:"Выйти из чата",         danger:true, action:function(){ toast("Вы вышли из чата"); } }
+    ]);
+  };
+
+  /* ---------- чат: отправка ---------- */
+  var input = el("msg-input"), sendBtn = el("send"), msgs = el("msgs");
   window.sendMsg = function(){
     var text = input.value.trim();
     if (!text) return;
     var now = new Date();
     var hh = String(now.getHours()).padStart(2, "0");
     var mm = String(now.getMinutes()).padStart(2, "0");
-    var el = document.createElement("div");
-    el.className = "m";
-    el.innerHTML = '<span class="avatar sm av-da">ДА</span>' +
+    var d = document.createElement("div");
+    d.className = "m";
+    d.innerHTML = '<span class="avatar sm av-da">ДА</span>' +
       '<div class="m-main"><div class="m-head"><span class="m-name">Данила Алексеев</span>' +
       '<span class="checks"><svg class="i s16"><use href="#i-checks"/></svg></span>' +
       '<span class="m-time">' + hh + ":" + mm + '</span></div><div class="m-text"></div></div>';
-    el.querySelector(".m-text").textContent = text;
-    msgs.appendChild(el);
+    var txt = d.querySelector(".m-text");
+    txt.textContent = text;
+    txt.onclick = function(){ openMsgMenu(txt); };
+    msgs.appendChild(d);
     input.value = "";
     sendBtn.classList.remove("ready");
     msgs.scrollTop = msgs.scrollHeight;
   };
+  input.addEventListener("input", function(){ sendBtn.classList.toggle("ready", !!input.value.trim()); });
+  input.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); sendMsg(); } });
 
-  input.addEventListener("input", function(){
-    sendBtn.classList.toggle("ready", !!input.value.trim());
-  });
-  input.addEventListener("keydown", function(e){
-    if (e.key === "Enter") { e.preventDefault(); window.sendMsg(); }
+  /* ---------- блог ---------- */
+  var POSTS = [
+    { title:"Сервер обновлён до v0.1.10", meta:"admin · 15 октября 2026",
+      body:"Мастер настройки теперь умеет импортировать данные из файла экспорта, а команда lc import перед заменой данных всегда сохраняет точку отката в /var/backups.\n\nОбновление ставится командой sudo lc update." },
+    { title:"Local Chat работает без интернета", meta:"admin · 12 октября 2026",
+      body:"Сервер поднимает собственную точку доступа Wi-Fi и продолжает работать, даже если внешней сети нет.\n\nСообщения, файлы и аккаунты остаются внутри вашей сети." },
+    { title:"Как подключить M5Cardputer", meta:"admin · 10 октября 2026",
+      body:"Сопряжение занимает минуту: включите устройство, откройте раздел «Устройства», введите 6-значный код с его экрана — и устройство появится в списке ваших." }
+  ];
+  window.openPost = function(i){
+    var p = POSTS[i];
+    el("post-title").textContent = p.title;
+    el("post-meta").textContent = p.meta;
+    el("post-body").textContent = p.body;
+    go("post");
+  };
+
+  /* ---------- поддержка ---------- */
+  var TICKETS = [
+    { title:"Не приходит код сопряжения", status:"open", statusText:"Открыто",
+      thread:[
+        { who:"you", name:"Вы", av:"av-da", text:"Здравствуйте! Пытаюсь сопрячь M5StickC Plus 2, но код не отображается на экране.", time:"10:12" },
+        { who:"sup", name:"Поддержка", av:"av-dev", text:"Добрый день! Проверьте, что устройство подключено к сети LC-Hub и на нём открыт экран сопряжения.", time:"10:20" }
+      ] },
+    { title:"Как сменить аватар?", status:"resolved", statusText:"Решено",
+      thread:[
+        { who:"you", name:"Вы", av:"av-da", text:"Не нашёл, где меняется фото профиля.", time:"вчера, 18:40" },
+        { who:"sup", name:"Поддержка", av:"av-dev", text:"Откройте «Аккаунт» и нажмите «Сменить аватар» — можно загрузить фото до 2 МБ.", time:"вчера, 18:55" }
+      ] }
+  ];
+  var currentTicket = 0;
+  function renderTicket(){
+    var t = TICKETS[currentTicket];
+    el("ticket-title").textContent = t.title;
+    el("ticket-status").textContent = t.statusText;
+    var box = el("ticket-msgs");
+    box.innerHTML = "";
+    t.thread.forEach(function(m){
+      var d = document.createElement("div");
+      d.className = "m";
+      d.innerHTML = '<span class="avatar sm ' + m.av + '">' + (m.who === "you" ? "ДА" : '<svg class="i s18"><use href="#i-check-circle"/></svg>') + '</span>' +
+        '<div class="m-main"><div class="m-head"><span class="m-name">' + m.name + '</span>' +
+        '<span class="m-time">' + m.time + '</span></div><div class="m-text"></div></div>';
+      d.querySelector(".m-text").textContent = m.text;
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  window.openTicket = function(i){
+    currentTicket = i;
+    renderTicket();
+    go("ticket");
+  };
+  var replyInput = el("reply-input"), replySend = el("reply-send");
+  window.sendReply = function(){
+    var text = replyInput.value.trim();
+    if (!text) return;
+    var now = new Date();
+    TICKETS[currentTicket].thread.push({
+      who:"you", name:"Вы", av:"av-da", text:text,
+      time: String(now.getHours()).padStart(2,"0") + ":" + String(now.getMinutes()).padStart(2,"0")
+    });
+    replyInput.value = "";
+    replySend.classList.remove("ready");
+    renderTicket();
+  };
+  replyInput.addEventListener("input", function(){ replySend.classList.toggle("ready", !!replyInput.value.trim()); });
+  replyInput.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); sendReply(); } });
+  window.pickKind = function(chip){
+    var chips = document.querySelectorAll("#screen-newticket .chip");
+    for (var i = 0; i < chips.length; i++) chips[i].classList.remove("active");
+    chip.classList.add("active");
+  };
+
+  /* ---------- устройства ---------- */
+  var MY_DEVICES = [
+    { name:"M5Cardputer", on:true },
+    { name:"M5StickC Plus 2", on:false }
+  ];
+  function renderDevices(){
+    var box = el("my-devices");
+    box.innerHTML = "";
+    if (!MY_DEVICES.length) {
+      box.innerHTML = '<div class="kv"><span class="k">Нет сопряжённых устройств</span></div>';
+    }
+    MY_DEVICES.forEach(function(d, i){
+      var b = document.createElement("button");
+      b.className = "row";
+      b.innerHTML = '<span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>' + d.name +
+        '<span class="dev-status' + (d.on ? " on" : "") + '">' + (d.on ? "в сети" : "не в сети") + '</span>' +
+        '<span class="rmeta"><span style="color:var(--link);font-size:14px">Отвязать</span></span>';
+      b.onclick = function(){ MY_DEVICES.splice(i,1); renderDevices(); toast("Устройство отвязано"); };
+      box.appendChild(b);
+    });
+    el("dev-count").textContent = MY_DEVICES.length;
+  }
+  window.pairDevice = function(){
+    var code = el("pair-code").value.trim();
+    if (!/^\d{6}$/.test(code)) { toast("Код не найден — проверьте цифры"); return; }
+    var name = "M5StickC Plus 2";
+    for (var i = 0; i < MY_DEVICES.length; i++) if (MY_DEVICES[i].name === name) name = "T-Embed CC1101";
+    MY_DEVICES.push({ name:name, on:true });
+    el("pair-code").value = "";
+    renderDevices();
+    toast("Устройство сопряжено");
+  };
+  window.openDevice = function(name){
+    el("device-title").textContent = name;
+    el("device-name").textContent = name;
+    go("device");
+  };
+
+  /* ---------- поиск ---------- */
+  var searchInput = el("search-input");
+  searchInput.addEventListener("input", function(){
+    var q = searchInput.value.trim().toLowerCase();
+    ["search-chats", "search-people"].forEach(function(id){
+      var g = el(id);
+      var rows = g.querySelectorAll(".row");
+      var visible = 0;
+      for (var i = 0; i < rows.length; i++) {
+        var match = !q || rows[i].textContent.toLowerCase().indexOf(q) >= 0;
+        rows[i].classList.toggle("hidden", !match);
+        if (match) visible++;
+      }
+      g.classList.toggle("hidden", visible === 0);
+    });
   });
 
-  // --- начальный экран из хэша ---
-  var initial = location.hash.replace(/^#\//, "") || "chats";
-  show(screens[initial] ? initial : "chats");
+  /* ---------- старт ---------- */
+  renderDevices();
+  var initial = location.hash.replace(/^#\//, "") || "login";
+  if (SCREENS.indexOf(initial) < 0) initial = "login";
+  if (initial === "ticket") renderTicket();
+  show(initial);
 })();
 </script>
 </body>
