@@ -88,8 +88,8 @@ tr:last-child td{border-bottom:none}
   <div id="login" class="card login-card">
     <h3>Admin login</h3>
     <form onsubmit="doLogin();return false">
-      <input id="l" placeholder="admin login" autocomplete="username">
-      <input id="p" type="password" placeholder="admin password" autocomplete="current-password">
+      <input id="l" placeholder="admin login" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input id="p" type="password" placeholder="admin password" autocomplete="current-password" autocapitalize="off" autocorrect="off">
       <button type="submit" class="btn-green">Login</button>
     </form>
     <div id="loginMsg"></div>
@@ -293,13 +293,31 @@ function doLogout() {
   ST = "";
   localStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem(ADMIN_USER_KEY);
+  // Do not silently sign back in through the app session right after logout.
+  try { sessionStorage.setItem("lc_admin_sso_off", "1"); } catch(e) {}
   location.reload();
 }
 
 // Restore a previous admin session on reload (the app session is kept separate).
 async function restoreSession() {
   var tok = localStorage.getItem(ADMIN_TOKEN_KEY);
-  if (!tok) return;
+  if (!tok) {
+    // Single sign-on: when the app session on this device belongs to an
+    // admin/moderator, open the panel without asking for the password again.
+    try { if (sessionStorage.getItem("lc_admin_sso_off") === "1") return; } catch(e) {}
+    var appTok = null;
+    try { appTok = localStorage.getItem("lc_session_token"); } catch(e) {}
+    if (!appTok) return;
+    try {
+      var d0 = await apiCall("/account/api/profile?session_token=" + encodeURIComponent(appTok));
+      var role = d0.profile && d0.profile.role;
+      if (role === "admin" || role === "moderator") {
+        ST = appTok;
+        showMain(d0.profile);
+      }
+    } catch(e) { /* fall back to the login form */ }
+    return;
+  }
   ST = tok;
   try {
     var d = await apiCall("/account/api/profile?session_token=" + encodeURIComponent(ST));
