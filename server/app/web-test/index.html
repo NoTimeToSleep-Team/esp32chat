@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0b0e">
 <meta name="robots" content="noindex">
-<title>Local Chat — тест интерфейса</title>
+<title>Local Chat</title>
 <style>
 :root{
   --bg:#0b0b0e; --card:#1c1c1f; --card2:#232327; --hair:rgba(255,255,255,.07);
@@ -13,10 +13,10 @@
   --accent:#5856e0; --link:#7b87ff; --green:#34c759; --orange:#ff9f2e; --red:#ef4e63;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
-body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:17px;line-height:1.35}
-#app{max-width:430px;margin:0 auto;height:100dvh;background:var(--bg);position:relative;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.04)}
-.screen{flex:1;min-height:0;display:flex;flex-direction:column}
+html,body{height:100%;background:#0b0b0e}
+body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:17px;line-height:1.35;overscroll-behavior-y:none}
+#app{max-width:430px;margin:0 auto;height:100vh;height:100dvh;background:var(--bg);position:relative;display:flex;flex-direction:column;overflow:hidden}
+.screen{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--bg)}
 .hidden{display:none!important}
 .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .i.s15{width:15px;height:15px}.i.s16{width:16px;height:16px}.i.s18{width:18px;height:18px}
@@ -26,114 +26,159 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;gap:10px}
 .topbar .ttl{font-size:20px;font-weight:700}
 .topbar .sub{font-size:13px;color:var(--sub);margin-top:2px}
-.user-chip{display:flex;align-items:center;gap:10px;background:var(--card);border:0;color:var(--text);font-size:17px;font-weight:600;padding:7px 18px 7px 9px;border-radius:999px;font-family:inherit;cursor:pointer}
-.user-chip .logo{width:30px;height:30px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none}
-.user-chip .logo svg{width:17px;height:17px;display:block}
+.topbar .acts{display:flex;gap:8px}
+.user-chip{display:flex;align-items:center;gap:10px;background:var(--card);border:0;color:var(--text);font-size:17px;font-weight:600;padding:7px 18px 7px 9px;border-radius:999px;font-family:inherit;cursor:pointer;max-width:60%}
+.user-chip .chip-ava{width:30px;height:30px;border-radius:999px;background:#3d5a80;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;overflow:hidden}
+.user-chip .chip-ava img{width:100%;height:100%;object-fit:cover}
+.user-chip .chip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .icon-btn{width:42px;height:42px;border-radius:999px;border:0;background:var(--card);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;flex:none}
 
-/* ---------- quick cards ---------- */
+/* ---------- quick cards (inside the feed) ---------- */
 .quick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px 14px 2px}
-.qcard{background:var(--card);border:0;border-radius:18px;padding:14px 14px 12px;text-align:left;color:var(--text);font-family:inherit;min-height:98px;display:flex;flex-direction:column;cursor:pointer}
+.qcard{background:var(--card);border:0;border-radius:18px;padding:13px 13px 11px;text-align:left;color:var(--text);font-family:inherit;min-height:90px;display:flex;flex-direction:column;cursor:pointer;position:relative}
 .qcard .i{color:#e9e9ee}
-.qcard .qt{margin-top:auto;font-size:15px;font-weight:600}
-.qcard .qs{font-size:13px;color:var(--sub);margin-top:2px}
+.qcard .qt{margin-top:auto;font-size:14.5px;font-weight:600}
+.qcard .qs{font-size:12.5px;color:var(--sub);margin-top:2px}
+.qcard.active{box-shadow:inset 0 0 0 1.6px var(--accent);background:#232338}
 
 /* ---------- group cards / rows ---------- */
-.scroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:104px}
-.scroll.nopad{padding-bottom:16px}
+.scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+.scroll.nopad{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .group{background:var(--card);border-radius:20px;margin:12px 14px;padding:4px 0 6px}
 .group-head{display:flex;align-items:center;gap:9px;padding:12px 16px 4px;color:var(--sub);font-size:15px}
 .group-head .tri{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #6f6f75;flex:none}
 .group-head .grow{flex:1}
-.group-head .dots{color:#6f6f75;display:flex;cursor:pointer}
+.group-head .dots{color:#6f6f75;display:flex;cursor:pointer;padding:4px}
 .row{display:flex;align-items:center;gap:12px;width:100%;padding:11px 16px;background:none;border:0;color:var(--text);font-size:17px;font-family:inherit;text-align:left;position:relative;cursor:pointer}
 .row:not(:last-child)::after{content:"";position:absolute;left:68px;right:16px;bottom:0;height:1px;background:var(--hair)}
 .row.no-line::after{display:none}
-.row .rname{display:flex;align-items:center;gap:7px;min-width:0}
+.row .rname{display:flex;align-items:center;gap:7px;min-width:0;flex:1}
 .row .rname .i{color:#cfcfd4}
+.row .rcol{min-width:0;flex:1}
+.row .rt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rsub{font-size:13px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rsub.draft{color:var(--orange)}
 .row .me{font-size:13px;color:var(--sub);font-weight:400;margin-left:4px}
 .row.muted{color:var(--muted)}
 .row .chev-end{margin-left:auto;color:#5f5f66}
-.row .rsub{font-size:13px;color:var(--sub);margin-top:1px}
 .row .rmeta{margin-left:auto;display:flex;align-items:center;gap:8px}
 .row .rmeta .i{color:#5f5f66}
 .row.danger{color:var(--red)}
-.avatar{width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#fff;flex:none;letter-spacing:.3px}
-.avatar.sm{width:36px;height:36px;font-size:13px}
+.row.danger .i{color:var(--red)}
+.badge{font-size:12px;color:var(--sub);background:#2a2a2e;border-radius:999px;padding:2px 9px}
+.badge.unread{background:var(--accent);color:#fff;font-weight:600}
+.badge.unread.muted{background:#3a3a40;color:#a9a9af}
+.avatar{width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#fff;flex:none;letter-spacing:.3px;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.avatar.sm{width:36px;height:36px;font-size:15px}
 .avatar.lg{width:44px;height:44px;font-size:16px}
-.av-da{background:linear-gradient(135deg,#ff9f2e,#ffc733)}
-.av-ay{background:#a855f7}
-.av-ry{background:#2fa36b}
-.av-ma{background:#3f7dfa}
-.av-ra{background:#55d06a}
-.av-oi{background:#3fc6e0}
-.av-mv{background:#e14b52}
-.av-vh{background:#ef4e63}
-.av-n{background:#35b8cf}
-.av-mk{background:#c425d6}
-.av-ghost{background:#2a2a2e;color:#8e8e93}
-.av-dev{background:#2c2c31;color:#c9c9ce}
+.flag{color:#6f6f75;display:flex}
 
 /* ---------- bottom nav ---------- */
-.tabbar{position:absolute;left:12px;right:12px;bottom:10px;display:flex;gap:10px;z-index:5}
-.tabbar .pill{flex:1;display:flex;align-items:center;justify-content:space-around;background:rgba(28,28,31,.92);backdrop-filter:blur(14px);border-radius:999px;padding:7px 4px;box-shadow:0 10px 28px rgba(0,0,0,.5)}
-.tab{width:54px;height:46px;border:0;background:none;color:#9a9aa0;display:flex;align-items:center;justify-content:center;border-radius:999px;cursor:pointer;font-family:inherit}
+.tabbar{position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;z-index:5}
+.tabbar .pill{flex:1;display:flex;align-items:center;justify-content:space-around;background:rgba(28,28,31,.94);backdrop-filter:blur(14px);border-radius:999px;padding:7px 4px;box-shadow:0 10px 28px rgba(0,0,0,.45)}
+.tab{width:56px;height:46px;border:0;background:none;color:#9a9aa0;display:flex;align-items:center;justify-content:center;border-radius:999px;cursor:pointer;font-family:inherit}
 .tab.active{background:#2e2e33;color:#fff}
-.tabbar .search{width:66px;height:66px;border-radius:999px;background:rgba(28,28,31,.92);backdrop-filter:blur(14px);border:0;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.5)}
-.tabbar .search.active{background:#2e2e33}
 
 /* ---------- chat ---------- */
 .chat-head{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
-.chat-title{flex:1;text-align:center;min-width:0}
-.chat-title .t{font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+.chat-title{flex:1;text-align:center;min-width:0;cursor:pointer}
+.chat-title .t{font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-title .t .i{color:#cfcfd4}
-.chat-title .s{font-size:13px;color:var(--sub);margin-top:2px}
-.pinned{display:flex;align-items:flex-start;gap:12px;padding:10px 16px 12px;background:#141417;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.chat-title .s{font-size:13px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pinned{display:flex;align-items:flex-start;gap:12px;padding:10px 16px 12px;background:#141417;border-bottom:1px solid var(--hair)}
 .pinned .p-main{flex:1;min-width:0}
 .pinned .p-label{font-size:14px;color:#9a9aa0}
 .pinned .p-text{font-size:15px;color:#e6e6ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .pinned .p-off{background:none;border:0;color:var(--link);display:flex;padding:2px;cursor:pointer}
-.msgs{flex:1;min-height:0;overflow-y:auto;padding:6px 16px 10px}
+.msgs{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 16px 10px}
 .m{display:flex;gap:10px;margin:12px 0}
+.m-ava{width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:19px;flex:none;background:#2a2a2e;overflow:hidden}
+.m-ava img{width:100%;height:100%;object-fit:cover}
 .m-main{flex:1;min-width:0}
 .m-head{display:flex;align-items:baseline;gap:8px}
 .m-name{font-size:15px;font-weight:600}
-.m-head .checks{color:var(--link);display:flex;align-self:center;margin-left:auto}
-.m-head .checks+.m-time{margin-left:6px}
-.m-time{font-size:13px;color:var(--sub);margin-left:auto}
-.m-head .checks~.m-time{margin-left:0}
-.m-text{font-size:16px;line-height:1.42;margin-top:3px;overflow-wrap:break-word;cursor:pointer}
-.m-text a{color:var(--link);text-decoration:none}
-.m-text.deleted{color:var(--muted)}
+.m-time{font-size:13px;color:var(--sub);margin-left:auto;white-space:nowrap}
+.m-head .checks{color:var(--link);display:flex;align-self:center}
+.m-text{font-size:16px;line-height:1.42;margin-top:3px;overflow-wrap:break-word;cursor:pointer;white-space:pre-wrap}
+.m-text a{color:var(--link);text-decoration:none;word-break:break-all}
+.m-text .mention{color:var(--link)}
+.m-text .edited{font-size:12.5px;color:var(--sub)}
+.m-text.deleted{color:var(--muted);font-style:italic}
+.m-forwarded{font-size:13px;color:var(--sub);margin-top:3px;display:flex;align-items:center;gap:6px}
+.m-reply{border-left:2.5px solid var(--accent);background:#232327;border-radius:8px;padding:5px 9px;margin-top:4px;cursor:pointer;max-width:100%}
+.m-reply .ra{font-size:13px;font-weight:600;color:var(--link)}
+.m-reply .rt{font-size:13.5px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-reacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.m-reacts button{background:#26262b;border:1px solid transparent;border-radius:999px;color:var(--text);font-size:13.5px;padding:3px 10px;cursor:pointer;font-family:inherit}
+.m-reacts button.mine{border-color:var(--accent);background:#2b2b40}
 .day{background:#26262a;color:#c9c9ce;font-size:13px;padding:4px 13px;border-radius:999px;width:max-content;margin:16px auto}
-.composer{padding:10px 16px 14px;border-top:1px solid var(--hair);background:var(--bg)}
-.composer input{width:100%;background:none;border:0;outline:none;color:var(--text);font-size:17px;font-family:inherit;padding:4px 0}
-.composer input::placeholder{color:var(--muted)}
+.load-older{display:block;margin:6px auto 2px;background:none;border:1px solid var(--hair);color:var(--sub);border-radius:999px;padding:6px 14px;font-size:13.5px;font-family:inherit;cursor:pointer}
+.att-wrap{margin-top:6px;display:flex;flex-direction:column;gap:6px}
+.att-img img{max-width:230px;max-height:280px;border-radius:14px;display:block;cursor:pointer}
+.att-audio audio{max-width:260px;height:38px}
+.att-file{display:inline-flex;gap:8px;align-items:center;color:var(--link);font-size:14.5px;text-decoration:none;background:#26262b;border-radius:12px;padding:8px 12px;max-width:100%}
+.att-file span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.poll{background:#232327;border-radius:14px;padding:12px;margin-top:6px}
+.poll .pq{font-weight:600;font-size:15px;margin-bottom:8px}
+.poll .po{display:block;width:100%;text-align:left;background:#2a2a2e;border:1px solid transparent;border-radius:10px;color:var(--text);font-family:inherit;font-size:14.5px;padding:9px 12px;margin-top:6px;position:relative;overflow:hidden;cursor:pointer}
+.poll .po.mine{border-color:var(--accent)}
+.poll .po .pbar{position:absolute;left:0;top:0;bottom:0;background:rgba(88,86,224,.25)}
+.poll .po .pt{position:relative}
+.poll .po .pc{position:relative;float:right;color:var(--sub);font-size:13px}
+.poll .pm{font-size:12.5px;color:var(--sub);margin-top:8px}
+.composer{padding:8px 16px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg)}
+.composer input,.composer textarea{width:100%;background:none;border:0;outline:none;color:var(--text);font-size:17px;font-family:inherit;padding:4px 0;resize:none}
+.composer input::placeholder,.composer textarea::placeholder{color:var(--muted)}
 .c-icons{display:flex;align-items:center;gap:20px;margin-top:8px}
-.c-icons .ic{background:none;border:0;color:#8e8e93;display:flex;align-items:center;cursor:pointer;padding:0;font-family:inherit}
-.c-icons .aa{font-size:17px;font-weight:600;color:#8e8e93}
+.c-icons .ic{background:none;border:0;color:#8e8e93;display:flex;align-items:center;cursor:pointer;padding:0;font-family:inherit;position:relative}
 .c-icons .send{margin-left:auto;color:#5a5a60}
 .c-icons .send.ready{color:var(--link)}
+.c-icons .ic.rec{color:var(--red)}
+.reply-bar,.attach-chips,.voice-bar,.mention-list{background:#1c1c1f;border-radius:14px;margin-bottom:8px;padding:8px 12px}
+.reply-bar{display:flex;align-items:center;gap:10px}
+.reply-bar .rb-main{flex:1;min-width:0}
+.reply-bar .rb-a{font-size:13px;font-weight:600;color:var(--link)}
+.reply-bar .rb-t{font-size:13.5px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attach-chips{display:flex;flex-wrap:wrap;gap:6px}
+.attach-chip{display:inline-flex;align-items:center;gap:7px;background:#26262b;border-radius:999px;padding:5px 8px 5px 11px;font-size:13px;color:#c9c9ce;max-width:100%}
+.attach-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.attach-chip button{background:none;border:0;color:#8e8e93;display:flex;cursor:pointer;padding:2px}
+.voice-bar{display:flex;align-items:center;gap:10px}
+.voice-bar .vdot{width:10px;height:10px;border-radius:999px;background:var(--red);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.voice-bar .vtime{font-variant-numeric:tabular-nums}
+.mention-list{max-height:180px;overflow-y:auto;padding:4px}
+.mention-list button{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--text);font-family:inherit;font-size:15px;padding:9px 10px;border-radius:10px;cursor:pointer;text-align:left}
+.mention-list button:active{background:#26262b}
 
-/* ---------- profile / account ---------- */
-.profile-hero{background:var(--card);border-radius:22px;margin:14px 14px 4px;padding:26px 18px 18px;text-align:center}
-.hero-ava{width:96px;height:96px;border-radius:999px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:600;background:linear-gradient(135deg,#ff9f2e,#ffc733);color:#fff}
-.hero-name{font-size:22px;font-weight:700;margin-top:14px}
-.hero-login{font-size:14px;color:var(--sub);margin-top:4px}
-.hero-status{display:flex;align-items:center;justify-content:center;gap:7px;color:var(--sub);font-size:15px;margin-top:6px}
-.dot{width:9px;height:9px;border-radius:999px;background:var(--green)}
-.hero-btn{margin-top:18px;width:100%;height:52px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;cursor:pointer}
-.sect-label{color:var(--sub);font-size:15px;margin:18px 22px 8px}
+/* ---------- forms ---------- */
+.inp{width:100%;background:var(--card);border:1px solid var(--hair);border-radius:14px;color:var(--text);font-size:16px;font-family:inherit;padding:13px 14px;outline:none}
+.inp::placeholder{color:var(--muted)}
+.inp.area{min-height:110px;resize:none}
+.form{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.btn-accent{width:100%;height:50px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-accent:disabled{opacity:.5}
+.btn-line{width:100%;height:48px;border:1px solid var(--hair);border-radius:16px;background:none;color:var(--text);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.seg{display:flex;gap:8px;padding:0 14px;flex-wrap:wrap}
+.chip{background:var(--card);border:1px solid var(--hair);color:var(--sub);border-radius:999px;padding:9px 15px;font-size:14.5px;font-family:inherit;cursor:pointer}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.l-error{color:var(--red);font-size:13.5px;min-height:16px;margin-top:2px}
 .kv{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;position:relative;font-size:16px}
 .kv:not(:last-child)::after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:1px;background:var(--hair)}
 .kv .k{color:var(--sub)}
 .kv .v{font-weight:600}
-.badge{font-size:12px;color:var(--sub);background:#2a2a2e;border-radius:999px;padding:2px 9px;margin-left:6px}
+.kv .note{color:var(--sub);font-size:14px;line-height:1.45}
 
-/* ---------- pills / statuses ---------- */
+/* ---------- empty / loading ---------- */
+.empty{padding:30px 20px;text-align:center;color:var(--sub);font-size:15px}
+.spin{width:24px;height:24px;border:2.5px solid #333;border-top-color:#9a9aa0;border-radius:50%;animation:sp 1s linear infinite;margin:28px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- pills ---------- */
 .pill{font-size:12.5px;border-radius:999px;padding:3px 10px;font-weight:600;white-space:nowrap}
 .st-open{background:rgba(88,86,224,.2);color:#a5a3ff}
-.st-progress{background:rgba(255,159,46,.18);color:#ffb95e}
+.st-in_progress{background:rgba(255,159,46,.18);color:#ffb95e}
 .st-resolved{background:rgba(52,199,89,.16);color:#5fd97e}
 .st-closed{background:#2a2a2e;color:#9a9aa0}
 
@@ -141,33 +186,36 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .post{background:var(--card);border-radius:20px;margin:12px 14px;padding:16px;cursor:pointer}
 .post .p-title{font-size:17px;font-weight:700}
 .post .p-meta{font-size:13px;color:var(--sub);margin-top:3px}
-.post .p-body{font-size:15px;color:#c9c9ce;margin-top:8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.post .p-body{font-size:15px;color:#c9c9ce;margin-top:8px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
 .post-view{background:var(--card);border-radius:20px;margin:12px 14px;padding:18px}
 .post-view .p-title{font-size:20px;font-weight:700;line-height:1.3}
 .post-view .p-meta{font-size:13px;color:var(--sub);margin-top:5px}
-.post-view .p-body{font-size:16px;line-height:1.5;margin-top:12px;white-space:pre-line}
+.post-view .p-body{font-size:16px;line-height:1.5;margin-top:12px;white-space:pre-wrap}
 
-/* ---------- forms / inputs ---------- */
-.inp{width:100%;background:var(--card);border:1px solid var(--hair);border-radius:14px;color:var(--text);font-size:16px;font-family:inherit;padding:13px 14px;outline:none}
-.inp::placeholder{color:var(--muted)}
-.inp.area{min-height:110px;resize:none}
-.form{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px}
-.btn-accent{width:100%;height:50px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
-.btn-line{width:100%;height:48px;border:1px solid var(--hair);border-radius:16px;background:none;color:var(--text);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
-.seg{display:flex;gap:8px;padding:0 14px;flex-wrap:wrap}
-.chip{background:var(--card);border:1px solid var(--hair);color:var(--sub);border-radius:999px;padding:9px 15px;font-size:14.5px;font-family:inherit;cursor:pointer}
-.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+/* ---------- profile ---------- */
+.profile-hero{background:var(--card);border-radius:22px;margin:14px 14px 4px;padding:24px 18px 18px;text-align:center}
+.hero-ava{width:96px;height:96px;border-radius:999px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:44px;background:#2a2a2e;overflow:hidden}
+.hero-ava img{width:100%;height:100%;object-fit:cover}
+.hero-name{font-size:22px;font-weight:700;margin-top:14px}
+.hero-login{font-size:14px;color:var(--sub);margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.hero-btn{margin-top:16px;width:100%;height:50px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;cursor:pointer}
+.emoji-grid{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;padding:8px 14px 14px}
+.emoji-grid button{width:44px;height:44px;border-radius:12px;border:1px solid transparent;background:#232327;font-size:22px;cursor:pointer;font-family:inherit}
+.emoji-grid button.sel{border-color:var(--accent);background:#2b2b40}
+.sect-label{color:var(--sub);font-size:15px;margin:18px 22px 8px}
 
 /* ---------- devices ---------- */
-.dev-status{font-size:13px;color:var(--sub);margin-left:auto}
+.dev-status{font-size:13px;color:var(--sub)}
 .dev-status.on{color:#5fd97e}
+.tag{font-size:11.5px;border-radius:999px;padding:2px 8px;background:#2a2a2e;color:var(--sub)}
+.tag.owned{background:rgba(52,199,89,.16);color:#5fd97e}
 
 /* ---------- search ---------- */
 .search-wrap{padding:6px 14px 0}
-.search-wrap .inp{background:var(--card2)}
+.search-head{color:var(--sub);font-size:13px;padding:14px 18px 4px}
 
 /* ---------- login ---------- */
-.login{padding:28px 22px;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+.login{padding:28px 22px calc(28px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;min-height:0;overflow-y:auto}
 .login .brand{display:flex;align-items:center;gap:12px}
 .login .brand .logo{width:46px;height:46px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center}
 .login .brand .logo svg{width:24px;height:24px;display:block}
@@ -180,12 +228,12 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .login .l-link{color:var(--link);font-size:14.5px;text-align:center;margin-top:14px;cursor:pointer}
 .login .l-guest{margin-top:auto;padding-top:18px}
 .login .netline{display:flex;align-items:center;gap:8px;color:var(--sub);font-size:13px;margin-top:16px}
-.login .netline .dot{width:8px;height:8px}
+.login .netline .dot{width:8px;height:8px;border-radius:999px;background:var(--green)}
 
 /* ---------- sheet ---------- */
 .sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:30}
 .sheet-bg.show{opacity:1;pointer-events:auto}
-.sheet{position:absolute;left:10px;right:10px;bottom:10px;background:#202024;border-radius:22px;padding:8px 0 10px;transform:translateY(110%);transition:.25s;z-index:31;max-height:70%;overflow-y:auto}
+.sheet{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#202024;border-radius:22px;padding:8px 0 10px;transform:translateY(115%);transition:.25s;z-index:31;max-height:74%;overflow-y:auto;overscroll-behavior:contain}
 .sheet.show{transform:translateY(0)}
 .sheet .s-title{font-size:13px;color:var(--sub);text-align:center;padding:10px 16px 6px}
 .sheet .srow{display:flex;align-items:center;gap:14px;width:100%;padding:13px 20px;background:none;border:0;color:var(--text);font-size:16.5px;font-family:inherit;text-align:left;cursor:pointer}
@@ -193,9 +241,19 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
 .sheet .srow.danger{color:var(--red)}
 .sheet .srow .i{color:#c9c9ce}
 .sheet .srow.danger .i{color:var(--red)}
+.sheet .reacts{display:flex;justify-content:space-around;padding:6px 10px 10px;border-bottom:1px solid var(--hair);margin-bottom:4px}
+.sheet .reacts button{width:46px;height:46px;border-radius:999px;border:0;background:#2a2a2e;font-size:22px;cursor:pointer;font-family:inherit}
+.sheet .reacts button:active{background:#34343a}
+.sheet .s-form{padding:4px 18px 12px;display:flex;flex-direction:column;gap:10px}
+.sheet .s-form .inp{background:#26262b}
+.sheet .s-list{padding:0 12px}
+.sheet .s-item{display:flex;align-items:center;gap:12px;width:100%;padding:10px 8px;background:none;border:0;color:var(--text);font-family:inherit;font-size:15.5px;text-align:left;cursor:pointer;border-radius:12px}
+.sheet .s-item:active{background:#2a2a2e}
+.sheet .s-empty{color:var(--sub);font-size:14px;text-align:center;padding:14px}
+.sheet .s-note{color:var(--sub);font-size:13px;padding:0 18px 8px}
 
 /* ---------- toast ---------- */
-.toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%) translateY(8px);background:#2c2c31;color:#eaeaea;font-size:14px;padding:9px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:82%;text-align:center}
+.toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%) translateY(8px);background:#2c2c31;color:#eaeaea;font-size:14px;padding:9px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:84%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
@@ -209,8 +267,6 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5"/></symbol>
   <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c1-3 3.2-4.5 6-4.5s5 1.5 6 4.5"/><path d="M15.6 5.5a3.2 3.2 0 0 1 0 6"/><path d="M17.6 15.3c1.7.6 3 2 3.7 4.2"/></symbol>
   <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z"/><path d="M14.5 6.5l3 3"/></symbol>
-  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
-  <symbol id="i-clock-arrow" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 3.5V8H16"/><path d="M12 8.5V12l2.6 1.7"/></symbol>
   <symbol id="i-bell-off" viewBox="0 0 24 24"><path d="M6.3 6.3A6.5 6.5 0 0 1 18.5 11v4l1.5 2.5H7.8"/><path d="M4 17.5L5.5 15v-4c0-.8.1-1.5.4-2.2"/><path d="M10 21a2 2 0 0 0 4 0"/><path d="M3.5 3.5l17 17"/></symbol>
   <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="3.5" width="10" height="17" rx="2.5"/><path d="M11 17.8h2"/></symbol>
   <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4l2.3 4.9 5.2.7-3.8 3.7.9 5.2-4.6-2.5-4.6 2.5.9-5.2L4.5 9.6l5.2-.7z"/></symbol>
@@ -218,15 +274,15 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H13l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5z"/><path d="M8.5 10h7"/></symbol>
   <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/><path d="M9.5 12.5h5M9.5 15.5h5"/></symbol>
   <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></symbol>
-  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-support" viewBox="0 0 24 24"><path d="M4.5 12.5v-1a7.5 7.5 0 0 1 15 0v1"/><rect x="3.5" y="12" width="4.2" height="6.5" rx="2.1"/><rect x="16.3" y="12" width="4.2" height="6.5" rx="2.1"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
   <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="M8.5 12.5l6.4-6.4a3 3 0 0 1 4.2 4.2l-7.8 7.8a5 5 0 0 1-7-7l7-7"/></symbol>
   <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M15.5 12v1.2a2.3 2.3 0 0 0 4.5.6A8.5 8.5 0 1 0 17 19.3"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4.5 11.2L19.5 4l-7.2 15-1.9-6z"/><path d="M10.4 13l9.1-9"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9.2 3.8h5.6l-.5 5.4 2.5 2.5H7.2l2.5-2.5z"/><path d="M12 11.7v6.5"/></symbol>
   <symbol id="i-pin-off" viewBox="0 0 24 24"><path d="M9.2 3.8h5.6l-.5 5.4 2.5 2.5H7.2l2.5-2.5z"/><path d="M12 11.7v6.5"/><path d="M4 3.5l16.5 16.5"/></symbol>
   <symbol id="i-smile-plus" viewBox="0 0 24 24"><circle cx="11" cy="13" r="7.2"/><path d="M8.2 15.3a4.5 4.5 0 0 0 5.6 0"/><path d="M8.6 11h.01M13.4 11h.01"/><path d="M18.6 3.2v4.2M16.5 5.3h4.2"/></symbol>
   <symbol id="i-checks" viewBox="0 0 24 24"><path d="M2.5 12.6l3.6 3.6L13.5 8.8"/><path d="M10.5 15.4l.9.9L22.2 5.8"/></symbol>
-  <symbol id="i-person-big" viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M5 20c1.3-3.6 4-5.4 7-5.4s5.7 1.8 7 5.4"/></symbol>
   <symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9.5 3.5V7M14.5 3.5V7M9.5 17v3.5M14.5 17v3.5M3.5 9.5H7M3.5 14.5H7M17 9.5h3.5M17 14.5h3.5"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24"><path d="M13.5 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h6.5"/><path d="M11 12h9.5"/><path d="M17 8.5L20.5 12 17 15.5"/></symbol>
@@ -235,6 +291,17 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3L18 18M18 6l-1.7 1.7M7.7 16.3L6 18"/></symbol>
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 3.5v17"/><path d="M6 4.5h11l-2.5 3.5L17 11.5H6"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5.2A1.2 1.2 0 0 1 10.2 4h3.6A1.2 1.2 0 0 1 15 5.2V7"/><path d="M7 7l1 12.2a1.3 1.3 0 0 0 1.3 1.3h5.4a1.3 1.3 0 0 0 1.3-1.3L17 7"/><path d="M10.2 11v5.5M13.8 11v5.5"/></symbol>
+  <symbol id="i-megaphone" viewBox="0 0 24 24"><path d="M3.5 10.2v3.6l3.2 1.2V9z"/><path d="M6.7 9l10.8-4.5v15L6.7 15"/><path d="M9.9 15.6l.9 4.4h2.8l-1-4.4"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M4.5 7.5l7.5 6 7.5-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 5.5h-9a2 2 0 0 0-2 2v9"/></symbol>
+  <symbol id="i-reply" viewBox="0 0 24 24"><path d="M9 7L4.5 11.5 9 16"/><path d="M4.5 11.5H14a5.5 5.5 0 0 1 5.5 5.5v1"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="M15 7l4.5 4.5L15 16"/><path d="M19.5 11.5H10a5.5 5.5 0 0 0-5.5 5.5v1"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.5"/><path d="M5 9v9.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V9"/><path d="M10 12.5h4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 3.5V8h-4.5"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17l5-4.5 4 3.5 3-2.5 3 2.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </defs></svg>
 
 <div id="app">
@@ -255,12 +322,14 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
       <div class="l-card">
         <input class="inp" id="login-user" placeholder="Логин" autocomplete="username">
         <input class="inp" id="login-pass" type="password" placeholder="Пароль" autocomplete="current-password">
-        <button class="btn-accent" onclick="go('chats')">Войти</button>
+        <input class="inp hidden" id="login-phone" placeholder="Телефон (+7...)" autocomplete="tel">
+        <div class="l-error" id="login-error"></div>
+        <button class="btn-accent" id="login-btn">Войти</button>
       </div>
-      <div class="l-link" onclick="demo()">Нет аккаунта? Зарегистрироваться</div>
+      <div class="l-link" id="login-toggle">Нет аккаунта? Зарегистрироваться</div>
       <div class="l-guest">
-        <button class="btn-line" onclick="go('chats')">Продолжить как гость</button>
-        <div class="netline"><span class="dot"></span>local-chat</div>
+        <button class="btn-line" id="guest-btn">Продолжить как гость</button>
+        <div class="netline"><span class="dot"></span><span id="net-label">local-chat</span></div>
       </div>
     </div>
   </section>
@@ -268,36 +337,32 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <!-- ================= ЧАТЫ ================= -->
   <section class="screen hidden" id="screen-chats">
     <header class="topbar">
-      <button class="user-chip" onclick="go('account')">
-        <span class="logo"><svg viewBox="0 0 24 24"><path d="M7 4h10v16l-5-4-5 4z" fill="#111"/></svg></span>
-        Данила
+      <button class="user-chip" id="chip-btn" onclick="go('account')">
+        <span class="chip-ava" id="chip-ava">?</span>
+        <span class="chip-name" id="chip-name">Профиль</span>
       </button>
-      <button class="icon-btn" onclick="go('newchat')" title="Новый чат"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      <div class="acts">
+        <button class="icon-btn" onclick="go('search')" title="Поиск"><svg class="i s22"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" onclick="go('newchat')" title="Новый чат"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      </div>
     </header>
 
-    <div class="quick">
-      <button class="qcard" onclick="go('chat')"><svg class="i s24"><use href="#i-chat"/></svg><div class="qt">Личные</div><div class="qs">Сообщения</div></button>
-      <button class="qcard" onclick="demo()"><svg class="i s24"><use href="#i-star"/></svg><div class="qt">Важные</div><div class="qs">0 шт.</div></button>
-      <button class="qcard" onclick="demo()"><svg class="i s24"><use href="#i-pencil"/></svg><div class="qt">Черновики</div><div class="qs">0 шт.</div></button>
-    </div>
-
-    <div class="scroll">
-      <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Чаты</span><span class="grow"></span><span class="dots" onclick="demo()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
-        <button class="row" onclick="go('chat')"><span class="avatar av-ay">АЯ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Английский язык</span></button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-ry">РЯ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Русский язык</span></button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-ma">МА</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Математика</span></button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-oi">ОИ</span><span class="rname"><svg class="i s16"><use href="#i-lock"/></svg>Общая информация</span></button>
-        <button class="row" onclick="go('search')"><svg class="i s24" style="margin:8px"><use href="#i-search"/></svg>Поиск чатов</button>
-        <button class="row" onclick="go('newchat')"><svg class="i s24" style="margin:8px"><use href="#i-plus"/></svg>Новый чат</button>
+    <div class="scroll" id="chats-scroll">
+      <div class="quick">
+        <button class="qcard" data-filter="dm" onclick="setFilter('dm')"><svg class="i s24"><use href="#i-chat"/></svg><div class="qt">Личные</div><div class="qs" id="qc-dm">0</div></button>
+        <button class="qcard" data-filter="pinned" onclick="setFilter('pinned')"><svg class="i s24"><use href="#i-star"/></svg><div class="qt">Важные</div><div class="qs" id="qc-pin">0</div></button>
+        <button class="qcard" data-filter="drafts" onclick="setFilter('drafts')"><svg class="i s24"><use href="#i-pencil"/></svg><div class="qt">Черновики</div><div class="qs" id="qc-draft">0</div></button>
       </div>
 
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Личные сообщения</span><span class="grow"></span><span class="dots" onclick="demo()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
-        <button class="row" onclick="go('chat')"><span class="avatar av-mv">МВ</span>Мария Волощенко</button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-vh">ВХ</span>Вероника Харламова</button>
-        <button class="row" onclick="go('account')"><span class="avatar av-da">ДА</span>Данила Алексеев<span class="me">Вы</span></button>
-        <button class="row muted" onclick="demo()"><span class="avatar av-n">Н</span>Надежда</button>
+        <div class="group-head"><span class="tri"></span><span id="chats-head-label">Чаты</span><span class="grow"></span><span class="dots" onclick="openChatsMenu()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
+        <div id="chat-rows"><div class="spin"></div></div>
+      </div>
+
+      <div class="group">
+        <button class="row no-line" onclick="go('search')"><svg class="i s24" style="margin:8px"><use href="#i-search"/></svg>Поиск чатов</button>
+        <button class="row no-line" onclick="go('newchat')"><svg class="i s24" style="margin:8px"><use href="#i-plus"/></svg>Новый чат</button>
+        <button class="row no-line" onclick="openJoinSheet()"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>Присоединиться по ссылке</button>
       </div>
     </div>
   </section>
@@ -306,90 +371,71 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <section class="screen hidden" id="screen-chat">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('chats')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title">
-        <div class="t"><svg class="i s15"><use href="#i-lock"/></svg>Английский язык</div>
-        <div class="s">Группа · 5 участников</div>
+      <div class="chat-title" id="chat-head-info" onclick="openChatMenu()">
+        <div class="t" id="chat-title-t">Чат</div>
+        <div class="s" id="chat-title-s"></div>
       </div>
       <button class="icon-btn" onclick="openChatMenu()"><svg class="i s22"><use href="#i-dots"/></svg></button>
     </header>
 
-    <div class="pinned">
+    <div class="pinned hidden" id="pin-bar">
       <div class="p-main">
         <div class="p-label">Закреплённое сообщение</div>
-        <div class="p-text">Данила, доброе утро! Направляю постоянную ссылку на урок и домашнее задание</div>
+        <div class="p-text" id="pin-text"></div>
       </div>
-      <button class="p-off" onclick="demo('Сообщение откреплено')" title="Открепить"><svg class="i s22"><use href="#i-pin-off"/></svg></button>
+      <button class="p-off" onclick="unpinMessage()" title="Открепить"><svg class="i s22"><use href="#i-pin-off"/></svg></button>
     </div>
 
-    <div class="msgs" id="msgs">
-      <div class="m">
-        <span class="avatar sm av-da">ДА</span>
-        <div class="m-main">
-          <div class="m-head"><span class="m-name">Данила Алексеев</span><span class="m-time">19:42</span></div>
-          <div class="m-text" onclick="openMsgMenu(this)">I made sentences, I prepare retelling of the text</div>
-        </div>
-      </div>
-
-      <div class="m">
-        <span class="avatar sm av-mk">МК</span>
-        <div class="m-main">
-          <div class="m-head"><span class="m-name">Мария Кушнир</span><span class="m-time">19:59</span></div>
-          <div class="m-text"><a href="#" onclick="demo('Открытие ссылок — тестовая версия');return false">https://wordwall.net/resource/121408961?wwmethod=link</a><br><br><span onclick="openMsgMenu(this)">learn the vocabulary from the text</span></div>
-        </div>
-      </div>
-
-      <div class="day">Сегодня</div>
-
-      <div class="m">
-        <span class="avatar sm av-ghost"><svg class="i s18"><use href="#i-user"/></svg></span>
-        <div class="m-main">
-          <div class="m-head"><span class="m-name" style="color:var(--muted)">Неизвестный отправитель</span></div>
-          <div class="m-text deleted">Сообщение удалено</div>
-        </div>
-      </div>
-      <div class="m">
-        <span class="avatar sm" style="background:none"></span>
-        <div class="m-main"><div class="m-text deleted">Сообщение удалено</div></div>
-      </div>
-
-      <div class="m">
-        <span class="avatar sm av-da">ДА</span>
-        <div class="m-main">
-          <div class="m-head"><span class="m-name">Данила Алексеев</span><span class="checks"><svg class="i s16"><use href="#i-checks"/></svg></span><span class="m-time">16:36</span></div>
-          <div class="m-text" onclick="openMsgMenu(this)">Some people from a village wanted to have a big wine feast in a few days. They took a very big barrel from the nearest town and put it in the square. They agreed that everyone would pour a bottle of good wine into it, so there would be a lot for the feast.<br><br>One man thought he was very clever. He said to himself: "If I put water in instead of wine, nobody will see it, because there will be so much wine that the water will disappear in it".<br><br>On the night of the feast, all the people came to the square with their cups. They opened the tap, but only water came out. Everyone in the village had had the same thought</div>
-        </div>
-      </div>
-    </div>
+    <div class="msgs" id="msgs"></div>
 
     <div class="composer">
-      <input id="msg-input" placeholder="Введите сообщение..." autocomplete="off">
+      <div class="reply-bar hidden" id="reply-bar">
+        <div class="rb-main"><div class="rb-a" id="reply-a"></div><div class="rb-t" id="reply-t"></div></div>
+        <button class="icon-btn" style="width:34px;height:34px;background:none" onclick="cancelReply()"><svg class="i s18"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="attach-chips hidden" id="attach-chips"></div>
+      <div class="voice-bar hidden" id="voice-bar">
+        <span class="vdot"></span><span class="vtime" id="voice-time">0:00</span>
+        <span style="flex:1"></span>
+        <button class="btn-line" style="width:auto;height:36px;padding:0 14px;font-size:14px" onclick="voiceCancel()">Отмена</button>
+        <button class="btn-accent" style="width:auto;height:36px;padding:0 14px;font-size:14px" onclick="voiceStop()">Отправить</button>
+      </div>
+      <div class="mention-list hidden" id="mention-list"></div>
+      <textarea id="msg-input" rows="1" placeholder="Введите сообщение..." autocomplete="off"></textarea>
       <div class="c-icons">
-        <button class="ic" onclick="demo('Прикрепить файл — тестовая версия')" title="Прикрепить файл"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
-        <button class="ic" onclick="demo()" title="Упоминание"><svg class="i s22"><use href="#i-at"/></svg></button>
-        <button class="ic aa" onclick="demo()">Aa</button>
-        <button class="ic" onclick="demo('Голосовое сообщение — тестовая версия')" title="Голосовое сообщение"><svg class="i s22"><use href="#i-mic"/></svg></button>
+        <button class="ic" onclick="document.getElementById('file-input').click()" title="Прикрепить файл"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
+        <button class="ic" onclick="startMention()" title="Упоминание"><svg class="i s22"><use href="#i-at"/></svg></button>
+        <button class="ic" id="mic-btn" onclick="voiceTap()" title="Голосовое сообщение"><svg class="i s22"><use href="#i-mic"/></svg></button>
         <button class="ic send" id="send" onclick="sendMsg()" title="Отправить"><svg class="i s24"><use href="#i-send"/></svg></button>
       </div>
     </div>
+    <input type="file" id="file-input" multiple hidden>
   </section>
 
   <!-- ================= НОВЫЙ ЧАТ ================= -->
   <section class="screen hidden" id="screen-newchat">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('chats')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title"><div class="t">Новый чат</div><div class="s">Группа или личка</div></div>
+      <div class="chat-title" style="cursor:default"><div class="t">Новый чат</div><div class="s">Группа или канал</div></div>
       <span style="width:42px"></span>
     </header>
     <div class="scroll nopad">
-      <div class="form">
-        <input class="inp" placeholder="Например: Друзья" maxlength="64">
-        <textarea class="inp area" placeholder="О чём этот чат (необязательно)" maxlength="200"></textarea>
-        <input class="inp" placeholder="Поиск по логину...">
-        <button class="btn-accent" onclick="demo('Чат создан')">Создать</button>
-        <button class="btn-line" onclick="go('chats')">Отмена</button>
+      <div class="seg" style="margin-top:6px">
+        <button class="chip active" id="nc-type-group" onclick="setChatType('group')">Группа</button>
+        <button class="chip" id="nc-type-channel" onclick="setChatType('channel')">Канал</button>
       </div>
-      <div class="sect-label">Подсказка</div>
-      <div class="group" style="margin-top:0"><div class="kv"><span class="k">Добавьте хотя бы одного участника — без этого чат будет пустым.</span></div></div>
+      <div class="form" style="margin-top:12px">
+        <input class="inp" id="nc-title" placeholder="Название (например: Друзья)" maxlength="64">
+        <textarea class="inp area" id="nc-desc" placeholder="О чём этот чат (необязательно)" maxlength="200" style="min-height:80px"></textarea>
+        <div class="hidden" id="nc-public-wrap">
+          <label class="kv" style="padding:6px 4px"><span class="k">Публичный канал</span><input type="checkbox" id="nc-public" style="width:22px;height:22px;accent-color:#5856e0"></label>
+          <input class="inp hidden" id="nc-username" placeholder="username канала (латиницей)" maxlength="32">
+        </div>
+        <input class="inp" id="nc-member-search" placeholder="Поиск людей по логину..." autocomplete="off">
+        <div id="nc-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div id="nc-people"></div>
+        <button class="btn-accent" id="nc-submit" onclick="createChat()">Создать</button>
+      </div>
     </div>
   </section>
 
@@ -397,32 +443,18 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <section class="screen hidden" id="screen-blog">
     <header class="topbar">
       <div><div class="ttl">Блог</div><div class="sub">Последние посты</div></div>
-      <button class="icon-btn" onclick="demo('Написать пост — тестовая версия (только admin)')" title="Написать пост"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      <div class="acts">
+        <button class="icon-btn hidden" id="blog-compose-btn" onclick="openBlogCompose()" title="Написать пост"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      </div>
     </header>
-    <div class="scroll">
-      <div class="post" onclick="openPost(0)">
-        <div class="p-title">Сервер обновлён до v0.1.10</div>
-        <div class="p-meta">admin · 15 октября 2026</div>
-        <div class="p-body">Мастер настройки теперь умеет импортировать данные из файла экспорта, а команда lc import перед заменой данных всегда сохраняет точку отката. Обновление ставится командой sudo lc update.</div>
-      </div>
-      <div class="post" onclick="openPost(1)">
-        <div class="p-title">Local Chat работает без интернета</div>
-        <div class="p-meta">admin · 12 октября 2026</div>
-        <div class="p-body">Сервер поднимает собственную точку доступа Wi-Fi и продолжает работать, даже если внешней сети нет. Сообщения, файлы и аккаунты остаются внутри вашей сети.</div>
-      </div>
-      <div class="post" onclick="openPost(2)">
-        <div class="p-title">Как подключить M5Cardputer</div>
-        <div class="p-meta">admin · 10 октября 2026</div>
-        <div class="p-body">Сопряжение занимает минуту: включите устройство, откройте раздел «Устройства», введите 6-значный код с его экрана — и устройство появится в списке ваших.</div>
-      </div>
-    </div>
+    <div class="scroll" id="blog-list"><div class="spin"></div></div>
   </section>
 
   <!-- ================= ПОСТ ================= -->
   <section class="screen hidden" id="screen-post">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('blog')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title"><div class="t">Пост</div><div class="s">Блог</div></div>
+      <div class="chat-title" style="cursor:default"><div class="t">Пост</div><div class="s">Блог</div></div>
       <span style="width:42px"></span>
     </header>
     <div class="scroll nopad">
@@ -430,8 +462,8 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
         <div class="p-title" id="post-title"></div>
         <div class="p-meta" id="post-meta"></div>
         <div class="p-body" id="post-body"></div>
+        <div class="att-wrap" id="post-atts"></div>
       </div>
-      <div class="group" style="margin-top:0"><button class="row no-line" onclick="go('blog')"><svg class="i s24" style="margin:8px"><use href="#i-back"/></svg>Назад к ленте</button></div>
     </div>
   </section>
 
@@ -439,25 +471,18 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <section class="screen hidden" id="screen-support">
     <header class="topbar">
       <div><div class="ttl">Поддержка</div><div class="sub">Опишите проблему, при необходимости приложите файл</div></div>
-      <button class="icon-btn" onclick="go('newticket')" title="Новое обращение"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      <div class="acts">
+        <button class="icon-btn" id="new-ticket-btn" onclick="go('newticket')" title="Новое обращение"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      </div>
     </header>
     <div class="scroll">
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Мои обращения</span><span class="grow"></span><span class="badge">2</span></div>
-        <button class="row" onclick="openTicket(0)">
-          <span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>
-          <span style="min-width:0"><span style="display:block">Не приходит код сопряжения</span><span class="rsub">M5StickC Plus 2 · сегодня, 10:12</span></span>
-          <span class="rmeta"><span class="pill st-open" id="t0-pill">Открыто</span></span>
-        </button>
-        <button class="row" onclick="openTicket(1)">
-          <span class="avatar av-dev"><svg class="i s18"><use href="#i-user"/></svg></span>
-          <span style="min-width:0"><span style="display:block">Как сменить аватар?</span><span class="rsub">Аккаунт · вчера</span></span>
-          <span class="rmeta"><span class="pill st-resolved" id="t1-pill">Решено</span></span>
-        </button>
+        <div class="group-head"><span class="tri"></span><span>Мои обращения</span><span class="grow"></span><span class="badge" id="tickets-count">0</span></div>
+        <div id="ticket-rows"><div class="spin"></div></div>
       </div>
       <div class="group">
         <button class="row no-line" onclick="go('newticket')"><svg class="i s24" style="margin:8px"><use href="#i-plus"/></svg>Новое обращение</button>
-        <button class="row no-line" onclick="demo('Жалоба на пользователя — тестовая версия')"><svg class="i s24" style="margin:8px"><use href="#i-flag"/></svg>Жалоба на пользователя</button>
+        <button class="row no-line" onclick="openReportFlow()"><svg class="i s24" style="margin:8px"><use href="#i-flag"/></svg>Жалоба на пользователя</button>
       </div>
     </div>
   </section>
@@ -466,40 +491,41 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <section class="screen hidden" id="screen-ticket">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('support')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title"><div class="t" id="ticket-title">Обращение</div><div class="s" id="ticket-status">Открыто</div></div>
-      <button class="icon-btn" onclick="demo('Обновить статус — тестовая версия')" title="Статус"><svg class="i s22"><use href="#i-gear"/></svg></button>
+      <div class="chat-title" style="cursor:default">
+        <div class="t" id="ticket-title">Обращение</div>
+        <div class="s" id="ticket-status-line"></div>
+      </div>
+      <button class="icon-btn hidden" id="ticket-status-btn" onclick="openTicketStatus()" title="Статус"><svg class="i s22"><use href="#i-gear"/></svg></button>
     </header>
     <div class="msgs" id="ticket-msgs"></div>
     <div class="composer">
-      <input id="reply-input" placeholder="Ответ в обращение…" autocomplete="off">
+      <div class="attach-chips hidden" id="ticket-attach-chips"></div>
+      <textarea id="reply-input" rows="1" placeholder="Ответ в обращение..." autocomplete="off"></textarea>
       <div class="c-icons">
-        <button class="ic" onclick="demo('Вложение — тестовая версия')" title="Прикрепить файл"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
-        <button class="ic" onclick="demo('Обращение закрыто')" title="Закрыть обращение"><svg class="i s22"><use href="#i-check-circle"/></svg></button>
+        <button class="ic" onclick="document.getElementById('ticket-file').click()" title="Прикрепить файл"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
         <button class="ic send" id="reply-send" onclick="sendReply()" title="Отправить"><svg class="i s24"><use href="#i-send"/></svg></button>
       </div>
     </div>
+    <input type="file" id="ticket-file" multiple hidden>
   </section>
 
   <!-- ================= НОВОЕ ОБРАЩЕНИЕ ================= -->
   <section class="screen hidden" id="screen-newticket">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('support')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title"><div class="t">Новое обращение</div><div class="s">Поддержка</div></div>
+      <div class="chat-title" style="cursor:default"><div class="t">Новое обращение</div><div class="s">Поддержка</div></div>
       <span style="width:42px"></span>
     </header>
     <div class="scroll nopad">
-      <div class="sect-label" style="margin-top:6px">Тип</div>
-      <div class="seg">
-        <button class="chip active" onclick="pickKind(this)">Запрос в поддержку</button>
-        <button class="chip" onclick="pickKind(this)">Жалоба на пользователя</button>
-      </div>
-      <div class="form" style="margin-top:12px">
-        <input class="inp" placeholder="Тема" maxlength="120">
-        <textarea class="inp area" placeholder="Опишите проблему" maxlength="2000"></textarea>
-        <button class="btn-line" onclick="demo('Вложение — тестовая версия')">Прикрепить файл</button>
-        <button class="btn-accent" onclick="demo('Обращение создано');go('support')">Отправить</button>
+      <div class="form" style="margin-top:10px">
+        <input class="inp" id="nt-title" placeholder="Тема" maxlength="120">
+        <textarea class="inp area" id="nt-body" placeholder="Опишите проблему" maxlength="2000"></textarea>
+        <div class="attach-chips hidden" id="nt-chips"></div>
+        <button class="btn-line" onclick="document.getElementById('nt-file').click()">Прикрепить файл</button>
+        <button class="btn-accent" id="nt-submit" onclick="createTicket()">Отправить</button>
       </div>
     </div>
+    <input type="file" id="nt-file" multiple hidden>
   </section>
 
   <!-- ================= УСТРОЙСТВА ================= -->
@@ -508,29 +534,26 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
       <div><div class="ttl">Устройства</div><div class="sub">Сопряжение и управление устройствами</div></div>
     </header>
     <div class="scroll">
-      <div class="group">
+      <div class="group" id="pair-card">
         <div class="group-head"><span class="tri"></span><span>Сопряжение по коду</span></div>
         <div style="padding:6px 16px 14px">
           <div style="font-size:13.5px;color:var(--sub);margin-bottom:10px">Включите устройство и введите 6-значный код с его экрана. Код действует 5 минут и срабатывает один раз.</div>
           <div style="display:flex;gap:10px">
             <input class="inp" id="pair-code" placeholder="000000" maxlength="6" inputmode="numeric" style="flex:1">
-            <button class="btn-accent" style="width:130px" onclick="pairDevice()">Сопрячь</button>
+            <button class="btn-accent" style="width:130px" id="pair-btn" onclick="pairDevice()">Сопрячь</button>
           </div>
+          <div class="l-error" id="pair-error" style="margin-top:8px"></div>
         </div>
       </div>
 
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Мои устройства</span><span class="grow"></span><span class="badge" id="dev-count">2</span></div>
-        <div id="my-devices"></div>
+        <div class="group-head"><span class="tri"></span><span>Мои устройства</span><span class="grow"></span><span class="badge" id="dev-count">0</span></div>
+        <div id="my-devices"><div class="spin"></div></div>
       </div>
 
       <div class="group">
         <div class="group-head"><span class="tri"></span><span>Каталог устройств</span></div>
-        <button class="row" onclick="openDevice('M5Cardputer')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>M5Cardputer</button>
-        <button class="row" onclick="openDevice('M5Cardputer Adv')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>M5Cardputer Adv</button>
-        <button class="row" onclick="openDevice('M5StickC Plus 2')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>M5StickC Plus 2</button>
-        <button class="row" onclick="openDevice('T-Embed CC1101')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>T-Embed CC1101</button>
-        <button class="row" onclick="openDevice('Flipper Zero')"><span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>Flipper Zero</button>
+        <div id="device-catalog"><div class="spin"></div></div>
       </div>
     </div>
   </section>
@@ -539,82 +562,60 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <section class="screen hidden" id="screen-device">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('devices')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title"><div class="t" id="device-title">Устройство</div><div class="s">Каталог устройств</div></div>
+      <div class="chat-title" style="cursor:default"><div class="t" id="device-title">Устройство</div><div class="s">Каталог устройств</div></div>
       <span style="width:42px"></span>
     </header>
     <div class="scroll nopad">
       <div class="post-view">
         <div class="p-title" id="device-name"></div>
-        <div class="p-body">Портативный клиент Local Chat: чаты, блог и поддержка прямо с устройства. Работает по Wi-Fi внутри сети сервера.</div>
+        <div class="p-body" id="device-desc"></div>
+        <div style="margin-top:10px" id="device-tags"></div>
+        <a class="btn-line hidden" id="device-fw" style="display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:10px" target="_blank" rel="noopener">Скачать прошивку</a>
       </div>
       <div class="sect-label">Установка</div>
-      <div class="group" style="margin-top:0"><div class="kv"><span class="k" style="font-size:15px;line-height:1.45">Скачайте прошивку из релиза и прошейте устройство по инструкции из архива.</span></div></div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="note" id="device-install">—</span></div></div>
       <div class="sect-label">Первичная привязка</div>
-      <div class="group" style="margin-top:0"><div class="kv"><span class="k" style="font-size:15px;line-height:1.45">Включите устройство, дождитесь экрана сопряжения и введите его 6-значный код в разделе «Устройства».</span></div></div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="note" id="device-pairing">—</span></div></div>
       <div class="sect-label">Смена комбинации входа</div>
-      <div class="group" style="margin-top:0"><div class="kv"><span class="k" style="font-size:15px;line-height:1.45">Новая комбинация задаётся на самом устройстве и подтверждается на сервере.</span></div></div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="note" id="device-reset">—</span></div></div>
       <div class="form">
-        <button class="btn-accent" onclick="demo('Отмечено: «у меня есть устройство»')">Отметить «у меня есть устройство»</button>
+        <button class="btn-accent" id="device-own-btn" onclick="toggleOwnership()">Отметить «у меня есть устройство»</button>
       </div>
     </div>
   </section>
 
   <!-- ================= АККАУНТ ================= -->
   <section class="screen hidden" id="screen-account">
-    <div class="scroll">
-      <div class="profile-hero">
-        <div class="hero-ava">ДА</div>
-        <div class="hero-name">Данила Алексеев</div>
-        <div class="hero-login">@admin · admin</div>
-        <div class="hero-status"><span class="dot"></span>в сети</div>
-        <button class="hero-btn" onclick="demo('Смена аватара — тестовая версия (PNG, JPEG или WEBP · до 2 МБ)')"><svg class="i s22"><use href="#i-smile-plus"/></svg>Сменить аватар</button>
-      </div>
-
-      <div class="sect-label">Профиль</div>
-      <div class="group" style="margin-top:0">
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-user"/></svg>Имя<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-phone"/></svg>Телефон<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo()"><svg class="i s24" style="margin:8px"><use href="#i-pencil"/></svg>О себе<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-      </div>
-
-      <div class="sect-label">Ограничения аккаунта</div>
-      <div class="group" style="margin-top:0">
-        <div class="kv"><span class="k">Роль</span><span class="v">admin</span></div>
-        <div class="kv"><span class="k">Лимит чатов</span><span class="v">20</span></div>
-        <div class="kv"><span class="k">Создано чатов</span><span class="v">4</span></div>
-        <div class="kv"><span class="k">Осталось</span><span class="v">16</span></div>
-      </div>
-
-      <div class="sect-label">Другие разделы</div>
-      <div class="group" style="margin-top:0">
-        <button class="row" onclick="go('devices')"><svg class="i s24" style="margin:8px"><use href="#i-chip"/></svg>Устройства<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="go('about')"><svg class="i s24" style="margin:8px"><use href="#i-info"/></svg>О проекте<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row" onclick="demo('Админ-панель — тестовая версия (открывается отдельно: /admin)')"><svg class="i s24" style="margin:8px"><use href="#i-gear"/></svg>Админ-панель<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-        <button class="row danger" onclick="demo('Вы вышли из системы (тест)');go('login')"><svg class="i s24" style="margin:8px"><use href="#i-out"/></svg>Выйти</button>
-      </div>
-    </div>
+    <div class="scroll" id="account-scroll"><div class="spin"></div></div>
   </section>
 
   <!-- ================= О ПРОЕКТЕ ================= -->
   <section class="screen hidden" id="screen-about">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('account')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title"><div class="t">О проекте</div><div class="s">Local Chat</div></div>
+      <div class="chat-title" style="cursor:default"><div class="t">О проекте</div><div class="s">Local Chat</div></div>
       <span style="width:42px"></span>
     </header>
     <div class="scroll nopad">
       <div class="post-view">
         <div class="p-title">Local Chat</div>
-        <div class="p-body">Local Chat — локальный чат-сервер на Raspberry Pi 5. Автономная система без интернета. Чат, блог, тикеты, админ-панель.</div>
+        <div class="p-body">Привет, мы команда no time to sleep, и вы находитесь на нашем проекте local-chat.
+
+Это ДЕМО версия проекта, в будущем он будет и дальше развиваться и обновляться.
+
+Также у нас есть и другие проекты — заглядывайте на наш GitHub: github.com/No-time-to-sleep</div>
       </div>
       <div class="group" style="margin-top:0">
-        <div class="kv"><span class="k">Версия сервера</span><span class="v">0.1.10</span></div>
+        <div class="kv"><span class="k">Версия сервера</span><span class="v" id="about-version">—</span></div>
         <div class="kv"><span class="k">Сервер</span><span class="v">Raspberry Pi 5</span></div>
         <div class="kv"><span class="k">Интернет</span><span class="v">не требуется</span></div>
       </div>
-      <div class="group">
-        <button class="row no-line" onclick="demo('Авторы — тестовая версия')"><svg class="i s24" style="margin:8px"><use href="#i-users"/></svg>Авторы<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>
-      </div>
+      <div class="sect-label">Первоначальная идея</div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="note">Создать отказоустойчивую mesh-систему, которая работает в любых условиях и не нуждается во вмешательстве: Raspberry Pi 5 и устройства M5Stack. Пока есть только RPi 5 — это демо.</span></div></div>
+      <div class="sect-label">История</div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="note">Проект начался более года назад. За это время мы изучили mesh-сети, сетевые протоколы, Arduino, hardware и прошли путь от «сделай всё за 5 минут» до сложных систем разработки через API.</span></div></div>
+      <div class="sect-label">Об авторах</div>
+      <div class="group" style="margin-top:0"><div class="kv"><span class="note">Авторы — два мальчика, которые также участвовали в создании мультфильма «A Default Day Of A Default Cat». Разрабатываем системы для ИИ, занимаемся компьютерной безопасностью и Linux. И как же без D&amp;D.</span></div></div>
     </div>
   </section>
 
@@ -622,25 +623,14 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
   <section class="screen hidden" id="screen-search">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('chats')"><svg class="i s22"><use href="#i-back"/></svg></button>
-      <div class="chat-title"><div class="t">Поиск</div><div class="s">Чаты и люди</div></div>
+      <div class="chat-title" style="cursor:default"><div class="t">Поиск</div><div class="s">Чаты, люди и ссылки</div></div>
       <span style="width:42px"></span>
     </header>
     <div class="search-wrap">
-      <input class="inp" id="search-input" placeholder="Поиск чатов, имя или ссылка…" autocomplete="off">
+      <input class="inp" id="search-input" placeholder="Поиск чатов, имя или ссылка..." autocomplete="off">
     </div>
-    <div class="scroll">
-      <div class="group" id="search-chats">
-        <div class="group-head"><span class="tri"></span><span>Чаты</span></div>
-        <button class="row" onclick="go('chat')"><span class="avatar av-ay">АЯ</span>Английский язык</button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-oi">ОИ</span>Общая информация</button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-ma">МА</span>Математика</button>
-      </div>
-      <div class="group" id="search-people">
-        <div class="group-head"><span class="tri"></span><span>Люди</span></div>
-        <button class="row" onclick="go('chat')"><span class="avatar av-mk">МК</span>Мария Кушнир</button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-mv">МВ</span>Мария Волощенко</button>
-        <button class="row" onclick="go('chat')"><span class="avatar av-vh">ВХ</span>Вероника Харламова</button>
-      </div>
+    <div class="scroll" id="search-results">
+      <div class="empty">Начните вводить запрос — ищем по вашим чатам, публичным каналам и людям.</div>
     </div>
   </section>
 
@@ -649,281 +639,1890 @@ body{margin:0;background:#050506;color:var(--text);font-family:-apple-system,Bli
     <div class="pill">
       <button class="tab" data-tab="chats" onclick="go('chats')"><svg class="i s24"><use href="#i-home"/></svg></button>
       <button class="tab" data-tab="blog" onclick="go('blog')"><svg class="i s24"><use href="#i-doc"/></svg></button>
-      <button class="tab" data-tab="support" onclick="go('support')"><svg class="i s24"><use href="#i-check-circle"/></svg></button>
+      <button class="tab" data-tab="support" onclick="go('support')"><svg class="i s24"><use href="#i-support"/></svg></button>
       <button class="tab" data-tab="account" onclick="go('account')"><svg class="i s24"><use href="#i-user"/></svg></button>
     </div>
-    <button class="search" id="search-btn" onclick="go('search')"><svg class="i s24"><use href="#i-search"/></svg></button>
   </nav>
 
-  <!-- ================= ЛИСТЫ / ШТОРКИ ================= -->
   <div class="sheet-bg" id="sheet-bg" onclick="closeSheet()"></div>
   <div class="sheet" id="sheet">
     <div class="s-title" id="sheet-title"></div>
-    <div id="sheet-rows"></div>
+    <div id="sheet-body"></div>
   </div>
 
   <div class="toast" id="toast"></div>
+  <input type="file" id="avatar-input" accept="image/*" hidden>
 </div>
 
 <script>
 (function(){
-  "use strict";
+"use strict";
 
-  var SCREENS = ["login","chats","chat","newchat","blog","post","support","ticket","newticket","devices","device","account","about","search"];
-  var cfg = {
-    login:    { tab:null,     tabbar:false },
-    chats:    { tab:"chats",  tabbar:true  },
-    chat:     { tab:null,     tabbar:false },
-    newchat:  { tab:null,     tabbar:false },
-    blog:     { tab:"blog",   tabbar:true  },
-    post:     { tab:null,     tabbar:false },
-    support:  { tab:"support",tabbar:true  },
-    ticket:   { tab:null,     tabbar:false },
-    newticket:{ tab:null,     tabbar:false },
-    devices:  { tab:"account",tabbar:true  },
-    device:   { tab:null,     tabbar:false },
-    account:  { tab:"account",tabbar:true  },
-    about:    { tab:"account",tabbar:true  },
-    search:   { tab:null,     tabbar:true, searchActive:true }
-  };
+/* ============================ базовое ============================ */
+var STATE = {
+  token: localStorage.getItem("lc_session_token") || null,
+  user: (function(){ try { return JSON.parse(localStorage.getItem("lc_user") || "null"); } catch(e){ return null; } })(),
+  profile: null,
+  names: {},
+  chats: [],
+  filter: null,
+  showArchived: false,
+  currentChatId: null,
+  currentChat: null,
+  currentView: null,
+  msgCache: {},
+  msgOffset: 0,
+  replyTo: null,
+  attachFiles: [],
+  ticketFiles: [],
+  ticketId: null,
+  ticket: null,
+  device: null,
+  lastChatsLoad: 0,
+  lastMsgsLoad: 0,
+  pendingJoin: null,
+  membersCache: null,
+  screen: "login"
+};
 
-  var app = document.getElementById("app");
-  var tabbar = document.getElementById("tabbar");
-  var toastEl = document.getElementById("toast");
-  var toastTimer = null;
+function $(id){ return document.getElementById(id); }
+function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+function pad2(n){ return String(n).padStart(2, "0"); }
+function fmtTimeShort(ms){ var d = new Date(ms || Date.now()); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+function fmtTime(ms){
+  var d = new Date(ms || Date.now());
+  var months = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
+  return d.getDate() + " " + months[d.getMonth()] + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+}
+function fmtDayKey(ms){ var d = new Date(ms || Date.now()); return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate()); }
+function dayLabel(ms){
+  var d = new Date(ms || Date.now());
+  var today = new Date(); var yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (fmtDayKey(ms) === fmtDayKey(today.getTime())) return "Сегодня";
+  if (fmtDayKey(ms) === fmtDayKey(yest.getTime())) return "Вчера";
+  var months = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  return d.getDate() + " " + months[d.getMonth()] + (d.getFullYear() !== today.getFullYear() ? " " + d.getFullYear() : "");
+}
+var AVA_COLORS = ["#3d5a80","#a855f7","#2fa36b","#3f7dfa","#e14b52","#c425d6","#35b8cf","#d08a2c"];
+function chatAvaFor(title, id){
+  var src = String(title || "") + "#" + String(id || 0);
+  var h = 0; for (var i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) >>> 0;
+  var words = String(title || "").trim().split(/\s+/).filter(Boolean);
+  var initials = words.length ? words.map(function(w){ return w[0]; }).slice(0,2).join("").toUpperCase() : "Ч";
+  return { color: AVA_COLORS[h % AVA_COLORS.length], initials: initials };
+}
+var EMOJIS = ["🐱","🐶","🐼","🦊","🐸","🐵","🦁","🐮","🐷","🐭","🐹","🐰","🐻","🐨","🐯","🐙","🦄","🐳","🐧","🐤","👻","🤖","👽","🐲","🦋","🐞","🐝","🦉","🐺","🐴"];
+function userEmoji(uid){ return EMOJIS[(uid || 0) % EMOJIS.length]; }
+function userName(uid){ return STATE.names[uid] || ("Пользователь #" + uid); }
+function avatarHtml(url, emojiOrText, cls){
+  if (url) return '<span class="' + (cls||"avatar") + '"><img src="' + esc(url) + '" alt=""></span>';
+  return '<span class="' + (cls||"avatar") + '">' + esc(emojiOrText || "?") + '</span>';
+}
+function attUrl(a){
+  var base = a.download_url || ("/media/api/attachments/" + a.attachment_id + "/download");
+  return base + (base.indexOf("?") >= 0 ? "&" : "?") + "session_token=" + encodeURIComponent(STATE.token || "");
+}
+function renderAtts(items){
+  if (!items || !items.length) return "";
+  return '<div class="att-wrap">' + items.map(function(a){
+    var url = esc(attUrl(a));
+    var name = esc(a.filename || ("файл-" + a.attachment_id));
+    var mime = String(a.mime_type || "");
+    if (a.media_kind === "image" || mime.indexOf("image/") === 0)
+      return '<div class="att-img"><img src="' + url + '" alt="" loading="lazy" onclick="window.open(this.src,\'_blank\')"></div>';
+    if (a.media_kind === "audio" || mime.indexOf("audio/") === 0)
+      return '<div class="att-audio"><audio controls preload="none" src="' + url + '"></audio></div>';
+    return '<a class="att-file" href="' + url + '" target="_blank" rel="noopener"><svg class="i s18"><use href="#i-paperclip"/></svg><span>' + name + '</span></a>';
+  }).join("") + "</div>";
+}
+function highlightMentions(text){
+  return esc(text || "").replace(/(^|[\s(.,!?])@([a-zA-Z0-9_]{2,32})/g, function(all, pre, login){ return pre + '<span class="mention">@' + login + '</span>'; });
+}
+function linkify(html){
+  return html.replace(/(https?:\/\/[^\s<]+)/g, function(u){ return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; });
+}
+function copyText(text){
+  try {
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text); toast("Скопировано"); return; }
+  } catch(e){}
+  var ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); toast("Скопировано"); } catch(e) { toast("Не удалось скопировать"); }
+  ta.remove();
+}
 
-  function el(id){ return document.getElementById(id); }
-
-  window.toast = function(msg){
-    toastEl.textContent = msg;
-    toastEl.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1900);
-  };
-  window.demo = function(msg){ toast(msg || "Тестовая версия — этот раздел пока не работает"); };
-
-  function show(name){
-    for (var i = 0; i < SCREENS.length; i++) {
-      el("screen-" + SCREENS[i]).classList.toggle("hidden", SCREENS[i] !== name);
+/* ============================ API ============================ */
+async function api(url, opts){
+  opts = opts || {};
+  var headers = { "Content-Type": "application/json" };
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, opts.timeoutMs || 12000);
+  try {
+    var r = await fetch(url, Object.assign({}, opts, { headers: headers, signal: controller.signal }));
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) {
+      var msg = "HTTP " + r.status;
+      if (d && d.detail) {
+        if (typeof d.detail === "string") msg = d.detail;
+        else if (Array.isArray(d.detail) && d.detail.length) msg = d.detail[0].msg || msg;
+        else msg = d.detail.message || d.detail.code || msg;
+      }
+      var e = new Error(msg); e.status = r.status; throw e;
     }
-    var c = cfg[name] || {};
-    tabbar.classList.toggle("hidden", !c.tabbar);
-    var tabs = tabbar.querySelectorAll(".tab");
-    for (var j = 0; j < tabs.length; j++) {
-      tabs[j].classList.toggle("active", tabs[j].getAttribute("data-tab") === c.tab);
-    }
-    el("search-btn").classList.toggle("active", !!c.searchActive);
-    app.scrollTop = 0;
+    return d;
+  } catch(e) {
+    if (e && e.name === "AbortError") throw new Error("Сервер не отвечает (таймаут)");
+    if (e && e.name === "TypeError") throw new Error("Сервер недоступен");
+    throw e;
+  } finally { clearTimeout(timer); }
+}
+function tk(){ return encodeURIComponent(STATE.token || ""); }
+
+async function uploadFile(file){
+  var form = new FormData();
+  form.append("file", file);
+  var r = await fetch("/media/api/attachments?session_token=" + tk(), { method: "POST", body: form });
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    var msg = (d && d.detail && (d.detail.message || d.detail.code)) || ("Ошибка загрузки (" + r.status + ")");
+    throw new Error(msg);
   }
-
-  window.go = function(name){
-    show(name);
-    if (location.hash !== "#/" + name) location.hash = "#/" + name;
-  };
-  window.addEventListener("hashchange", function(){
-    var name = location.hash.replace(/^#\//, "") || "login";
-    if (SCREENS.indexOf(name) >= 0) show(name);
+  return d;
+}
+function downscaleImage(file, maxSide){
+  return new Promise(function(resolve, reject){
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      try {
+        var scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        var w = Math.max(1, Math.round(img.width * scale));
+        var h = Math.max(1, Math.round(img.height * scale));
+        var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(cv.toDataURL("image/jpeg", 0.85));
+      } catch(e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("Не удалось прочитать изображение")); };
+    img.src = url;
   });
+}
 
-  /* ---------- шторка действий ---------- */
-  var sheet = el("sheet"), sheetBg = el("sheet-bg"), sheetRows = el("sheet-rows");
-  window.openSheet = function(title, items){
-    el("sheet-title").textContent = title;
-    sheetRows.innerHTML = "";
-    items.forEach(function(it){
-      var b = document.createElement("button");
-      b.className = "srow" + (it.danger ? " danger" : "");
-      b.innerHTML = '<svg class="i s22"><use href="#' + it.icon + '"/></svg>' + it.label;
-      b.onclick = function(){ closeSheet(); if (it.action) it.action(); };
-      sheetRows.appendChild(b);
+/* ============================ toast / sheet ============================ */
+var toastEl, toastTimer = null;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2200);
+}
+function openSheet(title, items, opts){
+  opts = opts || {};
+  $("sheet-title").textContent = title || "";
+  var body = $("sheet-body");
+  body.innerHTML = "";
+  if (opts.reacts && opts.reacts.length) {
+    var row = document.createElement("div"); row.className = "reacts";
+    opts.reacts.forEach(function(em){
+      var b = document.createElement("button"); b.textContent = em; b.type = "button";
+      b.onclick = function(){ closeSheet(); if (opts.onReact) opts.onReact(em); };
+      row.appendChild(b);
     });
-    sheet.classList.add("show");
-    sheetBg.classList.add("show");
-  };
-  window.closeSheet = function(){
-    sheet.classList.remove("show");
-    sheetBg.classList.remove("show");
-  };
-
-  window.openMsgMenu = function(node){
-    openSheet("Действия", [
-      { icon:"i-chat",   label:"Ответить",              action:function(){ toast("Ответ на сообщение"); } },
-      { icon:"i-send",   label:"Переслать",             action:function(){ toast("Переслано (тест)"); } },
-      { icon:"i-smile-plus", label:"Реакция",           action:function(){ toast("Реакции — тестовая версия"); } },
-      { icon:"i-pin-off",label:"Закрепить",             action:function(){ toast("Сообщение закреплено"); } },
-      { icon:"i-doc",    label:"Копировать",            action:function(){ toast("Скопировано"); } }
-    ]);
-  };
-  window.openChatMenu = function(){
-    openSheet("Английский язык", [
-      { icon:"i-user",   label:"Профиль чата",          action:function(){ toast("Профиль чата — тестовая версия"); } },
-      { icon:"i-users",  label:"Участники (5)",         action:function(){ toast("Участники — тестовая версия"); } },
-      { icon:"i-link",   label:"Ссылки-приглашения",    action:function(){ toast("Ссылки-приглашения — тестовая версия"); } },
-      { icon:"i-gear",   label:"Настройки чата",        action:function(){ toast("Настройки чата — тестовая версия"); } },
-      { icon:"i-out",    label:"Выйти из чата",         danger:true, action:function(){ toast("Вы вышли из чата"); } }
-    ]);
-  };
-
-  /* ---------- чат: отправка ---------- */
-  var input = el("msg-input"), sendBtn = el("send"), msgs = el("msgs");
-  window.sendMsg = function(){
-    var text = input.value.trim();
-    if (!text) return;
-    var now = new Date();
-    var hh = String(now.getHours()).padStart(2, "0");
-    var mm = String(now.getMinutes()).padStart(2, "0");
-    var d = document.createElement("div");
-    d.className = "m";
-    d.innerHTML = '<span class="avatar sm av-da">ДА</span>' +
-      '<div class="m-main"><div class="m-head"><span class="m-name">Данила Алексеев</span>' +
-      '<span class="checks"><svg class="i s16"><use href="#i-checks"/></svg></span>' +
-      '<span class="m-time">' + hh + ":" + mm + '</span></div><div class="m-text"></div></div>';
-    var txt = d.querySelector(".m-text");
-    txt.textContent = text;
-    txt.onclick = function(){ openMsgMenu(txt); };
-    msgs.appendChild(d);
-    input.value = "";
-    sendBtn.classList.remove("ready");
-    msgs.scrollTop = msgs.scrollHeight;
-  };
-  input.addEventListener("input", function(){ sendBtn.classList.toggle("ready", !!input.value.trim()); });
-  input.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); sendMsg(); } });
-
-  /* ---------- блог ---------- */
-  var POSTS = [
-    { title:"Сервер обновлён до v0.1.10", meta:"admin · 15 октября 2026",
-      body:"Мастер настройки теперь умеет импортировать данные из файла экспорта, а команда lc import перед заменой данных всегда сохраняет точку отката в /var/backups.\n\nОбновление ставится командой sudo lc update." },
-    { title:"Local Chat работает без интернета", meta:"admin · 12 октября 2026",
-      body:"Сервер поднимает собственную точку доступа Wi-Fi и продолжает работать, даже если внешней сети нет.\n\nСообщения, файлы и аккаунты остаются внутри вашей сети." },
-    { title:"Как подключить M5Cardputer", meta:"admin · 10 октября 2026",
-      body:"Сопряжение занимает минуту: включите устройство, откройте раздел «Устройства», введите 6-значный код с его экрана — и устройство появится в списке ваших." }
-  ];
-  window.openPost = function(i){
-    var p = POSTS[i];
-    el("post-title").textContent = p.title;
-    el("post-meta").textContent = p.meta;
-    el("post-body").textContent = p.body;
-    go("post");
-  };
-
-  /* ---------- поддержка ---------- */
-  var TICKETS = [
-    { title:"Не приходит код сопряжения", status:"open", statusText:"Открыто",
-      thread:[
-        { who:"you", name:"Вы", av:"av-da", text:"Здравствуйте! Пытаюсь сопрячь M5StickC Plus 2, но код не отображается на экране.", time:"10:12" },
-        { who:"sup", name:"Поддержка", av:"av-dev", text:"Добрый день! Проверьте, что устройство подключено к сети LC-Hub и на нём открыт экран сопряжения.", time:"10:20" }
-      ] },
-    { title:"Как сменить аватар?", status:"resolved", statusText:"Решено",
-      thread:[
-        { who:"you", name:"Вы", av:"av-da", text:"Не нашёл, где меняется фото профиля.", time:"вчера, 18:40" },
-        { who:"sup", name:"Поддержка", av:"av-dev", text:"Откройте «Аккаунт» и нажмите «Сменить аватар» — можно загрузить фото до 2 МБ.", time:"вчера, 18:55" }
-      ] }
-  ];
-  var currentTicket = 0;
-  function renderTicket(){
-    var t = TICKETS[currentTicket];
-    el("ticket-title").textContent = t.title;
-    el("ticket-status").textContent = t.statusText;
-    var box = el("ticket-msgs");
-    box.innerHTML = "";
-    t.thread.forEach(function(m){
-      var d = document.createElement("div");
-      d.className = "m";
-      d.innerHTML = '<span class="avatar sm ' + m.av + '">' + (m.who === "you" ? "ДА" : '<svg class="i s18"><use href="#i-check-circle"/></svg>') + '</span>' +
-        '<div class="m-main"><div class="m-head"><span class="m-name">' + m.name + '</span>' +
-        '<span class="m-time">' + m.time + '</span></div><div class="m-text"></div></div>';
-      d.querySelector(".m-text").textContent = m.text;
-      box.appendChild(d);
-    });
-    box.scrollTop = box.scrollHeight;
+    body.appendChild(row);
   }
-  window.openTicket = function(i){
-    currentTicket = i;
-    renderTicket();
-    go("ticket");
-  };
-  var replyInput = el("reply-input"), replySend = el("reply-send");
-  window.sendReply = function(){
-    var text = replyInput.value.trim();
-    if (!text) return;
-    var now = new Date();
-    TICKETS[currentTicket].thread.push({
-      who:"you", name:"Вы", av:"av-da", text:text,
-      time: String(now.getHours()).padStart(2,"0") + ":" + String(now.getMinutes()).padStart(2,"0")
+  (items || []).forEach(function(it){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "srow" + (it.danger ? " danger" : "");
+    b.innerHTML = (it.icon ? '<svg class="i s22"><use href="#' + it.icon + '"/></svg>' : "") + "<span>" + esc(it.label) + "</span>";
+    b.onclick = function(){ closeSheet(); setTimeout(function(){ if (it.action) it.action(); }, 60); };
+    body.appendChild(b);
+  });
+  $("sheet").classList.add("show");
+  $("sheet-bg").classList.add("show");
+}
+function closeSheet(){
+  $("sheet").classList.remove("show");
+  $("sheet-bg").classList.remove("show");
+}
+function openSheetHtml(title, html, onReady){
+  $("sheet-title").textContent = title || "";
+  var body = $("sheet-body");
+  body.innerHTML = html;
+  $("sheet").classList.add("show");
+  $("sheet-bg").classList.add("show");
+  if (onReady) setTimeout(function(){ onReady(body); }, 30);
+}
+function openListSheet(title, rows, emptyText){
+  var html = '<div class="s-list">' + (rows.length ? rows.map(function(r, i){
+    return '<button class="s-item" data-idx="' + i + '">' + r.html + "</button>";
+  }).join("") : '<div class="s-empty">' + esc(emptyText || "Пусто") + "</div>") + "</div>";
+  openSheetHtml(title, html, function(body){
+    body.querySelectorAll(".s-item").forEach(function(b){
+      var idx = Number(b.getAttribute("data-idx"));
+      b.onclick = function(){ closeSheet(); setTimeout(function(){ rows[idx].action(); }, 60); };
     });
-    replyInput.value = "";
-    replySend.classList.remove("ready");
-    renderTicket();
-  };
-  replyInput.addEventListener("input", function(){ replySend.classList.toggle("ready", !!replyInput.value.trim()); });
-  replyInput.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); sendReply(); } });
-  window.pickKind = function(chip){
-    var chips = document.querySelectorAll("#screen-newticket .chip");
-    for (var i = 0; i < chips.length; i++) chips[i].classList.remove("active");
-    chip.classList.add("active");
-  };
+  });
+}
+function openFormSheet(title, html, onReady){
+  openSheetHtml(title, '<div class="s-form">' + html + "</div>", onReady);
+}
 
-  /* ---------- устройства ---------- */
-  var MY_DEVICES = [
-    { name:"M5Cardputer", on:true },
-    { name:"M5StickC Plus 2", on:false }
+/* ============================ auth ============================ */
+function setAuth(data){
+  STATE.token = data.session.token;
+  STATE.user = data.user;
+  localStorage.setItem("lc_session_token", STATE.token);
+  localStorage.setItem("lc_user", JSON.stringify(data.user));
+  STATE.pendingJoin = null;
+  startPresence();
+  loadNames();
+  renderChip();
+}
+function clearAuth(){
+  STATE.token = null; STATE.user = null; STATE.profile = null; STATE.chats = [];
+  localStorage.removeItem("lc_session_token");
+  localStorage.removeItem("lc_user");
+}
+function requireAuth(){ if (!STATE.token) { go("login"); return false; } return true; }
+function renderChip(){
+  var name = (STATE.profile && (STATE.profile.display_name || STATE.profile.login)) || (STATE.user && STATE.user.login) || "Профиль";
+  var ava = $("chip-ava");
+  var url = STATE.profile && STATE.profile.avatar_url;
+  if (url) ava.innerHTML = '<img src="' + esc(url) + '" alt="">';
+  else ava.textContent = (STATE.profile && STATE.profile.avatar_emoji) || userEmoji(STATE.user && STATE.user.id || 0);
+  $("chip-name").textContent = name;
+}
+async function loadNames(){
+  if (!STATE.token) return;
+  try {
+    var d = await api("/admin/users?session_token=" + tk() + "&limit=200");
+    (d.items || []).forEach(function(u){ STATE.names[u.user_id] = u.display_name || u.login; });
+  } catch(e) { /* не админ — не страшно */ }
+}
+var presenceTimer = null;
+function startPresence(){
+  if (presenceTimer) return;
+  var ping = function(){
+    if (!STATE.token || document.hidden) return;
+    fetch("/chat/api/presence/ping", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_token: STATE.token })
+    }).catch(function(){});
+  };
+  ping();
+  presenceTimer = setInterval(ping, 30000);
+}
+
+/* ============================ router ============================ */
+var SCREENS = ["login","chats","chat","newchat","blog","post","support","ticket","newticket","devices","device","account","about","search"];
+var CFG = {
+  login:    { tab: null,      tabbar: false },
+  chats:    { tab: "chats",   tabbar: true  },
+  chat:     { tab: null,      tabbar: false },
+  newchat:  { tab: null,      tabbar: false },
+  blog:     { tab: "blog",    tabbar: true  },
+  post:     { tab: null,      tabbar: false },
+  support:  { tab: "support", tabbar: true  },
+  ticket:   { tab: null,      tabbar: false },
+  newticket:{ tab: null,      tabbar: false },
+  devices:  { tab: "account", tabbar: true  },
+  device:   { tab: null,      tabbar: false },
+  account:  { tab: "account", tabbar: true  },
+  about:    { tab: "account", tabbar: true  },
+  search:   { tab: null,      tabbar: false }
+};
+var PUBLIC = { login: 1, about: 1 };
+function show(name){
+  if (!PUBLIC[name] && !STATE.token) name = "login";
+  if (SCREENS.indexOf(name) < 0) name = STATE.token ? "chats" : "login";
+  SCREENS.forEach(function(s){ $("screen-" + s).classList.toggle("hidden", s !== name); });
+  var c = CFG[name] || {};
+  $("tabbar").classList.toggle("hidden", !c.tabbar);
+  $("tabbar").querySelectorAll(".tab").forEach(function(b){
+    b.classList.toggle("active", b.getAttribute("data-tab") === c.tab);
+  });
+  STATE.screen = name;
+  if (name === "chats") { renderChatRows(); refreshChats(false); }
+  if (name === "blog") renderBlog();
+  if (name === "support") renderSupport();
+  if (name === "account") renderAccount();
+  if (name === "devices") renderDevices();
+  if (name === "about") loadAbout();
+  if (name === "search") { $("search-input").value = ""; renderSearch(""); setTimeout(function(){ $("search-input").focus(); }, 60); }
+}
+function go(name){
+  if (!PUBLIC[name] && !STATE.token) name = "login";
+  show(name);
+  if (location.hash !== "#/" + name) location.hash = "#/" + name;
+}
+window.addEventListener("hashchange", function(){
+  var m = location.hash.match(/^#\/join\/(.+)$/);
+  if (m) { handleJoinLink(decodeURIComponent(m[1])); return; }
+  var name = location.hash.replace(/^#\//, "") || (STATE.token ? "chats" : "login");
+  if (SCREENS.indexOf(name) >= 0) show(name);
+});
+
+/* ============================ chats ============================ */
+async function refreshChats(force){
+  if (!STATE.token) return;
+  var now = Date.now();
+  if (!force && now - STATE.lastChatsLoad < 4000) return;
+  STATE.lastChatsLoad = now;
+  try {
+    var d = await api("/chat/api/chats?session_token=" + tk());
+    STATE.chats = d.items || [];
+  } catch(e) {
+    if (e.status === 401 || e.status === 403) { clearAuth(); go("login"); return; }
+    STATE.chats = STATE.chats || [];
+  }
+  renderChatRows();
+}
+function chatDisplayTitle(chat){
+  var t = chat.title || ("Чат #" + chat.chat_id);
+  if (t.indexOf(" & ") >= 0 && STATE.user && STATE.user.login) {
+    var parts = t.split(" & ").filter(function(p){ return p !== STATE.user.login; });
+    if (parts.length) t = parts.join(" & ");
+  }
+  return t;
+}
+function renderChatRows(){
+  var box = $("chat-rows");
+  if (!box) return;
+  var all = STATE.chats || [];
+  var dm = all.filter(function(c){ return c.chat_type === "dm"; });
+  var pinned = all.filter(function(c){ return c.is_pinned; });
+  var drafts = all.filter(function(c){ return (c.draft_text || "").trim(); });
+  $("qc-dm").textContent = dm.length ? (dm.length + " шт.") : "нет";
+  $("qc-pin").textContent = pinned.length ? (pinned.length + " шт.") : "нет";
+  $("qc-draft").textContent = drafts.length ? (drafts.length + " шт.") : "нет";
+  document.querySelectorAll(".qcard").forEach(function(c){
+    c.classList.toggle("active", c.getAttribute("data-filter") === STATE.filter);
+  });
+  var list = all.slice();
+  var label = "Чаты";
+  if (STATE.filter === "dm") { list = dm; label = "Личные"; }
+  else if (STATE.filter === "pinned") { list = pinned; label = "Важные"; }
+  else if (STATE.filter === "drafts") { list = drafts; label = "Черновики"; }
+  else if (!STATE.showArchived) { list = list.filter(function(c){ return !c.is_archived; }); }
+  else { list = list.filter(function(c){ return c.is_archived; }); }
+  $("chats-head-label").textContent = label + (STATE.showArchived && !STATE.filter ? " (архив)" : "");
+  box.innerHTML = "";
+  if (!list.length) {
+    var msg = STATE.filter === "dm" ? "Личных чатов пока нет — найдите человека в поиске."
+      : STATE.filter === "pinned" ? "Закреплённых чатов нет. Закрепить можно в меню чата."
+      : STATE.filter === "drafts" ? "Черновиков нет."
+      : STATE.showArchived ? "Архив пуст." : "Чатов пока нет — создайте первый или присоединитесь по ссылке.";
+    box.innerHTML = '<div class="empty">' + esc(msg) + "</div>";
+    return;
+  }
+  list.forEach(function(chat){
+    var title = chatDisplayTitle(chat);
+    var cav = chatAvaFor(title, chat.chat_id);
+    var b = document.createElement("button");
+    b.className = "row";
+    var typeIcon = chat.chat_type === "channel" ? '<svg class="i s16"><use href="#i-megaphone"/></svg>'
+      : chat.chat_type === "dm" ? '<svg class="i s16"><use href="#i-mail"/></svg>' : "";
+    var flags = "";
+    if (chat.is_pinned) flags += '<span class="flag" title="Закреплён"><svg class="i s15"><use href="#i-pin"/></svg></span>';
+    if (chat.is_muted) flags += '<span class="flag" title="Без звука"><svg class="i s15"><use href="#i-bell-off"/></svg></span>';
+    var draft = (chat.draft_text || "").trim();
+    var sub = draft ? "Черновик: " + draft.slice(0, 60) : (chat.description || ("#" + chat.chat_id));
+    var unread = Number(chat.unread_count || 0);
+    var badge = unread > 0 ? '<span class="badge unread' + (chat.is_muted ? " muted" : "") + '">' + (unread > 99 ? "99+" : unread) + "</span>" : "";
+    var avaUrl = chat.avatar_url ? esc(chat.avatar_url) : "";
+    b.innerHTML =
+      '<span class="avatar" style="background:' + cav.color + '">' + (avaUrl ? '<img src="' + avaUrl + '" alt="">' : esc(cav.initials)) + "</span>" +
+      '<span class="rcol"><span class="rt" style="display:flex;align-items:center;gap:7px">' + typeIcon + "<span style=\"white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">" + esc(title) + "</span>" + flags + "</span>" +
+      '<span class="rsub' + (draft ? " draft" : "") + '">' + esc(sub) + "</span></span>" + badge;
+    b.onclick = function(){ openChat(chat); };
+    box.appendChild(b);
+  });
+}
+function setFilter(f){
+  STATE.filter = (STATE.filter === f) ? null : f;
+  renderChatRows();
+  $("chats-scroll").scrollTop = 0;
+}
+function openChatsMenu(){
+  var archived = (STATE.chats || []).filter(function(c){ return c.is_archived; }).length;
+  var items = [
+    { icon: "i-plus", label: "Новый чат", action: function(){ go("newchat"); } },
+    { icon: "i-link", label: "Присоединиться по ссылке", action: function(){ openJoinSheet(); } }
   ];
-  function renderDevices(){
-    var box = el("my-devices");
-    box.innerHTML = "";
-    if (!MY_DEVICES.length) {
-      box.innerHTML = '<div class="kv"><span class="k">Нет сопряжённых устройств</span></div>';
+  if (archived) items.push({ icon: "i-archive", label: STATE.showArchived ? "Скрыть архив (" + archived + ")" : "Показать архив (" + archived + ")", action: function(){ STATE.showArchived = !STATE.showArchived; STATE.filter = null; renderChatRows(); } });
+  openSheet("Чаты", items);
+}
+function openJoinSheet(){
+  openFormSheet("Присоединиться",
+    '<input class="inp" id="join-input" placeholder="Ссылка или код приглашения" autocomplete="off">' +
+    '<button class="btn-accent" id="join-submit">Войти</button>',
+    function(){
+      $("join-submit").onclick = async function(){
+        var v = $("join-input").value.trim();
+        if (!v) return;
+        closeSheet();
+        await doJoin(v);
+      };
+    });
+}
+function extractJoinTarget(raw){
+  var c = String(raw || "").trim();
+  var i = c.indexOf("#/join/");
+  if (i >= 0) c = c.slice(i + 7);
+  if (/^https?:\/\//i.test(c)) { try { c = new URL(c).pathname; } catch(e){} }
+  c = c.split("?")[0].split("#")[0].replace(/^\/+|\/+$/g, "");
+  var parts = c.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "";
+}
+async function doJoin(raw){
+  var target = extractJoinTarget(raw) || String(raw || "").trim();
+  if (!target) { toast("Пустая ссылка"); return; }
+  try {
+    var res;
+    try {
+      res = await api("/chat/api/join", { method: "POST", body: JSON.stringify({ session_token: STATE.token, code: target }) });
+    } catch(e) {
+      if (e.status === 404) res = await api("/chat/api/join", { method: "POST", body: JSON.stringify({ session_token: STATE.token, username: target }) });
+      else throw e;
     }
-    MY_DEVICES.forEach(function(d, i){
+    if (res.join_status === "pending") toast("Заявка отправлена — ждите подтверждения");
+    else if (res.already_member) toast("Вы уже в этом чате");
+    else toast("Вы вошли в чат");
+    await refreshChats(true);
+    var cid = (res.chat && res.chat.chat_id) || res.chat_id;
+    if (cid) {
+      var chat = (STATE.chats || []).filter(function(c){ return c.chat_id === cid; })[0];
+      if (chat) openChat(chat);
+    }
+  } catch(e) { toast(e.message); }
+}
+async function handleJoinLink(code){
+  STATE.pendingJoin = code;
+  if (!STATE.token) { go("login"); return; }
+  await doJoin(code);
+  STATE.pendingJoin = null;
+  if (location.hash !== "#/chats") location.hash = "#/chats";
+}
+
+/* ============================ chat ============================ */
+async function openChat(chat){
+  STATE.currentChatId = chat.chat_id;
+  STATE.currentChat = chat;
+  STATE.currentView = null;
+  STATE.msgOffset = 0;
+  STATE.membersCache = null;
+  cancelReply();
+  clearAttach();
+  $("msg-input").value = "";
+  updateSendBtn();
+  $("chat-title-t").textContent = chatDisplayTitle(chat);
+  $("chat-title-s").textContent = "";
+  $("pin-bar").classList.add("hidden");
+  $("msgs").innerHTML = '<div class="spin"></div>';
+  go("chat");
+  try {
+    var d = await api("/chat/api/chats/" + chat.chat_id + "?session_token=" + tk());
+    STATE.currentView = d.view || null;
+    if (d.chat) { STATE.currentChat = Object.assign({}, chat, d.chat); }
+    renderChatHeader();
+  } catch(e) { /* оставим как есть */ }
+  await loadMessages(true);
+  STATE.lastMsgsLoad = Date.now();
+}
+function renderChatHeader(){
+  var chat = STATE.currentChat || {};
+  var view = STATE.currentView || {};
+  $("chat-title-t").textContent = chatDisplayTitle(chat);
+  var sub = [];
+  if (chat.chat_type === "channel") sub.push("Канал");
+  else if (chat.chat_type === "dm") sub.push("Личный чат");
+  else sub.push("Группа");
+  if (view.member_count) sub.push(view.member_count + " участников");
+  $("chat-title-s").textContent = sub.join(" · ");
+  var pinned = view.pinned_message;
+  if (pinned) {
+    $("pin-bar").classList.remove("hidden");
+    $("pin-text").textContent = pinned.body_text || "";
+  } else {
+    $("pin-bar").classList.add("hidden");
+  }
+}
+async function loadMessages(force, older){
+  var chatId = STATE.currentChatId;
+  if (!chatId) return;
+  var input = $("msg-input");
+  if (!force && !older && input && input.value.trim()) return;
+  var box = $("msgs");
+  if (!force && !older && box && (box.scrollHeight - box.scrollTop - box.clientHeight > 120)) return;
+  var limit = 50;
+  try {
+    var url = "/chat/api/chats/" + chatId + "/messages?session_token=" + tk() + "&limit=" + limit + (older ? "&offset=" + STATE.msgOffset : "");
+    var d = await api(url);
+    var items = d.items || [];
+    if (older) {
+      if (!items.length) return;
+      var prevH = box.scrollHeight, prevTop = box.scrollTop;
+      var frag = document.createDocumentFragment();
+      var lastDay = null;
+      items.forEach(function(m){
+        var day = fmtDayKey(m.created_at_ms);
+        if (day !== lastDay) { frag.appendChild(daySep(m.created_at_ms)); lastDay = day; }
+        frag.appendChild(buildMsgEl(m));
+      });
+      var anchor = box.querySelector(".load-older");
+      box.insertBefore(frag, anchor || box.firstChild);
+      STATE.msgOffset += items.length;
+      if (items.length < limit && anchor) anchor.remove();
+      box.scrollTop = prevTop + (box.scrollHeight - prevH);
+      return;
+    }
+    var wasBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    var oldTop = box.scrollTop;
+    var frag2 = document.createDocumentFragment();
+    if (items.length >= limit) {
+      var olderBtn = document.createElement("button");
+      olderBtn.className = "load-older";
+      olderBtn.textContent = "Показать раньше";
+      olderBtn.onclick = function(){ loadMessages(false, true); };
+      frag2.appendChild(olderBtn);
+    }
+    var firstDay = null;
+    items.forEach(function(m){
+      var day = fmtDayKey(m.created_at_ms);
+      if (day !== firstDay) { frag2.appendChild(daySep(m.created_at_ms)); firstDay = day; }
+      frag2.appendChild(buildMsgEl(m));
+    });
+    if (!items.length) frag2.appendChild(emptyEl("Сообщений пока нет — напишите первым."));
+    box.innerHTML = "";
+    box.appendChild(frag2);
+    STATE.msgOffset = items.length;
+    if (wasBottom) box.scrollTop = box.scrollHeight; else box.scrollTop = oldTop;
+    var last = items.length ? items[items.length - 1] : null;
+    if (last && STATE.currentView && (STATE.currentView.last_read_message_id || 0) < last.message_id) {
+      STATE.currentView.last_read_message_id = last.message_id;
+      api("/chat/api/chats/" + chatId + "/read", { method: "POST", body: JSON.stringify({ session_token: STATE.token, message_id: last.message_id }) }).catch(function(){});
+      var cached = (STATE.chats || []).filter(function(c){ return c.chat_id === chatId; })[0];
+      if (cached) cached.unread_count = 0;
+    }
+  } catch(e) {
+    if (force) box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>";
+  }
+}
+function emptyEl(text){ var d = document.createElement("div"); d.className = "empty"; d.textContent = text; return d; }
+function daySep(ms){ var d = document.createElement("div"); d.className = "day"; d.textContent = dayLabel(ms); return d; }
+function buildMsgEl(m){
+  STATE.msgCache[m.message_id] = m;
+  var isMe = m.author_user_id === (STATE.user && STATE.user.id);
+  var div = document.createElement("div");
+  div.className = "m";
+  div.setAttribute("data-mid", m.message_id);
+  var name = isMe ? ((STATE.profile && STATE.profile.login) || "Вы") : (STATE.names[m.author_user_id] || m.author_login || userName(m.author_user_id));
+  var avaUrl = "";
+  var html =
+    '<span class="m-ava">' + (avaUrl ? '<img src="' + esc(avaUrl) + '" alt="">' : esc(m.author_avatar_emoji || userEmoji(m.author_user_id))) + "</span>" +
+    '<div class="m-main">' +
+      '<div class="m-head"><span class="m-name">' + esc(name) + "</span>" +
+      (isMe ? '<span class="checks"><svg class="i s16"><use href="#i-checks"/></svg></span>' : "") +
+      '<span class="m-time">' + fmtTimeShort(m.created_at_ms) + "</span></div>";
+  if (m.forwarded_from_login) html += '<div class="m-forwarded"><svg class="i s15"><use href="#i-forward"/></svg> Переслано от <b>' + esc(m.forwarded_from_login) + "</b></div>";
+  if (m.reply_to_message_id) {
+    html += '<div class="m-reply" onclick="jumpToMessage(' + m.reply_to_message_id + ')"><div class="ra">' + esc(m.reply_to_login || "") + '</div><div class="rt">' + esc((m.reply_to_text || "").slice(0, 140) || "…") + "</div></div>";
+  }
+  if (m.poll) {
+    html += pollHtml(m.poll);
+  } else {
+    var bodyHtml = linkify(highlightMentions(m.body_text || ""));
+    if (m.edited_at_ms) bodyHtml += ' <span class="edited">(изменено)</span>';
+    html += '<div class="m-text" data-mid="' + m.message_id + '">' + bodyHtml + "</div>";
+  }
+  html += renderAtts(m.attachments);
+  html += reactsHtml(m);
+  html += "</div>";
+  div.innerHTML = html;
+  var textEl = div.querySelector(".m-text");
+  if (textEl) textEl.onclick = function(ev){ if (ev.target.tagName === "A") return; openMsgMenu(m.message_id); };
+  div.querySelectorAll(".m-reacts button").forEach(function(b){
+    b.onclick = function(ev){ ev.stopPropagation(); toggleReaction(m.message_id, b.getAttribute("data-emoji")); };
+  });
+  div.querySelectorAll(".poll .po").forEach(function(b){
+    b.onclick = function(){ votePoll(m.poll.poll_id, Number(b.getAttribute("data-opt"))); };
+  });
+  return div;
+}
+function reactsHtml(m){
+  var items = m.reactions || [];
+  if (!items.length) return "";
+  return '<div class="m-reacts">' + items.map(function(r){
+    return '<button data-emoji="' + esc(r.emoji) + '" class="' + (r.mine ? "mine" : "") + '">' + esc(r.emoji) + " " + r.count + "</button>";
+  }).join("") + "</div>";
+}
+function pollHtml(poll){
+  var total = poll.total_votes || 0;
+  var opts = (poll.options || []).map(function(o){
+    var pct = total ? Math.round((o.votes / total) * 100) : 0;
+    return '<button class="po' + (o.mine ? " mine" : "") + '" data-opt="' + o.index + '"><span class="pbar" style="width:' + pct + '%"></span><span class="pc">' + o.votes + (total ? " · " + pct + "%" : "") + '</span><span class="pt">' + esc(o.text) + "</span></button>";
+  }).join("");
+  var meta = [total + " голосов"];
+  if (poll.is_multiple) meta.push("несколько вариантов");
+  if (poll.is_anonymous) meta.push("анонимный");
+  if (poll.closed) meta.push("закрыт");
+  return '<div class="poll"><div class="pq">' + esc(poll.question) + '</div><div>' + opts + '</div><div class="pm">' + esc(meta.join(" · ")) + "</div></div>";
+}
+async function votePoll(pollId, optionIndex){
+  try {
+    var res = await api("/chat/api/chats/" + STATE.currentChatId + "/polls/" + pollId + "/vote", { method: "POST", body: JSON.stringify({ session_token: STATE.token, option_index: optionIndex }) });
+    if (res.message) {
+      var node = document.querySelector('.m[data-mid="' + res.message.message_id + '"]');
+      if (node) {
+        var old = node.querySelector(".poll");
+        if (old) old.outerHTML = pollHtml(res.message.poll);
+      }
+    }
+  } catch(e) { toast(e.message); }
+}
+function jumpToMessage(mid){
+  var node = document.querySelector('.m[data-mid="' + mid + '"]');
+  if (!node) { toast("Сообщение не в загруженной истории"); return; }
+  node.scrollIntoView({ block: "center" });
+  node.style.transition = "background .4s";
+  node.style.background = "#232338";
+  setTimeout(function(){ node.style.background = ""; }, 900);
+}
+window.jumpToMessage = jumpToMessage;
+
+/* ---------- действия с сообщениями ---------- */
+function openMsgMenu(mid){
+  var m = STATE.msgCache[mid];
+  if (!m) return;
+  var isMe = m.author_user_id === (STATE.user && STATE.user.id);
+  var view = STATE.currentView || {};
+  var canPin = !!(view.is_owner || view.can_post);
+  var items = [
+    { icon: "i-reply", label: "Ответить", action: function(){ startReply(mid); } },
+    { icon: "i-forward", label: "Переслать", action: function(){ openForward(mid); } }
+  ];
+  if (canPin) items.push({ icon: "i-pin", label: "Закрепить", action: function(){ pinMessage(mid); } });
+  items.push({ icon: "i-copy", label: "Копировать", action: function(){ copyText(m.body_text || ""); } });
+  if (isMe && !m.poll) items.push({ icon: "i-pencil", label: "Изменить", action: function(){ editMessage(mid); } });
+  if (isMe) items.push({ icon: "i-trash", label: "Удалить", danger: true, action: function(){ deleteMessage(mid); } });
+  openSheet("Действия", items, {
+    reacts: ["👍","❤️","😂","🔥","😢","👏"],
+    onReact: function(em){ toggleReaction(mid, em); }
+  });
+}
+async function toggleReaction(mid, emoji){
+  try {
+    var res = await api("/chat/api/chats/" + STATE.currentChatId + "/messages/" + mid + "/reactions", { method: "POST", body: JSON.stringify({ session_token: STATE.token, emoji: emoji }) });
+    if (res.message) {
+      STATE.msgCache[mid] = res.message;
+      var node = document.querySelector('.m[data-mid="' + mid + '"] .m-main');
+      if (node) {
+        var old = node.querySelector(".m-reacts");
+        if (old) old.remove();
+        var wrap = document.createElement("div");
+        wrap.innerHTML = reactsHtml(res.message);
+        var el2 = wrap.firstChild;
+        if (el2) {
+          el2.querySelectorAll("button").forEach(function(b){
+            b.onclick = function(ev){ ev.stopPropagation(); toggleReaction(mid, b.getAttribute("data-emoji")); };
+          });
+          node.appendChild(el2);
+        }
+      }
+    }
+  } catch(e) { toast(e.message); }
+}
+async function pinMessage(mid){
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/pin", { method: "POST", body: JSON.stringify({ session_token: STATE.token, message_id: mid }) });
+    var d = await api("/chat/api/chats/" + STATE.currentChatId + "?session_token=" + tk());
+    STATE.currentView = d.view || null;
+    renderChatHeader();
+    toast("Сообщение закреплено");
+  } catch(e) { toast(e.message); }
+}
+async function unpinMessage(){
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/pin", { method: "POST", body: JSON.stringify({ session_token: STATE.token, message_id: null }) });
+    if (STATE.currentView) STATE.currentView.pinned_message = null;
+    renderChatHeader();
+    toast("Сообщение откреплено");
+  } catch(e) { toast(e.message); }
+}
+function startReply(mid){
+  var m = STATE.msgCache[mid];
+  if (!m) return;
+  STATE.replyTo = m;
+  $("reply-bar").classList.remove("hidden");
+  $("reply-a").textContent = m.author_user_id === (STATE.user && STATE.user.id) ? "Вы" : (STATE.names[m.author_user_id] || m.author_login || "");
+  $("reply-t").textContent = m.body_text || "(вложение)";
+  $("msg-input").focus();
+}
+function cancelReply(){ STATE.replyTo = null; $("reply-bar").classList.add("hidden"); }
+window.cancelReply = cancelReply;
+function openForward(mid){
+  var chats = (STATE.chats || []).filter(function(c){ return c.chat_id !== STATE.currentChatId; });
+  openListSheet("Переслать в чат", chats.map(function(c){
+    var title = chatDisplayTitle(c);
+    var cav = chatAvaFor(title, c.chat_id);
+    return {
+      html: '<span class="avatar sm" style="background:' + cav.color + '">' + esc(cav.initials) + "</span><span>" + esc(title) + "</span>",
+      action: async function(){
+        try {
+          await api("/chat/api/chats/" + STATE.currentChatId + "/messages/" + mid + "/forward", { method: "POST", body: JSON.stringify({ session_token: STATE.token, target_chat_id: c.chat_id }) });
+          toast("Переслано в «" + title + "»");
+        } catch(e) { toast(e.message); }
+      }
+    };
+  }), "Нет других чатов");
+}
+function editMessage(mid){
+  var m = STATE.msgCache[mid];
+  if (!m) return;
+  openFormSheet("Изменить сообщение",
+    '<textarea class="inp area" id="edit-text">' + esc(m.body_text || "") + '</textarea>' +
+    '<button class="btn-accent" id="edit-submit">Сохранить</button>',
+    function(){
+      $("edit-submit").onclick = async function(){
+        var text = $("edit-text").value.trim();
+        if (!text) return;
+        closeSheet();
+        try {
+          await api("/chat/api/chats/" + STATE.currentChatId + "/messages/" + mid, { method: "PUT", body: JSON.stringify({ session_token: STATE.token, body_text: text }) });
+          toast("Сообщение изменено");
+          loadMessages(true);
+        } catch(e) { toast(e.message); }
+      };
+    });
+}
+async function deleteMessage(mid){
+  if (!confirm("Удалить сообщение?")) return;
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/messages/" + mid, { method: "DELETE", body: JSON.stringify({ session_token: STATE.token }) });
+    toast("Сообщение удалено");
+    loadMessages(true);
+  } catch(e) { toast(e.message); }
+}
+
+/* ---------- отправка ---------- */
+function updateSendBtn(){
+  var v = $("msg-input").value.trim();
+  $("send").classList.toggle("ready", !!v || STATE.attachFiles.length > 0);
+}
+async function sendMsg(){
+  var input = $("msg-input");
+  var text = input.value.trim();
+  var files = STATE.attachFiles.slice();
+  if (!text && !files.length) return;
+  var btn = $("send");
+  btn.disabled = true;
+  try {
+    var ids = [];
+    for (var i = 0; i < files.length; i++) {
+      var a = await uploadFile(files[i]);
+      if (a && a.attachment_id) ids.push(a.attachment_id);
+    }
+    var payload = { session_token: STATE.token, body_text: text, attachment_ids: ids };
+    if (STATE.replyTo) payload.reply_to_message_id = STATE.replyTo.message_id;
+    await api("/chat/api/chats/" + STATE.currentChatId + "/messages", { method: "POST", body: JSON.stringify(payload) });
+    input.value = "";
+    input.style.height = "";
+    cancelReply();
+    clearAttach();
+    saveDraft("");
+    updateSendBtn();
+    await loadMessages(true);
+    $("msgs").scrollTop = $("msgs").scrollHeight;
+  } catch(e) { toast(e.message); }
+  finally { btn.disabled = false; }
+}
+window.sendMsg = sendMsg;
+var draftTimer = null;
+function saveDraft(text){
+  if (!STATE.currentChatId) return;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(function(){
+    api("/chat/api/chats/" + STATE.currentChatId + "/draft", { method: "POST", body: JSON.stringify({ session_token: STATE.token, text: text || "" }) }).catch(function(){});
+  }, 700);
+}
+
+/* ---------- вложения ---------- */
+function renderAttachChips(){
+  var box = $("attach-chips");
+  if (!STATE.attachFiles.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.classList.remove("hidden");
+  box.innerHTML = STATE.attachFiles.map(function(f, i){
+    return '<span class="attach-chip"><span>' + esc(f.name) + '</span><button data-i="' + i + '"><svg class="i s16"><use href="#i-x"/></svg></button></span>';
+  }).join("");
+  box.querySelectorAll("button").forEach(function(b){
+    b.onclick = function(){ STATE.attachFiles.splice(Number(b.getAttribute("data-i")), 1); renderAttachChips(); updateSendBtn(); };
+  });
+}
+function clearAttach(){ STATE.attachFiles = []; renderAttachChips(); }
+function bindChatFileInput(){
+  $("file-input").onchange = function(){
+    var files = Array.prototype.slice.call($("file-input").files || []);
+    $("file-input").value = "";
+    files.forEach(function(f){ if (STATE.attachFiles.length < 8) STATE.attachFiles.push(f); });
+    renderAttachChips();
+    updateSendBtn();
+  };
+}
+
+/* ---------- голосовые ---------- */
+var voiceRec = null, voiceChunks = [], voiceStream = null, voiceTimer = null, voiceStartMs = 0;
+function voiceSupported(){ return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext); }
+function voicePickMime(){
+  var c = ["audio/mp4","audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+  for (var i = 0; i < c.length; i++) { try { if (MediaRecorder.isTypeSupported(c[i])) return c[i]; } catch(e){} }
+  return "";
+}
+async function voiceTap(){
+  if (voiceRec) { voiceStop(); return; }
+  if (!voiceSupported()) { toast("Запись голоса работает только по HTTPS. Прикрепите аудиофайл вместо записи."); return; }
+  try {
+    voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e) { toast("Нет доступа к микрофону"); return; }
+  voiceChunks = [];
+  var mime = voicePickMime();
+  try { voiceRec = mime ? new MediaRecorder(voiceStream, { mimeType: mime }) : new MediaRecorder(voiceStream); }
+  catch(e) { voiceRec = new MediaRecorder(voiceStream); }
+  var actualMime = voiceRec.mimeType || mime || "audio/webm";
+  voiceRec.ondataavailable = function(e){ if (e.data && e.data.size) voiceChunks.push(e.data); };
+  voiceRec.onstop = function(){
+    var blob = new Blob(voiceChunks, { type: actualMime });
+    voiceChunks = [];
+    var recMime = actualMime;
+    voiceCleanup();
+    if (blob.size > 0) {
+      var ext = /mp4|m4a|aac/.test(recMime) ? "m4a" : /ogg|opus/.test(recMime) ? "ogg" : "webm";
+      var file = new File([blob], "voice-" + Date.now() + "." + ext, { type: recMime });
+      STATE.attachFiles.push(file);
+      renderAttachChips();
+      updateSendBtn();
+      toast("Голосовое записано — нажмите ➤");
+    }
+  };
+  voiceStartMs = Date.now();
+  try { voiceRec.start(250); } catch(e) { voiceCleanup(); toast("Не удалось начать запись"); return; }
+  $("voice-bar").classList.remove("hidden");
+  $("mic-btn").classList.add("rec");
+  voiceTimer = setInterval(function(){
+    var sec = Math.floor((Date.now() - voiceStartMs) / 1000);
+    $("voice-time").textContent = Math.floor(sec / 60) + ":" + pad2(sec % 60);
+    if (sec >= 300) voiceStop();
+  }, 300);
+}
+function voiceStop(){ if (voiceRec && voiceRec.state !== "inactive") voiceRec.stop(); }
+function voiceCancel(){
+  if (voiceRec) { voiceRec.onstop = null; try { voiceRec.stop(); } catch(e){} }
+  voiceChunks = [];
+  voiceCleanup();
+}
+function voiceCleanup(){
+  if (voiceTimer) { clearInterval(voiceTimer); voiceTimer = null; }
+  if (voiceStream) { voiceStream.getTracks().forEach(function(t){ t.stop(); }); voiceStream = null; }
+  voiceRec = null;
+  $("voice-bar").classList.add("hidden");
+  $("mic-btn").classList.remove("rec");
+}
+window.voiceTap = voiceTap; window.voiceStop = voiceStop; window.voiceCancel = voiceCancel;
+
+/* ---------- упоминания ---------- */
+async function ensureMembers(){
+  if (STATE.membersCache) return STATE.membersCache;
+  try {
+    var d = await api("/chat/api/chats/" + STATE.currentChatId + "/members?session_token=" + tk());
+    STATE.membersCache = d.items || [];
+  } catch(e) { STATE.membersCache = []; }
+  return STATE.membersCache;
+}
+function startMention(){
+  var input = $("msg-input");
+  input.value = (input.value + (input.value && !/\s$/.test(input.value) ? " " : "") + "@");
+  input.focus();
+  showMentions("");
+}
+async function showMentions(q){
+  var list = await ensureMembers();
+  var box = $("mention-list");
+  var found = list.filter(function(u){
+    if (u.user_id === (STATE.user && STATE.user.id)) return false;
+    var s = (u.login || "").toLowerCase();
+    return !q || s.indexOf(q.toLowerCase()) === 0 || s.indexOf(q.toLowerCase()) >= 0;
+  }).slice(0, 8);
+  if (!found.length) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  box.innerHTML = found.map(function(u, i){
+    var name = STATE.names[u.user_id] || u.login || ("#" + u.user_id);
+    return '<button data-i="' + i + '"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + " <span style=\"color:var(--sub)\">@" + esc(u.login || "") + "</span></span></button>";
+  }).join("");
+  box.querySelectorAll("button").forEach(function(b){
+    b.onclick = function(){
+      var u = found[Number(b.getAttribute("data-i"))];
+      var input = $("msg-input");
+      input.value = input.value.replace(/@([a-zA-Z0-9_]*)$/, "@" + (u.login || "") + " ");
+      box.classList.add("hidden");
+      input.focus();
+      updateSendBtn();
+    };
+  });
+}
+function bindComposer(){
+  var input = $("msg-input");
+  input.addEventListener("input", function(){
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    updateSendBtn();
+    saveDraft(input.value);
+    var before = input.value.slice(0, input.selectionStart || 0);
+    var m = before.match(/@([a-zA-Z0-9_]{0,32})$/);
+    if (m) showMentions(m[1]); else $("mention-list").classList.add("hidden");
+  });
+  input.addEventListener("keydown", function(e){
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+}
+
+/* ---------- меню чата ---------- */
+function openChatMenu(){
+  var chat = STATE.currentChat || {};
+  var view = STATE.currentView || {};
+  var items = [];
+  items.push({ icon: "i-users", label: "Участники" + (view.member_count ? " (" + view.member_count + ")" : ""), action: openMembers });
+  if (view.can_post !== false) items.push({ icon: "i-link", label: "Ссылки-приглашения", action: openInvites });
+  items.push({ icon: chat.is_muted ? "i-bell-off" : "i-bell-off", label: chat.is_muted ? "Включить звук" : "Без звука", action: function(){ toggleChatState("is_muted", !chat.is_muted); } });
+  items.push({ icon: "i-pin", label: chat.is_pinned ? "Открепить чат" : "Закрепить чат", action: function(){ toggleChatState("is_pinned", !chat.is_pinned); } });
+  items.push({ icon: "i-archive", label: chat.is_archived ? "Убрать из архива" : "В архив", action: function(){ toggleChatState("is_archived", !chat.is_archived, true); } });
+  items.push({ icon: "i-refresh", label: "Очистить историю", action: function(){ clearHistory(); } });
+  items.push({ icon: "i-out", label: "Выйти из чата", danger: true, action: function(){ leaveChat(); } });
+  if (view.is_owner) items.push({ icon: "i-trash", label: "Удалить чат", danger: true, action: function(){ deleteChat(); } });
+  openSheet(chatDisplayTitle(chat), items);
+}
+window.openChatMenu = openChatMenu;
+async function toggleChatState(key, value, goBack){
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/state", { method: "POST", body: JSON.stringify({ session_token: STATE.token, [key]: value }) });
+    if (STATE.currentChat) STATE.currentChat[key] = value;
+    var cached = (STATE.chats || []).filter(function(c){ return c.chat_id === STATE.currentChatId; })[0];
+    if (cached) cached[key] = value;
+    toast("Готово");
+    if (goBack) go("chats");
+  } catch(e) { toast(e.message); }
+}
+async function clearHistory(){
+  if (!confirm("Очистить историю чата для себя?")) return;
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/clear", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) });
+    toast("История очищена");
+    loadMessages(true);
+  } catch(e) { toast(e.message); }
+}
+async function leaveChat(){
+  if (!confirm("Выйти из чата?")) return;
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/leave", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) });
+    toast("Вы вышли из чата");
+    STATE.currentChatId = null;
+    go("chats");
+    refreshChats(true);
+  } catch(e) { toast(e.message); }
+}
+async function deleteChat(){
+  if (!confirm("Удалить чат для всех участников?")) return;
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId, { method: "DELETE", body: JSON.stringify({ session_token: STATE.token }) });
+    toast("Чат удалён");
+    STATE.currentChatId = null;
+    go("chats");
+    refreshChats(true);
+  } catch(e) { toast(e.message); }
+}
+async function openMembers(){
+  var d;
+  try { d = await api("/chat/api/chats/" + STATE.currentChatId + "/members?session_token=" + tk()); }
+  catch(e) { toast(e.message); return; }
+  var items = (d.items || []);
+  var rows = items.map(function(u){
+    var name = STATE.names[u.user_id] || u.login || ("#" + u.user_id);
+    var role = u.role === "admin" || u.role === "owner" ? ' <span class="badge">' + esc(u.role) + "</span>" : "";
+    return {
+      html: '<span class="avatar sm" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + role + "</span>",
+      action: function(){ toast(name); }
+    };
+  });
+  openListSheet("Участники", rows, "Нет участников");
+  var body = $("sheet-body");
+  var add = document.createElement("button");
+  add.className = "srow";
+  add.innerHTML = '<svg class="i s22"><use href="#i-plus"/></svg><span>Добавить участника</span>';
+  add.onclick = function(){ closeSheet(); setTimeout(addMember, 60); };
+  body.appendChild(add);
+}
+function addMember(){
+  openFormSheet("Добавить участника",
+    '<input class="inp" id="am-search" placeholder="Поиск по логину..." autocomplete="off"><div id="am-results"></div>',
+    function(){
+      var timer = null;
+      $("am-search").addEventListener("input", function(){
+        clearTimeout(timer);
+        timer = setTimeout(async function(){
+          var q = $("am-search").value.trim();
+          if (q.length < 2) { $("am-results").innerHTML = ""; return; }
+          try {
+            var d = await api("/chat/api/users/search?session_token=" + tk() + "&q=" + encodeURIComponent(q));
+            var items = (d.items || []).filter(function(u){ return u.user_id !== (STATE.user && STATE.user.id); });
+            $("am-results").innerHTML = items.length ? items.map(function(u, i){
+              var name = STATE.names[u.user_id] || u.login;
+              return '<button class="s-item" data-i="' + i + '" style="width:100%"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login||"?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + "</span></button>";
+            }).join("") : '<div class="s-empty">Никого не найдено</div>';
+            $("am-results").querySelectorAll(".s-item").forEach(function(b){
+              b.onclick = async function(){
+                var u = items[Number(b.getAttribute("data-i"))];
+                closeSheet();
+                try {
+                  await api("/chat/api/chats/" + STATE.currentChatId + "/members", { method: "POST", body: JSON.stringify({ session_token: STATE.token, user_id: u.user_id }) });
+                  toast("Участник добавлен");
+                  STATE.membersCache = null;
+                } catch(e) { toast(e.message); }
+              };
+            });
+          } catch(e) { $("am-results").innerHTML = '<div class="s-empty">' + esc(e.message) + "</div>"; }
+        }, 250);
+      });
+    });
+}
+async function openInvites(){
+  var d;
+  try { d = await api("/chat/api/chats/" + STATE.currentChatId + "/invites?session_token=" + tk()); }
+  catch(e) { toast(e.message); return; }
+  var items = d.items || [];
+  var rows = items.map(function(inv){
+    var link = location.origin + "/#/join/" + inv.code;
+    var uses = inv.max_uses ? inv.uses + "/" + inv.max_uses : String(inv.uses);
+    return {
+      html: '<svg class="i s18"><use href="#i-link"/></svg><span style="min-width:0"><span style="display:block;font-size:13.5px;word-break:break-all">' + esc(link) + '</span><span style="color:var(--sub);font-size:12.5px">использований: ' + esc(uses) + "</span></span>",
+      action: function(){ copyText(link); }
+    };
+  });
+  openListSheet("Ссылки-приглашения", rows, "Ссылок пока нет");
+  var body = $("sheet-body");
+  var add = document.createElement("button");
+  add.className = "srow";
+  add.innerHTML = '<svg class="i s22"><use href="#i-plus"/></svg><span>Создать ссылку</span>';
+  add.onclick = async function(){
+    closeSheet();
+    try {
+      await api("/chat/api/chats/" + STATE.currentChatId + "/invites", { method: "POST", body: JSON.stringify({ session_token: STATE.token, requires_approval: false, max_uses: null, expires_in_hours: null }) });
+      toast("Ссылка создана");
+      setTimeout(openInvites, 300);
+    } catch(e) { toast(e.message); }
+  };
+  body.appendChild(add);
+}
+
+/* ============================ новый чат ============================ */
+var ncType = "group";
+var ncSelected = [];
+function setChatType(t){
+  ncType = t;
+  $("nc-type-group").classList.toggle("active", t === "group");
+  $("nc-type-channel").classList.toggle("active", t === "channel");
+  $("nc-public-wrap").classList.toggle("hidden", t !== "channel");
+}
+window.setChatType = setChatType;
+function bindNewChat(){
+  $("nc-public").onchange = function(){ $("nc-username").classList.toggle("hidden", !$("nc-public").checked); };
+  var timer = null;
+  $("nc-member-search").addEventListener("input", function(){
+    clearTimeout(timer);
+    timer = setTimeout(async function(){
+      var q = $("nc-member-search").value.trim();
+      if (q.length < 2) { $("nc-people").innerHTML = ""; return; }
+      try {
+        var d = await api("/chat/api/users/search?session_token=" + tk() + "&q=" + encodeURIComponent(q));
+        var items = (d.items || []).filter(function(u){ return u.user_id !== (STATE.user && STATE.user.id) && u.role !== "guest"; });
+        $("nc-people").innerHTML = items.length ? items.map(function(u, i){
+          var name = STATE.names[u.user_id] || u.login;
+          return '<button class="s-item" data-i="' + i + '" style="width:100%;padding:10px 6px"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login||"?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + "</span></button>";
+        }).join("") : '<div class="s-empty">Никого не найдено</div>';
+        $("nc-people").querySelectorAll(".s-item").forEach(function(b){
+          b.onclick = function(){
+            var u = items[Number(b.getAttribute("data-i"))];
+            if (!ncSelected.some(function(x){ return x.user_id === u.user_id; })) ncSelected.push(u);
+            $("nc-member-search").value = "";
+            $("nc-people").innerHTML = "";
+            renderNcChips();
+          };
+        });
+      } catch(e) { $("nc-people").innerHTML = '<div class="s-empty">' + esc(e.message) + "</div>"; }
+    }, 250);
+  });
+}
+function renderNcChips(){
+  $("nc-chips").innerHTML = ncSelected.map(function(u, i){
+    var name = STATE.names[u.user_id] || u.login;
+    return '<span class="attach-chip">' + esc(name) + '<button data-i="' + i + '"><svg class="i s16"><use href="#i-x"/></svg></button></span>';
+  }).join("");
+  $("nc-chips").querySelectorAll("button").forEach(function(b){
+    b.onclick = function(){ ncSelected.splice(Number(b.getAttribute("data-i")), 1); renderNcChips(); };
+  });
+}
+async function createChat(){
+  var title = $("nc-title").value.trim();
+  if (!title) { toast("Введите название"); return; }
+  if (ncType !== "channel" && !ncSelected.length) { toast("Добавьте хотя бы одного участника"); return; }
+  var isPublic = ncType === "channel" && $("nc-public").checked;
+  var username = isPublic ? ($("nc-username").value.trim() || undefined) : undefined;
+  var btn = $("nc-submit");
+  btn.disabled = true;
+  try {
+    var res = await api("/chat/api/chats", { method: "POST", body: JSON.stringify({
+      session_token: STATE.token, title: title, description: $("nc-desc").value.trim() || undefined,
+      member_ids: ncSelected.map(function(u){ return u.user_id; }),
+      chat_type: ncType, is_public: isPublic || undefined, username: username, history_visible: true
+    }) });
+    toast("Чат создан");
+    ncSelected = [];
+    renderNcChips();
+    $("nc-title").value = ""; $("nc-desc").value = "";
+    await refreshChats(true);
+    var cid = res && res.chat && res.chat.chat_id;
+    if (cid) {
+      var chat = (STATE.chats || []).filter(function(c){ return c.chat_id === cid; })[0];
+      if (chat) openChat(chat); else go("chats");
+    } else go("chats");
+  } catch(e) { toast(e.message); }
+  finally { btn.disabled = false; }
+}
+window.createChat = createChat;
+
+/* ============================ блог ============================ */
+async function renderBlog(){
+  if (!requireAuth()) return;
+  $("blog-compose-btn").classList.toggle("hidden", !(STATE.user && (STATE.user.role === "admin" || STATE.user.role === "moderator")));
+  var box = $("blog-list");
+  box.innerHTML = '<div class="spin"></div>';
+  try {
+    var d = await api("/blog/api/posts?session_token=" + tk());
+    var items = d.items || [];
+    if (!items.length) { box.innerHTML = '<div class="empty">Пока нет постов.</div>'; return; }
+    box.innerHTML = "";
+    items.forEach(function(p){
+      var div = document.createElement("div");
+      div.className = "post";
+      var author = STATE.names[p.author_user_id] || ("Пользователь #" + p.author_user_id);
+      div.innerHTML = '<div class="p-title">' + esc(p.title) + '</div><div class="p-meta">' + esc(author) + " · " + fmtTime(p.published_at_ms) + '</div><div class="p-body">' + esc(p.body_text) + "</div>";
+      div.onclick = function(){ openPost(p); };
+      box.appendChild(div);
+    });
+  } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+}
+function openPost(p){
+  $("post-title").textContent = p.title;
+  $("post-meta").textContent = (STATE.names[p.author_user_id] || ("Пользователь #" + p.author_user_id)) + " · " + fmtTime(p.published_at_ms);
+  $("post-body").textContent = p.body_text || "";
+  $("post-atts").innerHTML = renderAtts(p.attachments);
+  go("post");
+}
+function openBlogCompose(){
+  openFormSheet("Новый пост",
+    '<input class="inp" id="bp-title" placeholder="Заголовок" maxlength="256">' +
+    '<textarea class="inp area" id="bp-body" placeholder="Текст поста" maxlength="12000"></textarea>' +
+    '<button class="btn-accent" id="bp-submit">Опубликовать</button>',
+    function(){
+      $("bp-submit").onclick = async function(){
+        var title = $("bp-title").value.trim();
+        var body = $("bp-body").value.trim();
+        if (!title || !body) { toast("Заполните заголовок и текст"); return; }
+        try {
+          await api("/blog/api/posts", { method: "POST", body: JSON.stringify({ session_token: STATE.token, title: title, body_text: body }) });
+          closeSheet();
+          toast("Пост опубликован");
+          renderBlog();
+        } catch(e) { toast(e.message); }
+      };
+    });
+}
+window.openBlogCompose = openBlogCompose;
+
+/* ============================ поддержка ============================ */
+function statusLabel(s){
+  return { open: "Открыто", in_progress: "В работе", resolved: "Решено", closed: "Закрыто" }[s] || s;
+}
+function statusPill(s){ return '<span class="pill st-' + esc(s || "open") + '">' + esc(statusLabel(s)) + "</span>"; }
+async function renderSupport(){
+  if (!requireAuth()) return;
+  var isGuest = STATE.user && STATE.user.role === "guest";
+  $("new-ticket-btn").classList.toggle("hidden", !!isGuest);
+  var box = $("ticket-rows");
+  box.innerHTML = '<div class="spin"></div>';
+  try {
+    var d = await api("/support/api/tickets?session_token=" + tk());
+    var items = d.items || [];
+    $("tickets-count").textContent = items.length;
+    if (!items.length) { box.innerHTML = '<div class="empty">Обращений пока нет.</div>'; return; }
+    box.innerHTML = "";
+    items.forEach(function(tk2){
       var b = document.createElement("button");
       b.className = "row";
-      b.innerHTML = '<span class="avatar av-dev"><svg class="i s18"><use href="#i-chip"/></svg></span>' + d.name +
-        '<span class="dev-status' + (d.on ? " on" : "") + '">' + (d.on ? "в сети" : "не в сети") + '</span>' +
-        '<span class="rmeta"><span style="color:var(--link);font-size:14px">Отвязать</span></span>';
-      b.onclick = function(){ MY_DEVICES.splice(i,1); renderDevices(); toast("Устройство отвязано"); };
+      b.innerHTML =
+        '<span class="avatar" style="background:' + (tk2.kind === "report" ? "#7a2d3a" : "#3d5a80") + '"><svg class="i s18"><use href="#' + (tk2.kind === "report" ? "i-flag" : "i-support") + '"/></svg></span>' +
+        '<span class="rcol"><span class="rt">' + esc(tk2.title) + '</span><span class="rsub">' + (tk2.kind === "report" ? "Жалоба · " : "") + fmtTime(tk2.last_message_at_ms || tk2.created_at_ms) + "</span></span>" +
+        '<span class="rmeta">' + statusPill(tk2.status) + "</span>";
+      b.onclick = function(){ openTicket(tk2); };
       box.appendChild(b);
     });
-    el("dev-count").textContent = MY_DEVICES.length;
-  }
-  window.pairDevice = function(){
-    var code = el("pair-code").value.trim();
-    if (!/^\d{6}$/.test(code)) { toast("Код не найден — проверьте цифры"); return; }
-    var name = "M5StickC Plus 2";
-    for (var i = 0; i < MY_DEVICES.length; i++) if (MY_DEVICES[i].name === name) name = "T-Embed CC1101";
-    MY_DEVICES.push({ name:name, on:true });
-    el("pair-code").value = "";
-    renderDevices();
-    toast("Устройство сопряжено");
-  };
-  window.openDevice = function(name){
-    el("device-title").textContent = name;
-    el("device-name").textContent = name;
-    go("device");
-  };
-
-  /* ---------- поиск ---------- */
-  var searchInput = el("search-input");
-  searchInput.addEventListener("input", function(){
-    var q = searchInput.value.trim().toLowerCase();
-    ["search-chats", "search-people"].forEach(function(id){
-      var g = el(id);
-      var rows = g.querySelectorAll(".row");
-      var visible = 0;
-      for (var i = 0; i < rows.length; i++) {
-        var match = !q || rows[i].textContent.toLowerCase().indexOf(q) >= 0;
-        rows[i].classList.toggle("hidden", !match);
-        if (match) visible++;
-      }
-      g.classList.toggle("hidden", visible === 0);
+  } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+}
+async function openTicket(tk2){
+  STATE.ticketId = tk2.ticket_id;
+  STATE.ticket = tk2;
+  STATE.ticketFiles = [];
+  renderTicketAttach();
+  $("ticket-title").textContent = tk2.title;
+  $("ticket-status-line").textContent = statusLabel(tk2.status);
+  var isAdmin = STATE.user && (STATE.user.role === "admin" || STATE.user.role === "moderator");
+  $("ticket-status-btn").classList.toggle("hidden", !isAdmin);
+  go("ticket");
+  await loadTicketMessages();
+}
+async function loadTicketMessages(){
+  var box = $("ticket-msgs");
+  box.innerHTML = '<div class="spin"></div>';
+  try {
+    var d = await api("/support/api/tickets/" + STATE.ticketId + "/messages?session_token=" + tk());
+    var items = d.items || [];
+    box.innerHTML = "";
+    if (!items.length) { box.appendChild(emptyEl("Сообщений пока нет.")); return; }
+    items.forEach(function(m){
+      var mine = m.author_user_id === (STATE.user && STATE.user.id);
+      var div = document.createElement("div");
+      div.className = "m";
+      var name = mine ? "Вы" : (m.author_login || "Поддержка");
+      div.innerHTML =
+        '<span class="m-ava">' + esc(userEmoji(m.author_user_id)) + "</span>" +
+        '<div class="m-main"><div class="m-head"><span class="m-name">' + esc(name) + '</span><span class="m-time">' + fmtTimeShort(m.created_at_ms) + "</span></div>" +
+        '<div class="m-text" style="cursor:default">' + linkify(esc(m.body_text || "")) + "</div>" + renderAtts(m.attachments) + "</div>";
+      box.appendChild(div);
     });
+    box.scrollTop = box.scrollHeight;
+  } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+}
+async function sendReply(){
+  var input = $("reply-input");
+  var text = input.value.trim();
+  var files = STATE.ticketFiles.slice();
+  if (!text && !files.length) return;
+  try {
+    var ids = [];
+    for (var i = 0; i < files.length; i++) {
+      var a = await uploadFile(files[i]);
+      if (a && a.attachment_id) ids.push(a.attachment_id);
+    }
+    await api("/support/api/tickets/" + STATE.ticketId + "/messages", { method: "POST", body: JSON.stringify({ session_token: STATE.token, body_text: text, attachment_ids: ids }) });
+    input.value = "";
+    STATE.ticketFiles = [];
+    renderTicketAttach();
+    await loadTicketMessages();
+  } catch(e) { toast(e.message); }
+}
+window.sendReply = sendReply;
+function renderTicketAttach(){
+  var box = $("ticket-attach-chips");
+  if (!STATE.ticketFiles.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.classList.remove("hidden");
+  box.innerHTML = STATE.ticketFiles.map(function(f, i){
+    return '<span class="attach-chip"><span>' + esc(f.name) + '</span><button data-i="' + i + '"><svg class="i s16"><use href="#i-x"/></svg></button></span>';
+  }).join("");
+  box.querySelectorAll("button").forEach(function(b){
+    b.onclick = function(){ STATE.ticketFiles.splice(Number(b.getAttribute("data-i")), 1); renderTicketAttach(); };
   });
+}
+function openTicketStatus(){
+  openSheet("Статус обращения", [
+    { icon: "i-check-circle", label: "Открыто", action: function(){ setTicketStatus("open"); } },
+    { icon: "i-clock", label: "В работе", action: function(){ setTicketStatus("in_progress"); } },
+    { icon: "i-check", label: "Решено", action: function(){ setTicketStatus("resolved"); } },
+    { icon: "i-x", label: "Закрыто", action: function(){ setTicketStatus("closed"); } }
+  ]);
+}
+window.openTicketStatus = openTicketStatus;
+async function setTicketStatus(s){
+  try {
+    await api("/support/api/tickets/" + STATE.ticketId + "/status", { method: "POST", body: JSON.stringify({ session_token: STATE.token, status: s }) });
+    toast("Статус обновлён");
+    if (STATE.ticket) STATE.ticket.status = s;
+    $("ticket-status-line").textContent = statusLabel(s);
+  } catch(e) { toast(e.message); }
+}
+function renderNtAttach(){
+  var box = $("nt-chips");
+  if (!STATE.ticketFiles.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.classList.remove("hidden");
+  box.innerHTML = STATE.ticketFiles.map(function(f, i){
+    return '<span class="attach-chip"><span>' + esc(f.name) + '</span><button data-i="' + i + '"><svg class="i s16"><use href="#i-x"/></svg></button></span>';
+  }).join("");
+  box.querySelectorAll("button").forEach(function(b){
+    b.onclick = function(){ STATE.ticketFiles.splice(Number(b.getAttribute("data-i")), 1); renderNtAttach(); };
+  });
+}
+async function createTicket(){
+  var title = $("nt-title").value.trim();
+  var body = $("nt-body").value.trim();
+  if (!title || !body) { toast("Заполните тему и описание"); return; }
+  var btn = $("nt-submit");
+  btn.disabled = true;
+  try {
+    var ids = [];
+    for (var i = 0; i < STATE.ticketFiles.length; i++) {
+      var a = await uploadFile(STATE.ticketFiles[i]);
+      if (a && a.attachment_id) ids.push(a.attachment_id);
+    }
+    await api("/support/api/tickets", { method: "POST", body: JSON.stringify({ session_token: STATE.token, title: title, body_text: body, attachment_ids: ids, kind: "support" }) });
+    toast("Обращение создано");
+    $("nt-title").value = ""; $("nt-body").value = "";
+    STATE.ticketFiles = [];
+    renderNtAttach();
+    go("support");
+  } catch(e) { toast(e.message); }
+  finally { btn.disabled = false; }
+}
+window.createTicket = createTicket;
+function openReportFlow(){
+  openFormSheet("Жалоба на пользователя",
+    '<input class="inp" id="rp-search" placeholder="Поиск пользователя по логину..." autocomplete="off"><div id="rp-results"></div>',
+    function(){
+      var timer = null;
+      $("rp-search").addEventListener("input", function(){
+        clearTimeout(timer);
+        timer = setTimeout(async function(){
+          var q = $("rp-search").value.trim();
+          if (q.length < 2) { $("rp-results").innerHTML = ""; return; }
+          try {
+            var d = await api("/chat/api/users/search?session_token=" + tk() + "&q=" + encodeURIComponent(q));
+            var items = (d.items || []).filter(function(u){ return u.user_id !== (STATE.user && STATE.user.id) && u.role !== "guest"; });
+            $("rp-results").innerHTML = items.length ? items.map(function(u, i){
+              return '<button class="s-item" data-i="' + i + '" style="width:100%"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login||"?").slice(0,2).toUpperCase()) + "</span><span>" + esc(STATE.names[u.user_id] || u.login) + "</span></button>";
+            }).join("") : '<div class="s-empty">Никого не найдено</div>';
+            $("rp-results").querySelectorAll(".s-item").forEach(function(b){
+              b.onclick = function(){ closeSheet(); setTimeout(function(){ openReportForm(items[Number(b.getAttribute("data-i"))]); }, 80); };
+            });
+          } catch(e) { $("rp-results").innerHTML = '<div class="s-empty">' + esc(e.message) + "</div>"; }
+        }, 250);
+      });
+    });
+}
+window.openReportFlow = openReportFlow;
+var REPORT_REASONS = [["spam","Спам"],["abuse","Оскорбления"],["profanity","Мат"],["ads","Реклама"],["scam","Мошенничество"],["other","Другое"]];
+function openReportForm(user){
+  var reason = "spam";
+  openFormSheet("Жалоба на " + (STATE.names[user.user_id] || user.login),
+    '<div class="seg" style="padding:0" id="rp-reasons">' + REPORT_REASONS.map(function(r){
+      return '<button class="chip' + (r[0] === reason ? " active" : "") + '" data-r="' + r[0] + '">' + r[1] + "</button>";
+    }).join("") + "</div>" +
+    '<textarea class="inp area" id="rp-comment" placeholder="Комментарий (необязательно)" maxlength="1000" style="min-height:80px"></textarea>' +
+    '<button class="btn-accent" id="rp-submit">Отправить жалобу</button>',
+    function(){
+      $("rp-reasons").querySelectorAll(".chip").forEach(function(c){
+        c.onclick = function(){
+          reason = c.getAttribute("data-r");
+          $("rp-reasons").querySelectorAll(".chip").forEach(function(x){ x.classList.remove("active"); });
+          c.classList.add("active");
+        };
+      });
+      $("rp-submit").onclick = async function(){
+        try {
+          await api("/reports/api/create", { method: "POST", body: JSON.stringify({ session_token: STATE.token, target_user_id: user.user_id, reason: reason, comment: $("rp-comment").value.trim(), attachment_ids: [] }) });
+          closeSheet();
+          toast("Жалоба отправлена");
+        } catch(e) { toast(e.message); }
+      };
+    });
+}
+function bindSupportInputs(){
+  $("ticket-file").onchange = function(){
+    var files = Array.prototype.slice.call($("ticket-file").files || []);
+    $("ticket-file").value = "";
+    files.forEach(function(f){ if (STATE.ticketFiles.length < 8) STATE.ticketFiles.push(f); });
+    renderTicketAttach();
+  };
+  $("nt-file").onchange = function(){
+    var files = Array.prototype.slice.call($("nt-file").files || []);
+    $("nt-file").value = "";
+    files.forEach(function(f){ if (STATE.ticketFiles.length < 8) STATE.ticketFiles.push(f); });
+    renderNtAttach();
+  };
+  var ri = $("reply-input");
+  ri.addEventListener("input", function(){
+    ri.style.height = "auto"; ri.style.height = Math.min(ri.scrollHeight, 120) + "px";
+    $("reply-send").classList.toggle("ready", !!ri.value.trim());
+  });
+  ri.addEventListener("keydown", function(e){ if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } });
+}
 
-  /* ---------- старт ---------- */
-  renderDevices();
-  var initial = location.hash.replace(/^#\//, "") || "login";
-  if (SCREENS.indexOf(initial) < 0) initial = "login";
-  if (initial === "ticket") renderTicket();
-  show(initial);
+/* ============================ устройства ============================ */
+async function renderDevices(){
+  if (!requireAuth()) return;
+  var isGuest = STATE.user && STATE.user.role === "guest";
+  $("pair-card").classList.toggle("hidden", !!isGuest);
+  var box = $("my-devices");
+  box.innerHTML = '<div class="spin"></div>';
+  try {
+    var d = await api("/devices/api/pair/list?session_token=" + tk());
+    var items = d.items || [];
+    $("dev-count").textContent = items.length;
+    if (!items.length) { box.innerHTML = '<div class="empty">Нет сопряжённых устройств.</div>'; }
+    else {
+      box.innerHTML = "";
+      items.forEach(function(p){
+        var b = document.createElement("button");
+        b.className = "row";
+        var when = p.paired_at_ms ? new Date(p.paired_at_ms).toLocaleDateString() : "";
+        b.innerHTML =
+          '<span class="avatar" style="background:#2c2c31"><svg class="i s18"><use href="#i-chip"/></svg></span>' +
+          '<span class="rcol"><span class="rt">' + esc(p.device_id) + '</span><span class="rsub">' + esc([p.device_type, when].filter(Boolean).join(" · ")) + "</span></span>" +
+          '<span class="rmeta"><span style="color:var(--link);font-size:14px">Отвязать</span></span>';
+        b.onclick = async function(){
+          if (!confirm("Отвязать устройство " + p.device_id + "?")) return;
+          try {
+            await api("/devices/api/unpair", { method: "POST", body: JSON.stringify({ session_token: STATE.token, device_id: p.device_id }) });
+            toast("Устройство отвязано");
+            renderDevices();
+          } catch(e) { toast(e.message); }
+        };
+        box.appendChild(b);
+      });
+    }
+  } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+  var cat = $("device-catalog");
+  cat.innerHTML = '<div class="spin"></div>';
+  try {
+    var dc = await api("/devices/api/catalog?session_token=" + tk());
+    var items2 = dc.items || [];
+    if (!items2.length) { cat.innerHTML = '<div class="empty">Каталог пока пуст.</div>'; return; }
+    cat.innerHTML = "";
+    items2.forEach(function(dev){
+      var b = document.createElement("button");
+      b.className = "row";
+      b.innerHTML =
+        '<span class="avatar" style="background:#2c2c31"><svg class="i s18"><use href="#i-chip"/></svg></span>' +
+        '<span class="rcol"><span class="rt">' + esc(dev.title) + '</span><span class="rsub">' + esc(dev.short_description || "") + "</span></span>" +
+        '<span class="rmeta">' + (dev.has_device ? '<span class="tag owned">у меня есть</span>' : "") + '<svg class="i s18"><use href="#i-chev"/></svg></span>';
+      b.onclick = function(){ openDevice(dev); };
+      cat.appendChild(b);
+    });
+  } catch(e) { cat.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+}
+async function pairDevice(){
+  var code = $("pair-code").value.trim();
+  $("pair-error").textContent = "";
+  if (!/^\d{6}$/.test(code)) { $("pair-error").textContent = "Введите 6-значный код"; return; }
+  var btn = $("pair-btn");
+  btn.disabled = true; btn.textContent = "Сопряжение...";
+  try {
+    var res = await api("/devices/api/pair/claim", { method: "POST", body: JSON.stringify({ session_token: STATE.token, code: code }) });
+    var dev = (res && res.device) || {};
+    $("pair-code").value = "";
+    toast("Устройство сопряжено" + (dev.name || dev.device_id ? ": " + (dev.name || dev.device_id) : ""));
+    renderDevices();
+  } catch(e) { $("pair-error").textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = "Сопрячь"; }
+}
+window.pairDevice = pairDevice;
+function openDevice(dev){
+  STATE.device = dev;
+  $("device-title").textContent = dev.title;
+  $("device-name").textContent = dev.title;
+  $("device-desc").textContent = dev.short_description || "";
+  $("device-tags").innerHTML = (dev.has_device ? '<span class="tag owned">у меня есть</span> ' : "") + (dev.is_published ? '<span class="tag">опубликовано</span>' : "");
+  var fw = $("device-fw");
+  if (dev.firmware_archive_url) { fw.classList.remove("hidden"); fw.href = dev.firmware_archive_url; }
+  else fw.classList.add("hidden");
+  $("device-install").textContent = dev.install_guide || "—";
+  $("device-pairing").textContent = dev.pairing_guide || "—";
+  $("device-reset").textContent = dev.combo_reset_guide || "—";
+  $("device-own-btn").textContent = dev.has_device ? "Снять отметку «у меня есть устройство»" : "Отметить «у меня есть устройство»";
+  go("device");
+}
+async function toggleOwnership(){
+  var dev = STATE.device;
+  if (!dev) return;
+  try {
+    await api("/devices/api/catalog/" + dev.device_id + "/ownership", { method: "POST", body: JSON.stringify({ session_token: STATE.token, has_device: !dev.has_device }) });
+    dev.has_device = !dev.has_device;
+    toast(dev.has_device ? "Отмечено: у меня есть это устройство" : "Отметка снята");
+    $("device-tags").innerHTML = (dev.has_device ? '<span class="tag owned">у меня есть</span> ' : "") + (dev.is_published ? '<span class="tag">опубликовано</span>' : "");
+    $("device-own-btn").textContent = dev.has_device ? "Снять отметку «у меня есть устройство»" : "Отметить «у меня есть устройство»";
+  } catch(e) { toast(e.message); }
+}
+window.toggleOwnership = toggleOwnership;
+
+/* ============================ аккаунт ============================ */
+async function renderAccount(){
+  if (!requireAuth()) return;
+  var box = $("account-scroll");
+  box.innerHTML = '<div class="spin"></div>';
+  var profile = null, limits = null;
+  try { var d = await api("/account/api/profile?session_token=" + tk()); profile = d.profile; }
+  catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; return; }
+  STATE.profile = profile;
+  renderChip();
+  try { var dl = await api("/account/api/limits?session_token=" + tk()); limits = dl; } catch(e) {}
+  var isGuest = profile.role === "guest";
+  var isAdmin = profile.role === "admin" || profile.role === "moderator";
+  var avaHtml = profile.avatar_url
+    ? '<img src="' + esc(profile.avatar_url) + '" alt="">'
+    : esc(profile.avatar_emoji || userEmoji(profile.user_id));
+  box.innerHTML =
+    '<div class="profile-hero">' +
+      '<div class="hero-ava" id="acct-ava">' + avaHtml + "</div>" +
+      '<div class="hero-name">' + esc(profile.display_name || profile.login) + "</div>" +
+      '<div class="hero-login">@' + esc(profile.login) + ' <span class="badge">' + esc(profile.role) + "</span></div>" +
+      (isGuest ? "" : '<button class="hero-btn" id="ava-btn"><svg class="i s22"><use href="#i-image"/></svg>Сменить аватар</button>') +
+    "</div>" +
+    (isGuest ? '<div class="group"><div class="kv"><span class="note">Гостевой аккаунт: профиль и аватар изменить нельзя.</span></div></div>' : "") +
+    (isGuest ? "" :
+      '<div class="sect-label">Эмодзи-аватар</div>' +
+      '<div class="group" style="margin-top:0;padding-bottom:4px"><div class="emoji-grid" id="emoji-grid">' +
+        EMOJIS.map(function(e){ return '<button data-e="' + e + '" class="' + (e === profile.avatar_emoji && !profile.avatar_url ? "sel" : "") + '">' + e + "</button>"; }).join("") +
+      "</div></div>" +
+      '<div class="sect-label">Профиль</div>' +
+      '<div class="group" style="margin-top:0">' +
+        '<div class="kv"><span class="k">Имя</span></div>' +
+        '<div style="padding:0 16px 10px"><input class="inp" id="acct-name" value="' + esc(profile.display_name || "") + '" placeholder="Как вас отображать"></div>' +
+        '<div class="kv"><span class="k">Телефон</span></div>' +
+        '<div style="padding:0 16px 10px"><input class="inp" id="acct-phone" value="' + esc(profile.phone || "") + '" placeholder="+7..."></div>' +
+        '<div class="kv"><span class="k">О себе</span></div>' +
+        '<div style="padding:0 16px 10px"><textarea class="inp" id="acct-bio" rows="3" placeholder="Коротко о себе">' + esc(profile.profile_bio || "") + "</textarea></div>" +
+        '<div style="padding:0 16px 14px"><button class="btn-accent" id="acct-save">Сохранить</button></div>' +
+      "</div>") +
+    (limits ?
+      '<div class="sect-label">Ограничения аккаунта</div>' +
+      '<div class="group" style="margin-top:0">' +
+        '<div class="kv"><span class="k">Роль</span><span class="v">' + esc(limits.role || profile.role) + "</span></div>" +
+        '<div class="kv"><span class="k">Лимит своих чатов</span><span class="v">' + (limits.max_custom_chats == null ? "∞" : limits.max_custom_chats) + "</span></div>" +
+        '<div class="kv"><span class="k">Создано чатов</span><span class="v">' + (limits.current_custom_chats == null ? "—" : limits.current_custom_chats) + "</span></div>" +
+        '<div class="kv"><span class="k">Осталось</span><span class="v">' + (limits.remaining_custom_chats == null ? "∞" : limits.remaining_custom_chats) + "</span></div>" +
+      "</div>" : "") +
+    '<div class="sect-label">Другие разделы</div>' +
+    '<div class="group" style="margin-top:0">' +
+      '<button class="row" onclick="go(\'devices\')"><svg class="i s24" style="margin:8px"><use href="#i-chip"/></svg>Устройства<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' +
+      '<button class="row" onclick="go(\'about\')"><svg class="i s24" style="margin:8px"><use href="#i-info"/></svg>О проекте<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' +
+      (isAdmin ? '<button class="row" id="admin-link"><svg class="i s24" style="margin:8px"><use href="#i-gear"/></svg>Админ-панель<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' : "") +
+      '<button class="row danger" id="logout-btn"><svg class="i s24" style="margin:8px"><use href="#i-out"/></svg>Выйти</button>' +
+    "</div>";
+  if ($("logout-btn")) $("logout-btn").onclick = doLogout;
+  if ($("admin-link")) $("admin-link").onclick = function(){ location.href = "/admin"; };
+  if ($("ava-btn")) $("ava-btn").onclick = function(){ $("avatar-input").click(); };
+  if ($("emoji-grid")) {
+    $("emoji-grid").querySelectorAll("button").forEach(function(b){
+      b.onclick = async function(){
+        var e = b.getAttribute("data-e");
+        try {
+          await api("/account/api/profile", { method: "POST", body: JSON.stringify({ session_token: STATE.token, avatar_emoji: e }) });
+          await api("/account/api/avatar/remove", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) }).catch(function(){});
+          localStorage.setItem("lc_my_emoji", e);
+          toast("Эмодзи-аватар обновлён");
+          renderAccount();
+        } catch(err) { toast(err.message); }
+      };
+    });
+  }
+  if ($("acct-save")) {
+    $("acct-save").onclick = async function(){
+      try {
+        await api("/account/api/profile", { method: "POST", body: JSON.stringify({
+          session_token: STATE.token,
+          display_name: $("acct-name").value.trim(),
+          phone: $("acct-phone").value.trim(),
+          profile_bio: $("acct-bio").value.trim()
+        }) });
+        toast("Профиль обновлён");
+        renderAccount();
+      } catch(e) { toast(e.message); }
+    };
+  }
+}
+async function doLogout(){
+  if (!confirm("Выйти из аккаунта?")) return;
+  try { await api("/auth/logout", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) }); } catch(e) {}
+  clearAuth();
+  toast("Вы вышли из системы");
+  go("login");
+}
+function bindAvatarInput(){
+  $("avatar-input").onchange = async function(){
+    var f = $("avatar-input").files && $("avatar-input").files[0];
+    $("avatar-input").value = "";
+    if (!f) return;
+    if (!/^image\//i.test(f.type || "")) { toast("Только изображения PNG, JPEG или WEBP"); return; }
+    try {
+      var dataUrl = await downscaleImage(f, 512);
+      await api("/account/api/avatar", { method: "POST", body: JSON.stringify({ session_token: STATE.token, image_base64: dataUrl, image_mime_type: "image/jpeg" }) });
+      toast("Фото-аватар обновлён");
+      renderAccount();
+    } catch(e) { toast(e.message); }
+  };
+}
+
+/* ============================ о проекте ============================ */
+async function loadAbout(){
+  try {
+    var r = await fetch("/health");
+    var d = await r.json();
+    $("about-version").textContent = d.version || "—";
+    $("net-label").textContent = "local-chat · v" + (d.version || "");
+  } catch(e) {}
+}
+
+/* ============================ поиск ============================ */
+var searchTimer = null;
+function bindSearch(){
+  $("search-input").addEventListener("input", function(){
+    clearTimeout(searchTimer);
+    var q = $("search-input").value.trim();
+    renderSearchLocal(q);
+    searchTimer = setTimeout(function(){ renderSearchRemote(q); }, 300);
+  });
+}
+function renderSearch(q){
+  renderSearchLocal(q);
+  renderSearchRemote(q);
+}
+function renderSearchLocal(q){
+  var box = $("search-results");
+  if (!q) { box.innerHTML = '<div class="empty">Начните вводить запрос — ищем по вашим чатам, публичным каналам и людям.</div>'; return; }
+  var local = (STATE.chats || []).filter(function(c){
+    var t = (chatDisplayTitle(c) + " " + (c.description || "")).toLowerCase();
+    return t.indexOf(q.toLowerCase()) >= 0;
+  }).slice(0, 8);
+  var html = "";
+  if (local.length) {
+    html += '<div class="search-head">Ваши чаты</div><div class="group" style="margin-top:0">';
+    local.forEach(function(c){
+      var title = chatDisplayTitle(c);
+      var cav = chatAvaFor(title, c.chat_id);
+      html += '<button class="row" data-cid="' + c.chat_id + '"><span class="avatar" style="background:' + cav.color + '">' + esc(cav.initials) + "</span><span class=\"rcol\"><span class=\"rt\">" + esc(title) + "</span></span></button>";
+    });
+    html += "</div>";
+  }
+  if (/^https?:\/\//i.test(q) || q.indexOf("#/join/") >= 0) {
+    html += '<div class="group" style="margin-top:0"><button class="row no-line" id="sr-join"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>Открыть ссылку-приглашение</button></div>';
+  } else if (q.length >= 3 && /^[a-zA-Z0-9_\-]+$/.test(q)) {
+    html += '<div class="group" style="margin-top:0"><button class="row no-line" id="sr-join-code"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>Присоединиться по коду «' + esc(q) + '»</button></div>';
+  }
+  html += '<div id="sr-remote"></div>';
+  box.innerHTML = html;
+  box.querySelectorAll("[data-cid]").forEach(function(b){
+    b.onclick = function(){
+      var c = (STATE.chats || []).filter(function(x){ return String(x.chat_id) === b.getAttribute("data-cid"); })[0];
+      if (c) openChat(c);
+    };
+  });
+  if ($("sr-join")) $("sr-join").onclick = function(){ doJoin(q); };
+  if ($("sr-join-code")) $("sr-join-code").onclick = function(){ doJoin(q); };
+}
+async function renderSearchRemote(q){
+  var box = $("sr-remote");
+  if (!box) return;
+  if (!q || q.length < 2) { box.innerHTML = ""; return; }
+  box.innerHTML = '<div class="spin"></div>';
+  var html = "";
+  try {
+    var dc = await api("/chat/api/chats/search?session_token=" + tk() + "&q=" + encodeURIComponent(q));
+    var chats = dc.items || [];
+    if (chats.length) {
+      html += '<div class="search-head">Публичные чаты</div><div class="group" style="margin-top:0">';
+      chats.forEach(function(c, i){
+        var title = c.title || ("Чат #" + c.chat_id);
+        var cav = chatAvaFor(title, c.chat_id);
+        html += '<button class="row" data-pub="' + i + '"><span class="avatar" style="background:' + cav.color + '">' + esc(cav.initials) + '</span><span class="rcol"><span class="rt">' + esc(title) + '</span><span class="rsub">' + esc(c.username ? "@" + c.username : (c.description || "")) + '</span></span><span class="rmeta"><span style="color:var(--link);font-size:14px">Подписаться</span></span></button>';
+      });
+      html += "</div>";
+    }
+  } catch(e) {}
+  try {
+    var du = await api("/chat/api/users/search?session_token=" + tk() + "&q=" + encodeURIComponent(q));
+    var users = (du.items || []).filter(function(u){ return u.user_id !== (STATE.user && STATE.user.id) && u.role !== "guest"; });
+    if (users.length) {
+      html += '<div class="search-head">Люди</div><div class="group" style="margin-top:0">';
+      users.forEach(function(u, i){
+        var name = STATE.names[u.user_id] || u.login;
+        html += '<button class="row" data-user="' + i + '"><span class="avatar" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + '</span><span class="rcol"><span class="rt">' + esc(name) + '</span><span class="rsub">@' + esc(u.login || "") + " · открыть личку</span></span></button>";
+      });
+      html += "</div>";
+    }
+  } catch(e) {}
+  box.innerHTML = html || '<div class="empty">Ничего не найдено.</div>';
+  box.querySelectorAll("[data-pub]").forEach(function(b){
+    b.onclick = async function(){
+      var idx = Number(b.getAttribute("data-pub"));
+      var dc2 = await api("/chat/api/chats/search?session_token=" + tk() + "&q=" + encodeURIComponent(q)).catch(function(){ return { items: [] }; });
+      var c = (dc2.items || [])[idx];
+      if (!c) return;
+      try {
+        var res = await api("/chat/api/join", { method: "POST", body: JSON.stringify({ session_token: STATE.token, chat_id: c.chat_id }) });
+        toast(res.already_member ? "Вы уже подписаны" : "Вы подписались");
+        await refreshChats(true);
+        var chat = (STATE.chats || []).filter(function(x){ return x.chat_id === c.chat_id; })[0];
+        if (chat) openChat(chat);
+      } catch(e) { toast(e.message); }
+    };
+  });
+  box.querySelectorAll("[data-user]").forEach(function(b){
+    b.onclick = async function(){
+      var idx = Number(b.getAttribute("data-user"));
+      var du2 = await api("/chat/api/users/search?session_token=" + tk() + "&q=" + encodeURIComponent(q)).catch(function(){ return { items: [] }; });
+      var users2 = (du2.items || []).filter(function(u){ return u.user_id !== (STATE.user && STATE.user.id) && u.role !== "guest"; });
+      var u = users2[idx];
+      if (!u) return;
+      try {
+        var dm = await api("/chat/api/dm", { method: "POST", body: JSON.stringify({ session_token: STATE.token, target_user_id: u.user_id }) });
+        await refreshChats(true);
+        var cid = dm && dm.chat && dm.chat.chat_id;
+        var chat = (STATE.chats || []).filter(function(x){ return x.chat_id === cid; })[0];
+        if (chat) openChat(chat); else go("chats");
+      } catch(e) { toast(e.message); }
+    };
+  });
+}
+
+/* ============================ вход ============================ */
+var loginMode = "login";
+function setLoginMode(mode){
+  loginMode = mode;
+  var isLogin = mode === "login";
+  $("login-phone").classList.toggle("hidden", isLogin);
+  $("login-btn").textContent = isLogin ? "Войти" : "Создать аккаунт";
+  $("login-toggle").textContent = isLogin ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти";
+  $("login-error").textContent = "";
+}
+async function doLoginOrRegister(){
+  var login = $("login-user").value.trim();
+  var pass = $("login-pass").value;
+  var err = $("login-error");
+  err.textContent = "";
+  if (!login || !pass) { err.textContent = "Заполните логин и пароль"; return; }
+  var btn = $("login-btn");
+  btn.disabled = true;
+  var oldLabel = btn.textContent;
+  btn.textContent = loginMode === "login" ? "Вход..." : "Регистрация...";
+  try {
+    var data;
+    if (loginMode === "login") {
+      data = await api("/auth/login", { method: "POST", body: JSON.stringify({ login: login, password: pass, client_kind: "web" }) });
+    } else {
+      var phone = $("login-phone").value.trim() || "No Phone";
+      data = await api("/auth/register", { method: "POST", body: JSON.stringify({ login: login, password: pass, phone: phone, device_id: "web-" + Date.now().toString(36), client_kind: "web" }) });
+    }
+    if (data.status !== "ok") throw new Error(data.message || "Ошибка входа");
+    setAuth(data);
+    await afterLogin();
+  } catch(e) { err.textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = loginMode === "login" ? "Войти" : "Создать аккаунт"; }
+}
+async function doGuest(){
+  var err = $("login-error");
+  err.textContent = "";
+  try {
+    var data = await api("/auth/guest", { method: "POST", body: JSON.stringify({ client_kind: "web" }) });
+    if (data.status !== "ok") throw new Error(data.message || "Ошибка входа");
+    setAuth(data);
+    await afterLogin();
+  } catch(e) { err.textContent = e.message; }
+}
+async function afterLogin(){
+  try { var d = await api("/account/api/profile?session_token=" + tk()); STATE.profile = d.profile; renderChip(); } catch(e) {}
+  await refreshChats(true);
+  if (STATE.pendingJoin) {
+    var code = STATE.pendingJoin;
+    STATE.pendingJoin = null;
+    await doJoin(code);
+    return;
+  }
+  go("chats");
+}
+function bindLogin(){
+  $("login-btn").onclick = doLoginOrRegister;
+  $("guest-btn").onclick = doGuest;
+  $("login-toggle").onclick = function(){ setLoginMode(loginMode === "login" ? "register" : "login"); };
+  $("login-pass").addEventListener("keydown", function(e){ if (e.key === "Enter") doLoginOrRegister(); });
+  $("login-user").addEventListener("keydown", function(e){ if (e.key === "Enter") doLoginOrRegister(); });
+}
+
+/* ============================ тик ============================ */
+function tick(){
+  if (document.hidden || !STATE.token) return;
+  var now = Date.now();
+  if (STATE.screen === "chats" && now - STATE.lastChatsLoad > 8000) refreshChats(false);
+  if (STATE.screen === "chat" && now - STATE.lastMsgsLoad > 5000) {
+    STATE.lastMsgsLoad = now;
+    loadMessages(false);
+  }
+}
+
+/* ============================ экспорт обработчиков для inline-кнопок ============================ */
+window.go = go;
+window.show = show;
+window.setFilter = setFilter;
+window.openChatsMenu = openChatsMenu;
+window.openJoinSheet = openJoinSheet;
+window.closeSheet = closeSheet;
+window.openSheet = openSheet;
+window.unpinMessage = unpinMessage;
+window.startMention = startMention;
+window.openMsgMenu = openMsgMenu;
+
+/* ============================ старт ============================ */
+async function start(){
+  toastEl = $("toast");
+  bindLogin();
+  bindComposer();
+  bindChatFileInput();
+  bindSupportInputs();
+  bindNewChat();
+  bindAvatarInput();
+  bindSearch();
+  setLoginMode("login");
+  setInterval(tick, 2000);
+  loadAbout();
+
+  var joinMatch = location.hash.match(/^#\/join\/(.+)$/);
+  if (joinMatch) {
+    STATE.pendingJoin = decodeURIComponent(joinMatch[1]);
+  }
+  if (STATE.token) {
+    try {
+      var d = await api("/account/api/profile?session_token=" + tk());
+      STATE.profile = d.profile;
+      STATE.user = STATE.user || {};
+      renderChip();
+      loadNames();
+      startPresence();
+      await refreshChats(true);
+      if (STATE.pendingJoin) {
+        var code = STATE.pendingJoin;
+        STATE.pendingJoin = null;
+        await doJoin(code);
+        return;
+      }
+      var initial = location.hash.replace(/^#\//, "");
+      if (SCREENS.indexOf(initial) >= 0 && initial !== "login") show(initial);
+      else show("chats");
+    } catch(e) {
+      clearAuth();
+      show("login");
+    }
+  } else {
+    show("login");
+  }
+}
+start();
 })();
 </script>
 </body>
