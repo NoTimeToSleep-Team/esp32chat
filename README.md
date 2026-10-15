@@ -164,8 +164,11 @@ sudo lc import /tmp/lc-export.tar.gz
 ```
 
 The export contains the database, uploads, avatars and settings. `lc import`
-verifies the checksum, keeps a safety backup of the current data in
-`/var/backups/` and restarts the service.
+verifies the checksum, exports the current data to `/var/backups/` first (when
+it is not empty — roll back any time with `sudo lc import <that file> --yes`),
+and restarts the service. The setup wizard can also import an export file
+directly during a fresh install ("Start the server with: data from an export
+file").
 
 ## On-device layout
 

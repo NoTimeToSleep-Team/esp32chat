@@ -48,7 +48,8 @@ Runs during the install, before the server is laid out — the answers decide
 how the server is installed, and cancelling (Esc) leaves the system untouched.
 Steps: administrator (login/password) → Wi-Fi access point (on/off, SSID,
 password, channel, country) → portal port (18080) → registration mode →
-**start on boot or start manually** → summary → apply.
+**start on boot or start manually** → **start with an empty server or import
+data from an export file (path)** → summary → apply.
 
 - `Esc` on any step cancels without changes.
 - Re-run: `sudo lc setup` (current values are offered as defaults).
@@ -65,7 +66,7 @@ lc stop                stop the server
 lc update              update from a new release (data/ and app.env kept)
 lc backup              archive data/ + app.env
 lc export [FILE]       bundle data/ + app.env for moving to another server
-lc import FILE [--yes] restore an export here (safety backup first)
+lc import FILE [--yes] restore an export here (pre-import export to /var/backups)
 lc logs                install log + service journal
 lc uninstall           remove (data kept); --purge removes everything
 lc version             version

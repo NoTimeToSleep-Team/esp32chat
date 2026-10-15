@@ -128,6 +128,26 @@
       "type": "bool",
       "default": true,
       "persist": true
+    },
+    {
+      "key": "LC_DATA_MODE",
+      "section": "data",
+      "label": "Start the server with",
+      "type": "choice",
+      "choices": [
+        {"value": "clean", "label": "an empty server (clean start)"},
+        {"value": "import", "label": "data from an export file"}
+      ],
+      "default": "clean",
+      "persist": false
+    },
+    {
+      "key": "LC_IMPORT_FILE",
+      "section": "data",
+      "label": "Path to the export file (.tar.gz)",
+      "type": "text",
+      "required_if": "LC_DATA_MODE=import",
+      "persist": false
     }
   ],
   "actions": ["create_admin", "set_mode", "apply_ap", "restart_service"]

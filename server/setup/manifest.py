@@ -45,6 +45,14 @@ def _flag(value) -> str:
     return str(value or "-")
 
 
+def choice_values(field: dict) -> list:
+    """Choices may be plain strings or {"value": ..., "label": ...} dicts."""
+    values = []
+    for choice in field.get("choices", []):
+        values.append(choice["value"] if isinstance(choice, dict) else choice)
+    return values
+
+
 def cmd_min_python(schema: dict) -> int:
     print(schema["min_python"])
     return 0
@@ -78,7 +86,7 @@ def cmd_fields(schema: dict, lang: str = "en") -> int:
             field.get("section", "general"),
             label_of(field, lang),
             str(field.get("default", "")),
-            ",".join(field.get("choices", [])),
+            ",".join(choice_values(field)),
             _flag(field.get("required_if")),
             _flag(field.get("confirm")),
             _flag(field.get("persist")),
@@ -92,8 +100,11 @@ def cmd_choices(schema: dict, key: str, lang: str = "en") -> int:
     if field is None:
         print(f"unknown field: {key}", file=sys.stderr)
         return 1
-    for value in field.get("choices", []):
-        print(f"{value}\x1f{value}")
+    for choice in field.get("choices", []):
+        if isinstance(choice, dict):
+            print(f"{choice['value']}\x1f{choice.get('label', choice['value'])}")
+        else:
+            print(f"{choice}\x1f{choice}")
     return 0
 
 
@@ -142,8 +153,8 @@ def cmd_validate(schema: dict, key: str, value: str) -> int:
         if field.get("required") and not text:
             print("must not be empty", file=sys.stderr)
             return 1
-        if field.get("choices") and text not in field["choices"]:
-            print("must be one of: " + ", ".join(field["choices"]), file=sys.stderr)
+        if field.get("choices") and text not in choice_values(field):
+            print("must be one of: " + ", ".join(choice_values(field)), file=sys.stderr)
             return 1
         return 0
 

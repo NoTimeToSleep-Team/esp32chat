@@ -118,7 +118,15 @@ fi
 if [[ "${PHASE}" != "apply" ]]; then
 while IFS=$'\x1f' read -r key type section label default choices required_if confirm persist; do
     if [[ -n "${required_if}" && "${required_if}" != "-" ]]; then
-        if ! bool_yes "$(val "${required_if}")"; then
+        if [[ "${required_if}" == *=* ]]; then
+            # condition of the form KEY=value (e.g. LC_DATA_MODE=import)
+            cond_key="${required_if%%=*}"
+            cond_val="${required_if#*=}"
+            if [[ "$(val "${cond_key}")" != "${cond_val}" ]]; then
+                log "skipping ${key} (condition ${required_if} not met)"
+                continue
+            fi
+        elif ! bool_yes "$(val "${required_if}")"; then
             log "skipping ${key} (condition ${required_if}=no)"
             continue
         fi
@@ -193,6 +201,17 @@ if bool_yes "$(val AP_ENABLED)"; then
         || fail "the access point is enabled, but the Wi-Fi password is invalid: ${err}"
 fi
 
+# ---- cross-check: import mode -> the export file must exist and look right ----
+if [[ "$(val LC_DATA_MODE)" == "import" ]]; then
+    IMPORT_FILE="$(val LC_IMPORT_FILE)"
+    [[ -n "${IMPORT_FILE}" ]] || fail "an export file path is required when starting from an export"
+    [[ -f "${IMPORT_FILE}" ]] || fail "the export file does not exist: ${IMPORT_FILE}"
+    IMPORT_LISTING="$(tar -tzf "${IMPORT_FILE}" 2>/dev/null || true)"
+    if ! grep -q '^data/sqlite/' <<< "${IMPORT_LISTING}"; then
+        fail "this does not look like an LC export file: ${IMPORT_FILE}"
+    fi
+fi
+
 # ---- summary ----
 summary() {
     local lines=()
@@ -250,19 +269,36 @@ if [[ "${PHASE}" == "collect" ]]; then
     exit 0
 fi
 
-log "creating the administrator"
-( cd "${APP_ROOT}" \
-  && "${PY_CMD}" -m app.cli --app-root "${APP_ROOT}" --env-file "${ENV_FILE}" \
-      create-admin --username "$(val ADMIN_USERNAME)" --password "$(val ADMIN_PASSWORD)" ) \
-    || fail "failed to create the administrator"
+IMPORT_OK=0
+if [[ "$(val LC_DATA_MODE)" == "import" ]]; then
+    log "importing the data from $(val LC_IMPORT_FILE)"
+    if bash "${APP_ROOT}/scripts/lc.sh" import "$(val LC_IMPORT_FILE)" --yes; then
+        IMPORT_OK=1
+        log "data imported — the administrator and settings from the export are in use"
+    else
+        log "WARNING: the import failed — creating a clean administrator instead"
+    fi
+fi
 
-if [[ -n "$(val LC_REGISTRATION_MODE)" ]]; then
-    log "registration mode: $(val LC_REGISTRATION_MODE)"
+if [[ "${IMPORT_OK}" != "1" ]]; then
+    log "creating the administrator"
     ( cd "${APP_ROOT}" \
       && "${PY_CMD}" -m app.cli --app-root "${APP_ROOT}" --env-file "${ENV_FILE}" \
-          set-mode --mode "$(val LC_REGISTRATION_MODE)" ) \
-        || fail "failed to set the registration mode"
+          create-admin --username "$(val ADMIN_USERNAME)" --password "$(val ADMIN_PASSWORD)" ) \
+        || fail "failed to create the administrator"
+
+    if [[ -n "$(val LC_REGISTRATION_MODE)" ]]; then
+        log "registration mode: $(val LC_REGISTRATION_MODE)"
+        ( cd "${APP_ROOT}" \
+          && "${PY_CMD}" -m app.cli --app-root "${APP_ROOT}" --env-file "${ENV_FILE}" \
+              set-mode --mode "$(val LC_REGISTRATION_MODE)" ) \
+            || fail "failed to set the registration mode"
+    fi
 fi
+
+# After a possible import the effective port comes from app.env.
+EFFECTIVE_PORT="$(sed -n 's/^LCS_PORT=//p' "${ENV_FILE}" 2>/dev/null | tail -1 || true)"
+[[ -n "${EFFECTIVE_PORT}" ]] || EFFECTIVE_PORT="$(val LCS_PORT)"
 
 # The CLI wrote into data/ as root — return ownership to the service user,
 # otherwise the server (localchat) cannot write the database after restart.
@@ -295,7 +331,7 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
         || log "WARNING: failed to restart ${SERVICE_NAME}"
     # Wait briefly so "All done" is true: the server needs a few seconds.
     for _ in $(seq 1 20); do
-        if curl -fsS "http://127.0.0.1:$(val LCS_PORT)/health" >/dev/null 2>&1; then
+        if curl -fsS "http://127.0.0.1:${EFFECTIVE_PORT}/health" >/dev/null 2>&1; then
             break
         fi
         sleep 1
@@ -304,7 +340,7 @@ fi
 
 # ---- done ----
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')" || IP=""
-PORT="$(val LCS_PORT)"
+PORT="${EFFECTIVE_PORT}"
 AP_LINE="disabled"
 if bool_yes "$(val AP_ENABLED)"; then AP_LINE="$(val AP_SSID)"; fi
 AUTOSTART_LINE="on boot"

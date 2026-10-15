@@ -116,42 +116,70 @@ cmd_backup() {
     echo "Backup created: ${out}"
 }
 
-cmd_export() {
-    require_root export
-    local stamp out info_dir stopped=0 ok=1
-    stamp="$(date +%Y%m%d-%H%M%S)"
-    out="${1:-${APP_ROOT}/data/backups/lc-export-${stamp}.tar.gz}"
+# True when the server holds real data (users or chat messages).
+data_present() {
+    local db="${APP_ROOT}/data/sqlite/local_chat.db"
+    [[ -f "${db}" ]] || return 1
+    python3 - "${db}" <<'PY' 2>/dev/null
+import sqlite3, sys
+try:
+    c = sqlite3.connect(sys.argv[1])
+    users = c.execute("select count(*) from users").fetchone()[0]
+    try:
+        messages = c.execute("select count(*) from chat_messages").fetchone()[0]
+    except Exception:
+        messages = 0
+    sys.exit(0 if (users or messages) else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
+# Builds an export archive (data + config/app.env + EXPORT_INFO) with a .sha256.
+# Call it with the service stopped for a consistent sqlite snapshot.
+make_export_archive() {
+    local out="$1" info_dir
     info_dir="$(mktemp -d)"
-    mkdir -p "$(dirname "${out}")"
     {
         echo "Local Chat Server export"
         echo "version: $(cmd_version)"
         echo "date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         echo "host: $(hostname)"
     } > "${info_dir}/EXPORT_INFO.txt"
+    mkdir -p "$(dirname "${out}")"
+    if ! tar -czf "${out}" -C "${APP_ROOT}" \
+        --exclude='data/backups' --exclude='data/logs' --exclude='data/incidents' \
+        data config/app.env \
+        -C "${info_dir}" EXPORT_INFO.txt; then
+        rm -rf "${info_dir}"
+        rm -f "${out}"
+        return 1
+    fi
+    rm -rf "${info_dir}"
+    ( cd "$(dirname "${out}")" && sha256sum "$(basename "${out}")" ) > "${out}.sha256"
+    chmod 600 "${out}" "${out}.sha256" 2>/dev/null || true
+    return 0
+}
+
+cmd_export() {
+    require_root export
+    local stamp out stopped=0 ok=1
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    out="${1:-${APP_ROOT}/data/backups/lc-export-${stamp}.tar.gz}"
 
     # A consistent sqlite snapshot: stop the server while the archive is built.
     if systemd_ok && systemctl is-active --quiet "${SERVICE_NAME}"; then
         echo "Stopping the server for a consistent snapshot…"
         if systemctl stop "${SERVICE_NAME}"; then stopped=1; fi
     fi
-    if ! tar -czf "${out}" -C "${APP_ROOT}" \
-        --exclude='data/backups' --exclude='data/logs' --exclude='data/incidents' \
-        data config/app.env \
-        -C "${info_dir}" EXPORT_INFO.txt; then
-        ok=0
-        rm -f "${out}"
-    fi
+    make_export_archive "${out}" || ok=0
     if [[ "${stopped}" == "1" ]]; then
         systemctl start "${SERVICE_NAME}" 2>/dev/null || true
     fi
-    rm -rf "${info_dir}"
     if [[ "${ok}" != "1" ]]; then
         echo "Export failed" >&2
         exit 1
     fi
-    ( cd "$(dirname "${out}")" && sha256sum "$(basename "${out}")" ) > "${out}.sha256"
-    chmod 600 "${out}" "${out}.sha256" 2>/dev/null || true
     echo "Export created: ${out}"
     echo "  size:   $(du -h "${out}" | cut -f1)"
     echo "  sha256: $(cut -d' ' -f1 "${out}.sha256")"
@@ -193,20 +221,30 @@ cmd_import() {
     echo "Import: ${src}"
     [[ -n "${info_ver}" ]] && echo "  exported from version: ${info_ver}"
     echo "  local version:         $(cmd_version)"
-    echo "The current data will be REPLACED (a safety backup is taken first)."
+    echo "The current data will be REPLACED (an export of it is saved to /var/backups first, when it is not empty)."
     if [[ "${assume_yes}" != "1" ]]; then
         read -r -p "Type yes to continue: " answer
         [[ "${answer}" == "yes" ]] || { echo "Cancelled"; exit 0; }
     fi
 
-    pre="/var/backups/lc-pre-import-$(date +%Y%m%d-%H%M%S).tar.gz"
-    mkdir -p /var/backups
-    tar -czf "${pre}" -C "${APP_ROOT}" data config/app.env 2>/dev/null || true
-    chmod 600 "${pre}" 2>/dev/null || true
-    echo "Safety backup: ${pre}"
-
+    # Stop first: the pre-import export must be a consistent snapshot.
     if systemd_ok && systemctl is-active --quiet "${SERVICE_NAME}"; then
         if systemctl stop "${SERVICE_NAME}"; then stopped=1; fi
+    fi
+
+    pre=""
+    if data_present; then
+        pre="/var/backups/lc-pre-import-$(date +%Y%m%d-%H%M%S).tar.gz"
+        mkdir -p /var/backups
+        if ! make_export_archive "${pre}"; then
+            echo "ERROR: the pre-import backup could not be created — refusing to import." >&2
+            if [[ "${stopped}" == "1" ]]; then systemctl start "${SERVICE_NAME}" 2>/dev/null || true; fi
+            exit 1
+        fi
+        echo "Pre-import export: ${pre}"
+        echo "  to roll back:   sudo lc import ${pre} --yes"
+    else
+        echo "No existing data — skipping the pre-import export."
     fi
 
     tmp="$(mktemp -d)"
@@ -313,8 +351,8 @@ Commands:
                           server (default: data/backups/lc-export-<stamp>.tar.gz;
                           a .sha256 is written next to the archive). (sudo)
   import FILE [--yes]     Replace this server's data with an export file
-                          (checks the .sha256 if present; keeps a safety backup
-                          in /var/backups). (sudo)
+                          (checks the .sha256 if present; exports the current
+                          data to /var/backups first when it is not empty). (sudo)
   logs                    Show the install log and the last 100 service log lines.
   uninstall               Stop and remove the server code; data is kept. (sudo)
   uninstall --purge       Also delete data and settings — irreversible. (sudo)
