@@ -1273,7 +1273,7 @@ function buildMsgEl(m){
       '<span class="m-time">' + fmtTimeShort(m.created_at_ms) + "</span></div>";
   if (m.forwarded_from_login) html += '<div class="m-forwarded"><svg class="i s15"><use href="#i-forward"/></svg> Переслано от <b>' + esc(m.forwarded_from_login) + "</b></div>";
   if (m.reply_to_message_id) {
-    html += '<div class="m-reply" onclick="jumpToMessage(' + m.reply_to_message_id + ')"><div class="ra">' + esc(m.reply_to_login || "") + '</div><div class="rt">' + esc((m.reply_to_text || "").slice(0, 140) || "…") + "</div></div>";
+    html += '<div class="m-reply" onclick="event.stopPropagation();jumpToMessage(' + m.reply_to_message_id + ')"><div class="ra">' + esc(m.reply_to_login || "") + '</div><div class="rt">' + esc((m.reply_to_text || "").slice(0, 140) || "…") + "</div></div>";
   }
   if (m.poll) {
     html += pollHtml(m.poll);
@@ -1286,14 +1286,73 @@ function buildMsgEl(m){
   html += reactsHtml(m);
   html += "</div>";
   div.innerHTML = html;
-  var textEl = div.querySelector(".m-text");
-  if (textEl) textEl.onclick = function(ev){ if (ev.target.tagName === "A") return; openMsgMenu(m.message_id); };
+  var avaEl = div.querySelector(".m-ava");
+  var nameEl = div.querySelector(".m-name");
+  var openProf = function(ev){ ev.stopPropagation(); openUserProfile(m.author_user_id); };
+  if (avaEl) avaEl.onclick = openProf;
+  if (nameEl) nameEl.onclick = openProf;
   div.querySelectorAll(".m-reacts button").forEach(function(b){
     b.onclick = function(ev){ ev.stopPropagation(); toggleReaction(m.message_id, b.getAttribute("data-emoji")); };
   });
   div.querySelectorAll(".poll .po").forEach(function(b){
     b.onclick = function(){ votePoll(m.poll.poll_id, Number(b.getAttribute("data-opt"))); };
   });
+
+  /* ---- жесты: тап/долгое нажатие — действия, свайп вправо — ответ ---- */
+  var suppressClick = false, swiped = false, swipeOn = false, swipeX = 0, swipeY = 0, lpTimer = null;
+  div.onclick = function(ev){
+    if (suppressClick) { suppressClick = false; return; }
+    var t = ev.target;
+    if (t.closest && t.closest("a,button,.m-ava,.m-name,.m-reply,.m-reacts,.poll")) return;
+    openMsgMenu(m.message_id);
+  };
+  div.addEventListener("contextmenu", function(ev){ ev.preventDefault(); });
+  div.addEventListener("touchstart", function(ev){
+    if (ev.touches.length !== 1) return;
+    swipeX = ev.touches[0].clientX; swipeY = ev.touches[0].clientY;
+    swipeOn = true; swiped = false;
+    clearTimeout(lpTimer);
+    lpTimer = setTimeout(function(){
+      lpTimer = null;
+      suppressClick = true;
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch(e){} }
+      openMsgMenu(m.message_id);
+    }, 480);
+  }, { passive: true });
+  div.addEventListener("touchmove", function(ev){
+    if (!swipeOn) return;
+    var dx = ev.touches[0].clientX - swipeX;
+    var dy = ev.touches[0].clientY - swipeY;
+    if (Math.abs(dy) > Math.abs(dx) + 4) {
+      clearTimeout(lpTimer); lpTimer = null;
+      swipeOn = false; swiped = false;
+      div.style.transition = "none"; div.style.transform = "";
+      return;
+    }
+    if (dx > 8) { clearTimeout(lpTimer); lpTimer = null; }
+    if (dx > 0) {
+      div.style.transition = "none";
+      div.style.transform = "translateX(" + Math.min(dx, 88) + "px)";
+      if (dx > 56) swiped = true;
+    }
+  }, { passive: true });
+  var endTouch = function(){
+    if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    swipeOn = false;
+    if (div.style.transform) {
+      div.style.transition = "transform .18s";
+      div.style.transform = "";
+      setTimeout(function(){ div.style.transition = ""; }, 220);
+    }
+    if (swiped) {
+      swiped = false;
+      suppressClick = true;
+      if (navigator.vibrate) { try { navigator.vibrate(10); } catch(e){} }
+      startReply(m.message_id);
+    }
+  };
+  div.addEventListener("touchend", endTouch);
+  div.addEventListener("touchcancel", endTouch);
   return div;
 }
 function reactsHtml(m){
@@ -1724,6 +1783,7 @@ function openMemberActions(u){
   var isMe = !!u.is_me || u.user_id === (STATE.user && STATE.user.id);
   var name = STATE.names[u.user_id] || u.login || "Участник";
   var items = [];
+  items.push({ icon: "i-user", label: "Профиль", action: function(){ openUserProfile(u.user_id); } });
   if (!isMe) items.push({ icon: "i-mail", label: "Написать в личку", action: function(){ openDmWith(u); } });
   if (p.isOwner && !u.is_owner && u.role !== "admin") items.push({ icon: "i-users", label: "Сделать админом", action: function(){ setMemberRole(u, "admin"); } });
   if (p.isOwner && u.role === "admin") items.push({ icon: "i-user", label: "Снять админа", action: function(){ setMemberRole(u, "user"); } });
@@ -1757,6 +1817,28 @@ async function removeMember(u){
     toast("Участник удалён");
     setTimeout(openMembers, 250);
   } catch(e) { toast(e.message); }
+}
+async function openUserProfile(uid){
+  if (!uid) return;
+  openSheetHtml("Профиль", '<div class="spin"></div>');
+  try {
+    var d = await api("/account/api/profile/" + uid + "?session_token=" + tk());
+    var p = d.profile || {};
+    var ava = p.avatar_url
+      ? '<span class="hero-ava" style="width:72px;height:72px;font-size:30px"><img src="' + esc(p.avatar_url) + '" alt=""></span>'
+      : '<span class="hero-ava" style="width:72px;height:72px;font-size:30px">' + esc(p.avatar_emoji || userEmoji(p.user_id)) + "</span>";
+    var html = '<div class="s-form" style="text-align:center">' + ava +
+      '<div style="font-size:18px;font-weight:700">' + esc(p.display_name || p.login) + "</div>" +
+      '<div style="color:var(--sub);font-size:13.5px">@' + esc(p.login) + " · " + esc(p.role) + "</div>" +
+      (p.profile_bio ? '<div style="font-size:14px;color:#c9c9ce;text-align:left;white-space:pre-wrap">' + esc(p.profile_bio) + "</div>" : "") +
+      (p.phone ? '<div style="font-size:13.5px;color:var(--sub)">' + esc(p.phone) + "</div>" : "");
+    if (!(STATE.user && p.user_id === STATE.user.id)) {
+      html += '<button class="btn-accent" id="up-dm">Написать в личку</button>';
+    }
+    html += "</div>";
+    $("sheet-body").innerHTML = html;
+    if ($("up-dm")) $("up-dm").onclick = function(){ closeSheet(); setTimeout(function(){ openDmWith({ user_id: uid }); }, 80); };
+  } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
 }
 function addMember(){
   openFormSheet("Добавить участника",

@@ -394,12 +394,20 @@ async def shutdown_dry_run(request: Request, payload: ShutdownDryRunRequest) -> 
 async def get_system_health(request: Request, session_token: str = Query(..., min_length=8, max_length=512)):
     _resolve_admin_user_id(request, session_token)
     info = {}
+    # CPU temperature: prefer the kernel thermal zone (readable without extra
+    # permissions), fall back to vcgencmd when available.
     try:
-        import subprocess
-        r = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True, timeout=5)
-        info["cpu_temp"] = r.stdout.strip().replace("temp=", "").replace("'C", " C")
-    except:
-        info["cpu_temp"] = "?"
+        with open("/sys/class/thermal/thermal_zone0/temp", "r", encoding="utf-8") as fh:
+            milli = int(fh.read().strip())
+        info["cpu_temp"] = "%.1f C" % (milli / 1000.0)
+    except Exception:
+        try:
+            import subprocess
+            r = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True, timeout=5)
+            temp = r.stdout.strip().replace("temp=", "").replace("'C", " C")
+            info["cpu_temp"] = temp if (r.returncode == 0 and temp) else "?"
+        except Exception:
+            info["cpu_temp"] = "?"
     try:
         import subprocess
         r = subprocess.run(["free", "-m"], capture_output=True, text=True, timeout=5)
@@ -420,6 +428,20 @@ async def get_system_health(request: Request, session_token: str = Query(..., mi
         info["disk_total"] = "?"
         info["disk_used"] = "?"
         info["disk_pct"] = "?"
+    try:
+        with open("/proc/uptime", "r", encoding="utf-8") as fh:
+            up_s = int(float(fh.read().split()[0]))
+        days, rem = divmod(up_s, 86400)
+        hours, rem = divmod(rem, 3600)
+        mins = rem // 60
+        info["uptime"] = ("%dд " % days if days else "") + "%dч %dм" % (hours, mins)
+    except Exception:
+        info["uptime"] = "?"
+    try:
+        with open("/proc/loadavg", "r", encoding="utf-8") as fh:
+            info["load1"] = fh.read().split()[0]
+    except Exception:
+        info["load1"] = "?"
     return {"status": "ok", "health": info}
 
 

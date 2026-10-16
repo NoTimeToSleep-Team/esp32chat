@@ -90,6 +90,26 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .att-img img{max-width:210px;max-height:250px;border-radius:12px;display:block;margin-top:6px}
 .att-file{display:inline-flex;gap:8px;align-items:center;color:var(--link);font-size:14px;text-decoration:none;background:#26262b;border-radius:12px;padding:7px 11px;max-width:100%;margin-top:6px}
 .att-file span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ava-wrap{position:relative;flex:none}
+.on-dot{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:999px;background:var(--green);border:2.5px solid var(--card)}
+.search-wrap{padding:10px 16px 4px}
+.rep{margin:10px 16px 12px;padding:12px;background:var(--card2);border-radius:16px}
+.rep-head{display:flex;align-items:baseline;gap:8px;font-size:15px;font-weight:600;flex-wrap:wrap;overflow-wrap:anywhere}
+.rep-head .t{color:var(--sub);font-size:12.5px;font-weight:400;margin-left:auto;white-space:nowrap}
+.rep-sub{color:var(--sub);font-size:13px;margin-top:4px;line-height:1.4}
+.rep-sub b{color:var(--orange);font-weight:600}
+.rep-comment{font-size:14px;color:#c9c9ce;background:#191a1e;border-radius:10px;padding:8px 10px;margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+.rep-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.rep-actions button{flex:1;min-width:92px;height:38px;border:0;border-radius:12px;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-ban{background:#b3374a;color:#fff}
+.btn-warn{background:#8a6a1f;color:#ffe3a3}
+.btn-dismiss{background:#2a2a2e;color:var(--text)}
+.btn-ghost{background:#26262b;color:var(--link)}
+.rep-ctx{display:none;margin-top:10px;border-top:1px solid var(--hair);padding-top:6px}
+.rep-ctx.show{display:block}
+.ctx-item{border-top:1px solid var(--hair);padding:7px 0;font-size:13.5px;overflow-wrap:anywhere}
+.ctx-item:first-child{border-top:0}
+.ctx-time{color:var(--sub);font-size:12px;margin-bottom:2px}
 
 .sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:30}
 .sheet-bg.show{opacity:1;pointer-events:auto}
@@ -398,6 +418,7 @@ function renderTabs(){
 }
 function switchTab(t){
   TAB = t; SUB = null;
+  if (sysTimer) { clearInterval(sysTimer); sysTimer = null; }
   renderTabs();
   $("tb-title").textContent = (TABS.filter(function(x){ return x[0] === t; })[0] || ["", "Админка"])[1];
   renderTab();
@@ -420,25 +441,39 @@ function emptyBox(msg){ return '<div class="empty">' + esc(msg) + "</div>"; }
 
 /* ================= ПОЛЬЗОВАТЕЛИ ================= */
 async function renderUsers(){
-  var d;
+  var d, online = {};
   try { d = await api("/admin/users?session_token=" + tk() + "&limit=200&_=" + Date.now()); }
   catch(e) { setContent(emptyBox(e.message)); return; }
+  try {
+    var on = await api("/realtime/online", "POST", { session_token: ST });
+    (on.online_user_ids || []).forEach(function(id){ online[id] = 1; });
+  } catch(e) {}
   var items = d.items || [];
-  var html = '<div class="card"><div class="card-head"><span>Пользователи</span><span class="grow"></span><span class="badge">' + items.length + '</span></div>';
-  if (!items.length) html += emptyBox("Нет пользователей");
-  items.forEach(function(u, i){
-    var sub = u.role + " · " + statusLabel(u.status);
-    if (u.blocked_until_ms) sub += " до " + fmtDate(u.blocked_until_ms);
-    html += '<button class="row" data-i="' + i + '">' +
-      avatarHtml(u.login, null) +
-      '<span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + esc(sub) + "</span></span>" +
-      '<span class="chev">›</span></button>';
-  });
-  html += "</div>";
+  var html = '<div class="card"><div class="card-head"><span>Пользователи</span><span class="grow"></span><span class="badge" id="u-count">' + items.length + '</span></div>' +
+    '<div class="search-wrap"><input class="inp" id="u-search" placeholder="Поиск по логину..." autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+    '<div id="u-list"></div></div>';
   setContent(html);
-  $("content").querySelectorAll("[data-i]").forEach(function(b){
-    b.onclick = function(){ userSheet(items[Number(b.getAttribute("data-i"))]); };
-  });
+  var renderList = function(q){
+    q = String(q || "").trim().toLowerCase();
+    var list = items.filter(function(u){
+      return !q || String(u.login || "").toLowerCase().indexOf(q) >= 0;
+    });
+    var box = $("u-list");
+    if (!list.length) { box.innerHTML = emptyBox("Никого не найдено"); return; }
+    box.innerHTML = list.map(function(u, i){
+      var sub = u.role + " · " + statusLabel(u.status);
+      if (u.blocked_until_ms) sub += " до " + fmtDate(u.blocked_until_ms);
+      return '<button class="row" data-i="' + i + '">' +
+        '<span class="ava-wrap">' + avatarHtml(u.login, null) + (online[u.user_id] ? '<span class="on-dot"></span>' : "") + "</span>" +
+        '<span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + (online[u.user_id] ? '<span style="color:#5fd97e">онлайн · </span>' : "") + esc(sub) + "</span></span>" +
+        '<span class="chev">›</span></button>';
+    }).join("");
+    box.querySelectorAll("[data-i]").forEach(function(b){
+      b.onclick = function(){ userSheet(list[Number(b.getAttribute("data-i"))]); };
+    });
+  };
+  renderList("");
+  $("u-search").addEventListener("input", function(){ renderList(this.value); });
 }
 function userSheet(u){
   var items = [];
@@ -636,113 +671,78 @@ async function loadTicketMsgs(){
 }
 
 /* ================= ЖАЛОБЫ ================= */
+var REP_REASONS = { spam: "Спам", abuse: "Оскорбления", profanity: "Мат", ads: "Реклама", scam: "Мошенничество", other: "Другое" };
+function reportCard(r, isAuto){
+  var target = r.target_login || NAMES[r.target_user_id] || ("#" + r.target_user_id);
+  var reporter = isAuto ? "Авто-модерация" : (r.reporter_login || ("#" + r.reporter_user_id));
+  var h = '<div class="rep">';
+  h += '<div class="rep-head">' + (isAuto ? "🤖 " : "") + esc(reporter) + " → " + esc(target) + '<span class="t">' + fmtDate(r.created_at_ms) + "</span></div>";
+  var sub = esc(REP_REASONS[r.reason] || r.reason || "");
+  if (isAuto && r.matched_words) sub += " · слова: <b>" + esc(r.matched_words) + "</b>";
+  if (r.target_reports_count > 1) sub += " · жалоб на него: " + r.target_reports_count;
+  if (r.target_warn_count) sub += " · предупреждений: " + r.target_warn_count + "/3";
+  sub += " · " + (r.status === "pending" ? '<span style="color:#ff8fa0">ждёт решения</span>' : esc(r.status) + (r.action ? " (" + esc(r.action) + ")" : ""));
+  h += '<div class="rep-sub">' + sub + "</div>";
+  if (r.comment) h += '<div class="rep-comment">' + esc(r.comment) + "</div>";
+  if (r.attachments && r.attachments.length) h += attsHtml(r.attachments);
+  h += '<div class="rep-ctx" id="ctx-' + r.id + '"></div>';
+  h += '<div class="rep-actions">';
+  h += '<button class="btn-ghost" data-act="ctx" data-uid="' + (r.target_user_id || 0) + '" data-rid="' + r.id + '">Контекст</button>';
+  if (r.status === "pending") {
+    h += '<button class="btn-ban" data-act="ban" data-rid="' + r.id + '">Забанить</button>';
+    h += '<button class="btn-warn" data-act="warn" data-rid="' + r.id + '">Предупредить' + (r.target_warn_count ? " " + r.target_warn_count + "/3" : "") + "</button>";
+    h += '<button class="btn-dismiss" data-act="dismiss" data-rid="' + r.id + '">Отклонить</button>';
+  }
+  h += "</div></div>";
+  return h;
+}
 async function renderReports(){
-  var user = null, auto = null, uErr = "", aErr = "";
-  try { user = await api("/reports/api/list?session_token=" + tk() + "&limit=100"); } catch(e) { uErr = e.message; }
-  try { auto = await api("/moderation/api/admin/reports?session_token=" + tk() + "&limit=100"); } catch(e) { aErr = e.message; }
+  var d;
+  try { d = await api("/reports/api/list?session_token=" + tk() + "&limit=100&_=" + Date.now()); }
+  catch(e) { setContent(emptyBox(e.message)); return; }
+  var all = d.reports || [];
+  var user = all.filter(function(r){ return (r.source || "user") !== "auto"; });
+  var auto = all.filter(function(r){ return r.source === "auto"; });
+  var pendingOf = function(list){ return list.filter(function(r){ return r.status === "pending"; }).length; };
   var html = "";
-  html += '<div class="card"><div class="card-head"><span>Жалобы пользователей</span><span class="grow"></span><span class="badge">' + (user ? (user.pending_count || 0) + " новых" : "—") + "</span></div>";
-  if (uErr) html += emptyBox(uErr);
-  else if (!user || !user.reports || !user.reports.length) html += emptyBox("Жалоб нет");
-  else {
-    var REP = { spam: "Спам", abuse: "Оскорбления", profanity: "Мат", ads: "Реклама", scam: "Мошенничество", other: "Другое" };
-    user.reports.forEach(function(r, i){
-      html += '<button class="row" data-r="' + i + '">' +
-        '<span class="avatar" style="background:#7a2d3a"><svg class="i s18"><use href="#i-flag"/></svg></span>' +
-        '<span class="rcol"><span class="rt">' + esc(r.reporter_login) + " → " + esc(r.target_login || ("#" + r.target_user_id)) + '</span>' +
-        '<span class="rsub">' + esc(REP[r.reason] || r.reason) + " · " + fmtDate(r.created_at_ms) + (r.status !== "pending" ? " · " + esc(r.status) : "") + "</span></span>" +
-        (r.status === "pending" ? '<span class="badge" style="color:#ff8fa0">ждёт</span>' : "") + "</button>";
-    });
-    html += '<div id="rep-store" style="display:none"></div>';
-  }
+  html += '<div class="card"><div class="card-head"><span>Жалобы пользователей</span><span class="grow"></span><span class="badge">' + pendingOf(user) + " ожидают</span></div>";
+  if (!user.length) html += emptyBox("Жалоб нет");
+  user.forEach(function(r){ html += reportCard(r, false); });
   html += "</div>";
-  html += '<div class="card"><div class="card-head"><span>Автомодерация</span><span class="grow"></span><span class="badge">' + (auto ? (auto.pending_count || 0) + " новых" : "—") + "</span></div>";
-  if (aErr) html += emptyBox(aErr);
-  else if (!auto || !auto.reports || !auto.reports.length) html += emptyBox("Срабатываний нет");
-  else {
-    auto.reports.forEach(function(r, i){
-      html += '<button class="row" data-a="' + i + '">' +
-        '<span class="avatar" style="background:#5a4321"><svg class="i s18"><use href="#i-gear"/></svg></span>' +
-        '<span class="rcol"><span class="rt">' + esc(r.user_login || ("#" + r.user_id)) + '</span><span class="rsub">' + esc(r.found_words || "") + " · " + fmtDate(r.created_at_ms || r.time || Date.now()) + "</span></span>" +
-        (r.status === "pending" ? '<span class="badge" style="color:#ff8fa0">ждёт</span>' : "") + "</button>";
-    });
-  }
+  html += '<div class="card"><div class="card-head"><span>Автомодерация</span><span class="grow"></span><span class="badge">' + pendingOf(auto) + " ожидают</span></div>";
+  if (!auto.length) html += emptyBox("Срабатываний нет");
+  auto.forEach(function(r){ html += reportCard(r, true); });
   html += "</div>";
   setContent(html);
-  if (user && user.reports) {
-    $("content").querySelectorAll("[data-r]").forEach(function(b){
-      b.onclick = function(){ userReportSheet(user.reports[Number(b.getAttribute("data-r"))]); };
-    });
-  }
-  if (auto && auto.reports) {
-    $("content").querySelectorAll("[data-a]").forEach(function(b){
-      b.onclick = function(){ autoReportSheet(auto.reports[Number(b.getAttribute("data-a"))]); };
-    });
-  }
+  $("content").querySelectorAll(".rep-actions button").forEach(function(b){
+    b.onclick = function(){
+      var act = b.getAttribute("data-act");
+      var rid = Number(b.getAttribute("data-rid"));
+      if (act === "ctx") { toggleReportContext(rid, Number(b.getAttribute("data-uid"))); return; }
+      if (act === "ban") { askConfirm("Бан", "Забанить пользователя по этой жалобе?", function(){ resolveReport(rid, "ban"); }); return; }
+      resolveReport(rid, act);
+    };
+  });
 }
-function userReportSheet(r){
-  var REP = { spam: "Спам", abuse: "Оскорбления", profanity: "Мат", ads: "Реклама", scam: "Мошенничество", other: "Другое" };
-  var title = r.reporter_login + " → " + (r.target_login || ("#" + r.target_user_id));
-  var items = [];
-  if (r.status === "pending") {
-    items.push({ icon: "i-info", label: "Подробности", action: function(){ reportDetailsSheet(r, REP); } });
-    items.push({ icon: "i-mail", label: "Сообщения пользователя", action: function(){ targetMsgsSheet(r.target_user_id); } });
-    items.push({ icon: "i-x", label: "Забанить " + (r.target_login || ""), danger: true, action: function(){ resolveUserReport(r, "ban"); } });
-    items.push({ icon: "i-clock", label: "Предупредить (" + (r.target_warn_count || 0) + "/3)", action: function(){ resolveUserReport(r, "warn"); } });
-    items.push({ icon: "i-check", label: "Отклонить жалобу", action: function(){ resolveUserReport(r, "dismiss"); } });
-  } else {
-    items.push({ icon: "i-info", label: "Подробности", action: function(){ reportDetailsSheet(r, REP); } });
-    items.push({ icon: "i-mail", label: "Сообщения пользователя", action: function(){ targetMsgsSheet(r.target_user_id); } });
-  }
-  openSheet(title, items);
-}
-function reportDetailsSheet(r, REP){
-  openSheetHtml("Жалоба #" + r.id,
-    '<div class="s-form">' +
-    '<div class="kv"><span class="k">Причина</span><span class="v">' + esc(REP[r.reason] || r.reason) + "</span></div>" +
-    '<div class="kv"><span class="k">От</span><span class="v">' + esc(r.reporter_login) + "</span></div>" +
-    '<div class="kv"><span class="k">На</span><span class="v">' + esc(r.target_login || ("#" + r.target_user_id)) + "</span></div>" +
-    '<div class="kv"><span class="k">Жалоб на него</span><span class="v">' + (r.target_reports_count || 1) + "</span></div>" +
-    '<div class="kv"><span class="k">Предупреждений</span><span class="v">' + (r.target_warn_count || 0) + "/3</span></div>" +
-    '<div class="kv"><span class="k">Время</span><span class="v">' + fmtDate(r.created_at_ms) + "</span></div>" +
-    (r.comment ? '<div class="s-note">Комментарий: ' + esc(r.comment) + "</div>" : "") +
-    "</div>");
-}
-async function targetMsgsSheet(uid){
-  openSheetHtml("Сообщения пользователя", '<div class="spin"></div>');
+async function toggleReportContext(rid, uid){
+  var box = document.getElementById("ctx-" + rid);
+  if (!box) return;
+  if (box.classList.contains("show")) { box.classList.remove("show"); return; }
+  box.classList.add("show");
+  box.innerHTML = '<div class="spin" style="margin:12px auto"></div>';
   try {
     var d = await api("/reports/api/target-messages?session_token=" + tk() + "&target_user_id=" + uid + "&limit=15");
     var items = d.items || [];
-    $("sheet-body").innerHTML = items.length ? '<div class="s-form">' + items.map(function(m){
-      return '<div><div style="font-size:12.5px;color:var(--sub)">' + esc(m.chat_title || ("Чат #" + m.chat_id)) + " · " + fmtDate(m.created_at_ms) + '</div><div style="font-size:14.5px;white-space:pre-wrap;margin-top:2px">' + esc(m.body_text || "") + "</div></div>";
-    }).join("") + "</div>" : '<div class="s-note">Сообщений нет</div>';
-  } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
+    box.innerHTML = items.length ? items.map(function(m){
+      return '<div class="ctx-item"><div class="ctx-time">' + esc(m.chat_title || ("Чат #" + m.chat_id)) + " · " + fmtDate(m.created_at_ms) + '</div><div style="white-space:pre-wrap">' + esc(m.body_text || "") + "</div></div>";
+    }).join("") : '<div class="s-note">Сообщений нет</div>';
+  } catch(e) { box.innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
 }
-async function resolveUserReport(r, action){
+async function resolveReport(rid, action){
   try {
-    var d = await api("/reports/api/resolve", "POST", { session_token: ST, report_id: r.id, action: action });
+    var d = await api("/reports/api/resolve", "POST", { session_token: ST, report_id: rid, action: action });
     if (action === "warn" && d.warn) toast(d.warn.banned ? "3/3 — пользователь забанен на 3 дня" : ("Предупреждение " + d.warn.warn_count + "/" + d.warn.max_warns));
     else toast(action === "ban" ? "Пользователь забанен" : "Жалоба отклонена");
-    renderReports();
-  } catch(e) { toast(e.message); }
-}
-function autoReportSheet(r){
-  var items = [
-    { icon: "i-info", label: "Сообщение: " + String(r.message_text || "").slice(0, 40), action: function(){
-      openSheetHtml("Автомодерация #" + r.id, '<div class="s-form"><div class="s-note">Слова: ' + esc(r.found_words || "") + '</div><div style="white-space:pre-wrap;font-size:14.5px">' + esc(r.message_text || "") + "</div></div>");
-    } }
-  ];
-  if (r.status === "pending") {
-    items.push({ icon: "i-x", label: "Забанить " + (r.user_login || ""), danger: true, action: function(){ resolveAuto(r, "ban"); } });
-    items.push({ icon: "i-clock", label: "Предупредить (" + (r.user_warn_count || 0) + "/3)", action: function(){ resolveAuto(r, "warn"); } });
-    items.push({ icon: "i-check", label: "Отклонить", action: function(){ resolveAuto(r, "dismiss"); } });
-  }
-  openSheet("Автомодерация · " + (r.user_login || ("#" + r.user_id)), items);
-}
-async function resolveAuto(r, action){
-  try {
-    await api("/moderation/api/admin/reports/resolve", "POST", { session_token: ST, report_id: r.id, action: action });
-    toast("Готово: " + action);
     renderReports();
   } catch(e) { toast(e.message); }
 }
@@ -800,31 +800,48 @@ function renderCleanup(){
 }
 
 /* ================= СИСТЕМА ================= */
+var sysTimer = null;
+async function refreshSystemStats(){
+  var box = $("sys-stats");
+  if (!box) return;
+  try {
+    var h = await api("/ops/api/system-health?session_token=" + tk() + "&_=" + Date.now());
+    var hh = h.health || {};
+    var cpu = String(hh.cpu_temp == null ? "?" : hh.cpu_temp);
+    if (/can't open|error|permission|denied/i.test(cpu)) cpu = "—";
+    box.innerHTML =
+      '<div class="stat"><div class="n" style="color:#5fd97e">' + esc(cpu) + '</div><div class="l">темп. CPU</div></div>' +
+      '<div class="stat"><div class="n">' + esc(hh.ram_used || "?") + '</div><div class="l">RAM из ' + esc(hh.ram_total || "?") + "</div></div>" +
+      '<div class="stat"><div class="n">' + esc(hh.disk_pct || "?") + '</div><div class="l">диск ' + esc(hh.disk_used || "") + "</div></div>" +
+      '<div class="stat"><div class="n">' + esc(hh.load1 || "?") + '</div><div class="l">нагрузка</div></div>' +
+      '<div class="stat"><div class="n" style="font-size:13.5px">' + esc(hh.uptime || "?") + '</div><div class="l">аптайм</div></div>' +
+      '<div class="stat"><div class="n" style="font-size:13.5px">' + new Date().toTimeString().slice(0, 8) + '</div><div class="l">обновлено</div></div>';
+  } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+}
 async function renderSystem(){
-  var h = null, s = null, err = "";
-  try { h = await api("/ops/api/system-health?session_token=" + tk()); } catch(e) { err = e.message; }
-  try { s = await api("/ops/api/services?session_token=" + tk()); } catch(e) { err = err || e.message; }
+  var s = null, err = "";
+  try { s = await api("/ops/api/services?session_token=" + tk() + "&_=" + Date.now()); } catch(e) { err = e.message; }
   var html = "";
   if (err) html += '<div class="card">' + emptyBox(err) + "</div>";
-  if (h && h.health) {
-    var cpu = String(h.health.cpu_temp == null ? "?" : h.health.cpu_temp);
-    if (/can't open|error|permission|denied/i.test(cpu)) cpu = "—";
-    html += '<div class="card"><div class="card-head"><span>Raspberry Pi</span></div><div class="stats">' +
-      '<div class="stat"><div class="n" style="color:#5fd97e">' + esc(cpu) + '</div><div class="l">темп. CPU</div></div>' +
-      '<div class="stat"><div class="n">' + esc(h.health.ram_used || "?") + '</div><div class="l">RAM из ' + esc(h.health.ram_total || "?") + "</div></div>" +
-      '<div class="stat"><div class="n">' + esc(h.health.disk_pct || "?") + '</div><div class="l">диск ' + esc(h.health.disk_used || "") + "</div></div>" +
-      "</div></div>";
-  }
+  html += '<div class="card"><div class="card-head"><span>Raspberry Pi</span><span class="grow"></span><span class="badge">live · 10с</span></div>' +
+    '<div class="stats" id="sys-stats"><div class="spin" style="grid-column:1/-1"></div></div>' +
+    '<div class="form"><button class="btn-line" id="sys-refresh">Обновить сейчас</button></div></div>';
   if (s && s.services) {
     html += '<div class="card"><div class="card-head"><span>Сервисы</span></div>';
     s.services.forEach(function(svc, i){
-      html += '<div class="row no-line"><span class="rcol"><span class="rt">' + esc(svc.name) + '</span><span class="rsub" style="color:' + (svc.active === "active" ? "#5fd97e" : "#ff8fa0") + '">' + esc(svc.active) + '</span></span>' +
+      html += '<div class="row no-line"><span class="rcol"><span class="rt">' + esc(svc.name) + '</span><span class="rsub" style="color:' + (svc.active === "active" ? "#5fd97e" : "#ff8fa0") + '">' + esc(svc.active) + (svc.substate && svc.substate !== svc.active ? " · " + esc(svc.substate) : "") + '</span></span>' +
         '<button class="chip" data-svc="' + i + '" style="padding:7px 12px;font-size:13.5px">Перезапуск</button></div>';
     });
     html += '<div class="form"><button class="btn-danger" id="reboot-btn">Перезагрузить плату</button></div></div>';
   }
   html += '<div class="card"><div class="card-head"><span>Отладка</span></div><div class="form"><button class="btn-line" id="dbg-btn">Журнал событий (100)</button></div></div>';
   setContent(html);
+  refreshSystemStats();
+  if (sysTimer) clearInterval(sysTimer);
+  sysTimer = setInterval(function(){
+    if (!document.hidden && TAB === "system" && !SUB) refreshSystemStats();
+  }, 10000);
+  $("sys-refresh").onclick = refreshSystemStats;
   if (s && s.services) {
     $("content").querySelectorAll("[data-svc]").forEach(function(b){
       var svc = s.services[Number(b.getAttribute("data-svc"))];
@@ -881,18 +898,26 @@ async function renderPasswords(){
   try { d = await api("/admin/users?session_token=" + tk() + "&limit=200"); }
   catch(e) { setContent(emptyBox(e.message)); return; }
   var items = d.items || [];
-  var html = '<div class="card"><div class="card-head"><span>Сброс паролей</span></div>';
-  if (!items.length) html += emptyBox("Нет пользователей");
-  items.forEach(function(u, i){
-    html += '<button class="row" data-i="' + i + '">' + avatarHtml(u.login, null) +
-      '<span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + esc(u.role) + "</span></span>" +
-      '<span class="chev">›</span></button>';
-  });
-  html += "</div>";
+  var html = '<div class="card"><div class="card-head"><span>Сброс паролей</span></div>' +
+    '<div class="search-wrap"><input class="inp" id="p-search" placeholder="Поиск по логину..." autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+    '<div id="p-list"></div></div>';
   setContent(html);
-  $("content").querySelectorAll("[data-i]").forEach(function(b){
-    b.onclick = function(){ pwForm(items[Number(b.getAttribute("data-i"))], function(){ renderPasswords(); }); };
-  });
+  var renderList = function(q){
+    q = String(q || "").trim().toLowerCase();
+    var list = items.filter(function(u){ return !q || String(u.login || "").toLowerCase().indexOf(q) >= 0; });
+    var box = $("p-list");
+    if (!list.length) { box.innerHTML = emptyBox("Никого не найдено"); return; }
+    box.innerHTML = list.map(function(u, i){
+      return '<button class="row" data-i="' + i + '">' + avatarHtml(u.login, null) +
+        '<span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + esc(u.role) + "</span></span>" +
+        '<span class="chev">›</span></button>';
+    }).join("");
+    box.querySelectorAll("[data-i]").forEach(function(b){
+      b.onclick = function(){ pwForm(list[Number(b.getAttribute("data-i"))], function(){ renderPasswords(); }); };
+    });
+  };
+  renderList("");
+  $("p-search").addEventListener("input", function(){ renderList(this.value); });
 }
 
 /* ================= ПРОФИЛЬ ================= */

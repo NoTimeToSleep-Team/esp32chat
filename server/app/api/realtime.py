@@ -6,6 +6,7 @@ from app.models import ClientKind, MessageDraft
 from app.realtime import ChatRealtimeBroker, chat_message_event, chat_message_payload
 from app.services.auth import AuthError, AuthService
 from app.services.chat import ChatError, ChatService
+from app.services.presence import presence
 from app.api._automod import moderate_message
 from pydantic import BaseModel, Field
 
@@ -29,7 +30,9 @@ async def get_online_users(payload: OnlineCheckRequest, request: Request):
     if session.user.role not in {"admin", "moderator"}:
         raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Admin or moderator required"})
     broker = request.app.state.realtime_broker
-    online_ids = broker.online_users()
+    # WebSocket connections plus recent authenticated activity (the web SPA
+    # talks over HTTP polling, so presence is the main source there).
+    online_ids = sorted(set(broker.online_users()) | set(presence.online_user_ids()))
     return {"status": "ok", "online_user_ids": online_ids, "count": len(online_ids)}
 
 
