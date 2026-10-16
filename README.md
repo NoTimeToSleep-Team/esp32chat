@@ -49,6 +49,13 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Access-mode switch (open / closed registration).
 - Reports, warnings and moderation tools.
 
+**Interface languages**
+
+- The web app and the admin panel support Russian and English. The switcher is
+  on the login screen and in the account / profile page (the admin panel has a
+  RU/EN button in the top bar). The first visit picks the language from the
+  browser locale; the choice is remembered.
+
 **Security baseline**
 
 - Global and per-route rate limiting.

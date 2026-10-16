@@ -431,11 +431,13 @@ async def get_system_health(request: Request, session_token: str = Query(..., mi
     try:
         with open("/proc/uptime", "r", encoding="utf-8") as fh:
             up_s = int(float(fh.read().split()[0]))
+        info["uptime_seconds"] = up_s
         days, rem = divmod(up_s, 86400)
         hours, rem = divmod(rem, 3600)
         mins = rem // 60
         info["uptime"] = ("%dд " % days if days else "") + "%dч %dм" % (hours, mins)
     except Exception:
+        info["uptime_seconds"] = 0
         info["uptime"] = "?"
     try:
         with open("/proc/loadavg", "r", encoding="utf-8") as fh:
