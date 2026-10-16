@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.models import AdminUserRecord, ClientKind, DeviceBlacklistEntry, UserRole, UserStatus
@@ -137,11 +137,10 @@ def _raise_admin_error(exc: AdminUsersError) -> None:
     )
 
 
-@router.get("/panel", response_class=HTMLResponse)
-async def admin_users_panel() -> HTMLResponse:
-    template = _template_path()
-    html = template.read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+@router.get("/panel", include_in_schema=False)
+async def admin_users_panel() -> RedirectResponse:
+    # Старая token-панель заменена единой админкой /admin.
+    return RedirectResponse("/admin", status_code=302)
 
 
 @router.get("")

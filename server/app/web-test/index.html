@@ -46,7 +46,12 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .scroll.nopad{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .group{background:var(--card);border-radius:20px;margin:12px 14px;padding:4px 0 6px}
 .group-head{display:flex;align-items:center;gap:9px;padding:12px 16px 4px;color:var(--sub);font-size:15px}
-.group-head .tri{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #6f6f75;flex:none}
+.group-head{cursor:pointer}
+.group-head .tri{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #6f6f75;flex:none;transition:transform .2s}
+.group-head.collapsed .tri,.subhead.collapsed .tri{transform:rotate(-90deg)}
+.subhead{display:flex;align-items:center;gap:9px;padding:10px 16px 3px;color:var(--sub);font-size:13.5px;font-weight:600;cursor:pointer}
+.subhead .tri{width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #6f6f75;flex:none;transition:transform .2s}
+.subhead .grow{flex:1}
 .group-head .grow{flex:1}
 .group-head .dots{color:#6f6f75;display:flex;cursor:pointer;padding:4px}
 .row{display:flex;align-items:center;gap:12px;width:100%;padding:11px 16px;background:none;border:0;color:var(--text);font-size:17px;font-family:inherit;text-align:left;position:relative;cursor:pointer}
@@ -233,8 +238,8 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 /* ---------- sheet ---------- */
 .sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:30}
 .sheet-bg.show{opacity:1;pointer-events:auto}
-.sheet{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#202024;border-radius:22px;padding:8px 0 10px;transform:translateY(115%);transition:.25s;z-index:31;max-height:74%;overflow-y:auto;overscroll-behavior:contain}
-.sheet.show{transform:translateY(0)}
+.sheet{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#202024;border-radius:22px;padding:8px 0 10px;transform:translateY(115%);transition:.25s;z-index:31;max-height:74%;overflow-y:auto;overscroll-behavior:contain;visibility:hidden}
+.sheet.show{transform:translateY(0);visibility:visible}
 .sheet .s-title{font-size:13px;color:var(--sub);text-align:center;padding:10px 16px 6px}
 .sheet .srow{display:flex;align-items:center;gap:14px;width:100%;padding:13px 20px;background:none;border:0;color:var(--text);font-size:16.5px;font-family:inherit;text-align:left;cursor:pointer}
 .sheet .srow:active{background:#2a2a2e}
@@ -355,13 +360,11 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
       </div>
 
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span id="chats-head-label">Чаты</span><span class="grow"></span><span class="dots" onclick="openChatsMenu()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
+        <div class="group-head" id="chats-master"><span class="tri"></span><span id="chats-head-label">Чаты</span><span class="grow"></span><span class="dots" onclick="event.stopPropagation();openChatsMenu()"><svg class="i s18"><use href="#i-dots"/></svg></span></div>
         <div id="chat-rows"><div class="spin"></div></div>
       </div>
 
       <div class="group">
-        <button class="row no-line" onclick="go('search')"><svg class="i s24" style="margin:8px"><use href="#i-search"/></svg>Поиск чатов</button>
-        <button class="row no-line" onclick="go('newchat')"><svg class="i s24" style="margin:8px"><use href="#i-plus"/></svg>Новый чат</button>
         <button class="row no-line" onclick="openJoinSheet()"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>Присоединиться по ссылке</button>
       </div>
     </div>
@@ -477,7 +480,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
     </header>
     <div class="scroll">
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Мои обращения</span><span class="grow"></span><span class="badge" id="tickets-count">0</span></div>
+        <div class="group-head" id="support-head"><span class="tri"></span><span>Мои обращения</span><span class="grow"></span><span class="badge" id="tickets-count">0</span></div>
         <div id="ticket-rows"><div class="spin"></div></div>
       </div>
       <div class="group">
@@ -535,7 +538,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
     </header>
     <div class="scroll">
       <div class="group" id="pair-card">
-        <div class="group-head"><span class="tri"></span><span>Сопряжение по коду</span></div>
+        <div class="group-head" id="pair-head"><span class="tri"></span><span>Сопряжение по коду</span></div>
         <div style="padding:6px 16px 14px">
           <div style="font-size:13.5px;color:var(--sub);margin-bottom:10px">Включите устройство и введите 6-значный код с его экрана. Код действует 5 минут и срабатывает один раз.</div>
           <div style="display:flex;gap:10px">
@@ -547,12 +550,12 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
       </div>
 
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Мои устройства</span><span class="grow"></span><span class="badge" id="dev-count">0</span></div>
+        <div class="group-head" id="devices-head"><span class="tri"></span><span>Мои устройства</span><span class="grow"></span><span class="badge" id="dev-count">0</span></div>
         <div id="my-devices"><div class="spin"></div></div>
       </div>
 
       <div class="group">
-        <div class="group-head"><span class="tri"></span><span>Каталог устройств</span></div>
+        <div class="group-head" id="catalog-head"><span class="tri"></span><span>Каталог устройств</span></div>
         <div id="device-catalog"><div class="spin"></div></div>
       </div>
     </div>
@@ -988,6 +991,42 @@ function chatDisplayTitle(chat){
   }
   return t;
 }
+function getCollapsedMap(){ try { return JSON.parse(localStorage.getItem("lc_collapsed") || "{}") || {}; } catch(e){ return {}; } }
+function setCollapsedKey(k, v){ var m = getCollapsedMap(); m[k] = v ? 1 : 0; try { localStorage.setItem("lc_collapsed", JSON.stringify(m)); } catch(e){} }
+function bindHeadCollapse(headId, key){
+  var head = $(headId);
+  if (!head) return;
+  var content = head.nextElementSibling;
+  var apply = function(){
+    var col = !!getCollapsedMap()[key];
+    head.classList.toggle("collapsed", col);
+    if (content) content.classList.toggle("hidden", col);
+  };
+  head.onclick = function(){ setCollapsedKey(key, !getCollapsedMap()[key]); apply(); };
+  apply();
+}
+function chatRowEl(chat){
+  var title = chatDisplayTitle(chat);
+  var cav = chatAvaFor(title, chat.chat_id);
+  var b = document.createElement("button");
+  b.className = "row";
+  var typeIcon = chat.chat_type === "channel" ? '<svg class="i s16"><use href="#i-megaphone"/></svg>'
+    : chat.chat_type === "dm" ? '<svg class="i s16"><use href="#i-mail"/></svg>' : "";
+  var flags = "";
+  if (chat.is_pinned) flags += '<span class="flag" title="Закреплён"><svg class="i s15"><use href="#i-pin"/></svg></span>';
+  if (chat.is_muted) flags += '<span class="flag" title="Без звука"><svg class="i s15"><use href="#i-bell-off"/></svg></span>';
+  var draft = (chat.draft_text || "").trim();
+  var sub = draft ? "Черновик: " + draft.slice(0, 60) : (chat.description || ("#" + chat.chat_id));
+  var unread = Number(chat.unread_count || 0);
+  var badge = unread > 0 ? '<span class="badge unread' + (chat.is_muted ? " muted" : "") + '">' + (unread > 99 ? "99+" : unread) + "</span>" : "";
+  var avaUrl = chat.avatar_url ? esc(chat.avatar_url) : "";
+  b.innerHTML =
+    '<span class="avatar" style="background:' + cav.color + '">' + (avaUrl ? '<img src="' + avaUrl + '" alt="">' : esc(cav.initials)) + "</span>" +
+    '<span class="rcol"><span class="rt" style="display:flex;align-items:center;gap:7px">' + typeIcon + "<span style=\"white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">" + esc(title) + "</span>" + flags + "</span>" +
+    '<span class="rsub' + (draft ? " draft" : "") + '">' + esc(sub) + "</span></span>" + badge;
+  b.onclick = function(){ openChat(chat); };
+  return b;
+}
 function renderChatRows(){
   var box = $("chat-rows");
   if (!box) return;
@@ -1009,7 +1048,11 @@ function renderChatRows(){
   else if (!STATE.showArchived) { list = list.filter(function(c){ return !c.is_archived; }); }
   else { list = list.filter(function(c){ return c.is_archived; }); }
   $("chats-head-label").textContent = label + (STATE.showArchived && !STATE.filter ? " (архив)" : "");
+  var map = getCollapsedMap();
+  var master = $("chats-master");
+  if (master) master.classList.toggle("collapsed", !!map["all"]);
   box.innerHTML = "";
+  if (map["all"]) return;
   if (!list.length) {
     var msg = STATE.filter === "dm" ? "Личных чатов пока нет — найдите человека в поиске."
       : STATE.filter === "pinned" ? "Закреплённых чатов нет. Закрепить можно в меню чата."
@@ -1018,28 +1061,29 @@ function renderChatRows(){
     box.innerHTML = '<div class="empty">' + esc(msg) + "</div>";
     return;
   }
-  list.forEach(function(chat){
-    var title = chatDisplayTitle(chat);
-    var cav = chatAvaFor(title, chat.chat_id);
-    var b = document.createElement("button");
-    b.className = "row";
-    var typeIcon = chat.chat_type === "channel" ? '<svg class="i s16"><use href="#i-megaphone"/></svg>'
-      : chat.chat_type === "dm" ? '<svg class="i s16"><use href="#i-mail"/></svg>' : "";
-    var flags = "";
-    if (chat.is_pinned) flags += '<span class="flag" title="Закреплён"><svg class="i s15"><use href="#i-pin"/></svg></span>';
-    if (chat.is_muted) flags += '<span class="flag" title="Без звука"><svg class="i s15"><use href="#i-bell-off"/></svg></span>';
-    var draft = (chat.draft_text || "").trim();
-    var sub = draft ? "Черновик: " + draft.slice(0, 60) : (chat.description || ("#" + chat.chat_id));
-    var unread = Number(chat.unread_count || 0);
-    var badge = unread > 0 ? '<span class="badge unread' + (chat.is_muted ? " muted" : "") + '">' + (unread > 99 ? "99+" : unread) + "</span>" : "";
-    var avaUrl = chat.avatar_url ? esc(chat.avatar_url) : "";
-    b.innerHTML =
-      '<span class="avatar" style="background:' + cav.color + '">' + (avaUrl ? '<img src="' + avaUrl + '" alt="">' : esc(cav.initials)) + "</span>" +
-      '<span class="rcol"><span class="rt" style="display:flex;align-items:center;gap:7px">' + typeIcon + "<span style=\"white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">" + esc(title) + "</span>" + flags + "</span>" +
-      '<span class="rsub' + (draft ? " draft" : "") + '">' + esc(sub) + "</span></span>" + badge;
-    b.onclick = function(){ openChat(chat); };
-    box.appendChild(b);
+  if (STATE.filter) {
+    list.forEach(function(chat){ box.appendChild(chatRowEl(chat)); });
+    return;
+  }
+  var secs = [
+    ["sec_dm", "Личные", function(c){ return c.chat_type === "dm"; }],
+    ["sec_group", "Группы", function(c){ return c.chat_type !== "dm" && c.chat_type !== "channel"; }],
+    ["sec_channel", "Каналы", function(c){ return c.chat_type === "channel"; }]
+  ];
+  var shown = 0;
+  secs.forEach(function(s){
+    var part = list.filter(s[2]);
+    if (!part.length) return;
+    shown += part.length;
+    var collapsed = !!map[s[0]];
+    var head = document.createElement("div");
+    head.className = "subhead" + (collapsed ? " collapsed" : "");
+    head.innerHTML = '<span class="tri"></span><span>' + s[1] + '</span><span class="grow"></span><span class="badge">' + part.length + "</span>";
+    head.onclick = function(){ setCollapsedKey(s[0], !collapsed); renderChatRows(); };
+    box.appendChild(head);
+    if (!collapsed) part.forEach(function(chat){ box.appendChild(chatRowEl(chat)); });
   });
+  if (!shown) box.innerHTML = '<div class="empty">Чатов пока нет — создайте первый или присоединитесь по ссылке.</div>';
 }
 function setFilter(f){
   STATE.filter = (STATE.filter === f) ? null : f;
@@ -1642,6 +1686,13 @@ async function deleteChat(){
     refreshChats(true);
   } catch(e) { toast(e.message); }
 }
+function memberPerms(){
+  var view = STATE.currentView || {};
+  var isOwner = !!view.is_owner;
+  var myRole = view.my_role || "member";
+  var isPlatform = STATE.user && (STATE.user.role === "admin" || STATE.user.role === "moderator");
+  return { isOwner: isOwner, myRole: myRole, isPlatform: isPlatform, canManage: isOwner || isPlatform || myRole === "admin" };
+}
 async function openMembers(){
   var d;
   try { d = await api("/chat/api/chats/" + STATE.currentChatId + "/members?session_token=" + tk()); }
@@ -1650,18 +1701,62 @@ async function openMembers(){
   var rows = items.map(function(u){
     var name = STATE.names[u.user_id] || u.login || ("#" + u.user_id);
     var role = u.role === "admin" || u.role === "owner" ? ' <span class="badge">' + esc(u.role) + "</span>" : "";
+    var ava = u.avatar_url
+      ? '<span class="avatar sm"><img src="' + esc(u.avatar_url) + '" alt=""></span>'
+      : '<span class="avatar sm" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + "</span>";
     return {
-      html: '<span class="avatar sm" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + role + "</span>",
-      action: function(){ toast(name); }
+      html: ava + '<span>' + esc(name) + role + "</span>",
+      action: function(){ openMemberActions(u); }
     };
   });
   openListSheet("Участники", rows, "Нет участников");
+  var p = memberPerms();
+  if (!p.canManage) return;
   var body = $("sheet-body");
   var add = document.createElement("button");
   add.className = "srow";
   add.innerHTML = '<svg class="i s22"><use href="#i-plus"/></svg><span>Добавить участника</span>';
   add.onclick = function(){ closeSheet(); setTimeout(addMember, 60); };
   body.appendChild(add);
+}
+function openMemberActions(u){
+  var p = memberPerms();
+  var isMe = !!u.is_me || u.user_id === (STATE.user && STATE.user.id);
+  var name = STATE.names[u.user_id] || u.login || "Участник";
+  var items = [];
+  if (!isMe) items.push({ icon: "i-mail", label: "Написать в личку", action: function(){ openDmWith(u); } });
+  if (p.isOwner && !u.is_owner && u.role !== "admin") items.push({ icon: "i-users", label: "Сделать админом", action: function(){ setMemberRole(u, "admin"); } });
+  if (p.isOwner && u.role === "admin") items.push({ icon: "i-user", label: "Снять админа", action: function(){ setMemberRole(u, "user"); } });
+  if (p.canManage && !u.is_owner && !isMe && (p.isOwner || u.role !== "admin")) items.push({ icon: "i-x", label: "Удалить из чата", danger: true, action: function(){ removeMember(u); } });
+  if (!items.length) { toast("Для этого участника действий нет"); return; }
+  openSheet(name, items);
+}
+async function openDmWith(u){
+  try {
+    var dm = await api("/chat/api/dm", { method: "POST", body: JSON.stringify({ session_token: STATE.token, target_user_id: u.user_id }) });
+    await refreshChats(true);
+    var cid = dm && dm.chat && dm.chat.chat_id;
+    var chat = (STATE.chats || []).filter(function(x){ return x.chat_id === cid; })[0];
+    if (chat) openChat(chat); else go("chats");
+  } catch(e) { toast(e.message); }
+}
+async function setMemberRole(u, role){
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/members/" + u.user_id + "/role", { method: "POST", body: JSON.stringify({ session_token: STATE.token, role: role }) });
+    STATE.membersCache = null;
+    toast(role === "admin" ? "Теперь админ чата" : "Права админа сняты");
+    setTimeout(openMembers, 250);
+  } catch(e) { toast(e.message); }
+}
+async function removeMember(u){
+  var name = STATE.names[u.user_id] || u.login || "участника";
+  if (!confirm("Удалить " + name + " из чата?")) return;
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/members/" + u.user_id, { method: "DELETE", body: JSON.stringify({ session_token: STATE.token }) });
+    STATE.membersCache = null;
+    toast("Участник удалён");
+    setTimeout(openMembers, 250);
+  } catch(e) { toast(e.message); }
 }
 function addMember(){
   openFormSheet("Добавить участника",
@@ -2488,6 +2583,12 @@ async function start(){
   bindNewChat();
   bindAvatarInput();
   bindSearch();
+  var masterHead = $("chats-master");
+  if (masterHead) masterHead.onclick = function(){ setCollapsedKey("all", !getCollapsedMap()["all"]); renderChatRows(); };
+  bindHeadCollapse("support-head", "head_support");
+  bindHeadCollapse("pair-head", "head_pair");
+  bindHeadCollapse("devices-head", "head_devices");
+  bindHeadCollapse("catalog-head", "head_catalog");
   setLoginMode("login");
   setInterval(tick, 2000);
   loadAbout();

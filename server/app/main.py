@@ -4,7 +4,7 @@ import sys
 from time import monotonic
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.version import __version__
@@ -261,6 +261,12 @@ def create_app() -> FastAPI:
         except Exception:
             pass
         return response
+
+    @app.get("/static/admin", include_in_schema=False)
+    @app.get("/static/admin/", include_in_schema=False)
+    async def static_admin_redirect() -> RedirectResponse:
+        # Старый «статик-адрес» админки — ведём на живую панель.
+        return RedirectResponse("/admin", status_code=302)
 
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")

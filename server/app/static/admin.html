@@ -1,805 +1,940 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>LC Admin</title>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0e">
+<meta name="robots" content="noindex">
+<title>Админ-панель · Local Chat</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0e1621;--bg2:#17212b;--bg3:#1d2a36;--border:#24313d;
-  --text:#f1f5f9;--text2:#7f8b98;--accent:#5eb5f7;--ok:#4fb286;--warn:#d29922;--danger:#f85149;
-  --radius:12px;
+  --bg:#0b0b0e; --card:#1c1c1f; --card2:#232327; --hair:rgba(255,255,255,.07);
+  --text:#f2f2f4; --sub:#8e8e93; --muted:#6a6a70;
+  --accent:#5856e0; --link:#7b87ff; --green:#34c759; --orange:#ff9f2e; --red:#ef4e63;
 }
-html{-webkit-text-size-adjust:100%}
-body{background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
-a{color:var(--accent);text-decoration:none}
-.top{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(23,33,43,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
-.brand{font-size:15px;font-weight:800;color:var(--accent);letter-spacing:.4px;white-space:nowrap}
-.top .spacer{flex:1}
-.pill{font-size:11px;padding:3px 10px;border-radius:999px;background:var(--bg3);color:var(--text2);white-space:nowrap}
-.pill-warn{background:rgba(210,153,34,.18);color:var(--warn)}
-.pill-ok{background:rgba(79,178,134,.16);color:var(--ok)}
-.pill-err{background:rgba(248,81,73,.18);color:var(--danger)}
-.wrap{max-width:1080px;margin:0 auto;padding:14px}
-h2{color:var(--accent);margin:0 0 8px;font-size:18px}
-h3{margin:0 0 10px;color:var(--text);font-size:15px;font-weight:600}
-h4{margin:8px 0 4px;font-size:13px}
-input,select,textarea,button{padding:8px 11px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font:13px inherit;font-family:inherit;margin:2px;outline:none}
-input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94,181,247,.15)}
-input[type=number]{text-align:center}
-button{cursor:pointer;border:none;font-weight:600;transition:.15s}
-button:hover{filter:brightness(1.12)}
-button:active{transform:translateY(1px)}
-.btn-danger{background:var(--danger);color:#fff}
-.btn-outline{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
-.btn-green{background:#2f9e6b;color:#fff}
-.btn-warn{background:var(--warn);color:#10161d}
-.btn-logout{padding:7px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12.5px}
-.btn-logout:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
-.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px;margin:0;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.tabs::-webkit-scrollbar{display:none}
-.tab{padding:7px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;cursor:pointer;color:var(--text2);font-size:13px;white-space:nowrap;flex:0 0 auto;transition:.15s}
-.tab:hover{color:var(--text)}
-.tab.active{background:rgba(94,181,247,.16);color:var(--accent);border-color:rgba(94,181,247,.4);font-weight:600}
-.panel{display:none}.panel.active{display:block}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
-.card .card{background:var(--bg3);margin-bottom:10px}
-.card.mini{padding:10px 14px}
-table{width:100%;border-collapse:collapse;margin:6px 0;font-size:12.5px}
-td,th{padding:7px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
-th{color:var(--text2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
-tr:last-child td{border-bottom:none}
-.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}
-#msg{color:var(--accent);margin:0 0 10px;font-size:12.5px;min-height:18px}
-#login{margin-bottom:14px}
-.login-card{max-width:440px}
-.login-card form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.login-card input{flex:1 1 150px;min-width:0;margin:0}
-#loginMsg{font-size:12px;color:var(--accent);margin-top:8px;min-height:16px}
-.who{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--text2)}
-.who b{color:var(--text)}
-.stat{text-align:center;padding:10px 14px;background:var(--bg3);border-radius:10px;min-width:96px}
-.stat .n{font-size:20px;font-weight:700}
-.stat .l{font-size:11px;color:var(--text2)}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.acts button,.acts input{margin:0}
-.ava{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--bg3);display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent)}
-.ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px}
-#debug-log table{font-size:11px}
-@media(max-width:700px){
-  .wrap{padding:10px}
-  .card{padding:13px;border-radius:10px}
-  h3{font-size:14px}
-  .top{padding:9px 11px}
-  .brand{font-size:14px}
-  td,th{padding:6px 7px}
-  .tbl-stack{display:block}
-  .tbl-stack thead{display:none}
-  .tbl-stack tr{display:block;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:8px}
-  .tbl-stack td{display:flex;justify-content:space-between;gap:10px;border:none;padding:3px 0;white-space:normal}
-  .tbl-stack td::before{content:attr(data-label);color:var(--text2);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;flex:0 0 auto;padding-top:2px}
-  .tbl-stack td:last-child{justify-content:flex-start;flex-wrap:wrap}
-  .tbl-stack td:last-child::before{display:none}
-}
-</style></head><body>
-<header class="top">
-  <div class="brand">LC Admin</div>
-  <span class="spacer"></span>
-  <span id="js-status" class="pill pill-warn">JS checking…</span>
-</header>
-<div class="wrap">
-  <div id="login" class="card login-card">
-    <h3>Admin login</h3>
-    <form onsubmit="doLogin();return false">
-      <input id="l" placeholder="admin login" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
-      <input id="p" type="password" placeholder="admin password" autocomplete="current-password" autocapitalize="off" autocorrect="off">
-      <button type="submit" class="btn-green">Login</button>
-    </form>
-    <div id="loginMsg"></div>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#0b0b0e}
+body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:1.35;overscroll-behavior-y:none}
+#app{max-width:560px;margin:0 auto;height:100vh;height:100dvh;background:var(--bg);position:relative;display:flex;flex-direction:column;overflow:hidden}
+.screen{flex:1;min-height:0;display:flex;flex-direction:column}
+.hidden{display:none!important}
+.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.i.s16{width:16px;height:16px}.i.s18{width:18px;height:18px}.i.s22{width:22px;height:22px}.i.s24{width:24px;height:24px}
+
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 14px 6px}
+.topbar .tb-title{flex:1;text-align:center;font-size:18px;font-weight:700}
+.icon-btn{width:42px;height:42px;border-radius:999px;border:0;background:var(--card);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;flex:none}
+
+.chips{display:flex;gap:8px;overflow-x:auto;padding:8px 14px 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;background:var(--card);border:1px solid var(--hair);color:var(--sub);border-radius:999px;padding:9px 15px;font-size:14.5px;font-family:inherit;cursor:pointer;white-space:nowrap}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+.scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 0 calc(24px + env(safe-area-inset-bottom,0px))}
+.card{background:var(--card);border-radius:20px;margin:10px 14px;padding:6px 0 8px}
+.card-head{display:flex;align-items:center;gap:9px;padding:12px 16px 6px;color:var(--sub);font-size:15px}
+.card-head .grow{flex:1}
+.row{display:flex;align-items:center;gap:12px;width:100%;padding:11px 16px;background:none;border:0;color:var(--text);font-size:16px;font-family:inherit;text-align:left;position:relative;cursor:pointer}
+.row:not(:last-child)::after{content:"";position:absolute;left:62px;right:16px;bottom:0;height:1px;background:var(--hair)}
+.row.no-line::after{display:none}
+.row .rcol{min-width:0;flex:1}
+.row .rt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rsub{font-size:13px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .chev{margin-left:auto;color:#5f5f66;font-size:20px;line-height:1}
+.row.danger{color:var(--red)}
+.row.danger .i{color:var(--red)}
+.badge{font-size:12px;color:var(--sub);background:#2a2a2e;border-radius:999px;padding:2px 9px}
+.avatar{width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#fff;flex:none;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.pill{font-size:12.5px;border-radius:999px;padding:3px 10px;font-weight:600;white-space:nowrap}
+.st-open{background:rgba(88,86,224,.2);color:#a5a3ff}
+.st-in_progress{background:rgba(255,159,46,.18);color:#ffb95e}
+.st-resolved{background:rgba(52,199,89,.16);color:#5fd97e}
+.st-closed{background:#2a2a2e;color:#9a9aa0}
+.st-active{background:rgba(52,199,89,.16);color:#5fd97e}
+.st-banned,.st-blocked{background:rgba(239,78,99,.16);color:#ff8fa0}
+
+.btn-accent{width:100%;height:50px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-accent:disabled{opacity:.5}
+.btn-line{width:100%;height:48px;border:1px solid var(--hair);border-radius:16px;background:none;color:var(--text);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-danger{width:100%;height:50px;border:0;border-radius:16px;background:#b3374a;color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-row{display:flex;gap:10px;margin-top:6px}
+.btn-row .btn-accent,.btn-row .btn-line,.btn-row .btn-danger{flex:1;width:auto}
+.inp{width:100%;background:var(--card);border:1px solid var(--hair);border-radius:14px;color:var(--text);font-size:16px;font-family:inherit;padding:13px 14px;outline:none}
+.inp::placeholder{color:var(--muted)}
+.inp.area{min-height:90px;resize:none}
+.form{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.l-error{color:var(--red);font-size:13.5px;min-height:16px;margin-top:2px}
+.kv{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;position:relative;font-size:16px;gap:12px}
+.kv:not(:last-child)::after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:1px;background:var(--hair)}
+.kv .k{color:var(--sub)}
+.kv .v{font-weight:600;text-align:right;min-width:0;overflow-wrap:anywhere}
+.note{color:var(--sub);font-size:14px;line-height:1.45;padding:0 16px 8px}
+
+.empty{padding:26px 20px;text-align:center;color:var(--sub);font-size:15px}
+.spin{width:24px;height:24px;border:2.5px solid #333;border-top-color:#9a9aa0;border-radius:50%;animation:sp 1s linear infinite;margin:28px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px 16px 12px}
+.stat{background:var(--card2);border-radius:16px;padding:12px}
+.stat .n{font-size:18px;font-weight:700}
+.stat .l{font-size:11.5px;color:var(--sub);margin-top:2px}
+
+.msg{display:flex;gap:10px;margin:10px 16px}
+.msg .m-ava{width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none;background:#2a2a2e;overflow:hidden}
+.msg .m-main{flex:1;min-width:0}
+.msg .m-head{display:flex;align-items:baseline;gap:8px}
+.msg .m-name{font-size:14.5px;font-weight:600}
+.msg .m-time{font-size:12.5px;color:var(--sub);margin-left:auto;white-space:nowrap}
+.msg .m-text{font-size:15px;line-height:1.4;margin-top:3px;overflow-wrap:break-word;white-space:pre-wrap}
+.att-img img{max-width:210px;max-height:250px;border-radius:12px;display:block;margin-top:6px}
+.att-file{display:inline-flex;gap:8px;align-items:center;color:var(--link);font-size:14px;text-decoration:none;background:#26262b;border-radius:12px;padding:7px 11px;max-width:100%;margin-top:6px}
+.att-file span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:30}
+.sheet-bg.show{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#202024;border-radius:22px;padding:8px 0 10px;transform:translateY(115%);transition:.25s;z-index:31;max-height:78%;overflow-y:auto;overscroll-behavior:contain;visibility:hidden}
+.sheet.show{transform:translateY(0);visibility:visible}
+.sheet .s-title{font-size:13px;color:var(--sub);text-align:center;padding:10px 16px 6px}
+.sheet .srow{display:flex;align-items:center;gap:14px;width:100%;padding:13px 20px;background:none;border:0;color:var(--text);font-size:16px;font-family:inherit;text-align:left;cursor:pointer}
+.sheet .srow:active{background:#2a2a2e}
+.sheet .srow.danger{color:var(--red)}
+.sheet .srow.danger .i{color:var(--red)}
+.sheet .s-form{padding:4px 18px 12px;display:flex;flex-direction:column;gap:10px}
+.sheet .s-form .inp{background:#26262b}
+.sheet .s-note{color:var(--sub);font-size:13.5px;padding:0 18px 8px;line-height:1.45}
+.sheet .s-item{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;background:none;border:0;color:var(--text);font-family:inherit;font-size:15px;text-align:left;cursor:pointer;border-radius:12px}
+.sheet .s-item:active{background:#2a2a2e}
+.sheet .s-empty{color:var(--sub);font-size:14px;text-align:center;padding:14px}
+.toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%) translateY(8px);background:#2c2c31;color:#eaeaea;font-size:14px;padding:9px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:84%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.login-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:28px 22px calc(28px + env(safe-area-inset-bottom,0px));overflow-y:auto}
+.login-card{display:flex;flex-direction:column;gap:10px}
+.lg-title{font-size:26px;font-weight:800;text-align:center}
+.lg-sub{color:var(--sub);font-size:15px;text-align:center;margin-bottom:14px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M13.5 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h6.5"/><path d="M11 12h9.5"/><path d="M17 8.5L20.5 12 17 15.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c1-3 3.2-4.5 6-4.5s5 1.5 6 4.5"/><path d="M15.6 5.5a3.2 3.2 0 0 1 0 6"/><path d="M17.6 15.3c1.7.6 3 2 3.7 4.2"/></symbol>
+  <symbol id="i-support" viewBox="0 0 24 24"><path d="M4.5 12.5v-1a7.5 7.5 0 0 1 15 0v1"/><rect x="3.5" y="12" width="4.2" height="6.5" rx="2.1"/><rect x="16.3" y="12" width="4.2" height="6.5" rx="2.1"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 3.5v17"/><path d="M6 4.5h11l-2.5 3.5L17 11.5H6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3L18 18M18 6l-1.7 1.7M7.7 16.3L6 18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5.2A1.2 1.2 0 0 1 10.2 4h3.6A1.2 1.2 0 0 1 15 5.2V7"/><path d="M7 7l1 12.2a1.3 1.3 0 0 0 1.3 1.3h5.4a1.3 1.3 0 0 0 1.3-1.3L17 7"/><path d="M10.2 11v5.5M13.8 11v5.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9.5 14.5l5-5"/><path d="M11 6.5l1.5-1.5a4 4 0 0 1 5.7 5.7L16.5 12.5"/><path d="M13 17.5l-1.5 1.5a4 4 0 0 1-5.7-5.7L7.5 11.5"/></symbol>
+  <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="M8.5 12.5l6.4-6.4a3 3 0 0 1 4.2 4.2l-7.8 7.8a5 5 0 0 1-7-7l7-7"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 3.5V8h-4.5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M4.5 7.5l7.5 6 7.5-6"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/><path d="M9.5 12.5h5M9.5 15.5h5"/></symbol>
+</defs></svg>
+
+<div id="app">
+
+  <!-- ================= ВХОД ================= -->
+  <section class="screen" id="scr-login">
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="lg-title">Админ-панель</div>
+        <div class="lg-sub">Local Chat · Raspberry Pi</div>
+        <input class="inp" id="l" placeholder="Логин" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input class="inp" id="p" type="password" placeholder="Пароль" autocomplete="current-password" autocapitalize="off" autocorrect="off">
+        <div class="l-error" id="l-err"></div>
+        <button class="btn-accent" id="l-btn">Войти</button>
+        <button class="btn-line" onclick="location.href='/'">← Вернуться в приложение</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ПАНЕЛЬ ================= -->
+  <section class="screen hidden" id="scr-main">
+    <header class="topbar">
+      <button class="icon-btn" onclick="location.href='/'" title="В приложение"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <div class="tb-title" id="tb-title">Админ-панель</div>
+      <button class="icon-btn" id="logout-btn" title="Выйти"><svg class="i s22"><use href="#i-out"/></svg></button>
+    </header>
+    <div class="chips" id="tabs"></div>
+    <div class="scroll" id="content"></div>
+  </section>
+
+  <div class="sheet-bg" id="sheet-bg"></div>
+  <div class="sheet" id="sheet">
+    <div class="s-title" id="sheet-title"></div>
+    <div id="sheet-body"></div>
   </div>
-  <div id="main" style="display:none"><div id="msg"></div>
-  <div class="tabs" id="tabs"><div class="tab active" onclick="switchTab('users')">Users</div><div class="tab" onclick="switchTab('cleanup')">Cleanup</div><div class="tab" onclick="switchTab('system')">System</div><div class="tab" onclick="switchTab('passwords')">Passwords</div><div class="tab" onclick="switchTab('support')">Support</div><div class="tab" onclick="switchTab('mode')">Mode</div><div class="tab" onclick="switchTab('activity')">Activity</div><div class="tab" onclick="switchTab('reports')">Reports</div>
-  <div class="tab" onclick="switchTab('profile')">Profile</div></div>
-<div id="panel-users" class="panel active"></div><div id="panel-cleanup" class="panel"></div><div id="panel-system" class="panel"></div><div id="panel-passwords" class="panel"></div><div id="panel-support" class="panel"></div><div id="panel-mode" class="panel"></div><div id="panel-activity" class="panel"></div><div id="panel-reports" class="panel"></div>
-<div id="panel-profile" class="panel"></div></div>
+  <div class="toast" id="toast"></div>
 </div>
+
 <script>
-var ST = "";
-var ADMIN_TOKEN_KEY = "lc_admin_token", ADMIN_USER_KEY = "lc_admin_user";
-function jsStatus(text, cls) {
-  var el = document.getElementById("js-status");
-  if (!el) return;
-  el.textContent = text;
-  el.className = "pill " + (cls || "");
-}
-jsStatus("JS loaded", "pill-ok");
-setTimeout(function() { var el = document.getElementById("js-status"); if (el) el.style.display = "none"; }, 1500);
-window.onerror = function(m,u,l) {
-  var el = document.getElementById("js-status");
-  if (el) el.style.display = "";
-  jsStatus("JS ERROR line " + l + ": " + m, "pill-err");
-};
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+var ST = null, ME = null, TAB = "users", SUB = null;
+var NAMES = {};
+var ADMIN_TOKEN_KEY = "lc_admin_token";
+var ADMIN_USER_KEY = "lc_admin_user";
 
-
-var _msgTimer = null;
-function msg(t) { var m = document.getElementById("msg"); if (!m) return; m.innerHTML = t || ""; if (_msgTimer) clearTimeout(_msgTimer); _msgTimer = setTimeout(function() { m.innerHTML = ""; }, 5000); }
-function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
-function icon(name) {
-  var paths = {
-    clip: "<path d='M8.5 12.5l6-6a2.6 2.6 0 0 1 3.7 3.7l-7.3 7.3a4.3 4.3 0 0 1-6.1-6.1l7-7'/>",
-    save: "<path d='M5 3.5h10.5L19 7v13.5H5z'/><path d='M8.5 3.5v5.5h6V3.5'/><path d='M8.5 20.5v-6h7v6'/>",
-    user: "<circle cx='12' cy='8.5' r='3.5'/><path d='M5 19.5c1.2-3.2 3.8-5 7-5s5.8 1.8 7 5'/>"
-  };
-  return "<svg class='ic' viewBox='0 0 24 24' aria-hidden='true'>" + (paths[name] || "") + "</svg>";
+/* ---------- мелкое ---------- */
+function toast(msg){
+  var t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("show"); }, 2400);
 }
-// Photo avatar when the user has one, initials otherwise.
-function avatarHtml(profile, size) {
-  var s = size || 44;
-  if (profile && profile.avatar_url) return '<img class="ava" style="width:' + s + 'px;height:' + s + 'px" src="' + profile.avatar_url + '" alt="">';
-  var name = (profile && (profile.display_name || profile.login)) || "?";
-  var initials = name.trim().slice(0, 2).toUpperCase();
-  return '<span class="ava" style="width:' + s + 'px;height:' + s + 'px">' + esc(initials) + "</span>";
+window.onerror = function(m){ try { toast("Ошибка: " + m); } catch(e){} };
+function tk(){ return encodeURIComponent(ST || ""); }
+function pad2(n){ return String(n).padStart(2, "0"); }
+function fmtTime(ms){ var d = new Date(ms || Date.now()); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+function fmtDate(ms){
+  var d = new Date(ms || Date.now());
+  var months = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
+  return d.getDate() + " " + months[d.getMonth()] + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
 }
-// Wrap every table into a scroll container and label cells for the mobile card layout.
-function enhanceTables(root) {
-  var scope = root && root.querySelectorAll ? root : document;
-  var tables = scope.querySelectorAll("table:not([data-enhanced])");
-  for (var i = 0; i < tables.length; i++) {
-    var t = tables[i];
-    t.setAttribute("data-enhanced", "1");
-    var head = t.querySelector("tr");
-    var labels = [];
-    if (head) {
-      var ths = head.children;
-      var onlyTh = ths.length > 0;
-      for (var j = 0; j < ths.length; j++) {
-        labels.push((ths[j].textContent || "").trim());
-        if (ths[j].tagName !== "TH") onlyTh = false;
-      }
-      // Keep header cells in a real thead so the mobile card layout can hide them.
-      if (onlyTh && t.querySelector("thead") === null) {
-        var thead = document.createElement("thead");
-        thead.appendChild(head);
-        t.insertBefore(thead, t.firstChild);
-      }
-    }
-    var rows = t.querySelectorAll("tr");
-    for (var r = 0; r < rows.length; r++) {
-      var tds = rows[r].children;
-      for (var c = 0; c < tds.length; c++) {
-        if (tds[c].tagName === "TD" && labels[c]) tds[c].setAttribute("data-label", labels[c]);
-      }
-    }
-    if (t.parentNode && t.parentNode.className !== "tbl") {
-      var wrap = document.createElement("div");
-      wrap.className = "tbl";
-      t.parentNode.insertBefore(wrap, t);
-      wrap.appendChild(t);
-    }
-  }
+function statusLabel(s){ return { open: "Открыто", in_progress: "В работе", resolved: "Решено", closed: "Закрыто", active: "активен", banned: "забанен", blocked: "заблокирован" }[s] || s; }
+function pill(s){ return '<span class="pill st-' + esc(s || "open") + '">' + esc(statusLabel(s)) + "</span>"; }
+var AVA_COLORS = ["#3d5a80","#a855f7","#2fa36b","#3f7dfa","#e14b52","#c425d6","#35b8cf","#d08a2c"];
+function avaColor(s){ var src = String(s || "?"); var h = 0; for (var i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) >>> 0; return AVA_COLORS[h % AVA_COLORS.length]; }
+function avatarHtml(login, url){
+  if (url) return '<span class="avatar"><img src="' + esc(url) + '" alt=""></span>';
+  return '<span class="avatar" style="background:' + avaColor(login) + '">' + esc((login || "?").slice(0, 2).toUpperCase()) + "</span>";
 }
-new MutationObserver(function(muts) {
-  for (var i = 0; i < muts.length; i++) {
-    var added = muts[i].addedNodes;
-    for (var j = 0; j < added.length; j++) {
-      if (added[j].nodeType === 1) enhanceTables(added[j]);
-    }
-  }
-}).observe(document.body, { childList: true, subtree: true });
-function attachmentUrl(a) {
+function attUrl(a){
   var base = a.download_url || ("/media/api/attachments/" + a.attachment_id + "/download");
-  return base + (base.indexOf("?") >= 0 ? "&" : "?") + "session_token=" + encodeURIComponent(ST);
+  return base + (base.indexOf("?") >= 0 ? "&" : "?") + "session_token=" + tk();
 }
-function attachmentsHtml(items) {
+function attsHtml(items){
   if (!items || !items.length) return "";
-  var h = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">';
-  items.forEach(function(a) {
-    var url = attachmentUrl(a);
-    var name = esc(a.filename || ("attachment-" + a.attachment_id));
-    if (a.media_kind === "image") {
-      h += '<img src="' + url + '" alt="' + name + '" title="' + name + '" style="max-width:140px;max-height:120px;border-radius:6px;border:1px solid #24313d;cursor:zoom-in" onclick="openImg(this.src)">';
-    } else {
-      h += '<a href="' + url + '" target="_blank" rel="noopener" style="color:#5eb5f7;font-size:12px;border:1px solid #24313d;border-radius:8px;padding:5px 9px;text-decoration:none">' + icon("clip") + " " + name + "</a>";
-    }
-  });
-  return h + "</div>";
+  return items.map(function(a){
+    var url = esc(attUrl(a));
+    var mime = String(a.mime_type || "");
+    if (a.media_kind === "image" || mime.indexOf("image/") === 0) return '<div class="att-img"><img src="' + url + '" alt="" loading="lazy"></div>';
+    return '<a class="att-file" href="' + url + '" target="_blank" rel="noopener"><svg class="i s16"><use href="#i-paperclip"/></svg><span>' + esc(a.filename || ("файл-" + a.attachment_id)) + "</span></a>";
+  }).join("");
 }
-function openImg(src) {
-  var o = document.getElementById("img-overlay");
-  if (!o) {
-    o = document.createElement("div");
-    o.id = "img-overlay";
-    o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out";
-    o.innerHTML = '<button id="io-close" style="position:absolute;top:16px;right:16px;background:#24313d;color:#f1f5f9;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer">\u2715</button>' +
-      '<button id="io-prev" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#f1f5f9;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u2039</button>' +
-      '<img style="max-width:92vw;max-height:88vh;border-radius:8px">' +
-      '<button id="io-next" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(48,54,61,.85);color:#f1f5f9;border:none;width:44px;height:64px;font-size:30px;cursor:pointer;border-radius:8px">\u203a</button>' +
-      '<div id="io-counter" style="position:absolute;bottom:18px;color:#7f8b98;font-size:12px"></div>';
-    document.body.appendChild(o);
-    o.onclick = function(e) { if (e.target === o || e.target.id === "io-close") o.remove(); };
-    o.querySelector("#io-prev").onclick = function(e) { e.stopPropagation(); stepImg(-1); };
-    o.querySelector("#io-next").onclick = function(e) { e.stopPropagation(); stepImg(1); };
-    var touchX = null;
-    o.addEventListener("touchstart", function(e) { touchX = e.changedTouches[0].clientX; }, { passive: true });
-    o.addEventListener("touchend", function(e) {
-      if (touchX === null) return;
-      var dx = e.changedTouches[0].clientX - touchX;
-      touchX = null;
-      if (Math.abs(dx) > 40) stepImg(dx < 0 ? 1 : -1);
-    }, { passive: true });
-  }
-  var imgs = Array.prototype.slice.call(document.querySelectorAll('img[onclick^="openImg"]'));
-  window.__imgs = imgs.map(function(i) { return i.src; });
-  if (!window.__imgs.length) window.__imgs = [src];
-  window.__imgIdx = Math.max(0, window.__imgs.indexOf(src));
-  showImg();
-}
-function showImg() {
-  var o = document.getElementById("img-overlay");
-  if (!o) return;
-  o.querySelector("img").src = window.__imgs[window.__imgIdx];
-  var counter = document.getElementById("io-counter");
-  var multi = window.__imgs.length > 1;
-  if (counter) counter.textContent = multi ? (window.__imgIdx + 1) + " / " + window.__imgs.length : "";
-  var prev = document.getElementById("io-prev"), next = document.getElementById("io-next");
-  if (prev) prev.style.display = multi ? "" : "none";
-  if (next) next.style.display = multi ? "" : "none";
-}
-function stepImg(d) {
-  if (!window.__imgs || window.__imgs.length < 2) return;
-  window.__imgIdx = (window.__imgIdx + d + window.__imgs.length) % window.__imgs.length;
-  showImg();
-}
-async function uploadFile(file) {
-  var fd = new FormData();
-  fd.append("file", file);
-  var r = await fetch("/media/api/attachments?session_token=" + encodeURIComponent(ST), { method: "POST", body: fd });
-  var d = await r.json().catch(function() { return {}; });
-  if (!r.ok) throw new Error((d.detail && (d.detail.message || d.detail.code)) || ("Upload failed (" + r.status + ")"));
-  return d.attachment;
-}
-function dbgReport(payload) {
-  try { if (ST) payload.session_token = ST; fetch("/debug/api/client-event", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(function(){}); } catch(e) {}
-}
-function newTraceId(prefix) { return (prefix||"ad") + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,7); }
 
-async function doLogin() {
-  var m = document.getElementById("loginMsg"); m.textContent = "...";
-  var login = document.getElementById("l").value.trim();
-  var pass = document.getElementById("p").value.trim();
-  if (!login || !pass) { m.textContent = "Enter login and password"; return; }
-  var tr = newTraceId("ad-login");
-  var t1 = Date.now();
-  try {
-    var r = await fetch("/auth/login", {method:"POST",headers:{"Content-Type":"application/json","X-Debug-Trace":tr},body:JSON.stringify({login:login,password:pass,client_kind:"web"})});
-    var t2 = Date.now();
-    var d = await r.json();
-    if (!r.ok) {
-      dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, status:r.status, stages_done:2, error:(d.detail ? d.detail.message : ("HTTP "+r.status)), t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
-      throw new Error(d.detail ? d.detail.message : "HTTP " + r.status);
+/* ---------- api ---------- */
+async function api(url, method, body){
+  var opts = { method: method || "GET", headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  var r = await fetch(url, opts);
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    var m = "HTTP " + r.status;
+    if (d && d.detail) {
+      if (typeof d.detail === "string") m = d.detail;
+      else if (Array.isArray(d.detail) && d.detail.length) m = d.detail[0].msg || m;
+      else m = d.detail.message || d.detail.code || m;
     }
-    dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:true, status:r.status, stages_done:3, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
-    if (d.user.role !== "admin" && d.user.role !== "moderator") { m.textContent = "Admin access only"; m.style.color = "#f85149"; return; }
+    var e = new Error(m); e.status = r.status; throw e;
+  }
+  return d;
+}
+async function uploadFile(file){
+  var fd = new FormData(); fd.append("file", file);
+  var r = await fetch("/media/api/attachments?session_token=" + tk(), { method: "POST", body: fd });
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) throw new Error((d.detail && (d.detail.message || d.detail.code)) || ("Ошибка загрузки (" + r.status + ")"));
+  return d;
+}
+
+/* ---------- sheet ---------- */
+function openSheetHtml(title, html, onReady){
+  $("sheet-title").textContent = title || "";
+  $("sheet-body").innerHTML = html;
+  $("sheet").classList.add("show");
+  $("sheet-bg").classList.add("show");
+  if (onReady) setTimeout(function(){ onReady($("sheet-body")); }, 30);
+}
+function openSheet(title, items){
+  var html = "";
+  (items || []).forEach(function(it, i){
+    html += '<button class="srow' + (it.danger ? " danger" : "") + '" data-i="' + i + '">' +
+      (it.icon ? '<svg class="i s22"><use href="#' + it.icon + '"/></svg>' : "") + "<span>" + esc(it.label) + "</span></button>";
+  });
+  openSheetHtml(title, html, function(body){
+    body.querySelectorAll(".srow").forEach(function(b){
+      b.onclick = function(){
+        var it = items[Number(b.getAttribute("data-i"))];
+        closeSheet();
+        setTimeout(function(){ if (it && it.action) it.action(); }, 70);
+      };
+    });
+  });
+}
+function openForm(title, html, onReady){
+  openSheetHtml(title, '<div class="s-form">' + html + "</div>", onReady);
+}
+function closeSheet(){ $("sheet").classList.remove("show"); $("sheet-bg").classList.remove("show"); }
+$("sheet-bg").onclick = closeSheet;
+function askConfirm(title, text, onYes){
+  openForm(title, '<div class="s-note">' + esc(text) + '</div><button class="btn-danger" id="cf-yes">Подтвердить</button><button class="btn-line" id="cf-no">Отмена</button>', function(){
+    $("cf-yes").onclick = function(){ closeSheet(); setTimeout(onYes, 80); };
+    $("cf-no").onclick = closeSheet;
+  });
+}
+
+/* ---------- вход ---------- */
+function showLogin(msg){
+  $("scr-login").classList.remove("hidden");
+  $("scr-main").classList.add("hidden");
+  if (msg) $("l-err").textContent = msg;
+}
+function showMain(){
+  $("scr-login").classList.add("hidden");
+  $("scr-main").classList.remove("hidden");
+  loadNames();
+  renderTabs();
+  switchTab("users");
+}
+async function loadNames(){
+  try {
+    var d = await api("/admin/users?session_token=" + tk() + "&limit=200");
+    (d.items || []).forEach(function(u){ NAMES[u.user_id] = u.login; });
+  } catch(e) { /* не критично */ }
+}
+async function doLogin(){
+  var login = $("l").value.trim();
+  var pass = $("p").value;
+  var err = $("l-err");
+  err.textContent = "";
+  if (!login || !pass) { err.textContent = "Введите логин и пароль"; return; }
+  var btn = $("l-btn");
+  btn.disabled = true; btn.textContent = "Вход...";
+  try {
+    var d = await api("/auth/login", "POST", { login: login, password: pass, client_kind: "web" });
+    if (d.user.role !== "admin" && d.user.role !== "moderator") { err.textContent = "Доступ только для админа"; return; }
     ST = d.session.token;
     localStorage.setItem(ADMIN_TOKEN_KEY, ST);
     localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(d.user));
-    m.textContent = "OK"; m.style.color = "#4fb286";
+    try { sessionStorage.removeItem("lc_admin_sso_off"); } catch(e) {}
+    await loadMe();
     showMain();
-  } catch(e) {
-    if (e.name === "TypeError") dbgReport({trace_id:tr, action:"/auth/login", method:"POST", ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
-    m.textContent = e.message;
-    m.style.color = "#f85149";
-  }
+  } catch(e) { err.textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = "Войти"; }
 }
-
-function doLogout() {
-  ST = "";
+async function loadMe(){
+  try {
+    var d = await api("/account/api/profile?session_token=" + tk());
+    ME = d.profile || ME;
+  } catch(e) { /* остаётся из localStorage */ }
+  if (!ME) { try { ME = JSON.parse(localStorage.getItem(ADMIN_USER_KEY) || "{}"); } catch(e) { ME = {}; } }
+}
+function doLogout(){
+  ST = null; ME = null;
   localStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem(ADMIN_USER_KEY);
-  // Do not silently sign back in through the app session right after logout.
   try { sessionStorage.setItem("lc_admin_sso_off", "1"); } catch(e) {}
   location.reload();
 }
-
-// Restore a previous admin session on reload (the app session is kept separate).
-async function restoreSession() {
-  var tok = localStorage.getItem(ADMIN_TOKEN_KEY);
+async function boot(){
+  var tok = null;
+  try { tok = localStorage.getItem(ADMIN_TOKEN_KEY); } catch(e) {}
   if (!tok) {
-    // Single sign-on: when the app session on this device belongs to an
-    // admin/moderator, open the panel without asking for the password again.
-    try { if (sessionStorage.getItem("lc_admin_sso_off") === "1") return; } catch(e) {}
+    var ssoOff = false;
+    try { ssoOff = sessionStorage.getItem("lc_admin_sso_off") === "1"; } catch(e) {}
     var appTok = null;
     try { appTok = localStorage.getItem("lc_session_token"); } catch(e) {}
-    if (!appTok) return;
-    try {
-      var d0 = await apiCall("/account/api/profile?session_token=" + encodeURIComponent(appTok));
-      var role = d0.profile && d0.profile.role;
-      if (role === "admin" || role === "moderator") {
-        ST = appTok;
-        showMain(d0.profile);
-      }
-    } catch(e) { /* fall back to the login form */ }
+    if (appTok && !ssoOff) {
+      try {
+        var d0 = await api("/account/api/profile?session_token=" + encodeURIComponent(appTok));
+        var role = d0.profile && d0.profile.role;
+        if (role === "admin" || role === "moderator") { ST = appTok; ME = d0.profile; showMain(); return; }
+      } catch(e) { /* не пустило — покажем форму */ }
+    }
+    showLogin("");
     return;
   }
   ST = tok;
   try {
-    var d = await apiCall("/account/api/profile?session_token=" + encodeURIComponent(ST));
-    showMain(d.profile);
+    await loadMe();
+    var role2 = ME && ME.role;
+    if (role2 !== "admin" && role2 !== "moderator") throw new Error("not admin");
+    showMain();
   } catch(e) {
-    ST = "";
+    ST = null;
     localStorage.removeItem(ADMIN_TOKEN_KEY);
     localStorage.removeItem(ADMIN_USER_KEY);
+    showLogin("");
   }
 }
+$("l-btn").onclick = doLogin;
+$("l").addEventListener("keydown", function(e){ if (e.key === "Enter") doLogin(); });
+$("p").addEventListener("keydown", function(e){ if (e.key === "Enter") doLogin(); });
+$("logout-btn").onclick = function(){
+  askConfirm("Выйти", "Выйти из админ-панели?", doLogout);
+};
 
-function showMain(profile) {
-  var me = profile || {};
-  if (!me.login) {
-    try { me = JSON.parse(localStorage.getItem(ADMIN_USER_KEY) || "{}"); } catch(e) { me = {}; }
-  }
-  var loginBox = document.getElementById("login");
-  loginBox.className = "card mini";
-  loginBox.innerHTML = '<div class="who">' + avatarHtml(me, 34) + '<span>Logged in as <b>' + esc(me.login || "") + '</b></span><span class="spacer" style="flex:1"></span><button class="btn-logout" onclick="doLogout()">Logout</button></div>';
-  document.getElementById("main").style.display = "block";
-  if (me.role !== "admin") {
-    var keep = ["Users", "Reports", "Profile"];
-    document.querySelectorAll(".tab").forEach(function(t) {
-      if (keep.indexOf(t.textContent.trim()) === -1) t.style.display = "none";
-    });
-  }
-  switchTab("users");
-}
-
-function switchTab(t) {
-  var tab = document.querySelector(".tab[onclick*='" + t + "']");
-  if (!tab) return;
-  document.querySelectorAll(".tab").forEach(function(x) { x.classList.remove("active"); });
-  tab.classList.add("active");
-  try { tab.scrollIntoView({ inline: "center", block: "nearest" }); } catch(e) {}
-  document.querySelectorAll(".panel").forEach(function(x) { x.classList.remove("active"); });
-  document.getElementById("panel-" + t).classList.add("active");
-  if (t === "users") loadUsers();
-  if (t === "support") loadSupport();
-  if (t === "system") loadSystem();
-  if (t === "passwords") loadPasswords();
-  if (t === "mode") loadMode();
-  if (t === "activity") loadActivity();
-  if (t === "reports") loadReports();
-  if (t === "profile") loadProfile();
-}
-
-async function apiCall(url, method, body) {
-  var opts = { method: method || "GET", headers: { "Content-Type": "application/json" } };
-  if (body) opts.body = JSON.stringify(body);
-  var tr = newTraceId("ad");
-  opts.headers["X-Debug-Trace"] = tr;
-  var t1 = Date.now();
-  try {
-    var r = await fetch(url, opts);
-    var t2 = Date.now();
-    var d = await r.json().catch(function(){return{}});
-    if (!r.ok) {
-      var emsg = d.detail ? d.detail.message : ("HTTP " + r.status);
-      dbgReport({trace_id:tr, action:url, method:opts.method, ok:false, status:r.status, stages_done:2, error:emsg, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
-      throw new Error(emsg);
-    }
-    dbgReport({trace_id:tr, action:url, method:opts.method, ok:true, status:r.status, stages_done:3, t1_ms:t1, t2_ms:t2, t3_ms:Date.now()});
-    return d;
-  } catch(e) {
-    if (e.name === "TypeError") {
-      dbgReport({trace_id:tr, action:url, method:opts.method, ok:false, stages_done:1, error:"Server unreachable", t1_ms:t1, t3_ms:Date.now()});
-      throw new Error("Server unreachable");
-    }
-    throw e;
-  }
-}
-
-// USERS
-async function loadUsers() {
-  var p = document.getElementById("panel-users");
-  p.innerHTML = '<div class="card">Loading...</div>';
-  var meRole = "user";
-  try { meRole = JSON.parse(localStorage.getItem(ADMIN_USER_KEY) || "{}").role || "user"; } catch(e) {}
-  var isFullAdmin = meRole === "admin";
-  try {
-    var d = await apiCall("/admin/users?session_token=" + ST + "&_=" + Date.now());
-    var h = '<div class="card"><h3>Users (' + d.count + ')</h3><table class="tbl-stack"><tr><th>ID</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr>';
-    d.items.forEach(function(u) {
-      h += "<tr><td>" + u.user_id + "</td><td>" + esc(u.login) + "</td><td>" + u.role + "</td><td>" + u.status + '</td><td><span class="acts">';
-      if (u.status === "active") {
-        h += '<button class="btn-outline" onclick="userAction(' + u.user_id + ',\'setrole\',\'' + (u.role === "moderator" ? "user" : "moderator") + '\')">' + (u.role === "moderator" ? "Demote" : "Promote") + '</button>';
-        h += '<button class="btn-danger" onclick="userAction(' + u.user_id + ',\'ban\')">Ban</button>';
-        h += '<input id="tbdur' + u.user_id + '" type="number" inputmode="numeric" value="60" min="1" max="10080" style="width:60px">';
-        h += '<button class="btn-outline" onclick="tblk(' + u.user_id + ')">min</button>';
-        if (isFullAdmin) h += '<button class="btn-danger" onclick="delUser(' + u.user_id + ',this)">Delete</button>';
-      } else {
-        h += '<button class="btn-green" onclick="userAction(' + u.user_id + ',\'unban\')">Unban</button>';
-      }
-      h += "</span></td></tr>";
-    });
-    h += "</table></div>";
-    p.innerHTML = h;
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
-}
-
-async function userAction(uid, action, role) {
-  var label = action === "setrole" ? ("Set role to " + role) : (action === "ban" ? "Ban" : "Unban");
-  if (!confirm(label + " user ID " + uid + "?")) return;
-  msg("Working...");
-  try {
-    var body = { session_token: ST };
-    if (role) body.role = role;
-    await apiCall("/admin/users/" + uid + "/" + (action === "setrole" ? "set-role" : action), "POST", body);
-    msg('<span style="color:#4fb286">' + action + " OK</span>");
-    loadUsers();
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
-}
-
-async function tblk(uid) {
-  var dur = parseInt(document.getElementById("tbdur" + uid).value || 60);
-  if (isNaN(dur) || dur < 1 || dur > 10080) { msg("1-10080 min"); return; }
-  if (!confirm("Temporarily block user ID " + uid + " for " + dur + " min?")) return;
-  msg("Blocking...");
-  try {
-    await apiCall("/admin/users/" + uid + "/temporary-block", "POST", { session_token: ST, duration_minutes: dur });
-    msg('<span style="color:#4fb286">Blocked ' + dur + "min</span>");
-    loadUsers();
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
-}
-
-async function delUser(uid, btn) {
-  var login = "";
-  try { login = btn && btn.closest("tr") ? btn.closest("tr").children[1].textContent : ""; } catch(e) {}
-  if (!confirm('Delete user "' + login + '" (ID ' + uid + ')? This cannot be undone.')) return;
-  msg("Deleting...");
-  try {
-    await apiCall("/admin/users/" + uid + "?session_token=" + encodeURIComponent(ST), "DELETE");
-    msg('<span style="color:#4fb286">Deleted ' + esc(login) + "</span>");
-    loadUsers();
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
-}
-
-// CLEANUP
-(function() {
-  var html = '<div class="card"><h3>Cleanup</h3><div class="row">';
-  var actions = [
-    ["Clear Global Chat", "clear-global", "btn-outline"],
-    ["Clear Blog", "clear-blog", "btn-outline"],
-    ["Clear Support", "clear-support", "btn-outline"],
-    ["Delete All Chats", "delete-chats", "btn-danger"],
-    ["Delete All Users", "delete-users", "btn-danger"],
-    ["FULL RESET", "full-reset", "btn-warn"]
-  ];
-  actions.forEach(function(a) {
-    html += '<button class="' + a[2] + '" onclick="cleanupAction(\'' + a[1] + '\')">' + a[0] + "</button> ";
+/* ---------- вкладки ---------- */
+var TABS = [
+  ["users", "Пользователи"],
+  ["support", "Обращения"],
+  ["reports", "Жалобы"],
+  ["mode", "Режим"],
+  ["cleanup", "Очистка"],
+  ["system", "Система"],
+  ["activity", "Активность"],
+  ["passwords", "Пароли"],
+  ["profile", "Профиль"]
+];
+function isFullAdmin(){ return ME && ME.role === "admin"; }
+function renderTabs(){
+  var allowed = TABS.filter(function(t){
+    if (isFullAdmin()) return true;
+    return t[0] === "users" || t[0] === "reports" || t[0] === "profile";
   });
-  html += "</div></div>";
-  document.getElementById("panel-cleanup").innerHTML = html;
-})();
-
-async function cleanupAction(action) {
-  var map = {
-    "clear-global": ["/chat/api/admin/clear-global", "POST"],
-    "clear-blog": ["/chat/api/admin/clear-blog", "POST"],
-    "clear-support": ["/chat/api/admin/clear-support", "POST"],
-    "delete-chats": ["/chat/api/admin/delete-all-chats", "POST"],
-    "delete-users": ["/chat/api/admin/delete-all-users", "POST"],
-    "full-reset": ["/chat/api/admin/full-reset", "POST"]
-  };
-  var a = map[action];
-  if (!a) return;
-  msg("Working...");
-  try {
-    var body = action === "full-reset" ? { session_token: ST, confirm: true } : { session_token: ST };
-    var r = await apiCall(a[0], a[1], body);
-    msg('<span style="color:#4fb286">OK: ' + (r.deleted_count != null ? r.deleted_count + " items" : "done") + "</span>");
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
+  $("tabs").innerHTML = allowed.map(function(t){
+    return '<button class="chip' + (t[0] === TAB && !SUB ? " active" : "") + '" data-t="' + t[0] + '">' + t[1] + "</button>";
+  }).join("");
+  $("tabs").querySelectorAll(".chip").forEach(function(b){
+    b.onclick = function(){ switchTab(b.getAttribute("data-t")); };
+  });
 }
-
-// SYSTEM
-async function loadSystem() {
-  var p = document.getElementById("panel-system");
-  p.innerHTML = '<div class="card">Loading...</div>';
-  try {
-    var h = await apiCall("/ops/api/system-health?session_token=" + ST);
-    var s = await apiCall("/ops/api/services?session_token=" + ST);
-    var html = '<div class="card"><h3>RPi System</h3><div class="row">';
-    html += '<div class="stat"><div class="n" style="color:#4fb286">' + (h.health.cpu_temp || "?") + '</div><div class="l">CPU</div></div>';
-    html += '<div class="stat"><div class="n">' + h.health.ram_used + '</div><div class="l">RAM / ' + h.health.ram_total + "</div></div>";
-    html += '<div class="stat"><div class="n">' + h.health.disk_used + '</div><div class="l">Disk ' + h.health.disk_pct + "</div></div>";
-    html += '</div><h3>Services</h3><table class="tbl-stack"><tr><th>Service</th><th>State</th><th>Action</th></tr>';
-    s.services.forEach(function(svc) {
-      var c = svc.active === "active" ? "#4fb286" : "#f85149";
-      html += '<tr><td>' + svc.name + '</td><td style="color:' + c + '">' + svc.active + '</td><td><button class="btn-outline" onclick="sysRestart(\'' + svc.name + '\')">Restart</button></td></tr>';
-    });
-    html += '</table><div class="row" style="margin-top:10px"><button class="btn-warn" onclick="sysRestart(\'reboot\')">Reboot RPi</button><span id="sysMsg" style="font-size:12px"></span></div></div>';
-    html += '<div class="card"><h3>Debug Log</h3><button class="btn-outline" onclick="loadDebugLog()">Load last 100</button><div id="debug-log" style="margin-top:8px;max-height:340px;overflow-y:auto"></div></div>';
-    p.innerHTML = html;
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
+function switchTab(t){
+  TAB = t; SUB = null;
+  renderTabs();
+  $("tb-title").textContent = (TABS.filter(function(x){ return x[0] === t; })[0] || ["", "Админка"])[1];
+  renderTab();
 }
-
-async function loadDebugLog() {
-  var box = document.getElementById("debug-log");
-  if (!box) return;
-  box.textContent = "Loading...";
-  try {
-    var d = await apiCall("/debug/api/events?session_token=" + encodeURIComponent(ST) + "&limit=100");
-    var h = '<table><tr><th>Time</th><th>Stage</th><th>Action</th><th>Status</th><th>OK</th><th>Stages</th><th>Error</th><th>Trace</th></tr>';
-    (d.items || []).forEach(function(e) {
-      var color = e.ok === 1 ? "#4fb286" : "#f85149";
-      h += "<tr><td style=font-size:11px>" + new Date(e.created_at_ms).toLocaleTimeString() + "</td>";
-      h += "<td>" + esc(e.stage) + "</td><td style=font-size:11px>" + esc(e.action || "") + " " + esc(e.method || "") + "</td>";
-      h += "<td>" + (e.status == null ? "-" : e.status) + "</td><td style=color:" + color + ">" + (e.ok === 1 ? "ok" : "FAIL") + "</td>";
-      h += "<td>" + (e.stages_done == null ? "-" : e.stages_done) + "/3</td><td style=font-size:11px;color:#f85149>" + esc(e.error || "") + "</td><td style=font-size:10px;color:#7f8b98>" + esc(e.trace_id || "") + "</td></tr>";
-    });
-    h += "</table>";
-    box.innerHTML = h;
-  } catch(e) { box.textContent = "Error: " + e.message; }
+function renderTab(){
+  if (SUB && SUB.name === "ticket") { renderTicketView(); return; }
+  $("content").innerHTML = '<div class="spin"></div>';
+  if (TAB === "users") renderUsers();
+  else if (TAB === "support") renderSupport();
+  else if (TAB === "reports") renderReports();
+  else if (TAB === "mode") renderMode();
+  else if (TAB === "cleanup") renderCleanup();
+  else if (TAB === "system") renderSystem();
+  else if (TAB === "activity") renderActivity();
+  else if (TAB === "passwords") renderPasswords();
+  else if (TAB === "profile") renderProfile();
 }
+function setContent(html){ $("content").innerHTML = html; $("content").scrollTop = 0; }
+function emptyBox(msg){ return '<div class="empty">' + esc(msg) + "</div>"; }
 
-async function sysRestart(svc) {
-  var m = document.getElementById("sysMsg"); if (m) m.textContent = "Restarting " + svc + "...";
-  if (svc === "reboot") { if (m) m.textContent = "Rebooting..."; }
-  try {
-    await apiCall("/ops/api/restart-service", "POST", { session_token: ST, service: svc });
-    if (m) { m.innerHTML = '<span style="color:#4fb286">OK</span>'; setTimeout(function() { m.textContent = ""; }, 3000); }
-  } catch(e) { if (m) m.innerHTML = '<span style="color:#f85149">' + e.message + "</span>"; }
+/* ================= ПОЛЬЗОВАТЕЛИ ================= */
+async function renderUsers(){
+  var d;
+  try { d = await api("/admin/users?session_token=" + tk() + "&limit=200&_=" + Date.now()); }
+  catch(e) { setContent(emptyBox(e.message)); return; }
+  var items = d.items || [];
+  var html = '<div class="card"><div class="card-head"><span>Пользователи</span><span class="grow"></span><span class="badge">' + items.length + '</span></div>';
+  if (!items.length) html += emptyBox("Нет пользователей");
+  items.forEach(function(u, i){
+    var sub = u.role + " · " + statusLabel(u.status);
+    if (u.blocked_until_ms) sub += " до " + fmtDate(u.blocked_until_ms);
+    html += '<button class="row" data-i="' + i + '">' +
+      avatarHtml(u.login, null) +
+      '<span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + esc(sub) + "</span></span>" +
+      '<span class="chev">›</span></button>';
+  });
+  html += "</div>";
+  setContent(html);
+  $("content").querySelectorAll("[data-i]").forEach(function(b){
+    b.onclick = function(){ userSheet(items[Number(b.getAttribute("data-i"))]); };
+  });
 }
-
-// PASSWORDS
-async function loadPasswords() {
-  var p = document.getElementById("panel-passwords");
-  p.innerHTML = '<div class="card">Loading...</div>';
-  try {
-    var d = await apiCall("/admin/users?session_token=" + ST + "&limit=200");
-    var h = '<div class="card"><h3>Password Reset</h3><table class="tbl-stack"><tr><th>Login</th><th>Role</th><th>New Password</th><th></th></tr>';
-    d.items.forEach(function(u) {
-      h += '<tr><td>' + esc(u.login) + '</td><td>' + u.role + '</td><td><input id="pw' + u.user_id + '" placeholder="min 8 chars"></td>';
-      h += '<td><span class="acts"><button class="btn-outline" onclick="pwReset(' + u.user_id + ')">Reset</button><span id="pm' + u.user_id + '" style="font-size:11px"></span></span></td></tr>';
-    });
-    h += "</table></div>";
-    p.innerHTML = h;
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
-}
-
-async function pwReset(uid) {
-  var inp = document.getElementById("pw" + uid);
-  var m = document.getElementById("pm" + uid);
-  var pw = inp.value.trim();
-  if (pw.length < 8) { m.textContent = "Min 8 chars"; return; }
-  try {
-    await apiCall("/admin/users/" + uid + "/reset-password", "POST", { session_token: ST, new_password: pw });
-    m.textContent = "OK"; m.style.color = "#4fb286";
-  } catch(e) { m.textContent = e.message; m.style.color = "#f85149"; }
-}
-
-// SUPPORT
-async function loadSupport() {
-  var p = document.getElementById("panel-support");
-  p.innerHTML = '<div class="card">Loading...</div>';
-  try {
-    var d = await apiCall("/admin/content/support/tickets?session_token=" + ST);
-    var h = '<div class="card"><h3>Support Tickets (' + d.count + ')</h3>';
-    if (!d.items || !d.items.length) { h += '<p style="color:#7f8b98">No tickets</p>'; }
-    d.items.forEach(function(t) {
-      h += '<div class="card"><strong>#' + t.ticket_id + " " + esc(t.title) + '</strong> <span style="color:#7f8b98">' + t.status + "</span><br>";
-      h += '<span style="font-size:11px;color:#7f8b98">User #' + t.user_id + "</span>";
-      h += '<div style="margin-top:6px"><select id="sts' + t.ticket_id + '"><option value="open" ' + (t.status === "open" ? "selected" : "") + '>open</option><option value="in_progress" ' + (t.status === "in_progress" ? "selected" : "") + '>in progress</option><option value="resolved" ' + (t.status === "resolved" ? "selected" : "") + '>resolved</option><option value="closed" ' + (t.status === "closed" ? "selected" : "") + '>closed</option></select> ';
-      h += '<button class="btn-outline" onclick="suppStatus(' + t.ticket_id + ')">Update</button>';
-      h += '<textarea id="sti' + t.ticket_id + '" placeholder="Reply..." rows="2" style="width:100%;margin-top:4px"></textarea>';
-      h += '<input type="file" id="stf' + t.ticket_id + '" multiple style="display:none" accept="image/*,audio/*,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg,video/3gpp,.flac,.aac,.opus,.mid,.bmp,.tiff,.avif,.ico,.avi,.mkv,.mpeg,.3gp,.pdf,.txt,.md,.zip,.rar,.7z,.gz,.tar,.bz2,.xz,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.epub,.csv,.json,.yaml,.toml,.vtt,.srt">';
-      h += '<span class="acts"><button class="btn-outline" onclick="document.getElementById(\'stf' + t.ticket_id + '\').click()">' + icon("clip") + ' Attach</button>';
-      h += '<button class="btn-green" onclick="suppReply(' + t.ticket_id + ')">Send Reply</button></span></div></div>';
-    });
-    h += "</div>";
-    p.innerHTML = h;
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
-}
-
-async function suppStatus(tid) {
-  var sel = document.getElementById("sts" + tid); if (!sel) return;
-  try { await apiCall("/admin/content/support/tickets/" + tid + "/status", "POST", { session_token: ST, status: sel.value }); msg('<span style="color:#4fb286">Status: ' + sel.value + "</span>"); }
-  catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
-}
-
-async function suppReply(tid) {
-  var inp = document.getElementById("sti" + tid);
-  var fileInput = document.getElementById("stf" + tid);
-  var files = fileInput ? Array.prototype.slice.call(fileInput.files || []) : [];
-  var text = inp ? inp.value.trim() : "";
-  if (!text && !files.length) { msg("Reply cannot be empty"); return; }
-  try {
-    var ids = [];
-    for (var i = 0; i < files.length; i++) { var a = await uploadFile(files[i]); ids.push(a.attachment_id); }
-    await apiCall("/admin/content/support/tickets/" + tid + "/reply", "POST", { session_token: ST, body_text: text, attachment_ids: ids });
-    if (inp) inp.value = "";
-    if (fileInput) fileInput.value = "";
-    msg('<span style="color:#4fb286">Reply sent</span>');
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
-}
-
-// MODE
-async function loadMode() {
-  var p = document.getElementById("panel-mode");
-  try {
-    var d = await apiCall("/admin/mode/state?session_token=" + ST);
-    var newMode = d.access_mode === "open" ? "closed" : "open";
-    p.innerHTML = '<div class="card"><h3>Access Mode: <span style="color:' + (d.access_mode === "open" ? "#4fb286" : "#d29922") + '">' + d.access_mode + '</span></h3><button class="' + (d.access_mode === "open" ? "btn-danger" : "btn-green") + '" onclick="toggleMode(\'' + newMode + '\')">Switch to ' + newMode + "</button></div>";
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
-}
-
-async function toggleMode(m) {
-  try { await apiCall("/admin/mode/set", "POST", { session_token: ST, access_mode: m, hold_seconds: 5 }); msg('<span style="color:#4fb286">Mode: ' + m + "</span>"); loadMode(); }
-  catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
-}
-
-// ACTIVITY
-async function loadActivity() {
-  var p = document.getElementById("panel-activity");
-  try {
-    var r = await apiCall("/chat/api/admin/activity?session_token=" + ST + "&limit=50");
-    var on = { count: 0 };
-    try { on = await apiCall("/realtime/online", "POST", { session_token: ST }); } catch(e) {}
-    var h = '<div class="card"><h3>Activity</h3><div class="row">';
-    h += '<div class="stat"><div class="n" style="color:#4fb286">' + r.stats.messages_30d + '</div><div class="l">Messages (30d)</div></div>';
-    h += '<div class="stat"><div class="n" style="color:#5eb5f7">' + r.stats.users_30d + '</div><div class="l">New users (30d)</div></div>';
-    h += '<div class="stat"><div class="n" style="color:#5eb5f7">' + (on.count || 0) + '</div><div class="l">Online now</div></div>';
-    h += '<div class="stat"><div class="n">' + r.stats.total_events + '</div><div class="l">Total events</div></div>';
-    h += '</div><h3>Recent Activity</h3><table><tr><th>Event</th><th>User</th><th>Time</th></tr>';
-    (r.items || []).forEach(function(e) { h += '<tr><td>' + esc(e.event) + '</td><td>' + esc(e.user_login || "") + '</td><td style="font-size:11px">' + new Date(e.time).toLocaleString() + "</td></tr>"; });
-    h += "</table></div>";
-    p.innerHTML = h;
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + "</div>"; }
-}
-
-// REPORTS: user reports (dedicated API) + auto-moderation
-var REPORT_REASONS = {spam:"Spam",abuse:"Abuse",profanity:"Profanity",ads:"Ads",scam:"Scam",other:"Other"};
-async function loadReports() {
-  var p = document.getElementById("panel-reports");
-  p.innerHTML = '<div class="card">Loading...</div>';
-  var auto = {reports:[],pending_count:0}, user = {reports:[],pending_count:0};
-  var autoErr = "", userErr = "";
-  try { auto = await apiCall("/moderation/api/admin/reports?session_token=" + encodeURIComponent(ST) + "&limit=100"); } catch(e) { autoErr = e.message; }
-  try { user = await apiCall("/reports/api/list?session_token=" + encodeURIComponent(ST) + "&limit=100"); } catch(e) { userErr = e.message; }
-
-  var h = '<div class="card"><h3>User Reports <span style="color:#f85149">(' + (user.pending_count||0) + ' pending)</span></h3>';
-  if (userErr) { h += '<p style="color:#f85149">' + esc(userErr) + '</p>'; }
-  else if (!user.reports || !user.reports.length) { h += '<p style="color:#7f8b98">No reports</p>'; }
-  else {
-    user.reports.forEach(function(r) {
-      var sc = r.status === "pending" ? "#f85149" : "#7f8b98";
-      h += '<div class="card" style="border-left:3px solid ' + sc + '">';
-      h += '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><strong>' + esc(r.reporter_login) + ' \u2192 ' + esc(r.target_login || ("User #" + r.target_user_id)) + '</strong><span style="font-size:11px;color:#7f8b98">#' + r.id + " " + r.status + "</span></div>";
-      h += '<div style="font-size:12px;color:#d29922;margin:4px 0">' + esc(REPORT_REASONS[r.reason] || r.reason) + " \u00b7 " + new Date(r.created_at_ms).toLocaleString();
-      if (r.target_reports_count > 1) h += ' \u00b7 reports against: ' + r.target_reports_count;
-      h += "</div>";
-      if (r.comment) h += '<div style="font-size:12px;background:#0e1621;padding:6px;border-radius:4px;margin:4px 0;white-space:pre-wrap">' + esc(r.comment) + "</div>";
-      if (r.attachments && r.attachments.length) h += attachmentsHtml(r.attachments);
-      if (r.status === "pending") {
-        h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveUserReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveUserReport(' + r.id + ',\'warn\')">Warn (' + (r.target_warn_count || 0) + '/3)</button> <button class="btn-outline" onclick="resolveUserReport(' + r.id + ',\'dismiss\')">Dismiss</button> <button class="btn-outline" onclick="toggleTargetMessages(' + r.id + ',' + r.target_user_id + ')">Messages</button></div>';
-      } else {
-        h += '<div style="font-size:11px;color:#7f8b98">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
-      }
-      h += '<div id="uevidence-' + r.id + '" style="display:none;margin-top:8px;background:#0e1621;border:1px solid #24313d;border-radius:6px;padding:8px"></div>';
-      h += "</div>";
-    });
+function userSheet(u){
+  var items = [];
+  items.push({ icon: "i-user", label: "Профиль", action: function(){ profileSheet(u.user_id, u.login); } });
+  if (u.role === "moderator") items.push({ icon: "i-users", label: "Снять модератора", action: function(){ setRole(u, "user"); } });
+  else if (u.role !== "admin") items.push({ icon: "i-users", label: "Сделать модератором", action: function(){ setRole(u, "moderator"); } });
+  if (u.status === "active") {
+    items.push({ icon: "i-clock", label: "Заблокировать на время", action: function(){ tempBlockForm(u); } });
+    items.push({ icon: "i-x", label: "Забанить", danger: true, action: function(){ banUser(u); } });
+  } else {
+    items.push({ icon: "i-check", label: "Разбанить", action: function(){ unbanUser(u); } });
   }
-  h += "</div>";
-
-  h += '<div class="card"><h3>Auto-Moderation <span style="color:#f85149">(' + (auto.pending_count||0) + ' pending)</span></h3>';
-  if (autoErr) { h += '<p style="color:#f85149">' + esc(autoErr) + '</p>'; }
-  else if (!auto.reports || !auto.reports.length) { h += '<p style="color:#7f8b98">No reports</p>'; }
-  else {
-    auto.reports.forEach(function(r) {
-      var sc = r.status === "pending" ? "#d29922" : "#7f8b98";
-      h += '<div class="card" style="border-left:3px solid ' + sc + '"><div style="display:flex;justify-content:space-between"><strong>' + esc(r.user_login) + '</strong><span style="font-size:11px;color:#7f8b98">#' + r.id + " " + r.status + "</span></div>";
-      h += '<div style="font-size:12px;color:#7f8b98;margin:4px 0">Words: <span style="color:#f85149">' + esc(r.found_words || "") + "</span></div>";
-      h += '<div style="font-size:12px;background:#0e1621;padding:6px;border-radius:4px;margin:4px 0;max-height:60px;overflow-y:auto">' + esc(r.message_text || "") + "</div>";
-      if (r.status === "pending") {
-        h += '<div style="margin-top:6px"><button class="btn-danger" onclick="resolveReport(' + r.id + ',\'ban\')">Ban</button> <button class="btn-warn" onclick="resolveReport(' + r.id + ',\'warn\')">Warn (' + (r.user_warn_count || 0) + '/3)</button> <button class="btn-outline" onclick="resolveReport(' + r.id + ',\'dismiss\')">Dismiss</button></div>';
-      } else {
-        h += '<div style="font-size:11px;color:#7f8b98">Resolved: ' + esc(r.action || "?") + " by " + esc(r.resolved_by || "?") + "</div>";
-      }
-      h += "</div>";
+  items.push({ icon: "i-refresh", label: "Сбросить пароль", action: function(){ pwForm(u, function(){ renderUsers(); }); } });
+  if (isFullAdmin() && u.user_id !== (ME && ME.user_id)) items.push({ icon: "i-trash", label: "Удалить пользователя", danger: true, action: function(){ delUser(u); } });
+  openSheet(u.login + (u.status !== "active" ? " · " + statusLabel(u.status) : ""), items);
+}
+async function setRole(u, role){
+  try {
+    await api("/admin/users/" + u.user_id + "/set-role", "POST", { session_token: ST, role: role });
+    toast("Роль: " + role); renderUsers();
+  } catch(e) { toast(e.message); }
+}
+function tempBlockForm(u){
+  openForm("Блокировка " + u.login,
+    '<div class="s-note">На сколько минут заблокировать? (1–10080)</div>' +
+    '<input class="inp" id="tb-min" type="number" inputmode="numeric" value="60" min="1" max="10080">' +
+    '<button class="btn-accent" id="tb-go">Заблокировать</button>',
+    function(){
+      $("tb-go").onclick = async function(){
+        var min = parseInt($("tb-min").value || "0", 10);
+        if (!(min >= 1 && min <= 10080)) { toast("1–10080 минут"); return; }
+        closeSheet();
+        try {
+          await api("/admin/users/" + u.user_id + "/temporary-block", "POST", { session_token: ST, duration_minutes: min });
+          toast("Заблокирован на " + min + " мин"); renderUsers();
+        } catch(e) { toast(e.message); }
+      };
     });
-  }
-  h += "</div>";
-  p.innerHTML = h;
+}
+function banUser(u){
+  askConfirm("Бан " + u.login, "Забанить пользователя " + u.login + "? Он не сможет входить.", async function(){
+    try {
+      await api("/admin/users/" + u.user_id + "/ban", "POST", { session_token: ST });
+      toast("Пользователь забанен"); renderUsers();
+    } catch(e) { toast(e.message); }
+  });
+}
+async function unbanUser(u){
+  try {
+    await api("/admin/users/" + u.user_id + "/unban", "POST", { session_token: ST });
+    toast("Пользователь разбанен"); renderUsers();
+  } catch(e) { toast(e.message); }
+}
+function pwForm(u, after){
+  openForm("Новый пароль · " + u.login,
+    '<div class="s-note">Минимум 8 символов. Пользователю придётся войти заново.</div>' +
+    '<input class="inp" id="pw-new" type="text" placeholder="Новый пароль" autocapitalize="off" autocorrect="off">' +
+    '<button class="btn-accent" id="pw-go">Сбросить пароль</button>',
+    function(){
+      $("pw-go").onclick = async function(){
+        var pw = $("pw-new").value.trim();
+        if (pw.length < 8) { toast("Минимум 8 символов"); return; }
+        closeSheet();
+        try {
+          await api("/admin/users/" + u.user_id + "/reset-password", "POST", { session_token: ST, new_password: pw });
+          toast("Пароль обновлён");
+          if (after) after();
+        } catch(e) { toast(e.message); }
+      };
+    });
+}
+function delUser(u){
+  askConfirm("Удаление " + u.login, "Удалить пользователя " + u.login + " навсегда? Это необратимо.", async function(){
+    try {
+      await api("/admin/users/" + u.user_id + "?session_token=" + tk(), "DELETE");
+      toast("Пользователь удалён"); renderUsers();
+    } catch(e) { toast(e.message); }
+  });
+}
+async function profileSheet(uid, login){
+  openSheetHtml(login || "Профиль", '<div class="spin"></div>');
+  try {
+    var d = await api("/account/api/profile/" + uid + "?session_token=" + tk());
+    var p = d.profile || {};
+    var html = '<div class="s-form">' +
+      '<div style="text-align:center">' + avatarHtml(p.login, p.avatar_url) + "</div>" +
+      '<div style="text-align:center;font-size:18px;font-weight:700">' + esc(p.display_name || p.login) + "</div>" +
+      '<div style="text-align:center;color:var(--sub);font-size:13.5px">@' + esc(p.login) + " · " + esc(p.role) + " · " + esc(statusLabel(p.status)) + "</div>" +
+      '<div class="kv"><span class="k">ID</span><span class="v">' + p.user_id + "</span></div>" +
+      (p.phone ? '<div class="kv"><span class="k">Телефон</span><span class="v">' + esc(p.phone) + "</span></div>" : "") +
+      (p.profile_bio ? '<div class="kv"><span class="k">О себе</span><span class="v">' + esc(p.profile_bio) + "</span></div>" : "") +
+      "</div>";
+    $("sheet-body").innerHTML = html;
+  } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
 }
 
-async function resolveUserReport(rid, action) {
-  if (action === "ban" && !confirm("Ban the user from this report?")) return;
-  msg("Working...");
-  try {
-    var d = await apiCall("/reports/api/resolve", "POST", { session_token: ST, report_id: rid, action: action });
-    if (action === "warn" && d.warn) {
-      if (d.warn.banned) msg('<span style="color:#f85149">Warn 3/3 \u2014 user banned for 3 days</span>');
-      else msg('<span style="color:#d29922">Warn ' + d.warn.warn_count + '/' + d.warn.max_warns + '</span>');
-    } else {
-      msg('<span style="color:#4fb286">Report ' + action + "</span>");
-    }
-    loadReports();
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
+/* ================= ОБРАЩЕНИЯ ================= */
+async function renderSupport(){
+  var d;
+  try { d = await api("/admin/content/support/tickets?session_token=" + tk()); }
+  catch(e) { setContent(emptyBox(e.message)); return; }
+  var items = d.items || [];
+  var html = '<div class="card"><div class="card-head"><span>Обращения</span><span class="grow"></span><span class="badge">' + (d.count != null ? d.count : items.length) + '</span></div>';
+  if (!items.length) html += emptyBox("Обращений нет");
+  items.forEach(function(t, i){
+    html += '<button class="row" data-i="' + i + '">' +
+      '<span class="avatar" style="background:' + (t.kind === "report" ? "#7a2d3a" : "#3d5a80") + '"><svg class="i s18"><use href="#' + (t.kind === "report" ? "i-flag" : "i-support") + '"/></svg></span>' +
+      '<span class="rcol"><span class="rt">#' + t.ticket_id + " · " + esc(t.title) + '</span><span class="rsub">пользователь #' + t.user_id + " · " + fmtDate(t.last_message_at_ms || t.created_at_ms) + "</span></span>" +
+      pill(t.status) + '<span class="chev">›</span></button>';
+  });
+  html += "</div>";
+  setContent(html);
+  $("content").querySelectorAll("[data-i]").forEach(function(b){
+    b.onclick = function(){ SUB = { name: "ticket", id: items[Number(b.getAttribute("data-i"))].ticket_id, ticket: items[Number(b.getAttribute("data-i"))] }; renderTab(); };
+  });
 }
-
-async function toggleTargetMessages(rid, uid) {
-  var box = document.getElementById("uevidence-" + rid);
-  if (!box) return;
-  if (box.style.display !== "none" && box.innerHTML) { box.style.display = "none"; return; }
-  box.style.display = "block";
-  box.innerHTML = "Loading...";
-  try {
-    var d = await apiCall("/reports/api/target-messages?session_token=" + encodeURIComponent(ST) + "&target_user_id=" + uid + "&limit=10");
-    var items = d.items || [];
-    if (!items.length) { box.innerHTML = '<span style="color:#7f8b98;font-size:12px">No messages</span>'; return; }
-    box.innerHTML = items.map(function(m) {
-      return '<div style="font-size:12px;margin-bottom:6px;border-bottom:1px solid #24313d;padding-bottom:4px"><span style="color:#7f8b98">' + esc(m.chat_title || ("Chat #" + m.chat_id)) + " \u00b7 " + new Date(m.created_at_ms).toLocaleString() + '</span><div style="white-space:pre-wrap">' + esc(m.body_text || "") + "</div></div>";
+async function renderTicketView(){
+  var t = SUB.ticket || {};
+  var html = '<div class="card"><button class="row no-line" id="tk-back"><svg class="i s22"><use href="#i-back"/></svg><span>К обращениям</span></button>' +
+    '<div class="kv"><span class="k">#' + t.ticket_id + "</span><span class=\"v\">" + esc(t.title) + "</span></div>" +
+    '<div class="kv"><span class="k">Пользователь</span><span class="v">' + esc(NAMES[t.user_id] || ("#" + t.user_id)) + "</span></div>" +
+    '<div class="kv"><span class="k">Статус</span><span class="v">' + pill(t.status) + "</span></div>" +
+    '<div class="kv" style="flex-wrap:wrap" id="tk-status-row">' +
+      ["open","in_progress","resolved","closed"].map(function(s){
+        return '<button class="chip' + (s === t.status ? " active" : "") + '" data-s="' + s + '" style="padding:7px 12px;font-size:13.5px">' + statusLabel(s) + "</button>";
+      }).join("") +
+    "</div></div>" +
+    '<div class="card" id="tk-msgs"><div class="spin"></div></div>' +
+    '<div class="card"><div class="card-head"><span>Ответ</span></div>' +
+      '<div class="form">' +
+        '<div id="tk-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>' +
+        '<textarea class="inp area" id="tk-text" placeholder="Ответ пользователю..." style="min-height:70px"></textarea>' +
+        '<div class="btn-row"><button class="btn-line" id="tk-attach" style="flex:0 0 130px">Файл</button><button class="btn-accent" id="tk-send">Отправить</button></div>' +
+      "</div></div>" +
+    '<input type="file" id="tk-file" multiple hidden>';
+  setContent(html);
+  $("tk-back").onclick = function(){ SUB = null; renderTabs(); $("tb-title").textContent = "Обращения"; renderTab(); };
+  var files = [];
+  var renderChips = function(){
+    $("tk-chips").innerHTML = files.map(function(f, i){
+      return '<span class="badge" data-i="' + i + '" style="cursor:pointer">' + esc(f.name) + " ✕</span>";
     }).join("");
-  } catch(e) { box.innerHTML = '<span style="color:#f85149;font-size:12px">' + esc(e.message) + "</span>"; }
+    $("tk-chips").querySelectorAll("[data-i]").forEach(function(b){
+      b.onclick = function(){ files.splice(Number(b.getAttribute("data-i")), 1); renderChips(); };
+    });
+  };
+  $("tk-attach").onclick = function(){ $("tk-file").click(); };
+  $("tk-file").onchange = function(){
+    Array.prototype.slice.call($("tk-file").files || []).forEach(function(f){ if (files.length < 8) files.push(f); });
+    $("tk-file").value = ""; renderChips();
+  };
+  $("tk-send").onclick = async function(){
+    var text = $("tk-text").value.trim();
+    if (!text && !files.length) { toast("Пустой ответ"); return; }
+    var btn = $("tk-send"); btn.disabled = true;
+    try {
+      var ids = [];
+      for (var i = 0; i < files.length; i++) { var a = await uploadFile(files[i]); if (a && a.attachment_id) ids.push(a.attachment_id); }
+      await api("/admin/content/support/tickets/" + SUB.id + "/reply", "POST", { session_token: ST, body_text: text, attachment_ids: ids });
+      toast("Ответ отправлен");
+      $("tk-text").value = ""; files = []; renderChips();
+      loadTicketMsgs();
+    } catch(e) { toast(e.message); }
+    finally { btn.disabled = false; }
+  };
+  $("tk-status-row").querySelectorAll(".chip").forEach(function(b){
+    b.onclick = async function(){
+      var s = b.getAttribute("data-s");
+      try {
+        await api("/admin/content/support/tickets/" + SUB.id + "/status", "POST", { session_token: ST, status: s });
+        toast("Статус: " + statusLabel(s));
+        if (SUB.ticket) SUB.ticket.status = s;
+        $("tk-status-row").querySelectorAll(".chip").forEach(function(x){ x.classList.toggle("active", x.getAttribute("data-s") === s); });
+      } catch(e) { toast(e.message); }
+    };
+  });
+  loadTicketMsgs();
 }
-
-async function resolveReport(rid, action) {
-  msg("Working...");
+async function loadTicketMsgs(){
+  var box = $("tk-msgs");
+  if (!box) return;
+  box.innerHTML = '<div class="spin"></div>';
   try {
-    await apiCall("/moderation/api/admin/reports/resolve", "POST", { session_token: ST, report_id: rid, action: action });
-    msg('<span style="color:#4fb286">Report ' + action + "</span>");
-    loadReports();
-  } catch(e) { msg('<span style="color:#f85149">' + e.message + "</span>"); }
+    var d = await api("/support/api/tickets/" + SUB.id + "/messages?session_token=" + tk());
+    var items = d.items || [];
+    if (!items.length) { box.innerHTML = emptyBox("Сообщений нет"); return; }
+    box.innerHTML = items.map(function(m){
+      var name = m.author_login || NAMES[m.author_user_id] || ("#" + m.author_user_id);
+      return '<div class="msg">' +
+        '<span class="m-ava">' + esc(String(name).slice(0, 2).toUpperCase()) + "</span>" +
+        '<div class="m-main"><div class="m-head"><span class="m-name">' + esc(name) + '</span><span class="m-time">' + fmtDate(m.created_at_ms) + "</span></div>" +
+        '<div class="m-text">' + esc(m.body_text || "") + "</div>" + attsHtml(m.attachments) + "</div></div>";
+    }).join("");
+  } catch(e) { box.innerHTML = emptyBox(e.message); }
 }
 
-// Global click handler — catches ALL admin button clicks
-// Global click handler — parses onclick-style data-click attributes
-
-
-
-async function loadProfile() {
-  var p = document.getElementById('panel-profile');
-  p.innerHTML = '<div class="card">Loading...</div>';
+/* ================= ЖАЛОБЫ ================= */
+async function renderReports(){
+  var user = null, auto = null, uErr = "", aErr = "";
+  try { user = await api("/reports/api/list?session_token=" + tk() + "&limit=100"); } catch(e) { uErr = e.message; }
+  try { auto = await api("/moderation/api/admin/reports?session_token=" + tk() + "&limit=100"); } catch(e) { aErr = e.message; }
+  var html = "";
+  html += '<div class="card"><div class="card-head"><span>Жалобы пользователей</span><span class="grow"></span><span class="badge">' + (user ? (user.pending_count || 0) + " новых" : "—") + "</span></div>";
+  if (uErr) html += emptyBox(uErr);
+  else if (!user || !user.reports || !user.reports.length) html += emptyBox("Жалоб нет");
+  else {
+    var REP = { spam: "Спам", abuse: "Оскорбления", profanity: "Мат", ads: "Реклама", scam: "Мошенничество", other: "Другое" };
+    user.reports.forEach(function(r, i){
+      html += '<button class="row" data-r="' + i + '">' +
+        '<span class="avatar" style="background:#7a2d3a"><svg class="i s18"><use href="#i-flag"/></svg></span>' +
+        '<span class="rcol"><span class="rt">' + esc(r.reporter_login) + " → " + esc(r.target_login || ("#" + r.target_user_id)) + '</span>' +
+        '<span class="rsub">' + esc(REP[r.reason] || r.reason) + " · " + fmtDate(r.created_at_ms) + (r.status !== "pending" ? " · " + esc(r.status) : "") + "</span></span>" +
+        (r.status === "pending" ? '<span class="badge" style="color:#ff8fa0">ждёт</span>' : "") + "</button>";
+    });
+    html += '<div id="rep-store" style="display:none"></div>';
+  }
+  html += "</div>";
+  html += '<div class="card"><div class="card-head"><span>Автомодерация</span><span class="grow"></span><span class="badge">' + (auto ? (auto.pending_count || 0) + " новых" : "—") + "</span></div>";
+  if (aErr) html += emptyBox(aErr);
+  else if (!auto || !auto.reports || !auto.reports.length) html += emptyBox("Срабатываний нет");
+  else {
+    auto.reports.forEach(function(r, i){
+      html += '<button class="row" data-a="' + i + '">' +
+        '<span class="avatar" style="background:#5a4321"><svg class="i s18"><use href="#i-gear"/></svg></span>' +
+        '<span class="rcol"><span class="rt">' + esc(r.user_login || ("#" + r.user_id)) + '</span><span class="rsub">' + esc(r.found_words || "") + " · " + fmtDate(r.created_at_ms || r.time || Date.now()) + "</span></span>" +
+        (r.status === "pending" ? '<span class="badge" style="color:#ff8fa0">ждёт</span>' : "") + "</button>";
+    });
+  }
+  html += "</div>";
+  setContent(html);
+  if (user && user.reports) {
+    $("content").querySelectorAll("[data-r]").forEach(function(b){
+      b.onclick = function(){ userReportSheet(user.reports[Number(b.getAttribute("data-r"))]); };
+    });
+  }
+  if (auto && auto.reports) {
+    $("content").querySelectorAll("[data-a]").forEach(function(b){
+      b.onclick = function(){ autoReportSheet(auto.reports[Number(b.getAttribute("data-a"))]); };
+    });
+  }
+}
+function userReportSheet(r){
+  var REP = { spam: "Спам", abuse: "Оскорбления", profanity: "Мат", ads: "Реклама", scam: "Мошенничество", other: "Другое" };
+  var title = r.reporter_login + " → " + (r.target_login || ("#" + r.target_user_id));
+  var items = [];
+  if (r.status === "pending") {
+    items.push({ icon: "i-info", label: "Подробности", action: function(){ reportDetailsSheet(r, REP); } });
+    items.push({ icon: "i-mail", label: "Сообщения пользователя", action: function(){ targetMsgsSheet(r.target_user_id); } });
+    items.push({ icon: "i-x", label: "Забанить " + (r.target_login || ""), danger: true, action: function(){ resolveUserReport(r, "ban"); } });
+    items.push({ icon: "i-clock", label: "Предупредить (" + (r.target_warn_count || 0) + "/3)", action: function(){ resolveUserReport(r, "warn"); } });
+    items.push({ icon: "i-check", label: "Отклонить жалобу", action: function(){ resolveUserReport(r, "dismiss"); } });
+  } else {
+    items.push({ icon: "i-info", label: "Подробности", action: function(){ reportDetailsSheet(r, REP); } });
+    items.push({ icon: "i-mail", label: "Сообщения пользователя", action: function(){ targetMsgsSheet(r.target_user_id); } });
+  }
+  openSheet(title, items);
+}
+function reportDetailsSheet(r, REP){
+  openSheetHtml("Жалоба #" + r.id,
+    '<div class="s-form">' +
+    '<div class="kv"><span class="k">Причина</span><span class="v">' + esc(REP[r.reason] || r.reason) + "</span></div>" +
+    '<div class="kv"><span class="k">От</span><span class="v">' + esc(r.reporter_login) + "</span></div>" +
+    '<div class="kv"><span class="k">На</span><span class="v">' + esc(r.target_login || ("#" + r.target_user_id)) + "</span></div>" +
+    '<div class="kv"><span class="k">Жалоб на него</span><span class="v">' + (r.target_reports_count || 1) + "</span></div>" +
+    '<div class="kv"><span class="k">Предупреждений</span><span class="v">' + (r.target_warn_count || 0) + "/3</span></div>" +
+    '<div class="kv"><span class="k">Время</span><span class="v">' + fmtDate(r.created_at_ms) + "</span></div>" +
+    (r.comment ? '<div class="s-note">Комментарий: ' + esc(r.comment) + "</div>" : "") +
+    "</div>");
+}
+async function targetMsgsSheet(uid){
+  openSheetHtml("Сообщения пользователя", '<div class="spin"></div>');
   try {
-    // Свой профиль
-    var d = await apiCall('/account/api/profile?session_token=' + ST);
-    var pr = d.profile;
-    var h = '<div class="card" style="max-width:520px">';
-    h += '<div style="text-align:center;margin-bottom:8px">' + avatarHtml(pr, 72) + '</div>';
-    h += '<h3 style="text-align:center">' + esc(pr.display_name || pr.login) + '</h3>';
-    h += '<div style="text-align:center;color:#7f8b98;margin-bottom:12px">@' + esc(pr.login) + ' · ' + pr.role + '</div>';
-    h += '<table><tr><th>Display Name</th><td>' + esc(pr.display_name || '-') + '</td></tr>';
-    h += '<tr><th>Role</th><td>' + pr.role + '</td></tr>';
-    h += '<tr><th>Status</th><td>' + pr.status + '</td></tr>';
-    if (pr.phone) h += '<tr><th>Phone</th><td>' + esc(pr.phone) + '</td></tr>';
-    h += '</table>';
-    if (pr.profile_bio) h += '<div class="card" style="margin-top:8px"><h4>Bio</h4><p style="white-space:pre-wrap">' + esc(pr.profile_bio) + '</p></div>';
-    h += '</div>';
-    
-    // Поиск другого пользователя
-    h += '<div class="card" style="max-width:520px"><h3>Lookup User</h3>';
-    h += '<div class="row"><input id="lookup-login" placeholder="User login" style="flex:1 1 160px;min-width:0">';
-    h += '<button class="btn-outline" onclick="lookupProfile()">View</button></div>';
-    h += '<div id="lookup-result" style="margin-top:8px"></div></div>';
-    
-    p.innerHTML = h;
-  } catch(e) { p.innerHTML = '<div class="card" style="color:#f85149">' + e.message + '</div>'; }
+    var d = await api("/reports/api/target-messages?session_token=" + tk() + "&target_user_id=" + uid + "&limit=15");
+    var items = d.items || [];
+    $("sheet-body").innerHTML = items.length ? '<div class="s-form">' + items.map(function(m){
+      return '<div><div style="font-size:12.5px;color:var(--sub)">' + esc(m.chat_title || ("Чат #" + m.chat_id)) + " · " + fmtDate(m.created_at_ms) + '</div><div style="font-size:14.5px;white-space:pre-wrap;margin-top:2px">' + esc(m.body_text || "") + "</div></div>";
+    }).join("") + "</div>" : '<div class="s-note">Сообщений нет</div>';
+  } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
 }
-
-async function lookupProfile() {
-  var login = document.getElementById('lookup-login').value.trim();
-  if (!login) { document.getElementById('lookup-result').textContent = 'Enter a login'; return; }
-  document.getElementById('lookup-result').innerHTML = 'Searching...';
+async function resolveUserReport(r, action){
   try {
-    // Сначала найти user_id по логину через admin/users
-    var users = await apiCall('/admin/users?session_token=' + ST + '&limit=200');
-    var found = users.items.find(function(u) { return u.login.toLowerCase() === login.toLowerCase(); });
-    if (!found) { document.getElementById('lookup-result').innerHTML = '<span style="color:#f85149">User not found</span>'; return; }
-    var uid = found.user_id;
-    var d = await apiCall('/account/api/profile/' + uid + '?session_token=' + ST);
-    var pr = d.profile;
-    var h = '<div style="text-align:center;margin-bottom:6px">' + avatarHtml(pr, 56) + '</div>';
-    h += '<h3 style="text-align:center">' + esc(pr.display_name || pr.login) + '</h3>';
-    h += '<div style="text-align:center;color:#7f8b98;margin-bottom:8px">@' + esc(pr.login) + ' · ' + pr.role + ' · ' + pr.status + '</div>';
-    if (pr.phone) h += '<div><b>Phone:</b> ' + esc(pr.phone) + '</div>';
-    if (pr.profile_bio) h += '<div style="margin-top:4px"><b>Bio:</b><br>' + esc(pr.profile_bio).replace(/\\n/g,'<br>') + '</div>';
-    document.getElementById('lookup-result').innerHTML = '<div class="card" style="margin-top:8px">' + h + '</div>';
-  } catch(e) { document.getElementById('lookup-result').innerHTML = '<span style="color:#f85149">' + e.message + '</span>'; }
+    var d = await api("/reports/api/resolve", "POST", { session_token: ST, report_id: r.id, action: action });
+    if (action === "warn" && d.warn) toast(d.warn.banned ? "3/3 — пользователь забанен на 3 дня" : ("Предупреждение " + d.warn.warn_count + "/" + d.warn.max_warns));
+    else toast(action === "ban" ? "Пользователь забанен" : "Жалоба отклонена");
+    renderReports();
+  } catch(e) { toast(e.message); }
+}
+function autoReportSheet(r){
+  var items = [
+    { icon: "i-info", label: "Сообщение: " + String(r.message_text || "").slice(0, 40), action: function(){
+      openSheetHtml("Автомодерация #" + r.id, '<div class="s-form"><div class="s-note">Слова: ' + esc(r.found_words || "") + '</div><div style="white-space:pre-wrap;font-size:14.5px">' + esc(r.message_text || "") + "</div></div>");
+    } }
+  ];
+  if (r.status === "pending") {
+    items.push({ icon: "i-x", label: "Забанить " + (r.user_login || ""), danger: true, action: function(){ resolveAuto(r, "ban"); } });
+    items.push({ icon: "i-clock", label: "Предупредить (" + (r.user_warn_count || 0) + "/3)", action: function(){ resolveAuto(r, "warn"); } });
+    items.push({ icon: "i-check", label: "Отклонить", action: function(){ resolveAuto(r, "dismiss"); } });
+  }
+  openSheet("Автомодерация · " + (r.user_login || ("#" + r.user_id)), items);
+}
+async function resolveAuto(r, action){
+  try {
+    await api("/moderation/api/admin/reports/resolve", "POST", { session_token: ST, report_id: r.id, action: action });
+    toast("Готово: " + action);
+    renderReports();
+  } catch(e) { toast(e.message); }
 }
 
-// Restore the admin session (if any) once the script is fully parsed.
-restoreSession();
+/* ================= РЕЖИМ ================= */
+async function renderMode(){
+  var d;
+  try { d = await api("/admin/mode/state?session_token=" + tk()); }
+  catch(e) { setContent(emptyBox(e.message)); return; }
+  var open = d.access_mode === "open";
+  var next = open ? "closed" : "open";
+  var html = '<div class="card"><div class="card-head"><span>Режим доступа</span></div>' +
+    '<div class="kv"><span class="k">Сейчас</span><span class="v">' + (open ? '<span class="pill st-active">открыт</span>' : '<span class="pill st-blocked">закрыт</span>') + "</span></div>" +
+    '<div class="note">' + (open ? "Все могут регистрироваться и заходить." : "Вход и регистрация только по кодам.") + "</div>" +
+    '<div class="form"><button class="' + (open ? "btn-danger" : "btn-accent") + '" id="mode-btn">Переключить на «' + (open ? "закрытый" : "открытый") + '»</button></div></div>';
+  setContent(html);
+  $("mode-btn").onclick = function(){
+    askConfirm("Режим доступа", "Переключить режим на «" + (next === "open" ? "открытый" : "закрытый") + "»?", async function(){
+      try {
+        await api("/admin/mode/set", "POST", { session_token: ST, access_mode: next, hold_seconds: 5 });
+        toast("Режим: " + next); renderMode();
+      } catch(e) { toast(e.message); }
+    });
+  };
+}
 
-</script></body></html>
+/* ================= ОЧИСТКА ================= */
+function renderCleanup(){
+  var acts = [
+    ["clear-global", "Очистить общий чат", "Удалить все сообщения в общем чате?"],
+    ["clear-blog", "Очистить блог", "Удалить все посты блога?"],
+    ["clear-support", "Очистить поддержку", "Удалить все обращения?"],
+    ["delete-chats", "Удалить все чаты", "Удалить ВСЕ чаты вместе с сообщениями?"],
+    ["delete-users", "Удалить всех пользователей", "Удалить всех пользователей, кроме админов?"],
+    ["full-reset", "ПОЛНЫЙ СБРОС", "Полный сброс: чаты, блог, поддержка, пользователи. Продолжить?"]
+  ];
+  var html = '<div class="card"><div class="card-head"><span>Очистка данных</span></div>';
+  acts.forEach(function(a, i){
+    html += '<button class="row' + (i >= 3 ? " danger" : "") + '" data-i="' + i + '"><svg class="i s22" style="margin:0 4px"><use href="#i-trash"/></svg><span class="rcol"><span class="rt">' + a[1] + "</span></span></button>";
+  });
+  html += "</div>";
+  setContent(html);
+  $("content").querySelectorAll("[data-i]").forEach(function(b){
+    var a = acts[Number(b.getAttribute("data-i"))];
+    b.onclick = function(){
+      askConfirm(a[1], a[2], async function(){
+        try {
+          var body = a[0] === "full-reset" ? { session_token: ST, confirm: true } : { session_token: ST };
+          var r = await api("/chat/api/admin/" + a[0], "POST", body);
+          toast("Готово" + (r && r.deleted_count != null ? ": удалено " + r.deleted_count : ""));
+        } catch(e) { toast(e.message); }
+      });
+    };
+  });
+}
+
+/* ================= СИСТЕМА ================= */
+async function renderSystem(){
+  var h = null, s = null, err = "";
+  try { h = await api("/ops/api/system-health?session_token=" + tk()); } catch(e) { err = e.message; }
+  try { s = await api("/ops/api/services?session_token=" + tk()); } catch(e) { err = err || e.message; }
+  var html = "";
+  if (err) html += '<div class="card">' + emptyBox(err) + "</div>";
+  if (h && h.health) {
+    var cpu = String(h.health.cpu_temp == null ? "?" : h.health.cpu_temp);
+    if (/can't open|error|permission|denied/i.test(cpu)) cpu = "—";
+    html += '<div class="card"><div class="card-head"><span>Raspberry Pi</span></div><div class="stats">' +
+      '<div class="stat"><div class="n" style="color:#5fd97e">' + esc(cpu) + '</div><div class="l">темп. CPU</div></div>' +
+      '<div class="stat"><div class="n">' + esc(h.health.ram_used || "?") + '</div><div class="l">RAM из ' + esc(h.health.ram_total || "?") + "</div></div>" +
+      '<div class="stat"><div class="n">' + esc(h.health.disk_pct || "?") + '</div><div class="l">диск ' + esc(h.health.disk_used || "") + "</div></div>" +
+      "</div></div>";
+  }
+  if (s && s.services) {
+    html += '<div class="card"><div class="card-head"><span>Сервисы</span></div>';
+    s.services.forEach(function(svc, i){
+      html += '<div class="row no-line"><span class="rcol"><span class="rt">' + esc(svc.name) + '</span><span class="rsub" style="color:' + (svc.active === "active" ? "#5fd97e" : "#ff8fa0") + '">' + esc(svc.active) + '</span></span>' +
+        '<button class="chip" data-svc="' + i + '" style="padding:7px 12px;font-size:13.5px">Перезапуск</button></div>';
+    });
+    html += '<div class="form"><button class="btn-danger" id="reboot-btn">Перезагрузить плату</button></div></div>';
+  }
+  html += '<div class="card"><div class="card-head"><span>Отладка</span></div><div class="form"><button class="btn-line" id="dbg-btn">Журнал событий (100)</button></div></div>';
+  setContent(html);
+  if (s && s.services) {
+    $("content").querySelectorAll("[data-svc]").forEach(function(b){
+      var svc = s.services[Number(b.getAttribute("data-svc"))];
+      b.onclick = function(){
+        askConfirm("Перезапуск", "Перезапустить сервис " + svc.name + "?", async function(){
+          try { await api("/ops/api/restart-service", "POST", { session_token: ST, service: svc.name }); toast("Перезапуск запущен"); setTimeout(renderSystem, 1500); }
+          catch(e) { toast(e.message); }
+        });
+      };
+    });
+    $("reboot-btn").onclick = function(){
+      askConfirm("Перезагрузка", "Перезагрузить Raspberry Pi? Портал будет недоступен ~минуту.", async function(){
+        try { await api("/ops/api/restart-service", "POST", { session_token: ST, service: "reboot" }); toast("Плата перезагружается..."); }
+        catch(e) { toast(e.message); }
+      });
+    };
+  }
+  $("dbg-btn").onclick = async function(){
+    openSheetHtml("Журнал событий", '<div class="spin"></div>');
+    try {
+      var d = await api("/debug/api/events?session_token=" + tk() + "&limit=100");
+      var items = d.items || [];
+      $("sheet-body").innerHTML = items.length ? '<div class="s-form">' + items.map(function(e){
+        return '<div style="font-size:12.5px"><span style="color:' + (e.ok === 1 ? "#5fd97e" : "#ff8fa0") + '">' + (e.ok === 1 ? "ok" : "FAIL") + "</span> " +
+          fmtDate(e.created_at_ms) + " · " + esc(e.stage) + " · " + esc(e.action || "") + (e.error ? '<div style="color:#ff8fa0">' + esc(e.error) + "</div>" : "") + "</div>";
+      }).join("") + "</div>" : '<div class="s-note">Пусто</div>';
+    } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
+  };
+}
+
+/* ================= АКТИВНОСТЬ ================= */
+async function renderActivity(){
+  var r = null, on = { count: 0 }, err = "";
+  try { r = await api("/chat/api/admin/activity?session_token=" + tk() + "&limit=50"); } catch(e) { err = e.message; }
+  try { on = await api("/realtime/online", "POST", { session_token: ST }); } catch(e) {}
+  if (err) { setContent(emptyBox(err)); return; }
+  var html = '<div class="card"><div class="card-head"><span>Активность</span></div><div class="stats">' +
+    '<div class="stat"><div class="n" style="color:#5fd97e">' + (r.stats.messages_30d || 0) + '</div><div class="l">сообщений (30д)</div></div>' +
+    '<div class="stat"><div class="n" style="color:#7b87ff">' + (r.stats.users_30d || 0) + '</div><div class="l">новых (30д)</div></div>' +
+    '<div class="stat"><div class="n">' + (on.count || 0) + '</div><div class="l">онлайн</div></div>' +
+    "</div></div>";
+  html += '<div class="card"><div class="card-head"><span>Последние события</span><span class="grow"></span><span class="badge">' + (r.stats.total_events || 0) + "</span></div>";
+  if (!r.items || !r.items.length) html += emptyBox("Событий нет");
+  else r.items.forEach(function(e){
+    html += '<div class="row no-line"><span class="rcol"><span class="rt">' + esc(e.event) + '</span><span class="rsub">' + esc(e.user_login || "") + "</span></span><span style=\"color:var(--sub);font-size:12.5px\">" + fmtDate(e.time) + "</span></div>";
+  });
+  html += "</div>";
+  setContent(html);
+}
+
+/* ================= ПАРОЛИ ================= */
+async function renderPasswords(){
+  var d;
+  try { d = await api("/admin/users?session_token=" + tk() + "&limit=200"); }
+  catch(e) { setContent(emptyBox(e.message)); return; }
+  var items = d.items || [];
+  var html = '<div class="card"><div class="card-head"><span>Сброс паролей</span></div>';
+  if (!items.length) html += emptyBox("Нет пользователей");
+  items.forEach(function(u, i){
+    html += '<button class="row" data-i="' + i + '">' + avatarHtml(u.login, null) +
+      '<span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + esc(u.role) + "</span></span>" +
+      '<span class="chev">›</span></button>';
+  });
+  html += "</div>";
+  setContent(html);
+  $("content").querySelectorAll("[data-i]").forEach(function(b){
+    b.onclick = function(){ pwForm(items[Number(b.getAttribute("data-i"))], function(){ renderPasswords(); }); };
+  });
+}
+
+/* ================= ПРОФИЛЬ ================= */
+async function renderProfile(){
+  var p = ME || {};
+  try {
+    var d = await api("/account/api/profile?session_token=" + tk());
+    p = d.profile || p;
+    ME = p;
+  } catch(e) {}
+  var html = '<div class="card"><div class="card-head"><span>Мой профиль</span></div>' +
+    '<div style="text-align:center;padding:14px 0 4px">' + avatarHtml(p.login, p.avatar_url) + "</div>" +
+    '<div style="text-align:center;font-size:18px;font-weight:700">' + esc(p.display_name || p.login) + "</div>" +
+    '<div style="text-align:center;color:var(--sub);font-size:13.5px;padding-bottom:10px">@' + esc(p.login) + " · " + esc(p.role) + "</div>" +
+    '<div class="kv"><span class="k">ID</span><span class="v">' + (p.user_id || "—") + "</span></div>" +
+    '<div class="kv"><span class="k">Статус</span><span class="v">' + esc(statusLabel(p.status || "active")) + "</span></div>" +
+    "</div>" +
+    '<div class="card"><div class="card-head"><span>Найти пользователя</span></div>' +
+    '<div class="form"><input class="inp" id="lu-login" placeholder="Логин" autocapitalize="off" autocorrect="off">' +
+    '<button class="btn-line" id="lu-go">Показать профиль</button></div>' +
+    '<div id="lu-result" class="form"></div></div>';
+  setContent(html);
+  $("lu-go").onclick = async function(){
+    var login = $("lu-login").value.trim();
+    if (!login) { toast("Введите логин"); return; }
+    $("lu-result").innerHTML = '<div class="spin"></div>';
+    try {
+      var du = await api("/admin/users?session_token=" + tk() + "&limit=200");
+      var found = (du.items || []).filter(function(x){ return String(x.login).toLowerCase() === login.toLowerCase(); })[0];
+      if (!found) { $("lu-result").innerHTML = '<div class="s-note">Пользователь не найден</div>'; return; }
+      var dp = await api("/account/api/profile/" + found.user_id + "?session_token=" + tk());
+      var up = dp.profile || {};
+      $("lu-result").innerHTML = '<div class="kv"><span class="k">Имя</span><span class="v">' + esc(up.display_name || up.login) + "</span></div>" +
+        '<div class="kv"><span class="k">Роль</span><span class="v">' + esc(up.role) + "</span></div>" +
+        '<div class="kv"><span class="k">Статус</span><span class="v">' + esc(statusLabel(up.status)) + "</span></div>" +
+        (up.phone ? '<div class="kv"><span class="k">Телефон</span><span class="v">' + esc(up.phone) + "</span></div>" : "");
+    } catch(e) { $("lu-result").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
+  };
+}
+
+boot();
+})();
+</script>
+</body>
+</html>

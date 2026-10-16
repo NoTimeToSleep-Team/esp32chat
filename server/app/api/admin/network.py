@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.models import ClientKind, UserRole
@@ -13,6 +13,12 @@ from app.services.network_service import NetworkService
 
 
 router = APIRouter(prefix="/admin/network", tags=["admin-network"])
+
+
+@router.get("/panel", include_in_schema=False)
+async def admin_network_panel() -> RedirectResponse:
+    # Старая token-панель заменена единой админкой /admin.
+    return RedirectResponse("/admin", status_code=302)
 
 
 class WiFiConnectRequest(BaseModel):

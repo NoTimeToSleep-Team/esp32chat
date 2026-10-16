@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.models import (
@@ -177,11 +177,10 @@ def _raise_service_error(status_code: int, code: str, message: str) -> None:
     raise HTTPException(status_code=status_code, detail={"code": code, "message": message})
 
 
-@router.get("/panel", response_class=HTMLResponse)
-async def admin_content_panel() -> HTMLResponse:
-    template = _template_path()
-    html = template.read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+@router.get("/panel", include_in_schema=False)
+async def admin_content_panel() -> RedirectResponse:
+    # Старая token-панель заменена единой админкой /admin.
+    return RedirectResponse("/admin", status_code=302)
 
 
 @router.get("/applications")
