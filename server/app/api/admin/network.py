@@ -69,9 +69,10 @@ def _resolve_admin(request: Request, session_token: str) -> int:
     return session.user.user_id
 
 
-@router.get("", response_class=HTMLResponse)
-async def network_admin_page() -> HTMLResponse:
-    return HTMLResponse(content=_template_path().read_text(encoding="utf-8"))
+@router.get("", include_in_schema=False)
+async def network_admin_page() -> RedirectResponse:
+    # Старая token-панель заменена разделом «Сеть» в единой админке /admin.
+    return RedirectResponse("/admin", status_code=302)
 
 
 # --- Interface management ---

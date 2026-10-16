@@ -312,6 +312,13 @@ function showMain(){
   loadNames();
   renderTabs();
   switchTab("users");
+  syncTimeSilent();
+}
+async function syncTimeSilent(){
+  try {
+    var d = await api("/ops/api/sync-time", "POST", { session_token: ST, client_time_ms: Date.now() });
+    if (d.adjusted) toast("Время платы синхронизировано с устройством (было расхождение " + Math.round(Math.abs(d.offset_ms) / 1000) + " с)");
+  } catch(e) { /* не критично */ }
 }
 async function loadNames(){
   try {
@@ -397,6 +404,7 @@ var TABS = [
   ["support", "Обращения"],
   ["reports", "Жалобы"],
   ["mode", "Режим"],
+  ["network", "Сеть"],
   ["cleanup", "Очистка"],
   ["system", "Система"],
   ["activity", "Активность"],
@@ -430,6 +438,7 @@ function renderTab(){
   else if (TAB === "support") renderSupport();
   else if (TAB === "reports") renderReports();
   else if (TAB === "mode") renderMode();
+  else if (TAB === "network") renderNetwork();
   else if (TAB === "cleanup") renderCleanup();
   else if (TAB === "system") renderSystem();
   else if (TAB === "activity") renderActivity();
@@ -486,6 +495,11 @@ function userSheet(u){
   } else {
     items.push({ icon: "i-check", label: "Разбанить", action: function(){ unbanUser(u); } });
   }
+  if (u.device_blacklisted) {
+    items.push({ icon: "i-check", label: "Разблокировать устройство", action: function(){ unblacklistDevice(u); } });
+  } else {
+    items.push({ icon: "i-x", label: "Заблокировать устройство", danger: true, action: function(){ blacklistDevice(u); } });
+  }
   items.push({ icon: "i-refresh", label: "Сбросить пароль", action: function(){ pwForm(u, function(){ renderUsers(); }); } });
   if (isFullAdmin() && u.user_id !== (ME && ME.user_id)) items.push({ icon: "i-trash", label: "Удалить пользователя", danger: true, action: function(){ delUser(u); } });
   openSheet(u.login + (u.status !== "active" ? " · " + statusLabel(u.status) : ""), items);
@@ -520,6 +534,20 @@ function banUser(u){
       toast("Пользователь забанен"); renderUsers();
     } catch(e) { toast(e.message); }
   });
+}
+function blacklistDevice(u){
+  askConfirm("Блокировка устройства", "Заблокировать устройство пользователя " + u.login + "? Он не сможет входить с этого устройства.", async function(){
+    try {
+      await api("/admin/users/" + u.user_id + "/blacklist-device", "POST", { session_token: ST, reason: "admin panel" });
+      toast("Устройство заблокировано"); renderUsers();
+    } catch(e) { toast(e.message); }
+  });
+}
+async function unblacklistDevice(u){
+  try {
+    await api("/admin/users/" + u.user_id + "/unblacklist-device", "POST", { session_token: ST });
+    toast("Устройство разблокировано"); renderUsers();
+  } catch(e) { toast(e.message); }
 }
 async function unbanUser(u){
   try {
@@ -817,12 +845,23 @@ async function refreshSystemStats(){
       '<div class="stat"><div class="n" style="font-size:13.5px">' + esc(hh.uptime || "?") + '</div><div class="l">аптайм</div></div>' +
       '<div class="stat"><div class="n" style="font-size:13.5px">' + new Date().toTimeString().slice(0, 8) + '</div><div class="l">обновлено</div></div>';
   } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+  try {
+    var c = await api("/ops/api/sync-time", "POST", { session_token: ST, client_time_ms: Date.now() });
+    var c1 = $("clk-server"); if (c1) c1.textContent = fmtDate(c.server_time_ms);
+    var c2 = $("clk-device"); if (c2) c2.textContent = fmtDate(Date.now());
+    var c3 = $("clk-off"); if (c3) c3.textContent = (c.offset_ms > 0 ? "+" : "") + (c.offset_ms / 1000).toFixed(1) + " с" + (c.adjusted ? " · подтянуто" : "");
+  } catch(e) {}
 }
 async function renderSystem(){
   var s = null, err = "";
   try { s = await api("/ops/api/services?session_token=" + tk() + "&_=" + Date.now()); } catch(e) { err = e.message; }
   var html = "";
   if (err) html += '<div class="card">' + emptyBox(err) + "</div>";
+  html += '<div class="card"><div class="card-head"><span>Время платы</span><span class="grow"></span><span class="badge">сверка с устройством</span></div>' +
+    '<div class="kv"><span class="k">Часы платы</span><span class="v" id="clk-server">—</span></div>' +
+    '<div class="kv"><span class="k">Это устройство</span><span class="v" id="clk-device">—</span></div>' +
+    '<div class="kv"><span class="k">Расхождение</span><span class="v" id="clk-off">—</span></div>' +
+    '<div class="form"><button class="btn-line" id="clk-sync">Синхронизировать с устройством</button></div></div>';
   html += '<div class="card"><div class="card-head"><span>Raspberry Pi</span><span class="grow"></span><span class="badge">live · 10с</span></div>' +
     '<div class="stats" id="sys-stats"><div class="spin" style="grid-column:1/-1"></div></div>' +
     '<div class="form"><button class="btn-line" id="sys-refresh">Обновить сейчас</button></div></div>';
@@ -842,6 +881,7 @@ async function renderSystem(){
     if (!document.hidden && TAB === "system" && !SUB) refreshSystemStats();
   }, 10000);
   $("sys-refresh").onclick = refreshSystemStats;
+  $("clk-sync").onclick = async function(){ await refreshSystemStats(); toast("Время сверено с устройством"); };
   if (s && s.services) {
     $("content").querySelectorAll("[data-svc]").forEach(function(b){
       var svc = s.services[Number(b.getAttribute("data-svc"))];
@@ -870,6 +910,105 @@ async function renderSystem(){
       }).join("") + "</div>" : '<div class="s-note">Пусто</div>';
     } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
   };
+}
+
+/* ================= СЕТЬ ================= */
+async function renderNetwork(){
+  var st = null, ifs = null, users = null, err = "";
+  try { st = await api("/admin/network/wifi/status?session_token=" + tk()); } catch(e) { err = e.message; }
+  try { ifs = await api("/admin/network/interfaces?session_token=" + tk()); } catch(e) {}
+  try { users = await api("/admin/network/users?session_token=" + tk()); } catch(e) {}
+  var html = "";
+  if (err) html += '<div class="card">' + emptyBox(err) + "</div>";
+  html += '<div class="card"><div class="card-head"><span>Интернет (uplink)</span><span class="grow"></span>' +
+    (st ? (st.connected ? '<span class="pill st-active">подключён</span>' : '<span class="pill st-closed">нет связи</span>') : "") + "</div>";
+  if (st) {
+    html += '<div class="kv"><span class="k">Сеть</span><span class="v">' + esc(st.ssid || "—") + "</span></div>" +
+      '<div class="kv"><span class="k">Интерфейс</span><span class="v">' + esc(st.interface || "—") + "</span></div>" +
+      '<div class="kv"><span class="k">IP-адрес</span><span class="v">' + esc(st.ip_address || "—") + "</span></div>";
+  }
+  html += '<div class="form" style="flex-direction:row;gap:8px"><button class="btn-line" id="net-scan" style="flex:1">Сканировать сети</button>' +
+    '<button class="btn-line" id="net-disc" style="flex:1">Отключить</button></div>' +
+    '<div id="net-list" class="form"></div></div>';
+  if (ifs && ifs.items && ifs.items.length) {
+    html += '<div class="card"><div class="card-head"><span>Wi-Fi адаптеры</span></div>';
+    ifs.items.forEach(function(it, i){
+      html += '<div class="row no-line" style="flex-wrap:wrap"><span class="rcol"><span class="rt">' + esc(it.ifname) + ' <span style="color:var(--sub);font-size:12px">' + esc(it.chipset || "") + '</span></span>' +
+        '<span class="rsub">роль: ' + esc(it.role || "none") + " · " + esc(it.tx_power_dbm || "?") + ' dBm</span></span>' +
+        '<button class="chip" data-if="' + i + '" data-role="ap" style="padding:6px 10px;font-size:12.5px">AP</button>' +
+        '<button class="chip" data-if="' + i + '" data-role="uplink" style="padding:6px 10px;font-size:12.5px">Uplink</button></div>';
+    });
+    html += '<div class="form"><button class="btn-line" id="net-restart">Перезапустить hostapd + dnsmasq</button></div></div>';
+  }
+  if (users && users.items && users.items.length) {
+    html += '<div class="card"><div class="card-head"><span>Интернет для пользователей</span></div>';
+    users.items.forEach(function(u, i){
+      html += '<div class="row no-line"><span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + esc(u.role) + "</span></span>" +
+        '<button class="chip" data-net-user="' + i + '" style="padding:7px 12px;font-size:13px;' + (u.internet_enabled ? "background:rgba(52,199,89,.2);color:#5fd97e;border-color:transparent" : "") + '">' + (u.internet_enabled ? "вкл" : "выкл") + "</button></div>";
+    });
+    html += "</div>";
+  }
+  setContent(html);
+  var scanBox = $("net-list");
+  if ($("net-scan")) $("net-scan").onclick = async function(){
+    scanBox.innerHTML = '<div class="spin" style="margin:10px auto"></div>';
+    try {
+      var r = await api("/admin/network/wifi/scan?session_token=" + tk());
+      var nets = r.networks || [];
+      scanBox.innerHTML = nets.length ? nets.map(function(n, i){
+        return '<button class="row no-line" data-net="' + i + '" style="background:#26262b;border-radius:12px;margin-bottom:6px"><span class="rcol"><span class="rt">' + esc(n.ssid) + '</span><span class="rsub">' + esc(n.signal) + '% · ' + esc(n.security === "open" ? "открытая" : "пароль") + "</span></span><span class=\"chev\">›</span></button>";
+      }).join("") : emptyBox("Сетей не найдено");
+      scanBox.querySelectorAll("[data-net]").forEach(function(b){
+        b.onclick = function(){
+          var n = nets[Number(b.getAttribute("data-net"))];
+          openForm("Подключение к " + n.ssid,
+            '<input class="inp" id="wf-ssid" value="' + esc(n.ssid) + '" readonly>' +
+            '<input class="inp" id="wf-pass" type="password" placeholder="' + (n.security === "open" ? "открытая сеть — пароль не нужен" : "Пароль") + '" autocapitalize="off" autocorrect="off">' +
+            '<button class="btn-accent" id="wf-go">Подключиться</button>',
+            function(){
+              $("wf-go").onclick = async function(){
+                var pass = $("wf-pass") ? $("wf-pass").value : "";
+                closeSheet();
+                try {
+                  var r2 = await api("/admin/network/wifi/connect", "POST", { session_token: ST, ssid: n.ssid, password: pass });
+                  toast(r2.connected ? ("Подключено: " + (r2.ip_address || "")) : "Не удалось подключиться");
+                  renderNetwork();
+                } catch(e) { toast(e.message); }
+              };
+            });
+        };
+      });
+    } catch(e) { scanBox.innerHTML = emptyBox(e.message); }
+  };
+  if ($("net-disc")) $("net-disc").onclick = function(){
+    askConfirm("Отключение", "Отключить интернет-подключение (uplink)?", async function(){
+      try { await api("/admin/network/wifi/disconnect", "POST", { session_token: ST }); toast("Отключено"); renderNetwork(); }
+      catch(e) { toast(e.message); }
+    });
+  };
+  if (ifs && ifs.items) $("content").querySelectorAll("[data-if]").forEach(function(b){
+    var it = ifs.items[Number(b.getAttribute("data-if"))];
+    b.onclick = function(){
+      var role = b.getAttribute("data-role");
+      askConfirm("Смена роли", "Назначить " + it.ifname + " как " + role.toUpperCase() + "? Сетевые сервисы перезапустятся.", async function(){
+        try { await api("/admin/network/interfaces/assign", "POST", { session_token: ST, ifname: it.ifname, role: role }); toast("Готово"); renderNetwork(); }
+        catch(e) { toast(e.message); }
+      });
+    };
+  });
+  if ($("net-restart")) $("net-restart").onclick = function(){
+    askConfirm("Перезапуск сети", "Перезапустить hostapd и dnsmasq? Точка доступа мигнёт.", async function(){
+      try { var r = await api("/admin/network/services/restart?session_token=" + tk(), "POST"); toast("Перезапущено: " + (r.ap_interface || "")); }
+      catch(e) { toast(e.message); }
+    });
+  };
+  if (users && users.items) $("content").querySelectorAll("[data-net-user]").forEach(function(b){
+    var u = users.items[Number(b.getAttribute("data-net-user"))];
+    b.onclick = async function(){
+      try { await api("/admin/network/users/internet", "POST", { session_token: ST, user_id: u.user_id, enabled: !u.internet_enabled }); toast("Готово"); renderNetwork(); }
+      catch(e) { toast(e.message); }
+    };
+  });
 }
 
 /* ================= АКТИВНОСТЬ ================= */

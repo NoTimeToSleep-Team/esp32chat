@@ -307,6 +307,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 3.5V8h-4.5"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17l5-4.5 4 3.5 3-2.5 3 2.5"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-poll" viewBox="0 0 24 24"><path d="M6 20V10M12 20V4M18 20v-8"/></symbol>
 </defs></svg>
 
 <div id="app">
@@ -685,6 +686,8 @@ var STATE = {
   lastMsgsLoad: 0,
   pendingJoin: null,
   membersCache: null,
+  onlineCount: 0,
+  lastOnlineLoad: 0,
   screen: "login"
 };
 
@@ -1173,8 +1176,21 @@ async function openChat(chat){
     if (d.chat) { STATE.currentChat = Object.assign({}, chat, d.chat); }
     renderChatHeader();
   } catch(e) { /* оставим как есть */ }
+  updateChatOnline();
   await loadMessages(true);
   STATE.lastMsgsLoad = Date.now();
+}
+async function updateChatOnline(){
+  var chatId = STATE.currentChatId;
+  if (!chatId) return;
+  var view = STATE.currentView || {};
+  if ((view.member_count || 0) > 100) { STATE.onlineCount = 0; return; }
+  try {
+    var d = await api("/chat/api/chats/" + chatId + "/online?session_token=" + tk());
+    if (String(chatId) !== String(STATE.currentChatId)) return;
+    STATE.onlineCount = d.count || 0;
+  } catch(e) { STATE.onlineCount = 0; }
+  renderChatHeader();
 }
 function renderChatHeader(){
   var chat = STATE.currentChat || {};
@@ -1185,6 +1201,7 @@ function renderChatHeader(){
   else if (chat.chat_type === "dm") sub.push("Личный чат");
   else sub.push("Группа");
   if (view.member_count) sub.push(view.member_count + " участников");
+  if (STATE.onlineCount) sub.push(STATE.onlineCount + " онлайн");
   $("chat-title-s").textContent = sub.join(" · ");
   var pinned = view.pinned_message;
   if (pinned) {
@@ -1698,6 +1715,7 @@ function openChatMenu(){
   var items = [];
   items.push({ icon: "i-users", label: "Участники" + (view.member_count ? " (" + view.member_count + ")" : ""), action: openMembers });
   if (view.can_post !== false) items.push({ icon: "i-link", label: "Ссылки-приглашения", action: openInvites });
+  if (view.can_post !== false) items.push({ icon: "i-poll", label: "Создать опрос", action: openPollForm });
   items.push({ icon: chat.is_muted ? "i-bell-off" : "i-bell-off", label: chat.is_muted ? "Включить звук" : "Без звука", action: function(){ toggleChatState("is_muted", !chat.is_muted); } });
   items.push({ icon: "i-pin", label: chat.is_pinned ? "Открепить чат" : "Закрепить чат", action: function(){ toggleChatState("is_pinned", !chat.is_pinned); } });
   items.push({ icon: "i-archive", label: chat.is_archived ? "Убрать из архива" : "В архив", action: function(){ toggleChatState("is_archived", !chat.is_archived, true); } });
@@ -1900,6 +1918,47 @@ async function openInvites(){
     } catch(e) { toast(e.message); }
   };
   body.appendChild(add);
+}
+
+function openPollForm(){
+  openFormSheet("Новый опрос",
+    '<input class="inp" id="poll-q" placeholder="Вопрос" maxlength="300">' +
+    '<div id="poll-opts"></div>' +
+    '<button class="btn-line" id="poll-add" style="height:42px">+ Добавить вариант</button>' +
+    '<label class="kv" style="padding:6px 4px"><span class="k">Несколько вариантов</span><input type="checkbox" id="poll-multi" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
+    '<label class="kv" style="padding:6px 4px"><span class="k">Анонимный</span><input type="checkbox" id="poll-anon" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
+    '<button class="btn-accent" id="poll-create">Создать</button>',
+    function(){
+      var box = $("poll-opts");
+      var addOpt = function(){
+        if (box.querySelectorAll("input").length >= 10) return;
+        var inp = document.createElement("input");
+        inp.className = "inp";
+        inp.placeholder = "Вариант " + (box.querySelectorAll("input").length + 1);
+        inp.maxLength = 120;
+        inp.style.marginBottom = "8px";
+        box.appendChild(inp);
+      };
+      addOpt(); addOpt();
+      $("poll-add").onclick = addOpt;
+      $("poll-create").onclick = async function(){
+        var q = $("poll-q").value.trim();
+        var opts = [].map.call(box.querySelectorAll("input"), function(i){ return i.value.trim(); }).filter(Boolean);
+        if (!q) { toast("Введите вопрос"); return; }
+        if (opts.length < 2) { toast("Нужно минимум 2 варианта"); return; }
+        var btn = $("poll-create");
+        btn.disabled = true;
+        try {
+          await api("/chat/api/chats/" + STATE.currentChatId + "/polls", { method: "POST", body: JSON.stringify({
+            session_token: STATE.token, question: q, options: opts,
+            is_multiple: $("poll-multi").checked, is_anonymous: $("poll-anon").checked
+          }) });
+          closeSheet();
+          toast("Опрос создан");
+          loadMessages(true);
+        } catch(e) { toast(e.message); btn.disabled = false; }
+      };
+    });
 }
 
 /* ============================ новый чат ============================ */
@@ -2640,6 +2699,10 @@ function tick(){
   if (STATE.screen === "chat" && now - STATE.lastMsgsLoad > 5000) {
     STATE.lastMsgsLoad = now;
     loadMessages(false);
+  }
+  if (STATE.screen === "chat" && now - (STATE.lastOnlineLoad || 0) > 15000) {
+    STATE.lastOnlineLoad = now;
+    updateChatOnline();
   }
 }
 

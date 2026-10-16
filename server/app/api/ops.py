@@ -445,9 +445,66 @@ async def get_system_health(request: Request, session_token: str = Query(..., mi
     return {"status": "ok", "health": info}
 
 
+class SyncTimeRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    client_time_ms: int = Field(ge=0)
+
+
+@router.post("/ops/api/sync-time")
+async def sync_time(request: Request, payload: SyncTimeRequest):
+    """Align the board clock with the client's clock (staff only).
+
+    The Pi has no RTC battery and there is no internet for NTP on this
+    network, so an admin device with an accurate clock is the best source.
+    Only adjusts when the difference is meaningful (> 2s).
+    """
+    _resolve_admin_user_id(request, payload.session_token)
+    import time
+
+    before_ms = int(time.time() * 1000)
+    offset_ms = int(payload.client_time_ms) - before_ms
+    adjusted = False
+    message = "Время точное"
+    if abs(offset_ms) > 2000:
+        target_epoch = payload.client_time_ms / 1000.0
+        result = _sudo_run(["date", "-s", "@%.3f" % target_epoch])
+        if result.returncode != 0:
+            err = (result.stderr or b"").decode("utf-8", "replace").strip()
+            raise HTTPException(status_code=500, detail={"code": "clock_set_failed", "message": err[:300] or "sudo failed"})
+        adjusted = True
+        message = "Время синхронизировано"
+    after_ms = int(time.time() * 1000)
+    return {
+        "status": "ok",
+        "offset_ms": offset_ms,
+        "adjusted": adjusted,
+        "server_time_ms": after_ms,
+        "message": message,
+    }
+
+
 class RestartServiceRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     service: str = Field(min_length=1, max_length=64)
+
+
+def _sudo_run(cmd: list) -> "subprocess.CompletedProcess":
+    """Run a command via sudo: passwordless first, LC_SUDO_PASSWORD as fallback."""
+    import os
+    import subprocess
+
+    result = subprocess.run(["sudo", "-n"] + cmd, capture_output=True, timeout=30)
+    if result.returncode == 0:
+        return result
+    sudo_pass = os.environ.get("LC_SUDO_PASSWORD", "")
+    if sudo_pass:
+        result = subprocess.run(
+            ["sudo", "-S"] + cmd,
+            input=(sudo_pass + "\n").encode(),
+            capture_output=True,
+            timeout=30,
+        )
+    return result
 
 
 @router.post("/ops/api/restart-service")
@@ -456,25 +513,9 @@ async def restart_service(request: Request, payload: RestartServiceRequest):
     allowed = ["local-chat-server", "local-chat-proxy", "hostapd", "dnsmasq", "ssh", "wpa_supplicant", "bluetooth", "cron", "NetworkManager", "lc-iptables-restore", "lc-network-boot", "systemd-timesyncd"]
     if payload.service not in allowed:
         raise HTTPException(status_code=400, detail={"code": "bad_service", "message": "Allowed: " + ", ".join(allowed)})
-    import os
-    import subprocess
-
-    def _try_sudo(cmd: list) -> subprocess.CompletedProcess:
-        result = subprocess.run(["sudo", "-n"] + cmd, capture_output=True, timeout=30)
-        if result.returncode == 0:
-            return result
-        sudo_pass = os.environ.get("LC_SUDO_PASSWORD", "")
-        if sudo_pass:
-            result = subprocess.run(
-                ["sudo", "-S"] + cmd,
-                input=(sudo_pass + "\n").encode(),
-                capture_output=True,
-                timeout=30,
-            )
-        return result
 
     try:
-        result = _try_sudo(["systemctl", "restart", payload.service])
+        result = _sudo_run(["systemctl", "restart", payload.service])
         if result.returncode != 0:
             message = (result.stderr or b"").decode("utf-8", "replace").strip() or "sudo failed"
             raise HTTPException(status_code=500, detail={"code": "restart_failed", "message": message[:300]})
