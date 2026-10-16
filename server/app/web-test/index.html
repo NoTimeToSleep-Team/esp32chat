@@ -333,6 +333,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
         <button class="btn-accent" id="login-btn">Войти</button>
       </div>
       <div class="l-link" id="login-toggle">Нет аккаунта? Зарегистрироваться</div>
+      <div class="l-link" id="lang-toggle" onclick="switchLang()">🇬🇧 ENG</div>
       <div class="l-guest">
         <button class="btn-line" id="guest-btn">Продолжить как гость</button>
         <div class="netline"><span class="dot"></span><span id="net-label">local-chat</span></div>
@@ -691,12 +692,336 @@ var STATE = {
   screen: "login"
 };
 
+/* ============================ ЯЗЫКИ / LANGUAGES ============================ */
+var LANG = "rus";
+try {
+  var savedLang = localStorage.getItem("lc_lang");
+  if (savedLang === "rus" || savedLang === "eng") LANG = savedLang;
+  else if ((navigator.language || "").toLowerCase().indexOf("ru") !== 0) LANG = "eng";
+} catch(e) {}
+var EN = {
+"Локальный чат в вашей сети": "Local chat in your network",
+"Работает без интернета": "Works without internet",
+"Телефон, ноутбук, устройства": "Phone, laptop, devices",
+"Сообщения и файлы остаются внутри сети": "Messages and files stay inside the network",
+"Логин": "Login",
+"Пароль": "Password",
+"Телефон (+7...)": "Phone",
+"Войти": "Sign In",
+"Создать аккаунт": "Create Account",
+"Нет аккаунта? Зарегистрироваться": "No account? Register",
+"Уже есть аккаунт? Войти": "Already have an account? Sign in",
+"Продолжить как гость": "Continue as guest",
+"Заполните логин и пароль": "Enter login and password",
+"Вход...": "Signing in...",
+"Регистрация...": "Signing up...",
+"Ошибка входа": "Login error",
+"Профиль": "Profile",
+"Поиск": "Search",
+"Новый чат": "New Chat",
+"Личные": "Personal",
+"Важные": "Important",
+"Черновики": "Drafts",
+"Чаты": "Chats",
+"Присоединиться по ссылке": "Join by link",
+"нет": "none",
+" шт.": "",
+" (архив)": " (archive)",
+"Личных чатов пока нет — найдите человека в поиске.": "No personal chats yet — find someone in search.",
+"Закреплённых чатов нет. Закрепить можно в меню чата.": "No pinned chats. Pin one from the chat menu.",
+"Черновиков нет.": "No drafts.",
+"Архив пуст.": "The archive is empty.",
+"Чатов пока нет — создайте первый или присоединитесь по ссылке.": "No chats yet — create one or join by link.",
+"Группы": "Groups",
+"Каналы": "Channels",
+"Группа": "Group",
+"Канал": "Channel",
+"Личный чат": "Direct chat",
+" участников": " members",
+" онлайн": " online",
+"Скрыть архив (": "Hide archive (",
+"Показать архив (": "Show archive (",
+"Закреплён": "Pinned",
+"Без звука": "Muted",
+"Черновик: ": "Draft: ",
+"Участники": "Members",
+"Ссылки-приглашения": "Invite links",
+"Создать опрос": "Create poll",
+"Включить звук": "Unmute",
+"Открепить чат": "Unpin chat",
+"Закрепить чат": "Pin chat",
+"Убрать из архива": "Unarchive",
+"В архив": "Archive",
+"Очистить историю": "Clear history",
+"Выйти из чата": "Leave chat",
+"Удалить чат": "Delete chat",
+"Чат": "Chat",
+"Закреплённое сообщение": "Pinned message",
+"Открепить": "Unpin",
+"Отмена": "Cancel",
+"Отправить": "Send",
+"Введите сообщение...": "Type a message...",
+"Прикрепить файл": "Attach file",
+"Упоминание": "Mention",
+"Голосовое сообщение": "Voice message",
+"Показать раньше": "Show earlier",
+"Сообщений пока нет — напишите первым.": "No messages yet — be the first to write.",
+"Переслано от": "Forwarded from",
+"(изменено)": "(edited)",
+" голосов": " votes",
+"несколько вариантов": "multiple answers",
+"анонимный": "anonymous",
+"закрыт": "closed",
+"Сообщение не в загруженной истории": "Message is not in the loaded history",
+"Ответить": "Reply",
+"Переслать": "Forward",
+"Закрепить": "Pin",
+"Копировать": "Copy",
+"Изменить": "Edit",
+"Удалить": "Delete",
+"Действия": "Actions",
+"Сообщение закреплено": "Message pinned",
+"Сообщение откреплено": "Message unpinned",
+"(вложение)": "(attachment)",
+"Переслать в чат": "Forward to chat",
+"Переслано в «{}»": "Forwarded to \"{}\"",
+"Нет других чатов": "No other chats",
+"Изменить сообщение": "Edit message",
+"Сохранить": "Save",
+"Сообщение изменено": "Message edited",
+"Удалить сообщение?": "Delete the message?",
+"Сообщение удалено": "Message deleted",
+"Запись голоса работает только по HTTPS. Прикрепите аудиофайл вместо записи.": "Voice recording works only over HTTPS. Attach an audio file instead.",
+"Нет доступа к микрофону": "No microphone access",
+"Голосовое записано — нажмите ➤": "Voice recorded — press ➤",
+"Не удалось начать запись": "Could not start recording",
+"Готово": "Done",
+"Вы": "You",
+"Пользователь #": "User #",
+"Чат #": "Chat #",
+"файл-": "file-",
+"Пусто": "Empty",
+"Скопировано": "Copied",
+"Не удалось скопировать": "Could not copy",
+"Сервер не отвечает (таймаут)": "Server not responding (timeout)",
+"Сервер недоступен": "Server unreachable",
+"Ошибка загрузки (": "Request failed (",
+"Не удалось прочитать изображение": "Could not read the image",
+"Сегодня": "Today",
+"Вчера": "Yesterday",
+"Ч": "#",
+"Группа или канал": "Group or channel",
+"Название (например: Друзья)": "Title (e.g. Friends)",
+"О чём этот чат (необязательно)": "What is this chat about (optional)",
+"Публичный канал": "Public channel",
+"username канала (латиницей)": "channel username (latin)",
+"Поиск людей по логину...": "Search people by login...",
+"Создать": "Create",
+"Введите название": "Enter a title",
+"Добавьте хотя бы одного участника": "Add at least one member",
+"Чат создан": "Chat created",
+"Блог": "Blog",
+"Последние посты": "Latest posts",
+"Написать пост": "Write a post",
+"Пост": "Post",
+"Пока нет постов.": "No posts yet.",
+"Новый пост": "New post",
+"Заголовок": "Title",
+"Текст поста": "Post text",
+"Опубликовать": "Publish",
+"Заполните заголовок и текст": "Fill in the title and text",
+"Пост опубликован": "Post published",
+"Поддержка": "Support",
+"Опишите проблему, при необходимости приложите файл": "Describe the issue, attach a file if needed",
+"Новое обращение": "New Ticket",
+"Мои обращения": "My tickets",
+"Жалоба на пользователя": "Report a user",
+"Обращение": "Ticket",
+"Статус": "Status",
+"Ответ в обращение...": "Reply...",
+"Тема": "Subject",
+"Опишите проблему": "Describe the issue",
+"Обращений пока нет.": "No tickets yet.",
+"Жалоба · ": "Report · ",
+"Сообщений пока нет.": "No messages yet.",
+"Статус обращения": "Ticket status",
+"Статус обновлён": "Status updated",
+"Открыто": "Open",
+"В работе": "In progress",
+"Решено": "Resolved",
+"Закрыто": "Closed",
+"Заполните тему и описание": "Fill in the subject and description",
+"Обращение создано": "Ticket created",
+"Жалоба на ": "Report ",
+"Спам": "Spam",
+"Оскорбления": "Abuse",
+"Мат": "Profanity",
+"Реклама": "Ads",
+"Мошенничество": "Scam",
+"Другое": "Other",
+"Комментарий (необязательно)": "Comment (optional)",
+"Отправить жалобу": "Send report",
+"Жалоба отправлена": "Report sent",
+"Устройства": "Devices",
+"Сопряжение и управление устройствами": "Pair and manage devices",
+"Сопряжение по коду": "Pair by code",
+"Включите устройство и введите 6-значный код с его экрана. Код действует 5 минут и срабатывает один раз.": "Turn on the device and enter the 6-digit code from its screen. The code is valid for 5 minutes and works once.",
+"Сопрячь": "Pair",
+"Мои устройства": "My devices",
+"Каталог устройств": "Device catalog",
+"Устройство": "Device",
+"Скачать прошивку": "Download firmware",
+"Установка": "Setup",
+"Первичная привязка": "Initial pairing",
+"Смена комбинации входа": "Change the entry code",
+"Отметить «у меня есть устройство»": "Mark \"I own this device\"",
+"Снять отметку «у меня есть устройство»": "Unmark \"I own this device\"",
+"Отвязать": "Unpair",
+"Отвязать устройство ": "Unpair device ",
+"Устройство отвязано": "Device unpaired",
+"Нет сопряжённых устройств.": "No paired devices.",
+"Каталог пока пуст.": "The catalog is empty.",
+"у меня есть": "I own it",
+"опубликовано": "published",
+"Введите 6-значный код": "Enter the 6-digit code",
+"Сопряжение...": "Pairing...",
+"Устройство сопряжено": "Device paired",
+"Отмечено: у меня есть это устройство": "Marked: I own this device",
+"Отметка снята": "Mark removed",
+"Сменить аватар": "Change avatar",
+"Гостевой аккаунт: профиль и аватар изменить нельзя.": "Guest account: profile and avatar cannot be changed.",
+"Эмодзи-аватар": "Emoji avatar",
+"Имя": "Display name",
+"Как вас отображать": "Your display name",
+"Телефон": "Phone",
+"О себе": "Bio",
+"Коротко о себе": "A few words about you",
+"Ограничения аккаунта": "Account limits",
+"Роль": "Role",
+"Лимит своих чатов": "Own chats limit",
+"Создано чатов": "Chats created",
+"Осталось": "Remaining",
+"Другие разделы": "Other sections",
+"О проекте": "About",
+"Админ-панель": "Admin panel",
+"Выйти": "Logout",
+"Язык интерфейса": "Interface language",
+"Эмодзи-аватар обновлён": "Emoji avatar updated",
+"Профиль обновлён": "Profile updated",
+"Выйти из аккаунта?": "Log out?",
+"Вы вышли из системы": "You have logged out",
+"Только изображения PNG, JPEG или WEBP": "Only PNG, JPEG or WEBP images",
+"Фото-аватар обновлён": "Photo avatar updated",
+"Привет, мы команда no time to sleep, и вы находитесь на нашем проекте local-chat. Это ДЕМО версия проекта, в будущем он будет и дальше развиваться и обновляться. Также у нас есть и другие проекты — заглядывайте на наш GitHub: github.com/No-time-to-sleep": "Hi, we are the no time to sleep team, and you are on our project local-chat. This is a DEMO version of the project; it will keep evolving and updating. We also have other projects — check out our GitHub: github.com/No-time-to-sleep",
+"Версия сервера": "Server version",
+"Сервер": "Server",
+"Интернет": "Internet",
+"не требуется": "not required",
+"Первоначальная идея": "The original idea",
+"Создать отказоустойчивую mesh-систему, которая работает в любых условиях и не нуждается во вмешательстве: Raspberry Pi 5 и устройства M5Stack. Пока есть только RPi 5 — это демо.": "Build a fault-tolerant mesh system that works in any conditions without intervention: Raspberry Pi 5 and M5Stack devices. For now only the RPi 5 exists — this is a demo.",
+"История": "History",
+"Проект начался более года назад. За это время мы изучили mesh-сети, сетевые протоколы, Arduino, hardware и прошли путь от «сделай всё за 5 минут» до сложных систем разработки через API.": "The project started over a year ago. Since then we have studied mesh networks, network protocols, Arduino and hardware, and went from \"do everything in 5 minutes\" to complex development systems built around APIs.",
+"Об авторах": "About the authors",
+"Авторы — два мальчика, которые также участвовали в создании мультфильма «A Default Day Of A Default Cat». Разрабатываем системы для ИИ, занимаемся компьютерной безопасностью и Linux. И как же без D&D.": "The authors are two boys who also took part in creating the cartoon \"A Default Day Of A Default Cat\". We build AI systems, work on computer security and Linux. And of course D&D.",
+"Чаты, люди и ссылки": "Chats, people and links",
+"Поиск чатов, имя или ссылка...": "Search chats, name or link...",
+"Начните вводить запрос — ищем по вашим чатам, публичным каналам и людям.": "Start typing — we search your chats, public channels and people.",
+"Ваши чаты": "Your chats",
+"Открыть ссылку-приглашение": "Open an invite link",
+"Присоединиться по коду «{}»": "Join by code \"{}\"",
+"Публичные чаты": "Public chats",
+"Подписаться": "Subscribe",
+"Люди": "People",
+" · открыть личку": " · open DM",
+"Ничего не найдено.": "Nothing found.",
+"Вы уже подписаны": "You are already subscribed",
+"Вы подписались": "You subscribed",
+"Пустая ссылка": "Empty link",
+"Заявка отправлена — ждите подтверждения": "Request sent — waiting for approval",
+"Вы уже в этом чате": "You are already in this chat",
+"Вы вошли в чат": "You joined the chat",
+"Присоединиться": "Join",
+"Ссылка или код приглашения": "Link or invite code",
+"Написать в личку": "Open DM",
+"Сделать админом": "Make admin",
+"Снять админа": "Demote admin",
+"Удалить из чата": "Remove from chat",
+"Для этого участника действий нет": "No actions for this member",
+"Теперь админ чата": "Now a chat admin",
+"Права админа сняты": "Admin rights removed",
+"участника": "member",
+"Удалить {} из чата?": "Remove {} from the chat?",
+"Участник удалён": "Member removed",
+"Добавить участника": "Add member",
+"Поиск по логину...": "Search by login...",
+"Участник добавлен": "Member added",
+"Ссылок пока нет": "No links yet",
+"Создать ссылку": "Create link",
+"Ссылка создана": "Link created",
+"использований: ": "uses: ",
+"Новый опрос": "New poll",
+"Вопрос": "Question",
+"+ Добавить вариант": "+ Add option",
+"Несколько вариантов": "Multiple answers",
+"Анонимный": "Anonymous",
+"Вариант ": "Option ",
+"Введите вопрос": "Enter a question",
+"Нужно минимум 2 варианта": "At least 2 options are required",
+"Опрос создан": "Poll created",
+"Никого не найдено": "Nothing found",
+"Нет участников": "No members",
+"Очистить историю чата для себя?": "Clear the history only for you?",
+"Выйти из чата?": "Leave the chat?",
+"Удалить чат для всех участников?": "Delete the chat for everyone? This cannot be undone.",
+"История очищена": "History cleared"
+};
+function tr(s){ if (LANG !== "eng") return s; var e = EN[s]; return e !== undefined ? e : s; }
+function tr2(ru, en){ return LANG === "eng" ? en : ru; }
+function tf(s, v){ var out = tr(s); return out.indexOf("{}") >= 0 ? out.replace("{}", v) : out + v; }
+function switchLang(){
+  LANG = (LANG === "eng") ? "rus" : "eng";
+  try { localStorage.setItem("lc_lang", LANG); } catch(e) {}
+  location.reload();
+}
+function applyStatic(){
+  document.documentElement.lang = LANG === "eng" ? "en" : "ru";
+  var lt = $("lang-toggle");
+  if (lt) lt.textContent = LANG === "eng" ? "🇷🇺 RUS" : "🇬🇧 ENG";
+  if (LANG !== "eng") return;
+  var cyr = /[А-Яа-яЁё]/;
+  var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+  var nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(function(tn){
+    var parent = tn.parentNode;
+    if (!parent || parent.nodeName === "SCRIPT" || parent.nodeName === "STYLE") return;
+    var raw = tn.nodeValue;
+    if (!raw || !cyr.test(raw)) return;
+    var key = raw.trim().replace(/\s+/g, " ");
+    var val = EN[key];
+    if (val === undefined || !val) return;
+    tn.nodeValue = raw.replace(raw.trim(), val);
+  });
+  document.querySelectorAll("[placeholder],[title]").forEach(function(el){
+    ["placeholder", "title"].forEach(function(attr){
+      var v = el.getAttribute(attr);
+      if (!v || !cyr.test(v)) return;
+      var t = EN[v.trim().replace(/\s+/g, " ")];
+      if (t !== undefined && t) el.setAttribute(attr, t);
+    });
+  });
+}
+
 function $(id){ return document.getElementById(id); }
 function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
 function pad2(n){ return String(n).padStart(2, "0"); }
 function fmtTimeShort(ms){ var d = new Date(ms || Date.now()); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 function fmtTime(ms){
   var d = new Date(ms || Date.now());
+  if (LANG === "eng") {
+    var me = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return me[d.getMonth()] + " " + d.getDate() + ", " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
   var months = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
   return d.getDate() + " " + months[d.getMonth()] + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
 }
@@ -704,8 +1029,12 @@ function fmtDayKey(ms){ var d = new Date(ms || Date.now()); return d.getFullYear
 function dayLabel(ms){
   var d = new Date(ms || Date.now());
   var today = new Date(); var yest = new Date(); yest.setDate(today.getDate() - 1);
-  if (fmtDayKey(ms) === fmtDayKey(today.getTime())) return "Сегодня";
-  if (fmtDayKey(ms) === fmtDayKey(yest.getTime())) return "Вчера";
+  if (fmtDayKey(ms) === fmtDayKey(today.getTime())) return tr("Сегодня");
+  if (fmtDayKey(ms) === fmtDayKey(yest.getTime())) return tr("Вчера");
+  if (LANG === "eng") {
+    var mf = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    return mf[d.getMonth()] + " " + d.getDate() + (d.getFullYear() !== today.getFullYear() ? ", " + d.getFullYear() : "");
+  }
   var months = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
   return d.getDate() + " " + months[d.getMonth()] + (d.getFullYear() !== today.getFullYear() ? " " + d.getFullYear() : "");
 }
@@ -714,12 +1043,12 @@ function chatAvaFor(title, id){
   var src = String(title || "") + "#" + String(id || 0);
   var h = 0; for (var i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) >>> 0;
   var words = String(title || "").trim().split(/\s+/).filter(Boolean);
-  var initials = words.length ? words.map(function(w){ return w[0]; }).slice(0,2).join("").toUpperCase() : "Ч";
+  var initials = words.length ? words.map(function(w){ return w[0]; }).slice(0,2).join("").toUpperCase() : tr("Ч");
   return { color: AVA_COLORS[h % AVA_COLORS.length], initials: initials };
 }
 var EMOJIS = ["🐱","🐶","🐼","🦊","🐸","🐵","🦁","🐮","🐷","🐭","🐹","🐰","🐻","🐨","🐯","🐙","🦄","🐳","🐧","🐤","👻","🤖","👽","🐲","🦋","🐞","🐝","🦉","🐺","🐴"];
 function userEmoji(uid){ return EMOJIS[(uid || 0) % EMOJIS.length]; }
-function userName(uid){ return STATE.names[uid] || ("Пользователь #" + uid); }
+function userName(uid){ return STATE.names[uid] || (tr("Пользователь #") + uid); }
 function avatarHtml(url, emojiOrText, cls){
   if (url) return '<span class="' + (cls||"avatar") + '"><img src="' + esc(url) + '" alt=""></span>';
   return '<span class="' + (cls||"avatar") + '">' + esc(emojiOrText || "?") + '</span>';
@@ -732,7 +1061,7 @@ function renderAtts(items){
   if (!items || !items.length) return "";
   return '<div class="att-wrap">' + items.map(function(a){
     var url = esc(attUrl(a));
-    var name = esc(a.filename || ("файл-" + a.attachment_id));
+    var name = esc(a.filename || (tr("файл-") + a.attachment_id));
     var mime = String(a.mime_type || "");
     if (a.media_kind === "image" || mime.indexOf("image/") === 0)
       return '<div class="att-img"><img src="' + url + '" alt="" loading="lazy" onclick="window.open(this.src,\'_blank\')"></div>';
@@ -749,12 +1078,12 @@ function linkify(html){
 }
 function copyText(text){
   try {
-    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text); toast("Скопировано"); return; }
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text); toast(tr("Скопировано")); return; }
   } catch(e){}
   var ta = document.createElement("textarea");
   ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
   document.body.appendChild(ta); ta.select();
-  try { document.execCommand("copy"); toast("Скопировано"); } catch(e) { toast("Не удалось скопировать"); }
+  try { document.execCommand("copy"); toast(tr("Скопировано")); } catch(e) { toast(tr("Не удалось скопировать")); }
   ta.remove();
 }
 
@@ -778,8 +1107,8 @@ async function api(url, opts){
     }
     return d;
   } catch(e) {
-    if (e && e.name === "AbortError") throw new Error("Сервер не отвечает (таймаут)");
-    if (e && e.name === "TypeError") throw new Error("Сервер недоступен");
+    if (e && e.name === "AbortError") throw new Error(tr("Сервер не отвечает (таймаут)"));
+    if (e && e.name === "TypeError") throw new Error(tr("Сервер недоступен"));
     throw e;
   } finally { clearTimeout(timer); }
 }
@@ -791,7 +1120,7 @@ async function uploadFile(file){
   var r = await fetch("/media/api/attachments?session_token=" + tk(), { method: "POST", body: form });
   var d = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
-    var msg = (d && d.detail && (d.detail.message || d.detail.code)) || ("Ошибка загрузки (" + r.status + ")");
+    var msg = (d && d.detail && (d.detail.message || d.detail.code)) || (tr("Ошибка загрузки (") + r.status + ")");
     throw new Error(msg);
   }
   return d;
@@ -811,7 +1140,7 @@ function downscaleImage(file, maxSide){
         resolve(cv.toDataURL("image/jpeg", 0.85));
       } catch(e) { URL.revokeObjectURL(url); reject(e); }
     };
-    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("Не удалось прочитать изображение")); };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error(tr("Не удалось прочитать изображение"))); };
     img.src = url;
   });
 }
@@ -864,7 +1193,7 @@ function openSheetHtml(title, html, onReady){
 function openListSheet(title, rows, emptyText){
   var html = '<div class="s-list">' + (rows.length ? rows.map(function(r, i){
     return '<button class="s-item" data-idx="' + i + '">' + r.html + "</button>";
-  }).join("") : '<div class="s-empty">' + esc(emptyText || "Пусто") + "</div>") + "</div>";
+  }).join("") : '<div class="s-empty">' + esc(emptyText || tr("Пусто")) + "</div>") + "</div>";
   openSheetHtml(title, html, function(body){
     body.querySelectorAll(".s-item").forEach(function(b){
       var idx = Number(b.getAttribute("data-idx"));
@@ -894,7 +1223,7 @@ function clearAuth(){
 }
 function requireAuth(){ if (!STATE.token) { go("login"); return false; } return true; }
 function renderChip(){
-  var name = (STATE.profile && (STATE.profile.display_name || STATE.profile.login)) || (STATE.user && STATE.user.login) || "Профиль";
+  var name = (STATE.profile && (STATE.profile.display_name || STATE.profile.login)) || (STATE.user && STATE.user.login) || tr("Профиль");
   var ava = $("chip-ava");
   var url = STATE.profile && STATE.profile.avatar_url;
   if (url) ava.innerHTML = '<img src="' + esc(url) + '" alt="">';
@@ -987,7 +1316,7 @@ async function refreshChats(force){
   renderChatRows();
 }
 function chatDisplayTitle(chat){
-  var t = chat.title || ("Чат #" + chat.chat_id);
+  var t = chat.title || (tr("Чат #") + chat.chat_id);
   if (t.indexOf(" & ") >= 0 && STATE.user && STATE.user.login) {
     var parts = t.split(" & ").filter(function(p){ return p !== STATE.user.login; });
     if (parts.length) t = parts.join(" & ");
@@ -1016,10 +1345,10 @@ function chatRowEl(chat){
   var typeIcon = chat.chat_type === "channel" ? '<svg class="i s16"><use href="#i-megaphone"/></svg>'
     : chat.chat_type === "dm" ? '<svg class="i s16"><use href="#i-mail"/></svg>' : "";
   var flags = "";
-  if (chat.is_pinned) flags += '<span class="flag" title="Закреплён"><svg class="i s15"><use href="#i-pin"/></svg></span>';
-  if (chat.is_muted) flags += '<span class="flag" title="Без звука"><svg class="i s15"><use href="#i-bell-off"/></svg></span>';
+  if (chat.is_pinned) flags += '<span class="flag" title="' + tr("Закреплён") + '"><svg class="i s15"><use href="#i-pin"/></svg></span>';
+  if (chat.is_muted) flags += '<span class="flag" title="' + tr("Без звука") + '"><svg class="i s15"><use href="#i-bell-off"/></svg></span>';
   var draft = (chat.draft_text || "").trim();
-  var sub = draft ? "Черновик: " + draft.slice(0, 60) : (chat.description || ("#" + chat.chat_id));
+  var sub = draft ? tr("Черновик: ") + draft.slice(0, 60) : (chat.description || ("#" + chat.chat_id));
   var unread = Number(chat.unread_count || 0);
   var badge = unread > 0 ? '<span class="badge unread' + (chat.is_muted ? " muted" : "") + '">' + (unread > 99 ? "99+" : unread) + "</span>" : "";
   var avaUrl = chat.avatar_url ? esc(chat.avatar_url) : "";
@@ -1037,30 +1366,30 @@ function renderChatRows(){
   var dm = all.filter(function(c){ return c.chat_type === "dm"; });
   var pinned = all.filter(function(c){ return c.is_pinned; });
   var drafts = all.filter(function(c){ return (c.draft_text || "").trim(); });
-  $("qc-dm").textContent = dm.length ? (dm.length + " шт.") : "нет";
-  $("qc-pin").textContent = pinned.length ? (pinned.length + " шт.") : "нет";
-  $("qc-draft").textContent = drafts.length ? (drafts.length + " шт.") : "нет";
+  $("qc-dm").textContent = dm.length ? (dm.length + tr(" шт.")) : tr("нет");
+  $("qc-pin").textContent = pinned.length ? (pinned.length + tr(" шт.")) : tr("нет");
+  $("qc-draft").textContent = drafts.length ? (drafts.length + tr(" шт.")) : tr("нет");
   document.querySelectorAll(".qcard").forEach(function(c){
     c.classList.toggle("active", c.getAttribute("data-filter") === STATE.filter);
   });
   var list = all.slice();
-  var label = "Чаты";
-  if (STATE.filter === "dm") { list = dm; label = "Личные"; }
-  else if (STATE.filter === "pinned") { list = pinned; label = "Важные"; }
-  else if (STATE.filter === "drafts") { list = drafts; label = "Черновики"; }
+  var label = tr("Чаты");
+  if (STATE.filter === "dm") { list = dm; label = tr("Личные"); }
+  else if (STATE.filter === "pinned") { list = pinned; label = tr("Важные"); }
+  else if (STATE.filter === "drafts") { list = drafts; label = tr("Черновики"); }
   else if (!STATE.showArchived) { list = list.filter(function(c){ return !c.is_archived; }); }
   else { list = list.filter(function(c){ return c.is_archived; }); }
-  $("chats-head-label").textContent = label + (STATE.showArchived && !STATE.filter ? " (архив)" : "");
+  $("chats-head-label").textContent = label + (STATE.showArchived && !STATE.filter ? tr(" (архив)") : "");
   var map = getCollapsedMap();
   var master = $("chats-master");
   if (master) master.classList.toggle("collapsed", !!map["all"]);
   box.innerHTML = "";
   if (map["all"]) return;
   if (!list.length) {
-    var msg = STATE.filter === "dm" ? "Личных чатов пока нет — найдите человека в поиске."
-      : STATE.filter === "pinned" ? "Закреплённых чатов нет. Закрепить можно в меню чата."
-      : STATE.filter === "drafts" ? "Черновиков нет."
-      : STATE.showArchived ? "Архив пуст." : "Чатов пока нет — создайте первый или присоединитесь по ссылке.";
+    var msg = STATE.filter === "dm" ? tr("Личных чатов пока нет — найдите человека в поиске.")
+      : STATE.filter === "pinned" ? tr("Закреплённых чатов нет. Закрепить можно в меню чата.")
+      : STATE.filter === "drafts" ? tr("Черновиков нет.")
+      : STATE.showArchived ? tr("Архив пуст.") : tr("Чатов пока нет — создайте первый или присоединитесь по ссылке.");
     box.innerHTML = '<div class="empty">' + esc(msg) + "</div>";
     return;
   }
@@ -1069,9 +1398,9 @@ function renderChatRows(){
     return;
   }
   var secs = [
-    ["sec_dm", "Личные", function(c){ return c.chat_type === "dm"; }],
-    ["sec_group", "Группы", function(c){ return c.chat_type !== "dm" && c.chat_type !== "channel"; }],
-    ["sec_channel", "Каналы", function(c){ return c.chat_type === "channel"; }]
+    ["sec_dm", tr("Личные"), function(c){ return c.chat_type === "dm"; }],
+    ["sec_group", tr("Группы"), function(c){ return c.chat_type !== "dm" && c.chat_type !== "channel"; }],
+    ["sec_channel", tr("Каналы"), function(c){ return c.chat_type === "channel"; }]
   ];
   var shown = 0;
   secs.forEach(function(s){
@@ -1086,7 +1415,7 @@ function renderChatRows(){
     box.appendChild(head);
     if (!collapsed) part.forEach(function(chat){ box.appendChild(chatRowEl(chat)); });
   });
-  if (!shown) box.innerHTML = '<div class="empty">Чатов пока нет — создайте первый или присоединитесь по ссылке.</div>';
+  if (!shown) box.innerHTML = '<div class="empty">' + tr("Чатов пока нет — создайте первый или присоединитесь по ссылке.") + '</div>';
 }
 function setFilter(f){
   STATE.filter = (STATE.filter === f) ? null : f;
@@ -1096,16 +1425,16 @@ function setFilter(f){
 function openChatsMenu(){
   var archived = (STATE.chats || []).filter(function(c){ return c.is_archived; }).length;
   var items = [
-    { icon: "i-plus", label: "Новый чат", action: function(){ go("newchat"); } },
-    { icon: "i-link", label: "Присоединиться по ссылке", action: function(){ openJoinSheet(); } }
+    { icon: "i-plus", label: tr("Новый чат"), action: function(){ go("newchat"); } },
+    { icon: "i-link", label: tr("Присоединиться по ссылке"), action: function(){ openJoinSheet(); } }
   ];
-  if (archived) items.push({ icon: "i-archive", label: STATE.showArchived ? "Скрыть архив (" + archived + ")" : "Показать архив (" + archived + ")", action: function(){ STATE.showArchived = !STATE.showArchived; STATE.filter = null; renderChatRows(); } });
-  openSheet("Чаты", items);
+  if (archived) items.push({ icon: "i-archive", label: STATE.showArchived ? tr("Скрыть архив (") + archived + ")" : tr("Показать архив (") + archived + ")", action: function(){ STATE.showArchived = !STATE.showArchived; STATE.filter = null; renderChatRows(); } });
+  openSheet(tr("Чаты"), items);
 }
 function openJoinSheet(){
-  openFormSheet("Присоединиться",
-    '<input class="inp" id="join-input" placeholder="Ссылка или код приглашения" autocomplete="off">' +
-    '<button class="btn-accent" id="join-submit">Войти</button>',
+  openFormSheet(tr("Присоединиться"),
+    '<input class="inp" id="join-input" placeholder="' + tr("Ссылка или код приглашения") + '" autocomplete="off">' +
+    '<button class="btn-accent" id="join-submit">' + tr2("Войти", "Join") + '</button>',
     function(){
       $("join-submit").onclick = async function(){
         var v = $("join-input").value.trim();
@@ -1126,7 +1455,7 @@ function extractJoinTarget(raw){
 }
 async function doJoin(raw){
   var target = extractJoinTarget(raw) || String(raw || "").trim();
-  if (!target) { toast("Пустая ссылка"); return; }
+  if (!target) { toast(tr("Пустая ссылка")); return; }
   try {
     var res;
     try {
@@ -1135,9 +1464,9 @@ async function doJoin(raw){
       if (e.status === 404) res = await api("/chat/api/join", { method: "POST", body: JSON.stringify({ session_token: STATE.token, username: target }) });
       else throw e;
     }
-    if (res.join_status === "pending") toast("Заявка отправлена — ждите подтверждения");
-    else if (res.already_member) toast("Вы уже в этом чате");
-    else toast("Вы вошли в чат");
+    if (res.join_status === "pending") toast(tr("Заявка отправлена — ждите подтверждения"));
+    else if (res.already_member) toast(tr("Вы уже в этом чате"));
+    else toast(tr("Вы вошли в чат"));
     await refreshChats(true);
     var cid = (res.chat && res.chat.chat_id) || res.chat_id;
     if (cid) {
@@ -1197,11 +1526,11 @@ function renderChatHeader(){
   var view = STATE.currentView || {};
   $("chat-title-t").textContent = chatDisplayTitle(chat);
   var sub = [];
-  if (chat.chat_type === "channel") sub.push("Канал");
-  else if (chat.chat_type === "dm") sub.push("Личный чат");
-  else sub.push("Группа");
-  if (view.member_count) sub.push(view.member_count + " участников");
-  if (STATE.onlineCount) sub.push(STATE.onlineCount + " онлайн");
+  if (chat.chat_type === "channel") sub.push(tr("Канал"));
+  else if (chat.chat_type === "dm") sub.push(tr("Личный чат"));
+  else sub.push(tr("Группа"));
+  if (view.member_count) sub.push(view.member_count + tr(" участников"));
+  if (STATE.onlineCount) sub.push(STATE.onlineCount + tr(" онлайн"));
   $("chat-title-s").textContent = sub.join(" · ");
   var pinned = view.pinned_message;
   if (pinned) {
@@ -1246,7 +1575,7 @@ async function loadMessages(force, older){
     if (items.length >= limit) {
       var olderBtn = document.createElement("button");
       olderBtn.className = "load-older";
-      olderBtn.textContent = "Показать раньше";
+      olderBtn.textContent = tr("Показать раньше");
       olderBtn.onclick = function(){ loadMessages(false, true); };
       frag2.appendChild(olderBtn);
     }
@@ -1256,7 +1585,7 @@ async function loadMessages(force, older){
       if (day !== firstDay) { frag2.appendChild(daySep(m.created_at_ms)); firstDay = day; }
       frag2.appendChild(buildMsgEl(m));
     });
-    if (!items.length) frag2.appendChild(emptyEl("Сообщений пока нет — напишите первым."));
+    if (!items.length) frag2.appendChild(emptyEl(tr("Сообщений пока нет — напишите первым.")));
     box.innerHTML = "";
     box.appendChild(frag2);
     STATE.msgOffset = items.length;
@@ -1280,7 +1609,7 @@ function buildMsgEl(m){
   var div = document.createElement("div");
   div.className = "m";
   div.setAttribute("data-mid", m.message_id);
-  var name = isMe ? ((STATE.profile && STATE.profile.login) || "Вы") : (STATE.names[m.author_user_id] || m.author_login || userName(m.author_user_id));
+  var name = isMe ? ((STATE.profile && STATE.profile.login) || tr("Вы")) : (STATE.names[m.author_user_id] || m.author_login || userName(m.author_user_id));
   var avaUrl = "";
   var html =
     '<span class="m-ava">' + (avaUrl ? '<img src="' + esc(avaUrl) + '" alt="">' : esc(m.author_avatar_emoji || userEmoji(m.author_user_id))) + "</span>" +
@@ -1288,7 +1617,7 @@ function buildMsgEl(m){
       '<div class="m-head"><span class="m-name">' + esc(name) + "</span>" +
       (isMe ? '<span class="checks"><svg class="i s16"><use href="#i-checks"/></svg></span>' : "") +
       '<span class="m-time">' + fmtTimeShort(m.created_at_ms) + "</span></div>";
-  if (m.forwarded_from_login) html += '<div class="m-forwarded"><svg class="i s15"><use href="#i-forward"/></svg> Переслано от <b>' + esc(m.forwarded_from_login) + "</b></div>";
+  if (m.forwarded_from_login) html += '<div class="m-forwarded"><svg class="i s15"><use href="#i-forward"/></svg> ' + tr("Переслано от") + ' <b>' + esc(m.forwarded_from_login) + "</b></div>";
   if (m.reply_to_message_id) {
     html += '<div class="m-reply" onclick="event.stopPropagation();jumpToMessage(' + m.reply_to_message_id + ')"><div class="ra">' + esc(m.reply_to_login || "") + '</div><div class="rt">' + esc((m.reply_to_text || "").slice(0, 140) || "…") + "</div></div>";
   }
@@ -1296,7 +1625,7 @@ function buildMsgEl(m){
     html += pollHtml(m.poll);
   } else {
     var bodyHtml = linkify(highlightMentions(m.body_text || ""));
-    if (m.edited_at_ms) bodyHtml += ' <span class="edited">(изменено)</span>';
+    if (m.edited_at_ms) bodyHtml += ' <span class="edited">' + tr("(изменено)") + '</span>';
     html += '<div class="m-text" data-mid="' + m.message_id + '">' + bodyHtml + "</div>";
   }
   html += renderAtts(m.attachments);
@@ -1385,10 +1714,10 @@ function pollHtml(poll){
     var pct = total ? Math.round((o.votes / total) * 100) : 0;
     return '<button class="po' + (o.mine ? " mine" : "") + '" data-opt="' + o.index + '"><span class="pbar" style="width:' + pct + '%"></span><span class="pc">' + o.votes + (total ? " · " + pct + "%" : "") + '</span><span class="pt">' + esc(o.text) + "</span></button>";
   }).join("");
-  var meta = [total + " голосов"];
-  if (poll.is_multiple) meta.push("несколько вариантов");
-  if (poll.is_anonymous) meta.push("анонимный");
-  if (poll.closed) meta.push("закрыт");
+  var meta = [total + tr(" голосов")];
+  if (poll.is_multiple) meta.push(tr("несколько вариантов"));
+  if (poll.is_anonymous) meta.push(tr("анонимный"));
+  if (poll.closed) meta.push(tr("закрыт"));
   return '<div class="poll"><div class="pq">' + esc(poll.question) + '</div><div>' + opts + '</div><div class="pm">' + esc(meta.join(" · ")) + "</div></div>";
 }
 async function votePoll(pollId, optionIndex){
@@ -1405,7 +1734,7 @@ async function votePoll(pollId, optionIndex){
 }
 function jumpToMessage(mid){
   var node = document.querySelector('.m[data-mid="' + mid + '"]');
-  if (!node) { toast("Сообщение не в загруженной истории"); return; }
+  if (!node) { toast(tr("Сообщение не в загруженной истории")); return; }
   node.scrollIntoView({ block: "center" });
   node.style.transition = "background .4s";
   node.style.background = "#232338";
@@ -1421,14 +1750,14 @@ function openMsgMenu(mid){
   var view = STATE.currentView || {};
   var canPin = !!(view.is_owner || view.can_post);
   var items = [
-    { icon: "i-reply", label: "Ответить", action: function(){ startReply(mid); } },
-    { icon: "i-forward", label: "Переслать", action: function(){ openForward(mid); } }
+    { icon: "i-reply", label: tr("Ответить"), action: function(){ startReply(mid); } },
+    { icon: "i-forward", label: tr("Переслать"), action: function(){ openForward(mid); } }
   ];
-  if (canPin) items.push({ icon: "i-pin", label: "Закрепить", action: function(){ pinMessage(mid); } });
-  items.push({ icon: "i-copy", label: "Копировать", action: function(){ copyText(m.body_text || ""); } });
-  if (isMe && !m.poll) items.push({ icon: "i-pencil", label: "Изменить", action: function(){ editMessage(mid); } });
-  if (isMe) items.push({ icon: "i-trash", label: "Удалить", danger: true, action: function(){ deleteMessage(mid); } });
-  openSheet("Действия", items, {
+  if (canPin) items.push({ icon: "i-pin", label: tr("Закрепить"), action: function(){ pinMessage(mid); } });
+  items.push({ icon: "i-copy", label: tr("Копировать"), action: function(){ copyText(m.body_text || ""); } });
+  if (isMe && !m.poll) items.push({ icon: "i-pencil", label: tr("Изменить"), action: function(){ editMessage(mid); } });
+  if (isMe) items.push({ icon: "i-trash", label: tr("Удалить"), danger: true, action: function(){ deleteMessage(mid); } });
+  openSheet(tr("Действия"), items, {
     reacts: ["👍","❤️","😂","🔥","😢","👏"],
     onReact: function(em){ toggleReaction(mid, em); }
   });
@@ -1461,7 +1790,7 @@ async function pinMessage(mid){
     var d = await api("/chat/api/chats/" + STATE.currentChatId + "?session_token=" + tk());
     STATE.currentView = d.view || null;
     renderChatHeader();
-    toast("Сообщение закреплено");
+    toast(tr("Сообщение закреплено"));
   } catch(e) { toast(e.message); }
 }
 async function unpinMessage(){
@@ -1469,7 +1798,7 @@ async function unpinMessage(){
     await api("/chat/api/chats/" + STATE.currentChatId + "/pin", { method: "POST", body: JSON.stringify({ session_token: STATE.token, message_id: null }) });
     if (STATE.currentView) STATE.currentView.pinned_message = null;
     renderChatHeader();
-    toast("Сообщение откреплено");
+    toast(tr("Сообщение откреплено"));
   } catch(e) { toast(e.message); }
 }
 function startReply(mid){
@@ -1477,15 +1806,15 @@ function startReply(mid){
   if (!m) return;
   STATE.replyTo = m;
   $("reply-bar").classList.remove("hidden");
-  $("reply-a").textContent = m.author_user_id === (STATE.user && STATE.user.id) ? "Вы" : (STATE.names[m.author_user_id] || m.author_login || "");
-  $("reply-t").textContent = m.body_text || "(вложение)";
+  $("reply-a").textContent = m.author_user_id === (STATE.user && STATE.user.id) ? tr("Вы") : (STATE.names[m.author_user_id] || m.author_login || "");
+  $("reply-t").textContent = m.body_text || tr("(вложение)");
   $("msg-input").focus();
 }
 function cancelReply(){ STATE.replyTo = null; $("reply-bar").classList.add("hidden"); }
 window.cancelReply = cancelReply;
 function openForward(mid){
   var chats = (STATE.chats || []).filter(function(c){ return c.chat_id !== STATE.currentChatId; });
-  openListSheet("Переслать в чат", chats.map(function(c){
+  openListSheet(tr("Переслать в чат"), chats.map(function(c){
     var title = chatDisplayTitle(c);
     var cav = chatAvaFor(title, c.chat_id);
     return {
@@ -1493,18 +1822,18 @@ function openForward(mid){
       action: async function(){
         try {
           await api("/chat/api/chats/" + STATE.currentChatId + "/messages/" + mid + "/forward", { method: "POST", body: JSON.stringify({ session_token: STATE.token, target_chat_id: c.chat_id }) });
-          toast("Переслано в «" + title + "»");
+          toast(tf("Переслано в «{}»", title));
         } catch(e) { toast(e.message); }
       }
     };
-  }), "Нет других чатов");
+  }), tr("Нет других чатов"));
 }
 function editMessage(mid){
   var m = STATE.msgCache[mid];
   if (!m) return;
-  openFormSheet("Изменить сообщение",
+  openFormSheet(tr("Изменить сообщение"),
     '<textarea class="inp area" id="edit-text">' + esc(m.body_text || "") + '</textarea>' +
-    '<button class="btn-accent" id="edit-submit">Сохранить</button>',
+    '<button class="btn-accent" id="edit-submit">' + tr("Сохранить") + '</button>',
     function(){
       $("edit-submit").onclick = async function(){
         var text = $("edit-text").value.trim();
@@ -1512,17 +1841,17 @@ function editMessage(mid){
         closeSheet();
         try {
           await api("/chat/api/chats/" + STATE.currentChatId + "/messages/" + mid, { method: "PUT", body: JSON.stringify({ session_token: STATE.token, body_text: text }) });
-          toast("Сообщение изменено");
+          toast(tr("Сообщение изменено"));
           loadMessages(true);
         } catch(e) { toast(e.message); }
       };
     });
 }
 async function deleteMessage(mid){
-  if (!confirm("Удалить сообщение?")) return;
+  if (!confirm(tr("Удалить сообщение?"))) return;
   try {
     await api("/chat/api/chats/" + STATE.currentChatId + "/messages/" + mid, { method: "DELETE", body: JSON.stringify({ session_token: STATE.token }) });
-    toast("Сообщение удалено");
+    toast(tr("Сообщение удалено"));
     loadMessages(true);
   } catch(e) { toast(e.message); }
 }
@@ -1603,10 +1932,10 @@ function voicePickMime(){
 }
 async function voiceTap(){
   if (voiceRec) { voiceStop(); return; }
-  if (!voiceSupported()) { toast("Запись голоса работает только по HTTPS. Прикрепите аудиофайл вместо записи."); return; }
+  if (!voiceSupported()) { toast(tr("Запись голоса работает только по HTTPS. Прикрепите аудиофайл вместо записи.")); return; }
   try {
     voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch(e) { toast("Нет доступа к микрофону"); return; }
+  } catch(e) { toast(tr("Нет доступа к микрофону")); return; }
   voiceChunks = [];
   var mime = voicePickMime();
   try { voiceRec = mime ? new MediaRecorder(voiceStream, { mimeType: mime }) : new MediaRecorder(voiceStream); }
@@ -1624,11 +1953,11 @@ async function voiceTap(){
       STATE.attachFiles.push(file);
       renderAttachChips();
       updateSendBtn();
-      toast("Голосовое записано — нажмите ➤");
+      toast(tr("Голосовое записано — нажмите ➤"));
     }
   };
   voiceStartMs = Date.now();
-  try { voiceRec.start(250); } catch(e) { voiceCleanup(); toast("Не удалось начать запись"); return; }
+  try { voiceRec.start(250); } catch(e) { voiceCleanup(); toast(tr("Не удалось начать запись")); return; }
   $("voice-bar").classList.remove("hidden");
   $("mic-btn").classList.add("rec");
   voiceTimer = setInterval(function(){
@@ -1713,15 +2042,15 @@ function openChatMenu(){
   var chat = STATE.currentChat || {};
   var view = STATE.currentView || {};
   var items = [];
-  items.push({ icon: "i-users", label: "Участники" + (view.member_count ? " (" + view.member_count + ")" : ""), action: openMembers });
-  if (view.can_post !== false) items.push({ icon: "i-link", label: "Ссылки-приглашения", action: openInvites });
-  if (view.can_post !== false) items.push({ icon: "i-poll", label: "Создать опрос", action: openPollForm });
-  items.push({ icon: chat.is_muted ? "i-bell-off" : "i-bell-off", label: chat.is_muted ? "Включить звук" : "Без звука", action: function(){ toggleChatState("is_muted", !chat.is_muted); } });
-  items.push({ icon: "i-pin", label: chat.is_pinned ? "Открепить чат" : "Закрепить чат", action: function(){ toggleChatState("is_pinned", !chat.is_pinned); } });
-  items.push({ icon: "i-archive", label: chat.is_archived ? "Убрать из архива" : "В архив", action: function(){ toggleChatState("is_archived", !chat.is_archived, true); } });
-  items.push({ icon: "i-refresh", label: "Очистить историю", action: function(){ clearHistory(); } });
-  items.push({ icon: "i-out", label: "Выйти из чата", danger: true, action: function(){ leaveChat(); } });
-  if (view.is_owner) items.push({ icon: "i-trash", label: "Удалить чат", danger: true, action: function(){ deleteChat(); } });
+  items.push({ icon: "i-users", label: tr("Участники") + (view.member_count ? " (" + view.member_count + ")" : ""), action: openMembers });
+  if (view.can_post !== false) items.push({ icon: "i-link", label: tr("Ссылки-приглашения"), action: openInvites });
+  if (view.can_post !== false) items.push({ icon: "i-poll", label: tr("Создать опрос"), action: openPollForm });
+  items.push({ icon: chat.is_muted ? "i-bell-off" : "i-bell-off", label: chat.is_muted ? tr("Включить звук") : tr("Без звука"), action: function(){ toggleChatState("is_muted", !chat.is_muted); } });
+  items.push({ icon: "i-pin", label: chat.is_pinned ? tr("Открепить чат") : tr("Закрепить чат"), action: function(){ toggleChatState("is_pinned", !chat.is_pinned); } });
+  items.push({ icon: "i-archive", label: chat.is_archived ? tr("Убрать из архива") : tr("В архив"), action: function(){ toggleChatState("is_archived", !chat.is_archived, true); } });
+  items.push({ icon: "i-refresh", label: tr("Очистить историю"), action: function(){ clearHistory(); } });
+  items.push({ icon: "i-out", label: tr("Выйти из чата"), danger: true, action: function(){ leaveChat(); } });
+  if (view.is_owner) items.push({ icon: "i-trash", label: tr("Удалить чат"), danger: true, action: function(){ deleteChat(); } });
   openSheet(chatDisplayTitle(chat), items);
 }
 window.openChatMenu = openChatMenu;
@@ -1731,33 +2060,33 @@ async function toggleChatState(key, value, goBack){
     if (STATE.currentChat) STATE.currentChat[key] = value;
     var cached = (STATE.chats || []).filter(function(c){ return c.chat_id === STATE.currentChatId; })[0];
     if (cached) cached[key] = value;
-    toast("Готово");
+    toast(tr("Готово"));
     if (goBack) go("chats");
   } catch(e) { toast(e.message); }
 }
 async function clearHistory(){
-  if (!confirm("Очистить историю чата для себя?")) return;
+  if (!confirm(tr("Очистить историю чата для себя?"))) return;
   try {
     await api("/chat/api/chats/" + STATE.currentChatId + "/clear", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) });
-    toast("История очищена");
+    toast(tr("История очищена"));
     loadMessages(true);
   } catch(e) { toast(e.message); }
 }
 async function leaveChat(){
-  if (!confirm("Выйти из чата?")) return;
+  if (!confirm(tr("Выйти из чата?"))) return;
   try {
     await api("/chat/api/chats/" + STATE.currentChatId + "/leave", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) });
-    toast("Вы вышли из чата");
+    toast(tr("Вы вышли из чата"));
     STATE.currentChatId = null;
     go("chats");
     refreshChats(true);
   } catch(e) { toast(e.message); }
 }
 async function deleteChat(){
-  if (!confirm("Удалить чат для всех участников?")) return;
+  if (!confirm(tr("Удалить чат для всех участников?"))) return;
   try {
     await api("/chat/api/chats/" + STATE.currentChatId, { method: "DELETE", body: JSON.stringify({ session_token: STATE.token }) });
-    toast("Чат удалён");
+    toast(tr("Чат удалён"));
     STATE.currentChatId = null;
     go("chats");
     refreshChats(true);
@@ -1786,27 +2115,27 @@ async function openMembers(){
       action: function(){ openMemberActions(u); }
     };
   });
-  openListSheet("Участники", rows, "Нет участников");
+  openListSheet(tr("Участники"), rows, tr("Нет участников"));
   var p = memberPerms();
   if (!p.canManage) return;
   var body = $("sheet-body");
   var add = document.createElement("button");
   add.className = "srow";
-  add.innerHTML = '<svg class="i s22"><use href="#i-plus"/></svg><span>Добавить участника</span>';
+  add.innerHTML = '<svg class="i s22"><use href="#i-plus"/></svg><span>' + tr("Добавить участника") + '</span>';
   add.onclick = function(){ closeSheet(); setTimeout(addMember, 60); };
   body.appendChild(add);
 }
 function openMemberActions(u){
   var p = memberPerms();
   var isMe = !!u.is_me || u.user_id === (STATE.user && STATE.user.id);
-  var name = STATE.names[u.user_id] || u.login || "Участник";
+  var name = STATE.names[u.user_id] || u.login || tr("Участник");
   var items = [];
-  items.push({ icon: "i-user", label: "Профиль", action: function(){ openUserProfile(u.user_id); } });
-  if (!isMe) items.push({ icon: "i-mail", label: "Написать в личку", action: function(){ openDmWith(u); } });
-  if (p.isOwner && !u.is_owner && u.role !== "admin") items.push({ icon: "i-users", label: "Сделать админом", action: function(){ setMemberRole(u, "admin"); } });
-  if (p.isOwner && u.role === "admin") items.push({ icon: "i-user", label: "Снять админа", action: function(){ setMemberRole(u, "user"); } });
-  if (p.canManage && !u.is_owner && !isMe && (p.isOwner || u.role !== "admin")) items.push({ icon: "i-x", label: "Удалить из чата", danger: true, action: function(){ removeMember(u); } });
-  if (!items.length) { toast("Для этого участника действий нет"); return; }
+  items.push({ icon: "i-user", label: tr("Профиль"), action: function(){ openUserProfile(u.user_id); } });
+  if (!isMe) items.push({ icon: "i-mail", label: tr("Написать в личку"), action: function(){ openDmWith(u); } });
+  if (p.isOwner && !u.is_owner && u.role !== "admin") items.push({ icon: "i-users", label: tr("Сделать админом"), action: function(){ setMemberRole(u, "admin"); } });
+  if (p.isOwner && u.role === "admin") items.push({ icon: "i-user", label: tr("Снять админа"), action: function(){ setMemberRole(u, "user"); } });
+  if (p.canManage && !u.is_owner && !isMe && (p.isOwner || u.role !== "admin")) items.push({ icon: "i-x", label: tr("Удалить из чата"), danger: true, action: function(){ removeMember(u); } });
+  if (!items.length) { toast(tr("Для этого участника действий нет")); return; }
   openSheet(name, items);
 }
 async function openDmWith(u){
@@ -1822,23 +2151,23 @@ async function setMemberRole(u, role){
   try {
     await api("/chat/api/chats/" + STATE.currentChatId + "/members/" + u.user_id + "/role", { method: "POST", body: JSON.stringify({ session_token: STATE.token, role: role }) });
     STATE.membersCache = null;
-    toast(role === "admin" ? "Теперь админ чата" : "Права админа сняты");
+    toast(role === "admin" ? tr("Теперь админ чата") : tr("Права админа сняты"));
     setTimeout(openMembers, 250);
   } catch(e) { toast(e.message); }
 }
 async function removeMember(u){
-  var name = STATE.names[u.user_id] || u.login || "участника";
-  if (!confirm("Удалить " + name + " из чата?")) return;
+  var name = STATE.names[u.user_id] || u.login || tr("участника");
+  if (!confirm(tf("Удалить {} из чата?", name))) return;
   try {
     await api("/chat/api/chats/" + STATE.currentChatId + "/members/" + u.user_id, { method: "DELETE", body: JSON.stringify({ session_token: STATE.token }) });
     STATE.membersCache = null;
-    toast("Участник удалён");
+    toast(tr("Участник удалён"));
     setTimeout(openMembers, 250);
   } catch(e) { toast(e.message); }
 }
 async function openUserProfile(uid){
   if (!uid) return;
-  openSheetHtml("Профиль", '<div class="spin"></div>');
+  openSheetHtml(tr("Профиль"), '<div class="spin"></div>');
   try {
     var d = await api("/account/api/profile/" + uid + "?session_token=" + tk());
     var p = d.profile || {};
@@ -1851,7 +2180,7 @@ async function openUserProfile(uid){
       (p.profile_bio ? '<div style="font-size:14px;color:#c9c9ce;text-align:left;white-space:pre-wrap">' + esc(p.profile_bio) + "</div>" : "") +
       (p.phone ? '<div style="font-size:13.5px;color:var(--sub)">' + esc(p.phone) + "</div>" : "");
     if (!(STATE.user && p.user_id === STATE.user.id)) {
-      html += '<button class="btn-accent" id="up-dm">Написать в личку</button>';
+      html += '<button class="btn-accent" id="up-dm">' + tr("Написать в личку") + '</button>';
     }
     html += "</div>";
     $("sheet-body").innerHTML = html;
@@ -1859,8 +2188,8 @@ async function openUserProfile(uid){
   } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
 }
 function addMember(){
-  openFormSheet("Добавить участника",
-    '<input class="inp" id="am-search" placeholder="Поиск по логину..." autocomplete="off"><div id="am-results"></div>',
+  openFormSheet(tr("Добавить участника"),
+    '<input class="inp" id="am-search" placeholder="' + tr("Поиск по логину...") + '" autocomplete="off"><div id="am-results"></div>',
     function(){
       var timer = null;
       $("am-search").addEventListener("input", function(){
@@ -1874,14 +2203,14 @@ function addMember(){
             $("am-results").innerHTML = items.length ? items.map(function(u, i){
               var name = STATE.names[u.user_id] || u.login;
               return '<button class="s-item" data-i="' + i + '" style="width:100%"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login||"?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + "</span></button>";
-            }).join("") : '<div class="s-empty">Никого не найдено</div>';
+            }).join("") : '<div class="s-empty">' + tr("Никого не найдено") + '</div>';
             $("am-results").querySelectorAll(".s-item").forEach(function(b){
               b.onclick = async function(){
                 var u = items[Number(b.getAttribute("data-i"))];
                 closeSheet();
                 try {
                   await api("/chat/api/chats/" + STATE.currentChatId + "/members", { method: "POST", body: JSON.stringify({ session_token: STATE.token, user_id: u.user_id }) });
-                  toast("Участник добавлен");
+                  toast(tr("Участник добавлен"));
                   STATE.membersCache = null;
                 } catch(e) { toast(e.message); }
               };
@@ -1900,20 +2229,20 @@ async function openInvites(){
     var link = location.origin + "/#/join/" + inv.code;
     var uses = inv.max_uses ? inv.uses + "/" + inv.max_uses : String(inv.uses);
     return {
-      html: '<svg class="i s18"><use href="#i-link"/></svg><span style="min-width:0"><span style="display:block;font-size:13.5px;word-break:break-all">' + esc(link) + '</span><span style="color:var(--sub);font-size:12.5px">использований: ' + esc(uses) + "</span></span>",
+      html: '<svg class="i s18"><use href="#i-link"/></svg><span style="min-width:0"><span style="display:block;font-size:13.5px;word-break:break-all">' + esc(link) + '</span><span style="color:var(--sub);font-size:12.5px">' + tr("использований: ") + esc(uses) + "</span></span>",
       action: function(){ copyText(link); }
     };
   });
-  openListSheet("Ссылки-приглашения", rows, "Ссылок пока нет");
+  openListSheet(tr("Ссылки-приглашения"), rows, tr("Ссылок пока нет"));
   var body = $("sheet-body");
   var add = document.createElement("button");
   add.className = "srow";
-  add.innerHTML = '<svg class="i s22"><use href="#i-plus"/></svg><span>Создать ссылку</span>';
+  add.innerHTML = '<svg class="i s22"><use href="#i-plus"/></svg><span>' + tr("Создать ссылку") + '</span>';
   add.onclick = async function(){
     closeSheet();
     try {
       await api("/chat/api/chats/" + STATE.currentChatId + "/invites", { method: "POST", body: JSON.stringify({ session_token: STATE.token, requires_approval: false, max_uses: null, expires_in_hours: null }) });
-      toast("Ссылка создана");
+      toast(tr("Ссылка создана"));
       setTimeout(openInvites, 300);
     } catch(e) { toast(e.message); }
   };
@@ -1921,20 +2250,20 @@ async function openInvites(){
 }
 
 function openPollForm(){
-  openFormSheet("Новый опрос",
-    '<input class="inp" id="poll-q" placeholder="Вопрос" maxlength="300">' +
+  openFormSheet(tr("Новый опрос"),
+    '<input class="inp" id="poll-q" placeholder="' + tr("Вопрос") + '" maxlength="300">' +
     '<div id="poll-opts"></div>' +
-    '<button class="btn-line" id="poll-add" style="height:42px">+ Добавить вариант</button>' +
-    '<label class="kv" style="padding:6px 4px"><span class="k">Несколько вариантов</span><input type="checkbox" id="poll-multi" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
-    '<label class="kv" style="padding:6px 4px"><span class="k">Анонимный</span><input type="checkbox" id="poll-anon" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
-    '<button class="btn-accent" id="poll-create">Создать</button>',
+    '<button class="btn-line" id="poll-add" style="height:42px">' + tr("+ Добавить вариант") + '</button>' +
+    '<label class="kv" style="padding:6px 4px"><span class="k">' + tr("Несколько вариантов") + '</span><input type="checkbox" id="poll-multi" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
+    '<label class="kv" style="padding:6px 4px"><span class="k">' + tr("Анонимный") + '</span><input type="checkbox" id="poll-anon" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
+    '<button class="btn-accent" id="poll-create">' + tr("Создать") + '</button>',
     function(){
       var box = $("poll-opts");
       var addOpt = function(){
         if (box.querySelectorAll("input").length >= 10) return;
         var inp = document.createElement("input");
         inp.className = "inp";
-        inp.placeholder = "Вариант " + (box.querySelectorAll("input").length + 1);
+        inp.placeholder = tr("Вариант ") + (box.querySelectorAll("input").length + 1);
         inp.maxLength = 120;
         inp.style.marginBottom = "8px";
         box.appendChild(inp);
@@ -1944,8 +2273,8 @@ function openPollForm(){
       $("poll-create").onclick = async function(){
         var q = $("poll-q").value.trim();
         var opts = [].map.call(box.querySelectorAll("input"), function(i){ return i.value.trim(); }).filter(Boolean);
-        if (!q) { toast("Введите вопрос"); return; }
-        if (opts.length < 2) { toast("Нужно минимум 2 варианта"); return; }
+        if (!q) { toast(tr("Введите вопрос")); return; }
+        if (opts.length < 2) { toast(tr("Нужно минимум 2 варианта")); return; }
         var btn = $("poll-create");
         btn.disabled = true;
         try {
@@ -1954,7 +2283,7 @@ function openPollForm(){
             is_multiple: $("poll-multi").checked, is_anonymous: $("poll-anon").checked
           }) });
           closeSheet();
-          toast("Опрос создан");
+          toast(tr("Опрос создан"));
           loadMessages(true);
         } catch(e) { toast(e.message); btn.disabled = false; }
       };
@@ -1985,7 +2314,7 @@ function bindNewChat(){
         $("nc-people").innerHTML = items.length ? items.map(function(u, i){
           var name = STATE.names[u.user_id] || u.login;
           return '<button class="s-item" data-i="' + i + '" style="width:100%;padding:10px 6px"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login||"?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + "</span></button>";
-        }).join("") : '<div class="s-empty">Никого не найдено</div>';
+        }).join("") : '<div class="s-empty">' + tr("Никого не найдено") + '</div>';
         $("nc-people").querySelectorAll(".s-item").forEach(function(b){
           b.onclick = function(){
             var u = items[Number(b.getAttribute("data-i"))];
@@ -2010,8 +2339,8 @@ function renderNcChips(){
 }
 async function createChat(){
   var title = $("nc-title").value.trim();
-  if (!title) { toast("Введите название"); return; }
-  if (ncType !== "channel" && !ncSelected.length) { toast("Добавьте хотя бы одного участника"); return; }
+  if (!title) { toast(tr("Введите название")); return; }
+  if (ncType !== "channel" && !ncSelected.length) { toast(tr("Добавьте хотя бы одного участника")); return; }
   var isPublic = ncType === "channel" && $("nc-public").checked;
   var username = isPublic ? ($("nc-username").value.trim() || undefined) : undefined;
   var btn = $("nc-submit");
@@ -2022,7 +2351,7 @@ async function createChat(){
       member_ids: ncSelected.map(function(u){ return u.user_id; }),
       chat_type: ncType, is_public: isPublic || undefined, username: username, history_visible: true
     }) });
-    toast("Чат создан");
+    toast(tr("Чат создан"));
     ncSelected = [];
     renderNcChips();
     $("nc-title").value = ""; $("nc-desc").value = "";
@@ -2046,12 +2375,12 @@ async function renderBlog(){
   try {
     var d = await api("/blog/api/posts?session_token=" + tk());
     var items = d.items || [];
-    if (!items.length) { box.innerHTML = '<div class="empty">Пока нет постов.</div>'; return; }
+    if (!items.length) { box.innerHTML = '<div class="empty">' + tr("Пока нет постов.") + '</div>'; return; }
     box.innerHTML = "";
     items.forEach(function(p){
       var div = document.createElement("div");
       div.className = "post";
-      var author = STATE.names[p.author_user_id] || ("Пользователь #" + p.author_user_id);
+      var author = STATE.names[p.author_user_id] || (tr("Пользователь #") + p.author_user_id);
       div.innerHTML = '<div class="p-title">' + esc(p.title) + '</div><div class="p-meta">' + esc(author) + " · " + fmtTime(p.published_at_ms) + '</div><div class="p-body">' + esc(p.body_text) + "</div>";
       div.onclick = function(){ openPost(p); };
       box.appendChild(div);
@@ -2060,25 +2389,25 @@ async function renderBlog(){
 }
 function openPost(p){
   $("post-title").textContent = p.title;
-  $("post-meta").textContent = (STATE.names[p.author_user_id] || ("Пользователь #" + p.author_user_id)) + " · " + fmtTime(p.published_at_ms);
+  $("post-meta").textContent = (STATE.names[p.author_user_id] || (tr("Пользователь #") + p.author_user_id)) + " · " + fmtTime(p.published_at_ms);
   $("post-body").textContent = p.body_text || "";
   $("post-atts").innerHTML = renderAtts(p.attachments);
   go("post");
 }
 function openBlogCompose(){
-  openFormSheet("Новый пост",
-    '<input class="inp" id="bp-title" placeholder="Заголовок" maxlength="256">' +
-    '<textarea class="inp area" id="bp-body" placeholder="Текст поста" maxlength="12000"></textarea>' +
-    '<button class="btn-accent" id="bp-submit">Опубликовать</button>',
+  openFormSheet(tr("Новый пост"),
+    '<input class="inp" id="bp-title" placeholder="' + tr("Заголовок") + '" maxlength="256">' +
+    '<textarea class="inp area" id="bp-body" placeholder="' + tr("Текст поста") + '" maxlength="12000"></textarea>' +
+    '<button class="btn-accent" id="bp-submit">' + tr("Опубликовать") + '</button>',
     function(){
       $("bp-submit").onclick = async function(){
         var title = $("bp-title").value.trim();
         var body = $("bp-body").value.trim();
-        if (!title || !body) { toast("Заполните заголовок и текст"); return; }
+        if (!title || !body) { toast(tr("Заполните заголовок и текст")); return; }
         try {
           await api("/blog/api/posts", { method: "POST", body: JSON.stringify({ session_token: STATE.token, title: title, body_text: body }) });
           closeSheet();
-          toast("Пост опубликован");
+          toast(tr("Пост опубликован"));
           renderBlog();
         } catch(e) { toast(e.message); }
       };
@@ -2088,7 +2417,7 @@ window.openBlogCompose = openBlogCompose;
 
 /* ============================ поддержка ============================ */
 function statusLabel(s){
-  return { open: "Открыто", in_progress: "В работе", resolved: "Решено", closed: "Закрыто" }[s] || s;
+  return { open: tr("Открыто"), in_progress: tr("В работе"), resolved: tr("Решено"), closed: tr("Закрыто") }[s] || s;
 }
 function statusPill(s){ return '<span class="pill st-' + esc(s || "open") + '">' + esc(statusLabel(s)) + "</span>"; }
 async function renderSupport(){
@@ -2101,14 +2430,14 @@ async function renderSupport(){
     var d = await api("/support/api/tickets?session_token=" + tk());
     var items = d.items || [];
     $("tickets-count").textContent = items.length;
-    if (!items.length) { box.innerHTML = '<div class="empty">Обращений пока нет.</div>'; return; }
+    if (!items.length) { box.innerHTML = '<div class="empty">' + tr("Обращений пока нет.") + '</div>'; return; }
     box.innerHTML = "";
     items.forEach(function(tk2){
       var b = document.createElement("button");
       b.className = "row";
       b.innerHTML =
         '<span class="avatar" style="background:' + (tk2.kind === "report" ? "#7a2d3a" : "#3d5a80") + '"><svg class="i s18"><use href="#' + (tk2.kind === "report" ? "i-flag" : "i-support") + '"/></svg></span>' +
-        '<span class="rcol"><span class="rt">' + esc(tk2.title) + '</span><span class="rsub">' + (tk2.kind === "report" ? "Жалоба · " : "") + fmtTime(tk2.last_message_at_ms || tk2.created_at_ms) + "</span></span>" +
+        '<span class="rcol"><span class="rt">' + esc(tk2.title) + '</span><span class="rsub">' + (tk2.kind === "report" ? tr("Жалоба · ") : "") + fmtTime(tk2.last_message_at_ms || tk2.created_at_ms) + "</span></span>" +
         '<span class="rmeta">' + statusPill(tk2.status) + "</span>";
       b.onclick = function(){ openTicket(tk2); };
       box.appendChild(b);
@@ -2134,12 +2463,12 @@ async function loadTicketMessages(){
     var d = await api("/support/api/tickets/" + STATE.ticketId + "/messages?session_token=" + tk());
     var items = d.items || [];
     box.innerHTML = "";
-    if (!items.length) { box.appendChild(emptyEl("Сообщений пока нет.")); return; }
+    if (!items.length) { box.appendChild(emptyEl(tr("Сообщений пока нет."))); return; }
     items.forEach(function(m){
       var mine = m.author_user_id === (STATE.user && STATE.user.id);
       var div = document.createElement("div");
       div.className = "m";
-      var name = mine ? "Вы" : (m.author_login || "Поддержка");
+      var name = mine ? tr("Вы") : (m.author_login || tr("Поддержка"));
       div.innerHTML =
         '<span class="m-ava">' + esc(userEmoji(m.author_user_id)) + "</span>" +
         '<div class="m-main"><div class="m-head"><span class="m-name">' + esc(name) + '</span><span class="m-time">' + fmtTimeShort(m.created_at_ms) + "</span></div>" +
@@ -2180,18 +2509,18 @@ function renderTicketAttach(){
   });
 }
 function openTicketStatus(){
-  openSheet("Статус обращения", [
-    { icon: "i-check-circle", label: "Открыто", action: function(){ setTicketStatus("open"); } },
-    { icon: "i-clock", label: "В работе", action: function(){ setTicketStatus("in_progress"); } },
-    { icon: "i-check", label: "Решено", action: function(){ setTicketStatus("resolved"); } },
-    { icon: "i-x", label: "Закрыто", action: function(){ setTicketStatus("closed"); } }
+  openSheet(tr("Статус обращения"), [
+    { icon: "i-check-circle", label: tr("Открыто"), action: function(){ setTicketStatus("open"); } },
+    { icon: "i-clock", label: tr("В работе"), action: function(){ setTicketStatus("in_progress"); } },
+    { icon: "i-check", label: tr("Решено"), action: function(){ setTicketStatus("resolved"); } },
+    { icon: "i-x", label: tr("Закрыто"), action: function(){ setTicketStatus("closed"); } }
   ]);
 }
 window.openTicketStatus = openTicketStatus;
 async function setTicketStatus(s){
   try {
     await api("/support/api/tickets/" + STATE.ticketId + "/status", { method: "POST", body: JSON.stringify({ session_token: STATE.token, status: s }) });
-    toast("Статус обновлён");
+    toast(tr("Статус обновлён"));
     if (STATE.ticket) STATE.ticket.status = s;
     $("ticket-status-line").textContent = statusLabel(s);
   } catch(e) { toast(e.message); }
@@ -2210,7 +2539,7 @@ function renderNtAttach(){
 async function createTicket(){
   var title = $("nt-title").value.trim();
   var body = $("nt-body").value.trim();
-  if (!title || !body) { toast("Заполните тему и описание"); return; }
+  if (!title || !body) { toast(tr("Заполните тему и описание")); return; }
   var btn = $("nt-submit");
   btn.disabled = true;
   try {
@@ -2220,7 +2549,7 @@ async function createTicket(){
       if (a && a.attachment_id) ids.push(a.attachment_id);
     }
     await api("/support/api/tickets", { method: "POST", body: JSON.stringify({ session_token: STATE.token, title: title, body_text: body, attachment_ids: ids, kind: "support" }) });
-    toast("Обращение создано");
+    toast(tr("Обращение создано"));
     $("nt-title").value = ""; $("nt-body").value = "";
     STATE.ticketFiles = [];
     renderNtAttach();
@@ -2230,8 +2559,8 @@ async function createTicket(){
 }
 window.createTicket = createTicket;
 function openReportFlow(){
-  openFormSheet("Жалоба на пользователя",
-    '<input class="inp" id="rp-search" placeholder="Поиск пользователя по логину..." autocomplete="off"><div id="rp-results"></div>',
+  openFormSheet(tr("Жалоба на пользователя"),
+    '<input class="inp" id="rp-search" placeholder="' + tr("Поиск пользователя по логину...") + '" autocomplete="off"><div id="rp-results"></div>',
     function(){
       var timer = null;
       $("rp-search").addEventListener("input", function(){
@@ -2244,7 +2573,7 @@ function openReportFlow(){
             var items = (d.items || []).filter(function(u){ return u.user_id !== (STATE.user && STATE.user.id) && u.role !== "guest"; });
             $("rp-results").innerHTML = items.length ? items.map(function(u, i){
               return '<button class="s-item" data-i="' + i + '" style="width:100%"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login||"?").slice(0,2).toUpperCase()) + "</span><span>" + esc(STATE.names[u.user_id] || u.login) + "</span></button>";
-            }).join("") : '<div class="s-empty">Никого не найдено</div>';
+            }).join("") : '<div class="s-empty">' + tr("Никого не найдено") + '</div>';
             $("rp-results").querySelectorAll(".s-item").forEach(function(b){
               b.onclick = function(){ closeSheet(); setTimeout(function(){ openReportForm(items[Number(b.getAttribute("data-i"))]); }, 80); };
             });
@@ -2254,15 +2583,15 @@ function openReportFlow(){
     });
 }
 window.openReportFlow = openReportFlow;
-var REPORT_REASONS = [["spam","Спам"],["abuse","Оскорбления"],["profanity","Мат"],["ads","Реклама"],["scam","Мошенничество"],["other","Другое"]];
+var REPORT_REASONS = [["spam",tr("Спам")],["abuse",tr("Оскорбления")],["profanity",tr("Мат")],["ads",tr("Реклама")],["scam",tr("Мошенничество")],["other",tr("Другое")]];
 function openReportForm(user){
   var reason = "spam";
-  openFormSheet("Жалоба на " + (STATE.names[user.user_id] || user.login),
+  openFormSheet(tr("Жалоба на ") + (STATE.names[user.user_id] || user.login),
     '<div class="seg" style="padding:0" id="rp-reasons">' + REPORT_REASONS.map(function(r){
       return '<button class="chip' + (r[0] === reason ? " active" : "") + '" data-r="' + r[0] + '">' + r[1] + "</button>";
     }).join("") + "</div>" +
-    '<textarea class="inp area" id="rp-comment" placeholder="Комментарий (необязательно)" maxlength="1000" style="min-height:80px"></textarea>' +
-    '<button class="btn-accent" id="rp-submit">Отправить жалобу</button>',
+    '<textarea class="inp area" id="rp-comment" placeholder="' + tr("Комментарий (необязательно)") + '" maxlength="1000" style="min-height:80px"></textarea>' +
+    '<button class="btn-accent" id="rp-submit">' + tr("Отправить жалобу") + '</button>',
     function(){
       $("rp-reasons").querySelectorAll(".chip").forEach(function(c){
         c.onclick = function(){
@@ -2275,7 +2604,7 @@ function openReportForm(user){
         try {
           await api("/reports/api/create", { method: "POST", body: JSON.stringify({ session_token: STATE.token, target_user_id: user.user_id, reason: reason, comment: $("rp-comment").value.trim(), attachment_ids: [] }) });
           closeSheet();
-          toast("Жалоба отправлена");
+          toast(tr("Жалоба отправлена"));
         } catch(e) { toast(e.message); }
       };
     });
@@ -2312,7 +2641,7 @@ async function renderDevices(){
     var d = await api("/devices/api/pair/list?session_token=" + tk());
     var items = d.items || [];
     $("dev-count").textContent = items.length;
-    if (!items.length) { box.innerHTML = '<div class="empty">Нет сопряжённых устройств.</div>'; }
+    if (!items.length) { box.innerHTML = '<div class="empty">' + tr("Нет сопряжённых устройств.") + '</div>'; }
     else {
       box.innerHTML = "";
       items.forEach(function(p){
@@ -2322,12 +2651,12 @@ async function renderDevices(){
         b.innerHTML =
           '<span class="avatar" style="background:#2c2c31"><svg class="i s18"><use href="#i-chip"/></svg></span>' +
           '<span class="rcol"><span class="rt">' + esc(p.device_id) + '</span><span class="rsub">' + esc([p.device_type, when].filter(Boolean).join(" · ")) + "</span></span>" +
-          '<span class="rmeta"><span style="color:var(--link);font-size:14px">Отвязать</span></span>';
+          '<span class="rmeta"><span style="color:var(--link);font-size:14px">' + tr("Отвязать") + '</span></span>';
         b.onclick = async function(){
-          if (!confirm("Отвязать устройство " + p.device_id + "?")) return;
+          if (!confirm(tr("Отвязать устройство ") + p.device_id + "?")) return;
           try {
             await api("/devices/api/unpair", { method: "POST", body: JSON.stringify({ session_token: STATE.token, device_id: p.device_id }) });
-            toast("Устройство отвязано");
+            toast(tr("Устройство отвязано"));
             renderDevices();
           } catch(e) { toast(e.message); }
         };
@@ -2340,7 +2669,7 @@ async function renderDevices(){
   try {
     var dc = await api("/devices/api/catalog?session_token=" + tk());
     var items2 = dc.items || [];
-    if (!items2.length) { cat.innerHTML = '<div class="empty">Каталог пока пуст.</div>'; return; }
+    if (!items2.length) { cat.innerHTML = '<div class="empty">' + tr("Каталог пока пуст.") + '</div>'; return; }
     cat.innerHTML = "";
     items2.forEach(function(dev){
       var b = document.createElement("button");
@@ -2348,7 +2677,7 @@ async function renderDevices(){
       b.innerHTML =
         '<span class="avatar" style="background:#2c2c31"><svg class="i s18"><use href="#i-chip"/></svg></span>' +
         '<span class="rcol"><span class="rt">' + esc(dev.title) + '</span><span class="rsub">' + esc(dev.short_description || "") + "</span></span>" +
-        '<span class="rmeta">' + (dev.has_device ? '<span class="tag owned">у меня есть</span>' : "") + '<svg class="i s18"><use href="#i-chev"/></svg></span>';
+        '<span class="rmeta">' + (dev.has_device ? '<span class="tag owned">' + tr("у меня есть") + '</span>' : "") + '<svg class="i s18"><use href="#i-chev"/></svg></span>';
       b.onclick = function(){ openDevice(dev); };
       cat.appendChild(b);
     });
@@ -2357,17 +2686,17 @@ async function renderDevices(){
 async function pairDevice(){
   var code = $("pair-code").value.trim();
   $("pair-error").textContent = "";
-  if (!/^\d{6}$/.test(code)) { $("pair-error").textContent = "Введите 6-значный код"; return; }
+  if (!/^\d{6}$/.test(code)) { $("pair-error").textContent = tr("Введите 6-значный код"); return; }
   var btn = $("pair-btn");
-  btn.disabled = true; btn.textContent = "Сопряжение...";
+  btn.disabled = true; btn.textContent = tr("Сопряжение...");
   try {
     var res = await api("/devices/api/pair/claim", { method: "POST", body: JSON.stringify({ session_token: STATE.token, code: code }) });
     var dev = (res && res.device) || {};
     $("pair-code").value = "";
-    toast("Устройство сопряжено" + (dev.name || dev.device_id ? ": " + (dev.name || dev.device_id) : ""));
+    toast(tr("Устройство сопряжено") + (dev.name || dev.device_id ? ": " + (dev.name || dev.device_id) : ""));
     renderDevices();
   } catch(e) { $("pair-error").textContent = e.message; }
-  finally { btn.disabled = false; btn.textContent = "Сопрячь"; }
+  finally { btn.disabled = false; btn.textContent = tr("Сопрячь"); }
 }
 window.pairDevice = pairDevice;
 function openDevice(dev){
@@ -2375,14 +2704,14 @@ function openDevice(dev){
   $("device-title").textContent = dev.title;
   $("device-name").textContent = dev.title;
   $("device-desc").textContent = dev.short_description || "";
-  $("device-tags").innerHTML = (dev.has_device ? '<span class="tag owned">у меня есть</span> ' : "") + (dev.is_published ? '<span class="tag">опубликовано</span>' : "");
+  $("device-tags").innerHTML = (dev.has_device ? '<span class="tag owned">' + tr("у меня есть") + '</span> ' : "") + (dev.is_published ? '<span class="tag">' + tr("опубликовано") + '</span>' : "");
   var fw = $("device-fw");
   if (dev.firmware_archive_url) { fw.classList.remove("hidden"); fw.href = dev.firmware_archive_url; }
   else fw.classList.add("hidden");
   $("device-install").textContent = dev.install_guide || "—";
   $("device-pairing").textContent = dev.pairing_guide || "—";
   $("device-reset").textContent = dev.combo_reset_guide || "—";
-  $("device-own-btn").textContent = dev.has_device ? "Снять отметку «у меня есть устройство»" : "Отметить «у меня есть устройство»";
+  $("device-own-btn").textContent = dev.has_device ? tr("Снять отметку «у меня есть устройство»") : tr("Отметить «у меня есть устройство»");
   go("device");
 }
 async function toggleOwnership(){
@@ -2391,9 +2720,9 @@ async function toggleOwnership(){
   try {
     await api("/devices/api/catalog/" + dev.device_id + "/ownership", { method: "POST", body: JSON.stringify({ session_token: STATE.token, has_device: !dev.has_device }) });
     dev.has_device = !dev.has_device;
-    toast(dev.has_device ? "Отмечено: у меня есть это устройство" : "Отметка снята");
-    $("device-tags").innerHTML = (dev.has_device ? '<span class="tag owned">у меня есть</span> ' : "") + (dev.is_published ? '<span class="tag">опубликовано</span>' : "");
-    $("device-own-btn").textContent = dev.has_device ? "Снять отметку «у меня есть устройство»" : "Отметить «у меня есть устройство»";
+    toast(dev.has_device ? tr("Отмечено: у меня есть это устройство") : tr("Отметка снята"));
+    $("device-tags").innerHTML = (dev.has_device ? '<span class="tag owned">' + tr("у меня есть") + '</span> ' : "") + (dev.is_published ? '<span class="tag">' + tr("опубликовано") + '</span>' : "");
+    $("device-own-btn").textContent = dev.has_device ? tr("Снять отметку «у меня есть устройство»") : tr("Отметить «у меня есть устройство»");
   } catch(e) { toast(e.message); }
 }
 window.toggleOwnership = toggleOwnership;
@@ -2419,38 +2748,40 @@ async function renderAccount(){
       '<div class="hero-ava" id="acct-ava">' + avaHtml + "</div>" +
       '<div class="hero-name">' + esc(profile.display_name || profile.login) + "</div>" +
       '<div class="hero-login">@' + esc(profile.login) + ' <span class="badge">' + esc(profile.role) + "</span></div>" +
-      (isGuest ? "" : '<button class="hero-btn" id="ava-btn"><svg class="i s22"><use href="#i-image"/></svg>Сменить аватар</button>') +
+      (isGuest ? "" : '<button class="hero-btn" id="ava-btn"><svg class="i s22"><use href="#i-image"/></svg>' + tr("Сменить аватар") + '</button>') +
     "</div>" +
-    (isGuest ? '<div class="group"><div class="kv"><span class="note">Гостевой аккаунт: профиль и аватар изменить нельзя.</span></div></div>' : "") +
+    (isGuest ? '<div class="group"><div class="kv"><span class="note">' + tr("Гостевой аккаунт: профиль и аватар изменить нельзя.") + '</span></div></div>' : "") +
     (isGuest ? "" :
-      '<div class="sect-label">Эмодзи-аватар</div>' +
+      '<div class="sect-label">' + tr("Эмодзи-аватар") + '</div>' +
       '<div class="group" style="margin-top:0;padding-bottom:4px"><div class="emoji-grid" id="emoji-grid">' +
         EMOJIS.map(function(e){ return '<button data-e="' + e + '" class="' + (e === profile.avatar_emoji && !profile.avatar_url ? "sel" : "") + '">' + e + "</button>"; }).join("") +
       "</div></div>" +
-      '<div class="sect-label">Профиль</div>' +
+      '<div class="sect-label">' + tr("Профиль") + '</div>' +
       '<div class="group" style="margin-top:0">' +
-        '<div class="kv"><span class="k">Имя</span></div>' +
-        '<div style="padding:0 16px 10px"><input class="inp" id="acct-name" value="' + esc(profile.display_name || "") + '" placeholder="Как вас отображать"></div>' +
-        '<div class="kv"><span class="k">Телефон</span></div>' +
+        '<div class="kv"><span class="k">' + tr("Имя") + '</span></div>' +
+        '<div style="padding:0 16px 10px"><input class="inp" id="acct-name" value="' + esc(profile.display_name || "") + '" placeholder="' + tr("Как вас отображать") + '"></div>' +
+        '<div class="kv"><span class="k">' + tr("Телефон") + '</span></div>' +
         '<div style="padding:0 16px 10px"><input class="inp" id="acct-phone" value="' + esc(profile.phone || "") + '" placeholder="+7..."></div>' +
-        '<div class="kv"><span class="k">О себе</span></div>' +
-        '<div style="padding:0 16px 10px"><textarea class="inp" id="acct-bio" rows="3" placeholder="Коротко о себе">' + esc(profile.profile_bio || "") + "</textarea></div>" +
-        '<div style="padding:0 16px 14px"><button class="btn-accent" id="acct-save">Сохранить</button></div>' +
+        '<div class="kv"><span class="k">' + tr("О себе") + '</span></div>' +
+        '<div style="padding:0 16px 10px"><textarea class="inp" id="acct-bio" rows="3" placeholder="' + tr("Коротко о себе") + '">' + esc(profile.profile_bio || "") + "</textarea></div>" +
+        '<div style="padding:0 16px 14px"><button class="btn-accent" id="acct-save">' + tr("Сохранить") + '</button></div>' +
       "</div>") +
     (limits ?
-      '<div class="sect-label">Ограничения аккаунта</div>' +
+      '<div class="sect-label">' + tr("Ограничения аккаунта") + '</div>' +
       '<div class="group" style="margin-top:0">' +
-        '<div class="kv"><span class="k">Роль</span><span class="v">' + esc(limits.role || profile.role) + "</span></div>" +
-        '<div class="kv"><span class="k">Лимит своих чатов</span><span class="v">' + (limits.max_custom_chats == null ? "∞" : limits.max_custom_chats) + "</span></div>" +
-        '<div class="kv"><span class="k">Создано чатов</span><span class="v">' + (limits.current_custom_chats == null ? "—" : limits.current_custom_chats) + "</span></div>" +
-        '<div class="kv"><span class="k">Осталось</span><span class="v">' + (limits.remaining_custom_chats == null ? "∞" : limits.remaining_custom_chats) + "</span></div>" +
+        '<div class="kv"><span class="k">' + tr("Роль") + '</span><span class="v">' + esc(limits.role || profile.role) + "</span></div>" +
+        '<div class="kv"><span class="k">' + tr("Лимит своих чатов") + '</span><span class="v">' + (limits.max_custom_chats == null ? "∞" : limits.max_custom_chats) + "</span></div>" +
+        '<div class="kv"><span class="k">' + tr("Создано чатов") + '</span><span class="v">' + (limits.current_custom_chats == null ? "—" : limits.current_custom_chats) + "</span></div>" +
+        '<div class="kv"><span class="k">' + tr("Осталось") + '</span><span class="v">' + (limits.remaining_custom_chats == null ? "∞" : limits.remaining_custom_chats) + "</span></div>" +
       "</div>" : "") +
-    '<div class="sect-label">Другие разделы</div>' +
+    '<div class="sect-label">' + tr("Язык интерфейса") + '</div>' +
+    '<div class="group" style="margin-top:0"><div class="kv"><span class="k">' + tr2("Русский", "English") + '</span><button class="btn-line" style="width:auto;height:34px;padding:0 14px;font-size:13.5px" onclick="switchLang()">' + (LANG === "eng" ? "🇷🇺 RUS" : "🇬🇧 ENG") + '</button></div></div>' +
+    '<div class="sect-label">' + tr("Другие разделы") + '</div>' +
     '<div class="group" style="margin-top:0">' +
-      '<button class="row" onclick="go(\'devices\')"><svg class="i s24" style="margin:8px"><use href="#i-chip"/></svg>Устройства<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' +
-      '<button class="row" onclick="go(\'about\')"><svg class="i s24" style="margin:8px"><use href="#i-info"/></svg>О проекте<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' +
-      (isAdmin ? '<button class="row" id="admin-link"><svg class="i s24" style="margin:8px"><use href="#i-gear"/></svg>Админ-панель<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' : "") +
-      '<button class="row danger" id="logout-btn"><svg class="i s24" style="margin:8px"><use href="#i-out"/></svg>Выйти</button>' +
+      '<button class="row" onclick="go(\'devices\')"><svg class="i s24" style="margin:8px"><use href="#i-chip"/></svg>' + tr("Устройства") + '<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' +
+      '<button class="row" onclick="go(\'about\')"><svg class="i s24" style="margin:8px"><use href="#i-info"/></svg>' + tr("О проекте") + '<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' +
+      (isAdmin ? '<button class="row" id="admin-link"><svg class="i s24" style="margin:8px"><use href="#i-gear"/></svg>' + tr("Админ-панель") + '<span class="chev-end"><svg class="i s18"><use href="#i-chev"/></svg></span></button>' : "") +
+      '<button class="row danger" id="logout-btn"><svg class="i s24" style="margin:8px"><use href="#i-out"/></svg>' + tr("Выйти") + '</button>' +
     "</div>";
   if ($("logout-btn")) $("logout-btn").onclick = doLogout;
   if ($("admin-link")) $("admin-link").onclick = function(){ location.href = "/admin"; };
@@ -2463,7 +2794,7 @@ async function renderAccount(){
           await api("/account/api/profile", { method: "POST", body: JSON.stringify({ session_token: STATE.token, avatar_emoji: e }) });
           await api("/account/api/avatar/remove", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) }).catch(function(){});
           localStorage.setItem("lc_my_emoji", e);
-          toast("Эмодзи-аватар обновлён");
+          toast(tr("Эмодзи-аватар обновлён"));
           renderAccount();
         } catch(err) { toast(err.message); }
       };
@@ -2478,17 +2809,17 @@ async function renderAccount(){
           phone: $("acct-phone").value.trim(),
           profile_bio: $("acct-bio").value.trim()
         }) });
-        toast("Профиль обновлён");
+        toast(tr("Профиль обновлён"));
         renderAccount();
       } catch(e) { toast(e.message); }
     };
   }
 }
 async function doLogout(){
-  if (!confirm("Выйти из аккаунта?")) return;
+  if (!confirm(tr("Выйти из аккаунта?"))) return;
   try { await api("/auth/logout", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) }); } catch(e) {}
   clearAuth();
-  toast("Вы вышли из системы");
+  toast(tr("Вы вышли из системы"));
   go("login");
 }
 function bindAvatarInput(){
@@ -2496,11 +2827,11 @@ function bindAvatarInput(){
     var f = $("avatar-input").files && $("avatar-input").files[0];
     $("avatar-input").value = "";
     if (!f) return;
-    if (!/^image\//i.test(f.type || "")) { toast("Только изображения PNG, JPEG или WEBP"); return; }
+    if (!/^image\//i.test(f.type || "")) { toast(tr("Только изображения PNG, JPEG или WEBP")); return; }
     try {
       var dataUrl = await downscaleImage(f, 512);
       await api("/account/api/avatar", { method: "POST", body: JSON.stringify({ session_token: STATE.token, image_base64: dataUrl, image_mime_type: "image/jpeg" }) });
-      toast("Фото-аватар обновлён");
+      toast(tr("Фото-аватар обновлён"));
       renderAccount();
     } catch(e) { toast(e.message); }
   };
@@ -2532,14 +2863,14 @@ function renderSearch(q){
 }
 function renderSearchLocal(q){
   var box = $("search-results");
-  if (!q) { box.innerHTML = '<div class="empty">Начните вводить запрос — ищем по вашим чатам, публичным каналам и людям.</div>'; return; }
+  if (!q) { box.innerHTML = '<div class="empty">' + tr("Начните вводить запрос — ищем по вашим чатам, публичным каналам и людям.") + '</div>'; return; }
   var local = (STATE.chats || []).filter(function(c){
     var t = (chatDisplayTitle(c) + " " + (c.description || "")).toLowerCase();
     return t.indexOf(q.toLowerCase()) >= 0;
   }).slice(0, 8);
   var html = "";
   if (local.length) {
-    html += '<div class="search-head">Ваши чаты</div><div class="group" style="margin-top:0">';
+    html += '<div class="search-head">' + tr("Ваши чаты") + '</div><div class="group" style="margin-top:0">';
     local.forEach(function(c){
       var title = chatDisplayTitle(c);
       var cav = chatAvaFor(title, c.chat_id);
@@ -2548,9 +2879,9 @@ function renderSearchLocal(q){
     html += "</div>";
   }
   if (/^https?:\/\//i.test(q) || q.indexOf("#/join/") >= 0) {
-    html += '<div class="group" style="margin-top:0"><button class="row no-line" id="sr-join"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>Открыть ссылку-приглашение</button></div>';
+    html += '<div class="group" style="margin-top:0"><button class="row no-line" id="sr-join"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>' + tr("Открыть ссылку-приглашение") + '</button></div>';
   } else if (q.length >= 3 && /^[a-zA-Z0-9_\-]+$/.test(q)) {
-    html += '<div class="group" style="margin-top:0"><button class="row no-line" id="sr-join-code"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>Присоединиться по коду «' + esc(q) + '»</button></div>';
+    html += '<div class="group" style="margin-top:0"><button class="row no-line" id="sr-join-code"><svg class="i s24" style="margin:8px"><use href="#i-link"/></svg>' + tf("Присоединиться по коду «{}»", esc(q)) + '</button></div>';
   }
   html += '<div id="sr-remote"></div>';
   box.innerHTML = html;
@@ -2573,11 +2904,11 @@ async function renderSearchRemote(q){
     var dc = await api("/chat/api/chats/search?session_token=" + tk() + "&q=" + encodeURIComponent(q));
     var chats = dc.items || [];
     if (chats.length) {
-      html += '<div class="search-head">Публичные чаты</div><div class="group" style="margin-top:0">';
+      html += '<div class="search-head">' + tr("Публичные чаты") + '</div><div class="group" style="margin-top:0">';
       chats.forEach(function(c, i){
-        var title = c.title || ("Чат #" + c.chat_id);
+        var title = c.title || (tr("Чат #") + c.chat_id);
         var cav = chatAvaFor(title, c.chat_id);
-        html += '<button class="row" data-pub="' + i + '"><span class="avatar" style="background:' + cav.color + '">' + esc(cav.initials) + '</span><span class="rcol"><span class="rt">' + esc(title) + '</span><span class="rsub">' + esc(c.username ? "@" + c.username : (c.description || "")) + '</span></span><span class="rmeta"><span style="color:var(--link);font-size:14px">Подписаться</span></span></button>';
+        html += '<button class="row" data-pub="' + i + '"><span class="avatar" style="background:' + cav.color + '">' + esc(cav.initials) + '</span><span class="rcol"><span class="rt">' + esc(title) + '</span><span class="rsub">' + esc(c.username ? "@" + c.username : (c.description || "")) + '</span></span><span class="rmeta"><span style="color:var(--link);font-size:14px">' + tr("Подписаться") + '</span></span></button>';
       });
       html += "</div>";
     }
@@ -2586,15 +2917,15 @@ async function renderSearchRemote(q){
     var du = await api("/chat/api/users/search?session_token=" + tk() + "&q=" + encodeURIComponent(q));
     var users = (du.items || []).filter(function(u){ return u.user_id !== (STATE.user && STATE.user.id) && u.role !== "guest"; });
     if (users.length) {
-      html += '<div class="search-head">Люди</div><div class="group" style="margin-top:0">';
+      html += '<div class="search-head">' + tr("Люди") + '</div><div class="group" style="margin-top:0">';
       users.forEach(function(u, i){
         var name = STATE.names[u.user_id] || u.login;
-        html += '<button class="row" data-user="' + i + '"><span class="avatar" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + '</span><span class="rcol"><span class="rt">' + esc(name) + '</span><span class="rsub">@' + esc(u.login || "") + " · открыть личку</span></span></button>";
+        html += '<button class="row" data-user="' + i + '"><span class="avatar" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + '</span><span class="rcol"><span class="rt">' + esc(name) + '</span><span class="rsub">@' + esc(u.login || "") + tr(" · открыть личку") + '</span></span></button>';
       });
       html += "</div>";
     }
   } catch(e) {}
-  box.innerHTML = html || '<div class="empty">Ничего не найдено.</div>';
+  box.innerHTML = html || '<div class="empty">' + tr("Ничего не найдено.") + '</div>';
   box.querySelectorAll("[data-pub]").forEach(function(b){
     b.onclick = async function(){
       var idx = Number(b.getAttribute("data-pub"));
@@ -2603,7 +2934,7 @@ async function renderSearchRemote(q){
       if (!c) return;
       try {
         var res = await api("/chat/api/join", { method: "POST", body: JSON.stringify({ session_token: STATE.token, chat_id: c.chat_id }) });
-        toast(res.already_member ? "Вы уже подписаны" : "Вы подписались");
+        toast(res.already_member ? tr("Вы уже подписаны") : tr("Вы подписались"));
         await refreshChats(true);
         var chat = (STATE.chats || []).filter(function(x){ return x.chat_id === c.chat_id; })[0];
         if (chat) openChat(chat);
@@ -2634,8 +2965,8 @@ function setLoginMode(mode){
   loginMode = mode;
   var isLogin = mode === "login";
   $("login-phone").classList.toggle("hidden", isLogin);
-  $("login-btn").textContent = isLogin ? "Войти" : "Создать аккаунт";
-  $("login-toggle").textContent = isLogin ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти";
+  $("login-btn").textContent = isLogin ? tr("Войти") : tr("Создать аккаунт");
+  $("login-toggle").textContent = isLogin ? tr("Нет аккаунта? Зарегистрироваться") : tr("Уже есть аккаунт? Войти");
   $("login-error").textContent = "";
 }
 async function doLoginOrRegister(){
@@ -2643,11 +2974,11 @@ async function doLoginOrRegister(){
   var pass = $("login-pass").value;
   var err = $("login-error");
   err.textContent = "";
-  if (!login || !pass) { err.textContent = "Заполните логин и пароль"; return; }
+  if (!login || !pass) { err.textContent = tr("Заполните логин и пароль"); return; }
   var btn = $("login-btn");
   btn.disabled = true;
   var oldLabel = btn.textContent;
-  btn.textContent = loginMode === "login" ? "Вход..." : "Регистрация...";
+  btn.textContent = loginMode === "login" ? tr("Вход...") : tr("Регистрация...");
   try {
     var data;
     if (loginMode === "login") {
@@ -2656,18 +2987,18 @@ async function doLoginOrRegister(){
       var phone = $("login-phone").value.trim() || "No Phone";
       data = await api("/auth/register", { method: "POST", body: JSON.stringify({ login: login, password: pass, phone: phone, device_id: "web-" + Date.now().toString(36), client_kind: "web" }) });
     }
-    if (data.status !== "ok") throw new Error(data.message || "Ошибка входа");
+    if (data.status !== "ok") throw new Error(data.message || tr("Ошибка входа"));
     setAuth(data);
     await afterLogin();
   } catch(e) { err.textContent = e.message; }
-  finally { btn.disabled = false; btn.textContent = loginMode === "login" ? "Войти" : "Создать аккаунт"; }
+  finally { btn.disabled = false; btn.textContent = loginMode === "login" ? tr("Войти") : tr("Создать аккаунт"); }
 }
 async function doGuest(){
   var err = $("login-error");
   err.textContent = "";
   try {
     var data = await api("/auth/guest", { method: "POST", body: JSON.stringify({ client_kind: "web" }) });
-    if (data.status !== "ok") throw new Error(data.message || "Ошибка входа");
+    if (data.status !== "ok") throw new Error(data.message || tr("Ошибка входа"));
     setAuth(data);
     await afterLogin();
   } catch(e) { err.textContent = e.message; }
@@ -2717,10 +3048,12 @@ window.openSheet = openSheet;
 window.unpinMessage = unpinMessage;
 window.startMention = startMention;
 window.openMsgMenu = openMsgMenu;
+window.switchLang = switchLang;
 
 /* ============================ старт ============================ */
 async function start(){
   toastEl = $("toast");
+  applyStatic();
   bindLogin();
   bindComposer();
   bindChatFileInput();
