@@ -145,7 +145,7 @@ async def create_support_ticket(
     except ValueError:
         raise HTTPException(
             status_code=422,
-            detail={"code": "invalid_kind", "message": "kind must be 'support' or 'report'"},
+            detail={"code": "invalid_kind", "message": "kind must be one of: support, report, bug, idea, other"},
         )
 
     try:

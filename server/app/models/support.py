@@ -16,6 +16,9 @@ class SupportTicketStatus(str, Enum):
 class SupportTicketKind(str, Enum):
     SUPPORT = "support"
     REPORT = "report"
+    BUG = "bug"
+    IDEA = "idea"
+    OTHER = "other"
 
 
 @dataclass(frozen=True)

@@ -60,8 +60,8 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .row .rname{display:flex;align-items:center;gap:7px;min-width:0;flex:1}
 .row .rname .i{color:#cfcfd4}
 .row .rcol{min-width:0;flex:1}
-.row .rt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .rsub{font-size:13px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rt{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rsub{display:block;font-size:13px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .rsub.draft{color:var(--orange)}
 .row .me{font-size:13px;color:var(--sub);font-weight:400;margin-left:4px}
 .row.muted{color:var(--muted)}
@@ -92,7 +92,8 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .chat-title .t .i{color:#cfcfd4}
 .chat-title .s{font-size:13px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pinned{display:flex;align-items:flex-start;gap:12px;padding:10px 16px 12px;background:#141417;border-bottom:1px solid var(--hair)}
-.pinned .p-main{flex:1;min-width:0}
+.pinned .p-main{flex:1;min-width:0;cursor:pointer}
+.pinned .p-main:active{opacity:.72}
 .pinned .p-label{font-size:14px;color:#9a9aa0}
 .pinned .p-text{font-size:15px;color:#e6e6ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .pinned .p-off{background:none;border:0;color:var(--link);display:flex;padding:2px;cursor:pointer}
@@ -260,6 +261,33 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 /* ---------- toast ---------- */
 .toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%) translateY(8px);background:#2c2c31;color:#eaeaea;font-size:14px;padding:9px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:84%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- адаптация под экраны ---------- */
+/* широкие экраны: приложение по центру в аккуратной рамке */
+@media (min-width:500px) and (min-height:620px){
+  html,body{background:#050507}
+  #app{height:calc(100dvh - 24px);margin:12px auto;border-radius:26px;box-shadow:0 0 0 1px var(--hair),0 30px 70px rgba(0,0,0,.6)}
+}
+/* очень широкие: чуть больше воздуха */
+@media (min-width:900px) and (min-height:620px){
+  #app{max-width:452px}
+}
+/* узкие телефоны (320-379px): компактнее отступы и шрифты */
+@media (max-width:379px){
+  body{font-size:16px}
+  .topbar{padding:12px 12px 4px}
+  .quick{gap:8px;padding:8px 10px 2px}
+  .qcard{padding:11px 10px 9px;min-height:84px}
+  .qcard .qt{font-size:13.5px}
+  .group{margin:10px 10px}
+  .row{padding:10px 12px;gap:10px}
+  .row:not(:last-child)::after{left:60px;right:12px}
+  .scroll{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+  .tabbar{left:8px;right:8px}
+  .chat-head{padding:10px 10px 6px}
+  .msgs{padding:6px 10px 10px}
+  .sheet{left:8px;right:8px}
+}
 </style>
 </head>
 <body>
@@ -280,6 +308,8 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/><path d="M9.5 12.5h5M9.5 15.5h5"/></symbol>
   <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></symbol>
   <symbol id="i-support" viewBox="0 0 24 24"><path d="M4.5 12.5v-1a7.5 7.5 0 0 1 15 0v1"/><rect x="3.5" y="12" width="4.2" height="6.5" rx="2.1"/><rect x="16.3" y="12" width="4.2" height="6.5" rx="2.1"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><path d="M8.3 9.5a3.7 3.7 0 0 1 7.4 0v3.8a3.7 3.7 0 0 1-7.4 0z"/><path d="M12 5.8V4.2"/><path d="M9.6 5.6l1.5 2M14.4 5.6l-1.5 2"/><path d="M8.3 10.8H4.9M8.3 13.6l-2.9 2.2M15.7 10.8h3.4M15.7 13.6l2.9 2.2"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.4 18h5.2"/><path d="M10.4 21h3.2"/><path d="M12 3.2a6.1 6.1 0 0 1 3.6 11c-.7.5-1 1.2-1 2h-5.2c0-.8-.3-1.5-1-2A6.1 6.1 0 0 1 12 3.2z"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
   <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="M8.5 12.5l6.4-6.4a3 3 0 0 1 4.2 4.2l-7.8 7.8a5 5 0 0 1-7-7l7-7"/></symbol>
   <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M15.5 12v1.2a2.3 2.3 0 0 0 4.5.6A8.5 8.5 0 1 0 17 19.3"/></symbol>
@@ -384,7 +414,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
     </header>
 
     <div class="pinned hidden" id="pin-bar">
-      <div class="p-main">
+      <div class="p-main" onclick="scrollToPinned()">
         <div class="p-label">Закреплённое сообщение</div>
         <div class="p-text" id="pin-text"></div>
       </div>
@@ -523,6 +553,11 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
     </header>
     <div class="scroll nopad">
       <div class="form" style="margin-top:10px">
+        <div class="seg" style="padding:0" id="nt-kinds">
+          <button class="chip active" data-k="bug" onclick="setTicketKind('bug')">Проблема</button>
+          <button class="chip" data-k="idea" onclick="setTicketKind('idea')">Идея</button>
+          <button class="chip" data-k="other" onclick="setTicketKind('other')">Другое</button>
+        </div>
         <input class="inp" id="nt-title" placeholder="Тема" maxlength="120">
         <textarea class="inp area" id="nt-body" placeholder="Опишите проблему" maxlength="2000"></textarea>
         <div class="attach-chips hidden" id="nt-chips"></div>
@@ -682,6 +717,7 @@ var STATE = {
   ticketFiles: [],
   ticketId: null,
   ticket: null,
+  newTicketKind: "bug",
   device: null,
   lastChatsLoad: 0,
   lastMsgsLoad: 0,
@@ -841,6 +877,11 @@ var EN = {
 "Ответ в обращение...": "Reply...",
 "Тема": "Subject",
 "Опишите проблему": "Describe the issue",
+"Проблема": "Bug",
+"Идея": "Idea",
+"Жалоба": "Report",
+"Опишите идею": "Describe your idea",
+"Опишите подробнее": "Describe it in detail",
 "Обращений пока нет.": "No tickets yet.",
 "Жалоба · ": "Report · ",
 "Сообщений пока нет.": "No messages yet.",
@@ -1283,6 +1324,7 @@ function show(name){
   if (name === "chats") { renderChatRows(); refreshChats(false); }
   if (name === "blog") renderBlog();
   if (name === "support") renderSupport();
+  if (name === "newticket") setTicketKind(STATE.newTicketKind || "bug");
   if (name === "account") renderAccount();
   if (name === "devices") renderDevices();
   if (name === "about") loadAbout();
@@ -1741,6 +1783,13 @@ function jumpToMessage(mid){
   setTimeout(function(){ node.style.background = ""; }, 900);
 }
 window.jumpToMessage = jumpToMessage;
+function scrollToPinned(){
+  var view = STATE.currentView || {};
+  var pm = view.pinned_message;
+  if (!pm || !pm.message_id) return;
+  jumpToMessage(pm.message_id);
+}
+window.scrollToPinned = scrollToPinned;
 
 /* ---------- действия с сообщениями ---------- */
 function openMsgMenu(mid){
@@ -2420,6 +2469,15 @@ function statusLabel(s){
   return { open: tr("Открыто"), in_progress: tr("В работе"), resolved: tr("Решено"), closed: tr("Закрыто") }[s] || s;
 }
 function statusPill(s){ return '<span class="pill st-' + esc(s || "open") + '">' + esc(statusLabel(s)) + "</span>"; }
+var KIND_META = {
+  bug:     { color: "#8a5a2b", icon: "i-bug",     label: "Проблема" },
+  idea:    { color: "#2d6a4f", icon: "i-bulb",    label: "Идея" },
+  other:   { color: "#3d5a80", icon: "i-support", label: "Другое" },
+  support: { color: "#3d5a80", icon: "i-support", label: "Поддержка" },
+  report:  { color: "#7a2d3a", icon: "i-flag",    label: "Жалоба" }
+};
+function ticketKindMeta(kind){ return KIND_META[kind] || KIND_META.support; }
+function ticketStatusLine(t){ return tr(ticketKindMeta(t.kind).label) + " · " + statusLabel(t.status); }
 async function renderSupport(){
   if (!requireAuth()) return;
   var isGuest = STATE.user && STATE.user.role === "guest";
@@ -2433,11 +2491,12 @@ async function renderSupport(){
     if (!items.length) { box.innerHTML = '<div class="empty">' + tr("Обращений пока нет.") + '</div>'; return; }
     box.innerHTML = "";
     items.forEach(function(tk2){
+      var meta = ticketKindMeta(tk2.kind);
       var b = document.createElement("button");
       b.className = "row";
       b.innerHTML =
-        '<span class="avatar" style="background:' + (tk2.kind === "report" ? "#7a2d3a" : "#3d5a80") + '"><svg class="i s18"><use href="#' + (tk2.kind === "report" ? "i-flag" : "i-support") + '"/></svg></span>' +
-        '<span class="rcol"><span class="rt">' + esc(tk2.title) + '</span><span class="rsub">' + (tk2.kind === "report" ? tr("Жалоба · ") : "") + fmtTime(tk2.last_message_at_ms || tk2.created_at_ms) + "</span></span>" +
+        '<span class="avatar" style="background:' + meta.color + '"><svg class="i s18"><use href="#' + meta.icon + '"/></svg></span>' +
+        '<span class="rcol"><span class="rt">' + esc(tk2.title) + '</span><span class="rsub">' + tr(meta.label) + " · " + fmtTime(tk2.last_message_at_ms || tk2.created_at_ms) + "</span></span>" +
         '<span class="rmeta">' + statusPill(tk2.status) + "</span>";
       b.onclick = function(){ openTicket(tk2); };
       box.appendChild(b);
@@ -2450,7 +2509,7 @@ async function openTicket(tk2){
   STATE.ticketFiles = [];
   renderTicketAttach();
   $("ticket-title").textContent = tk2.title;
-  $("ticket-status-line").textContent = statusLabel(tk2.status);
+  $("ticket-status-line").textContent = ticketStatusLine(tk2);
   var isAdmin = STATE.user && (STATE.user.role === "admin" || STATE.user.role === "moderator");
   $("ticket-status-btn").classList.toggle("hidden", !isAdmin);
   go("ticket");
@@ -2522,7 +2581,7 @@ async function setTicketStatus(s){
     await api("/support/api/tickets/" + STATE.ticketId + "/status", { method: "POST", body: JSON.stringify({ session_token: STATE.token, status: s }) });
     toast(tr("Статус обновлён"));
     if (STATE.ticket) STATE.ticket.status = s;
-    $("ticket-status-line").textContent = statusLabel(s);
+    $("ticket-status-line").textContent = STATE.ticket ? ticketStatusLine(STATE.ticket) : statusLabel(s);
   } catch(e) { toast(e.message); }
 }
 function renderNtAttach(){
@@ -2536,6 +2595,15 @@ function renderNtAttach(){
     b.onclick = function(){ STATE.ticketFiles.splice(Number(b.getAttribute("data-i")), 1); renderNtAttach(); };
   });
 }
+function setTicketKind(k){
+  STATE.newTicketKind = k;
+  var box = $("nt-kinds");
+  if (box) box.querySelectorAll(".chip").forEach(function(c){ c.classList.toggle("active", c.getAttribute("data-k") === k); });
+  var ph = k === "idea" ? "Опишите идею" : (k === "other" ? "Опишите подробнее" : "Опишите проблему");
+  var body = $("nt-body");
+  if (body) body.placeholder = tr(ph);
+}
+window.setTicketKind = setTicketKind;
 async function createTicket(){
   var title = $("nt-title").value.trim();
   var body = $("nt-body").value.trim();
@@ -2548,7 +2616,7 @@ async function createTicket(){
       var a = await uploadFile(STATE.ticketFiles[i]);
       if (a && a.attachment_id) ids.push(a.attachment_id);
     }
-    await api("/support/api/tickets", { method: "POST", body: JSON.stringify({ session_token: STATE.token, title: title, body_text: body, attachment_ids: ids, kind: "support" }) });
+    await api("/support/api/tickets", { method: "POST", body: JSON.stringify({ session_token: STATE.token, title: title, body_text: body, attachment_ids: ids, kind: STATE.newTicketKind || "bug" }) });
     toast(tr("Обращение создано"));
     $("nt-title").value = ""; $("nt-body").value = "";
     STATE.ticketFiles = [];

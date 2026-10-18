@@ -38,8 +38,8 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .row:not(:last-child)::after{content:"";position:absolute;left:62px;right:16px;bottom:0;height:1px;background:var(--hair)}
 .row.no-line::after{display:none}
 .row .rcol{min-width:0;flex:1}
-.row .rt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .rsub{font-size:13px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rt{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rsub{display:block;font-size:13px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .chev{margin-left:auto;color:#5f5f66;font-size:20px;line-height:1}
 .row.danger{color:var(--red)}
 .row.danger .i{color:var(--red)}
@@ -133,6 +133,20 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .login-card{display:flex;flex-direction:column;gap:10px}
 .lg-title{font-size:26px;font-weight:800;text-align:center}
 .lg-sub{color:var(--sub);font-size:15px;text-align:center;margin-bottom:14px}
+
+/* ---------- адаптация под экраны ---------- */
+@media (min-width:620px) and (min-height:620px){
+  html,body{background:#050507}
+  #app{height:calc(100dvh - 24px);margin:12px auto;border-radius:26px;box-shadow:0 0 0 1px var(--hair),0 30px 70px rgba(0,0,0,.6)}
+}
+@media (max-width:379px){
+  .topbar{padding:10px 10px 4px}
+  .chips{padding:8px 10px 8px}
+  .card{margin:8px 10px}
+  .row{padding:10px 12px;gap:10px}
+  .row:not(:last-child)::after{left:58px;right:12px}
+  .sheet{left:8px;right:8px}
+}
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -141,6 +155,8 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5"/></symbol>
   <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c1-3 3.2-4.5 6-4.5s5 1.5 6 4.5"/><path d="M15.6 5.5a3.2 3.2 0 0 1 0 6"/><path d="M17.6 15.3c1.7.6 3 2 3.7 4.2"/></symbol>
   <symbol id="i-support" viewBox="0 0 24 24"><path d="M4.5 12.5v-1a7.5 7.5 0 0 1 15 0v1"/><rect x="3.5" y="12" width="4.2" height="6.5" rx="2.1"/><rect x="16.3" y="12" width="4.2" height="6.5" rx="2.1"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><path d="M8.3 9.5a3.7 3.7 0 0 1 7.4 0v3.8a3.7 3.7 0 0 1-7.4 0z"/><path d="M12 5.8V4.2"/><path d="M9.6 5.6l1.5 2M14.4 5.6l-1.5 2"/><path d="M8.3 10.8H4.9M8.3 13.6l-2.9 2.2M15.7 10.8h3.4M15.7 13.6l2.9 2.2"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.4 18h5.2"/><path d="M10.4 21h3.2"/><path d="M12 3.2a6.1 6.1 0 0 1 3.6 11c-.7.5-1 1.2-1 2h-5.2c0-.8-.3-1.5-1-2A6.1 6.1 0 0 1 12 3.2z"/></symbol>
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 3.5v17"/><path d="M6 4.5h11l-2.5 3.5L17 11.5H6"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3L18 18M18 6l-1.7 1.7M7.7 16.3L6 18"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5.2A1.2 1.2 0 0 1 10.2 4h3.6A1.2 1.2 0 0 1 15 5.2V7"/><path d="M7 7l1 12.2a1.3 1.3 0 0 0 1.3 1.3h5.4a1.3 1.3 0 0 0 1.3-1.3L17 7"/><path d="M10.2 11v5.5M13.8 11v5.5"/></symbol>
@@ -301,6 +317,11 @@ var EN = {
 "Реклама": "Ads",
 "Мошенничество": "Scam",
 "Другое": "Other",
+"Проблема": "Bug",
+"Идея": "Idea",
+"Жалоба": "Report",
+"Поддержка": "Support",
+"Тип": "Type",
 "Авто-модерация": "Auto-moderation",
 " · слова: ": " · words: ",
 " · жалоб на него: ": " · reports against: ",
@@ -876,6 +897,14 @@ async function profileSheet(uid, login){
 }
 
 /* ================= ОБРАЩЕНИЯ ================= */
+var KIND_META = {
+  bug:     { color: "#8a5a2b", icon: "i-bug",     label: "Проблема" },
+  idea:    { color: "#2d6a4f", icon: "i-bulb",    label: "Идея" },
+  other:   { color: "#3d5a80", icon: "i-support", label: "Другое" },
+  support: { color: "#3d5a80", icon: "i-support", label: "Поддержка" },
+  report:  { color: "#7a2d3a", icon: "i-flag",    label: "Жалоба" }
+};
+function ticketKindMeta(kind){ return KIND_META[kind] || KIND_META.support; }
 async function renderSupport(){
   var d;
   try { d = await api("/admin/content/support/tickets?session_token=" + tk()); }
@@ -884,9 +913,10 @@ async function renderSupport(){
   var html = '<div class="card"><div class="card-head"><span>' + tr("Обращения") + '</span><span class="grow"></span><span class="badge">' + (d.count != null ? d.count : items.length) + '</span></div>';
   if (!items.length) html += emptyBox(tr("Обращений нет"));
   items.forEach(function(t, i){
+    var meta = ticketKindMeta(t.kind);
     html += '<button class="row" data-i="' + i + '">' +
-      '<span class="avatar" style="background:' + (t.kind === "report" ? "#7a2d3a" : "#3d5a80") + '"><svg class="i s18"><use href="#' + (t.kind === "report" ? "i-flag" : "i-support") + '"/></svg></span>' +
-      '<span class="rcol"><span class="rt">#' + t.ticket_id + " · " + esc(t.title) + '</span><span class="rsub">' + tr("пользователь #") + t.user_id + " · " + fmtDate(t.last_message_at_ms || t.created_at_ms) + "</span></span>" +
+      '<span class="avatar" style="background:' + meta.color + '"><svg class="i s18"><use href="#' + meta.icon + '"/></svg></span>' +
+      '<span class="rcol"><span class="rt">#' + t.ticket_id + " · " + esc(t.title) + '</span><span class="rsub">' + tr(meta.label) + " · " + tr("пользователь #") + t.user_id + " · " + fmtDate(t.last_message_at_ms || t.created_at_ms) + "</span></span>" +
       pill(t.status) + '<span class="chev">›</span></button>';
   });
   html += "</div>";
@@ -900,6 +930,7 @@ async function renderTicketView(){
   var html = '<div class="card"><button class="row no-line" id="tk-back"><svg class="i s22"><use href="#i-back"/></svg><span>' + tr("К обращениям") + '</span></button>' +
     '<div class="kv"><span class="k">#' + t.ticket_id + "</span><span class=\"v\">" + esc(t.title) + "</span></div>" +
     '<div class="kv"><span class="k">' + tr("Пользователь") + '</span><span class="v">' + esc(NAMES[t.user_id] || ("#" + t.user_id)) + "</span></div>" +
+    '<div class="kv"><span class="k">' + tr("Тип") + '</span><span class="v">' + tr(ticketKindMeta(t.kind).label) + "</span></div>" +
     '<div class="kv"><span class="k">' + tr("Статус") + '</span><span class="v">' + pill(t.status) + "</span></div>" +
     '<div class="kv" style="flex-wrap:wrap" id="tk-status-row">' +
       ["open","in_progress","resolved","closed"].map(function(s){
