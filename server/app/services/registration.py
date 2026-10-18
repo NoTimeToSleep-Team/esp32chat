@@ -81,7 +81,7 @@ class RegistrationService:
             ).fetchone() is not None:
                 raise RegistrationError("phone_in_use", "Phone is already used", 409)
 
-            if connection.execute(
+            if client_kind != ClientKind.WEB and connection.execute(
                 "SELECT id FROM users WHERE registration_device_id = ?",
                 (normalized_device_id,),
             ).fetchone() is not None:

@@ -31,7 +31,7 @@ v0.1.0 is the first public release and ships the server side of the product.
   mode (admins review the queue).
 - Login with session tokens; guest access is available only for web clients.
 - Roles: user / moderator / admin, with per-user restrictions and a device
-  blacklist.
+  blacklist enforced at sign-in and registration.
 
 **Chat**
 

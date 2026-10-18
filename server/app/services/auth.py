@@ -88,6 +88,7 @@ class AuthService:
         password: str,
         client_kind: ClientKind,
         ip_address: str = "",
+        device_id: str | None = None,
     ) -> AuthResult:
         normalized_login = login.strip()
         if not normalized_login:
@@ -101,6 +102,17 @@ class AuthService:
 
             if not verify_password(password, str(user_row["password_hash"])):
                 raise AuthError("invalid_credentials", "Invalid login or password", 401)
+
+            normalized_device = (device_id or "").strip()
+            if normalized_device and connection.execute(
+                "SELECT 1 FROM device_blacklist WHERE device_id = ?",
+                (normalized_device,),
+            ).fetchone() is not None:
+                raise AuthError(
+                    "device_blacklisted",
+                    "This device is blocked by the administrator",
+                    403,
+                )
 
             refreshed = self._refresh_temporary_block_if_needed(
                 connection,
@@ -126,7 +138,22 @@ class AuthService:
                 )
 
             session = self._create_session(connection, user_id=int(user_row["id"]), ip_address=ip_address)
+            if normalized_device:
+                connection.execute(
+                    "UPDATE users SET registration_device_id = ? WHERE id = ? AND COALESCE(registration_device_id, '') != ?",
+                    (normalized_device, int(user_row["id"]), normalized_device),
+                )
             return AuthResult(user=user, session=session, access_mode=access_mode)
+
+    def is_device_blacklisted(self, device_id: str) -> bool:
+        normalized = (device_id or "").strip()
+        if not normalized:
+            return False
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT 1 FROM device_blacklist WHERE device_id = ?",
+                (normalized,),
+            ).fetchone() is not None
 
     def login_by_user_id(self, user_id: int) -> AuthResult:
         if user_id <= 0:

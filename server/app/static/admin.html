@@ -246,6 +246,10 @@ var EN = {
 "Введите логин и пароль": "Enter login and password",
 "Вход...": "Signing in...",
 "Доступ только для админа": "Admins only",
+"Сервер не отвечает (таймаут)": "Server not responding (timeout)",
+"Сервер недоступен": "Server unreachable",
+"Это устройство заблокировано администратором": "This device is blocked by the administrator",
+"Это ваше текущее устройство. После блокировки вы не сможете войти с него. Продолжить?": "This is your current device. After blocking it you will not be able to sign in from it. Continue?",
 "Выйти из админ-панели?": "Log out of the admin panel?",
 "Пользователи": "Users",
 "Обращения": "Tickets",
@@ -537,21 +541,44 @@ function attsHtml(items){
 }
 
 /* ---------- api ---------- */
-async function api(url, method, body){
+async function api(url, method, body, timeoutMs){
   var opts = { method: method || "GET", headers: { "Content-Type": "application/json" } };
   if (body) opts.body = JSON.stringify(body);
-  var r = await fetch(url, opts);
-  var d = await r.json().catch(function(){ return {}; });
-  if (!r.ok) {
-    var m = "HTTP " + r.status;
-    if (d && d.detail) {
-      if (typeof d.detail === "string") m = d.detail;
-      else if (Array.isArray(d.detail) && d.detail.length) m = d.detail[0].msg || m;
-      else m = d.detail.message || d.detail.code || m;
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, timeoutMs || 15000);
+  try {
+    var r = await fetch(url, Object.assign({}, opts, { signal: controller.signal }));
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) {
+      var m = "HTTP " + r.status;
+      var code = "";
+      if (d && d.detail) {
+        if (typeof d.detail === "string") m = d.detail;
+        else if (Array.isArray(d.detail) && d.detail.length) m = d.detail[0].msg || m;
+        else { m = d.detail.message || d.detail.code || m; code = d.detail.code || ""; }
+      }
+      var e = new Error(m); e.status = r.status; e.code = code; throw e;
     }
-    var e = new Error(m); e.status = r.status; throw e;
-  }
-  return d;
+    return d;
+  } catch(e) {
+    if (e && e.name === "AbortError") throw new Error(tr("Сервер не отвечает (таймаут)"));
+    if (e && e.name === "TypeError") throw new Error(tr("Сервер недоступен"));
+    throw e;
+  } finally { clearTimeout(timer); }
+}
+function deviceId(){
+  try {
+    var id = localStorage.getItem("lc_device_id");
+    if (!id) {
+      id = "web-";
+      if (window.crypto && crypto.getRandomValues) {
+        var a = new Uint8Array(8); crypto.getRandomValues(a);
+        for (var i = 0; i < a.length; i++) id += ("0" + a[i].toString(16)).slice(-2);
+      } else { id += Math.random().toString(36).slice(2) + Date.now().toString(36); }
+      localStorage.setItem("lc_device_id", id);
+    }
+    return id;
+  } catch(e) { return "web-anon-" + Math.random().toString(36).slice(2); }
 }
 async function uploadFile(file){
   var fd = new FormData(); fd.append("file", file);
@@ -632,7 +659,7 @@ async function doLogin(){
   var btn = $("l-btn");
   btn.disabled = true; btn.textContent = tr("Вход...");
   try {
-    var d = await api("/auth/login", "POST", { login: login, password: pass, client_kind: "web" });
+    var d = await api("/auth/login", "POST", { login: login, password: pass, client_kind: "web", device_id: deviceId() });
     if (d.user.role !== "admin" && d.user.role !== "moderator") { err.textContent = tr("Доступ только для админа"); return; }
     ST = d.session.token;
     localStorage.setItem(ADMIN_TOKEN_KEY, ST);
@@ -640,7 +667,9 @@ async function doLogin(){
     try { sessionStorage.removeItem("lc_admin_sso_off"); } catch(e) {}
     await loadMe();
     showMain();
-  } catch(e) { err.textContent = e.message; }
+  } catch(e) {
+    err.textContent = e.code === "device_blacklisted" ? tr("Это устройство заблокировано администратором") : e.message;
+  }
   finally { btn.disabled = false; btn.textContent = tr("Войти"); }
 }
 async function loadMe(){
@@ -834,12 +863,18 @@ function banUser(u){
   });
 }
 function blacklistDevice(u){
-  askConfirm(tr("Блокировка устройства"), tr("Заблокировать устройство пользователя ") + u.login + tr("? Он не сможет входить с этого устройства."), async function(){
-    try {
-      await api("/admin/users/" + u.user_id + "/blacklist-device", "POST", { session_token: ST, reason: "admin panel" });
-      toast(tr("Устройство заблокировано")); renderUsers();
-    } catch(e) { toast(e.message); }
-  });
+  var mine = deviceId();
+  var isMine = !!(mine && u.registration_device_id && mine === u.registration_device_id);
+  askConfirm(tr("Блокировка устройства"),
+    isMine
+      ? tr("Это ваше текущее устройство. После блокировки вы не сможете войти с него. Продолжить?")
+      : tr("Заблокировать устройство пользователя ") + u.login + tr("? Он не сможет входить с этого устройства."),
+    async function(){
+      try {
+        await api("/admin/users/" + u.user_id + "/blacklist-device", "POST", { session_token: ST, reason: "admin panel" });
+        toast(tr("Устройство заблокировано")); renderUsers();
+      } catch(e) { toast(e.message); }
+    });
 }
 async function unblacklistDevice(u){
   try {
@@ -1137,28 +1172,32 @@ function renderCleanup(){
 
 /* ================= СИСТЕМА ================= */
 var sysTimer = null;
+var sysBusy = false;
 async function refreshSystemStats(){
   var box = $("sys-stats");
-  if (!box) return;
+  if (!box || sysBusy) return;
+  sysBusy = true;
   try {
-    var h = await api("/ops/api/system-health?session_token=" + tk() + "&_=" + Date.now());
-    var hh = h.health || {};
-    var cpu = String(hh.cpu_temp == null ? "?" : hh.cpu_temp);
-    if (/can't open|error|permission|denied/i.test(cpu)) cpu = "—";
-    box.innerHTML =
-      '<div class="stat"><div class="n" style="color:#5fd97e">' + esc(cpu) + '</div><div class="l">' + tr("темп. CPU") + '</div></div>' +
-      '<div class="stat"><div class="n">' + esc(hh.ram_used || "?") + '</div><div class="l">' + tr("RAM из ") + esc(hh.ram_total || "?") + "</div></div>" +
-      '<div class="stat"><div class="n">' + esc(hh.disk_pct || "?") + '</div><div class="l">' + tr("диск ") + esc(hh.disk_used || "") + "</div></div>" +
-      '<div class="stat"><div class="n">' + esc(hh.load1 || "?") + '</div><div class="l">' + tr("нагрузка") + '</div></div>' +
-      '<div class="stat"><div class="n" style="font-size:13.5px">' + esc(fmtUptime(hh)) + '</div><div class="l">' + tr("аптайм") + '</div></div>' +
-      '<div class="stat"><div class="n" style="font-size:13.5px">' + new Date().toTimeString().slice(0, 8) + '</div><div class="l">' + tr("обновлено") + '</div></div>';
-  } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
-  try {
-    var c = await api("/ops/api/sync-time", "POST", { session_token: ST, client_time_ms: Date.now() });
-    var c1 = $("clk-server"); if (c1) c1.textContent = fmtDate(c.server_time_ms);
-    var c2 = $("clk-device"); if (c2) c2.textContent = fmtDate(Date.now());
-    var c3 = $("clk-off"); if (c3) c3.textContent = (c.offset_ms > 0 ? "+" : "") + (c.offset_ms / 1000).toFixed(1) + tr(" с") + (c.adjusted ? tr(" · подтянуто") : "");
-  } catch(e) {}
+    try {
+      var h = await api("/ops/api/system-health?session_token=" + tk() + "&_=" + Date.now());
+      var hh = h.health || {};
+      var cpu = String(hh.cpu_temp == null ? "?" : hh.cpu_temp);
+      if (/can't open|error|permission|denied/i.test(cpu)) cpu = "—";
+      box.innerHTML =
+        '<div class="stat"><div class="n" style="color:#5fd97e">' + esc(cpu) + '</div><div class="l">' + tr("темп. CPU") + '</div></div>' +
+        '<div class="stat"><div class="n">' + esc(hh.ram_used || "?") + '</div><div class="l">' + tr("RAM из ") + esc(hh.ram_total || "?") + "</div></div>" +
+        '<div class="stat"><div class="n">' + esc(hh.disk_pct || "?") + '</div><div class="l">' + tr("диск ") + esc(hh.disk_used || "") + "</div></div>" +
+        '<div class="stat"><div class="n">' + esc(hh.load1 || "?") + '</div><div class="l">' + tr("нагрузка") + '</div></div>' +
+        '<div class="stat"><div class="n" style="font-size:13.5px">' + esc(fmtUptime(hh)) + '</div><div class="l">' + tr("аптайм") + '</div></div>' +
+        '<div class="stat"><div class="n" style="font-size:13.5px">' + new Date().toTimeString().slice(0, 8) + '</div><div class="l">' + tr("обновлено") + '</div></div>';
+    } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
+    try {
+      var c = await api("/ops/api/sync-time", "POST", { session_token: ST, client_time_ms: Date.now() });
+      var c1 = $("clk-server"); if (c1) c1.textContent = fmtDate(c.server_time_ms);
+      var c2 = $("clk-device"); if (c2) c2.textContent = fmtDate(Date.now());
+      var c3 = $("clk-off"); if (c3) c3.textContent = (c.offset_ms > 0 ? "+" : "") + (c.offset_ms / 1000).toFixed(1) + tr(" с") + (c.adjusted ? tr(" · подтянуто") : "");
+    } catch(e) {}
+  } finally { sysBusy = false; }
 }
 async function renderSystem(){
   var s = null, err = "";
@@ -1195,14 +1234,14 @@ async function renderSystem(){
       var svc = s.services[Number(b.getAttribute("data-svc"))];
       b.onclick = function(){
         askConfirm(tr("Перезапуск"), tr("Перезапустить сервис ") + svc.name + "?", async function(){
-          try { await api("/ops/api/restart-service", "POST", { session_token: ST, service: svc.name }); toast(tr("Перезапуск запущен")); setTimeout(renderSystem, 1500); }
+          try { await api("/ops/api/restart-service", "POST", { session_token: ST, service: svc.name }, 30000); toast(tr("Перезапуск запущен")); setTimeout(renderSystem, 1500); }
           catch(e) { toast(e.message); }
         });
       };
     });
     $("reboot-btn").onclick = function(){
       askConfirm(tr("Перезагрузка"), tr("Перезагрузить Raspberry Pi? Портал будет недоступен ~минуту."), async function(){
-        try { await api("/ops/api/restart-service", "POST", { session_token: ST, service: "reboot" }); toast(tr("Плата перезагружается...")); }
+        try { await api("/ops/api/reboot", "POST", { session_token: ST, confirm: true }, 30000); toast(tr("Плата перезагружается...")); }
         catch(e) { toast(e.message); }
       });
     };
@@ -1261,7 +1300,7 @@ async function renderNetwork(){
   if ($("net-scan")) $("net-scan").onclick = async function(){
     scanBox.innerHTML = '<div class="spin" style="margin:10px auto"></div>';
     try {
-      var r = await api("/admin/network/wifi/scan?session_token=" + tk());
+      var r = await api("/admin/network/wifi/scan?session_token=" + tk(), "GET", null, 45000);
       var nets = r.networks || [];
       scanBox.innerHTML = nets.length ? nets.map(function(n, i){
         return '<button class="row no-line" data-net="' + i + '" style="background:#26262b;border-radius:12px;margin-bottom:6px"><span class="rcol"><span class="rt">' + esc(n.ssid) + '</span><span class="rsub">' + esc(n.signal) + '% · ' + esc(n.security === "open" ? tr("открытая") : tr("пароль")) + "</span></span><span class=\"chev\">›</span></button>";
@@ -1278,7 +1317,7 @@ async function renderNetwork(){
                 var pass = $("wf-pass") ? $("wf-pass").value : "";
                 closeSheet();
                 try {
-                  var r2 = await api("/admin/network/wifi/connect", "POST", { session_token: ST, ssid: n.ssid, password: pass });
+                  var r2 = await api("/admin/network/wifi/connect", "POST", { session_token: ST, ssid: n.ssid, password: pass }, 45000);
                   toast(r2.connected ? (tr("Подключено: ") + (r2.ip_address || "")) : tr("Не удалось подключиться"));
                   renderNetwork();
                 } catch(e) { toast(e.message); }
@@ -1290,7 +1329,7 @@ async function renderNetwork(){
   };
   if ($("net-disc")) $("net-disc").onclick = function(){
     askConfirm(tr("Отключение"), tr("Отключить интернет-подключение (uplink)?"), async function(){
-      try { await api("/admin/network/wifi/disconnect", "POST", { session_token: ST }); toast(tr("Отключено")); renderNetwork(); }
+      try { await api("/admin/network/wifi/disconnect", "POST", { session_token: ST }, 30000); toast(tr("Отключено")); renderNetwork(); }
       catch(e) { toast(e.message); }
     });
   };
@@ -1299,14 +1338,14 @@ async function renderNetwork(){
     b.onclick = function(){
       var role = b.getAttribute("data-role");
       askConfirm(tr("Смена роли"), tr("Назначить ") + it.ifname + tr(" как ") + role.toUpperCase() + tr("? Сетевые сервисы перезапустятся."), async function(){
-        try { await api("/admin/network/interfaces/assign", "POST", { session_token: ST, ifname: it.ifname, role: role }); toast(tr("Готово")); renderNetwork(); }
+        try { await api("/admin/network/interfaces/assign", "POST", { session_token: ST, ifname: it.ifname, role: role }, 60000); toast(tr("Готово")); renderNetwork(); }
         catch(e) { toast(e.message); }
       });
     };
   });
   if ($("net-restart")) $("net-restart").onclick = function(){
     askConfirm(tr("Перезапуск сети"), tr("Перезапустить hostapd и dnsmasq? Точка доступа мигнёт."), async function(){
-      try { var r = await api("/admin/network/services/restart?session_token=" + tk(), "POST"); toast(tr("Перезапущено: ") + (r.ap_interface || "")); }
+      try { var r = await api("/admin/network/services/restart?session_token=" + tk(), "POST", null, 45000); toast(tr("Перезапущено: ") + (r.ap_interface || "")); }
       catch(e) { toast(e.message); }
     });
   };

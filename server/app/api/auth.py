@@ -20,6 +20,7 @@ class LoginRequest(BaseModel):
     login: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=512)
     client_kind: ClientKind = ClientKind.WEB
+    device_id: str | None = Field(default=None, max_length=256)
 
 
 class LogoutRequest(BaseModel):
@@ -129,6 +130,7 @@ async def login(payload: LoginRequest, request: Request) -> dict[str, object]:
                 password=payload.password,
                 client_kind=payload.client_kind,
                 ip_address=ip_address,
+                device_id=payload.device_id,
             )
     except AuthError as exc:
         blocked_until_ms: int | None = None
@@ -218,6 +220,15 @@ async def device_session(request: Request, payload: DeviceSessionRequest) -> dic
         )
 
     pairing_service = _device_pairing_service(request)
+    auth_service = _auth_service(request)
+    if auth_service.is_device_blacklisted(payload.device_id):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "device_blacklisted",
+                "message": "This device is blocked by the administrator",
+            },
+        )
     try:
         user_id = pairing_service.verify_session_proof(
             device_id=payload.device_id,

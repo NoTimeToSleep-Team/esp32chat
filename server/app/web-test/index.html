@@ -752,6 +752,7 @@ var EN = {
 "Вход...": "Signing in...",
 "Регистрация...": "Signing up...",
 "Ошибка входа": "Login error",
+"Это устройство заблокировано администратором": "This device is blocked by the administrator",
 "Профиль": "Profile",
 "Поиск": "Search",
 "Новый чат": "New Chat",
@@ -1144,7 +1145,7 @@ async function api(url, opts){
         else if (Array.isArray(d.detail) && d.detail.length) msg = d.detail[0].msg || msg;
         else msg = d.detail.message || d.detail.code || msg;
       }
-      var e = new Error(msg); e.status = r.status; throw e;
+      var e = new Error(msg); e.status = r.status; e.code = (d && d.detail && !Array.isArray(d.detail) && d.detail.code) || ""; throw e;
     }
     return d;
   } catch(e) {
@@ -1152,6 +1153,20 @@ async function api(url, opts){
     if (e && e.name === "TypeError") throw new Error(tr("Сервер недоступен"));
     throw e;
   } finally { clearTimeout(timer); }
+}
+function deviceId(){
+  try {
+    var id = localStorage.getItem("lc_device_id");
+    if (!id) {
+      id = "web-";
+      if (window.crypto && crypto.getRandomValues) {
+        var a = new Uint8Array(8); crypto.getRandomValues(a);
+        for (var i = 0; i < a.length; i++) id += ("0" + a[i].toString(16)).slice(-2);
+      } else { id += Math.random().toString(36).slice(2) + Date.now().toString(36); }
+      localStorage.setItem("lc_device_id", id);
+    }
+    return id;
+  } catch(e) { return "web-anon-" + Math.random().toString(36).slice(2); }
 }
 function tk(){ return encodeURIComponent(STATE.token || ""); }
 
@@ -3050,15 +3065,17 @@ async function doLoginOrRegister(){
   try {
     var data;
     if (loginMode === "login") {
-      data = await api("/auth/login", { method: "POST", body: JSON.stringify({ login: login, password: pass, client_kind: "web" }) });
+      data = await api("/auth/login", { method: "POST", body: JSON.stringify({ login: login, password: pass, client_kind: "web", device_id: deviceId() }) });
     } else {
       var phone = $("login-phone").value.trim() || "No Phone";
-      data = await api("/auth/register", { method: "POST", body: JSON.stringify({ login: login, password: pass, phone: phone, device_id: "web-" + Date.now().toString(36), client_kind: "web" }) });
+      data = await api("/auth/register", { method: "POST", body: JSON.stringify({ login: login, password: pass, phone: phone, device_id: deviceId(), client_kind: "web" }) });
     }
     if (data.status !== "ok") throw new Error(data.message || tr("Ошибка входа"));
     setAuth(data);
     await afterLogin();
-  } catch(e) { err.textContent = e.message; }
+  } catch(e) {
+    err.textContent = e.code === "device_blacklisted" ? tr("Это устройство заблокировано администратором") : e.message;
+  }
   finally { btn.disabled = false; btn.textContent = loginMode === "login" ? tr("Войти") : tr("Создать аккаунт"); }
 }
 async function doGuest(){
