@@ -158,6 +158,7 @@ After install the portal is available at `http://<pi-address>:18080`.
 | `lc logs` | install log and service journal |
 | `lc uninstall` | remove the service; `data/` is kept (`--purge` removes everything) |
 | `lc version` | server version |
+Don't mix them with ls Linux command!
 
 ### Moving the server to another device
 
