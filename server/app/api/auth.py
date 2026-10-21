@@ -5,6 +5,7 @@ from app.models import ClientKind
 from app.security import BruteForceGuard, SecurityAuditService
 from app.services.activity_log import ActivityLogService
 from app.services.auth import AuthError, AuthResult, AuthService
+from app.services.chat import ChatService
 from app.services.device_pairing import DevicePairingError, DevicePairingService
 from app.services.registration import RegistrationError, RegistrationService
 
@@ -271,6 +272,14 @@ async def register(payload: RegisterRequest, request: Request) -> dict[str, obje
         ) from exc
 
     _activity_log(request).log("register", user_id=result.user.user_id, user_login=result.user.login, details=f"phone={payload.phone}")
+    # New accounts are members of the common group chats (they can post in
+    # "General" right away). Best-effort: the startup sync backfills.
+    try:
+        ChatService(request.app.state.data_layer.database_path).ensure_common_chat_membership(
+            user_id=result.user.user_id
+        )
+    except Exception:
+        pass
     return _auth_result_payload(result)
 
 

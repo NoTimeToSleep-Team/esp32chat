@@ -108,6 +108,65 @@ class ChatService:
                 raise ChatError("chat_create_failed", "Failed to create default common chat", 500)
             return self._row_to_chat(created)
 
+    def ensure_common_chat_membership(self, *, user_id: int) -> int:
+        """Every active user is a member of the common group chats.
+
+        Without a member row a regular user can read "General" but not post in
+        it (the API answers read_only), so freshly registered accounts are
+        added right away.
+        """
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT status, role FROM users WHERE id = ?",
+                (int(user_id),),
+            ).fetchone()
+            if row is None or str(row["status"]) != UserStatus.ACTIVE.value:
+                return 0
+            if str(row["role"]) == UserRole.GUEST.value:
+                return 0
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
+                SELECT id, ?, ?, ? FROM chats
+                WHERE kind = ? AND chat_type = ?
+                """,
+                (
+                    int(user_id),
+                    ChatMemberRole.MEMBER.value,
+                    _now_ms(),
+                    ChatKind.COMMON.value,
+                    ChatType.GROUP.value,
+                ),
+            )
+            return cursor.rowcount
+
+    def sync_common_chat_members(self) -> int:
+        """Backfill common-chat membership for every active non-guest user."""
+        with self._connect() as connection:
+            chats = connection.execute(
+                "SELECT id FROM chats WHERE kind = ? AND chat_type = ?",
+                (ChatKind.COMMON.value, ChatType.GROUP.value),
+            ).fetchall()
+            total = 0
+            now_ms = _now_ms()
+            for chat in chats:
+                cursor = connection.execute(
+                    """
+                    INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
+                    SELECT ?, id, ?, ? FROM users
+                    WHERE status = ? AND role != ?
+                    """,
+                    (
+                        int(chat["id"]),
+                        ChatMemberRole.MEMBER.value,
+                        now_ms,
+                        UserStatus.ACTIVE.value,
+                        UserRole.GUEST.value,
+                    ),
+                )
+                total += cursor.rowcount
+            return total
+
     def create_common_chat(self, *, actor_user_id: int, draft: ChatDraft) -> ChatRoom:
         with self._connect() as connection:
             actor = self._require_active_user(connection, actor_user_id)

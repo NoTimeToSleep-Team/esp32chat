@@ -123,6 +123,7 @@ def create_app() -> FastAPI:
 
         chat_service = ChatService(app.state.data_layer.database_path)
         default_chat = chat_service.ensure_default_common_chat()
+        common_members_added = chat_service.sync_common_chat_members()
 
         # Auto-moderation: word-list detector that files reports into the
         # regular moderation queue. The legacy 10s scanner is no longer started.
@@ -134,11 +135,12 @@ def create_app() -> FastAPI:
             _include_rfid_router_once(app)
 
         logger.info(
-            "Application startup profile=%s host=%s port=%s default_common_chat_id=%s",
+            "Application startup profile=%s host=%s port=%s default_common_chat_id=%s common_members_added=%s",
             settings.profile,
             settings.host,
             settings.port,
             default_chat.chat_id,
+            common_members_added,
         )
 
         # Boot self-test

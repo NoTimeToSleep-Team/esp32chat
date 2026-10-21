@@ -816,6 +816,7 @@ var EN = {
 "Участники": "Members",
 "Ссылки-приглашения": "Invite links",
 "Создать опрос": "Create poll",
+"Только админы могут писать в этом канале": "Only admins can post in this channel",
 "Вас упомянули: ": "You were mentioned: ",
 "Это приватный чат — нужна ссылка-приглашение или одобренная заявка.": "This chat is private — you need an invite link or an approved request.",
 "Настройки чата": "Chat settings",
@@ -1689,6 +1690,14 @@ function renderChatHeader(){
   } else {
     $("pin-bar").classList.add("hidden");
   }
+  var canPost = view.can_post !== false;
+  var inp = $("msg-input");
+  if (inp) {
+    inp.disabled = !canPost;
+    inp.placeholder = canPost ? tr("Введите сообщение...") : tr("Только админы могут писать в этом канале");
+  }
+  var sendBtn = $("send");
+  if (sendBtn) sendBtn.classList.toggle("hidden", !canPost);
 }
 async function loadMessages(force, older){
   var chatId = STATE.currentChatId;
