@@ -816,6 +816,7 @@ var EN = {
 "Участники": "Members",
 "Ссылки-приглашения": "Invite links",
 "Создать опрос": "Create poll",
+"Вас упомянули: ": "You were mentioned: ",
 "Это приватный чат — нужна ссылка-приглашение или одобренная заявка.": "This chat is private — you need an invite link or an approved request.",
 "Настройки чата": "Chat settings",
 "Сменить аватарку": "Change photo",
@@ -1720,6 +1721,25 @@ async function loadMessages(force, older){
     }
     var wasBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
     var oldTop = box.scrollTop;
+    var myLogin = String((STATE.profile && STATE.profile.login) || (STATE.user && STATE.user.login) || "").toLowerCase();
+    STATE.seenMaxIds = STATE.seenMaxIds || {};
+    var prevMax = Number(STATE.seenMaxIds[chatId] || 0);
+    var newestSeen = prevMax;
+    var mentionHit = null;
+    items.forEach(function(m){
+      if (m.message_id > newestSeen) newestSeen = m.message_id;
+      if (!myLogin || m.message_id <= prevMax) return;
+      if (m.author_user_id === (STATE.user && STATE.user.id)) return;
+      var txt = String(m.body_text || "");
+      if (!txt || m.poll) return;
+      var low = txt.toLowerCase(), needle = "@" + myLogin, idx = low.indexOf(needle);
+      while (idx >= 0) {
+        var after = low.charAt(idx + needle.length);
+        if (!after || !/[a-z0-9_-]/.test(after)) { mentionHit = { m: m, txt: txt }; break; }
+        idx = low.indexOf(needle, idx + 1);
+      }
+    });
+    STATE.seenMaxIds[chatId] = newestSeen;
     var frag2 = document.createDocumentFragment();
     if (items.length >= limit) {
       var olderBtn = document.createElement("button");
@@ -1739,6 +1759,10 @@ async function loadMessages(force, older){
     box.appendChild(frag2);
     STATE.msgOffset = items.length;
     if (wasBottom) box.scrollTop = box.scrollHeight; else box.scrollTop = oldTop;
+    if (mentionHit) {
+      var who = STATE.names[mentionHit.m.author_user_id] || mentionHit.m.author_login || "";
+      toast(tr("Вас упомянули: ") + who + " — «" + mentionHit.txt.slice(0, 50) + "»");
+    }
     var last = items.length ? items[items.length - 1] : null;
     if (last && STATE.currentView && (STATE.currentView.last_read_message_id || 0) < last.message_id) {
       STATE.currentView.last_read_message_id = last.message_id;
