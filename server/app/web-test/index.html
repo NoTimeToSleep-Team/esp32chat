@@ -92,6 +92,15 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .chat-title .t .i{color:#cfcfd4}
 .chat-title .s{font-size:13px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pinned{display:flex;align-items:flex-start;gap:12px;padding:10px 16px 12px;background:#141417;border-bottom:1px solid var(--hair)}
+@keyframes pinIn{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
+.pinned{animation:pinIn .3s cubic-bezier(.2,.7,.3,1)}
+@keyframes msgFlash{0%{background:rgba(88,86,224,.34)}55%{background:rgba(88,86,224,.2)}100%{background:rgba(88,86,224,0)}}
+.m.flash{animation:msgFlash 1.6s ease forwards;border-radius:12px}
+.chat-ava{width:36px;height:36px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff;margin-right:2px;flex:0 0 auto}
+.chat-ava img{width:100%;height:100%;object-fit:cover}
+.cs-ava-row{display:flex;align-items:center;gap:10px;padding:4px 2px 10px}
+.cs-ava-row .avatar.lg{width:56px;height:56px;font-size:20px}
+.cs-ava-row .avatar.lg img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .pinned .p-main{flex:1;min-width:0;cursor:pointer}
 .pinned .p-main:active{opacity:.72}
 .pinned .p-label{font-size:14px;color:#9a9aa0}
@@ -178,6 +187,10 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 
 /* ---------- empty / loading ---------- */
 .empty{padding:30px 20px;text-align:center;color:var(--sub);font-size:15px}
+.boot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:68vh;padding:24px;text-align:center}
+.boot .brand{justify-content:center}
+.boot-text{color:var(--sub);font-size:15px;max-width:280px;line-height:1.45}
+.boot .btn-line{max-width:200px}
 .spin{width:24px;height:24px;border:2.5px solid #333;border-top-color:#9a9aa0;border-radius:50%;animation:sp 1s linear infinite;margin:28px auto}
 @keyframes sp{to{transform:rotate(360deg)}}
 
@@ -342,6 +355,19 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 
 <div id="app">
 
+  <!-- ================= ЗАГРУЗКА ================= -->
+  <section class="screen hidden" id="screen-boot">
+    <div class="boot">
+      <div class="brand">
+        <span class="logo"><svg viewBox="0 0 24 24"><path d="M7 4h10v16l-5-4-5 4z" fill="#111"/></svg></span>
+        <span class="name">Local Chat</span>
+      </div>
+      <div class="spin"></div>
+      <div class="boot-text" id="boot-text">Подключение…</div>
+      <button class="btn-line hidden" id="boot-retry">Повторить</button>
+    </div>
+  </section>
+
   <!-- ================= ВХОД ================= -->
   <section class="screen hidden" id="screen-login">
     <div class="login">
@@ -406,6 +432,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   <section class="screen hidden" id="screen-chat">
     <header class="chat-head">
       <button class="icon-btn" onclick="go('chats')"><svg class="i s22"><use href="#i-back"/></svg></button>
+      <span class="chat-ava hidden" id="chat-head-ava"></span>
       <div class="chat-title" id="chat-head-info" onclick="openChatMenu()">
         <div class="t" id="chat-title-t">Чат</div>
         <div class="s" id="chat-title-s"></div>
@@ -440,6 +467,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
       <div class="c-icons">
         <button class="ic" onclick="document.getElementById('file-input').click()" title="Прикрепить файл"><svg class="i s22"><use href="#i-paperclip"/></svg></button>
         <button class="ic" onclick="startMention()" title="Упоминание"><svg class="i s22"><use href="#i-at"/></svg></button>
+        <button class="ic" onclick="openPollForm()" title="Опрос"><svg class="i s22"><use href="#i-poll"/></svg></button>
         <button class="ic" id="mic-btn" onclick="voiceTap()" title="Голосовое сообщение"><svg class="i s22"><use href="#i-mic"/></svg></button>
         <button class="ic send" id="send" onclick="sendMsg()" title="Отправить"><svg class="i s24"><use href="#i-send"/></svg></button>
       </div>
@@ -462,9 +490,13 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
       <div class="form" style="margin-top:12px">
         <input class="inp" id="nc-title" placeholder="Название (например: Друзья)" maxlength="64">
         <textarea class="inp area" id="nc-desc" placeholder="О чём этот чат (необязательно)" maxlength="200" style="min-height:80px"></textarea>
-        <div class="hidden" id="nc-public-wrap">
-          <label class="kv" style="padding:6px 4px"><span class="k">Публичный канал</span><input type="checkbox" id="nc-public" style="width:22px;height:22px;accent-color:#5856e0"></label>
-          <input class="inp hidden" id="nc-username" placeholder="username канала (латиницей)" maxlength="32">
+        <div class="seg">
+          <button class="chip active" id="nc-vis-priv" onclick="setNcVisibility(false)">Приватный</button>
+          <button class="chip" id="nc-vis-pub" onclick="setNcVisibility(true)">Публичный</button>
+        </div>
+        <div class="s-note" id="nc-vis-note"></div>
+        <div id="nc-public-wrap">
+          <input class="inp hidden" id="nc-username" placeholder="@username (латиницей)" maxlength="32" autocapitalize="off">
         </div>
         <input class="inp" id="nc-member-search" placeholder="Поиск людей по логину..." autocomplete="off">
         <div id="nc-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
@@ -784,6 +816,36 @@ var EN = {
 "Участники": "Members",
 "Ссылки-приглашения": "Invite links",
 "Создать опрос": "Create poll",
+"Это приватный чат — нужна ссылка-приглашение или одобренная заявка.": "This chat is private — you need an invite link or an approved request.",
+"Настройки чата": "Chat settings",
+"Сменить аватарку": "Change photo",
+"Убрать": "Remove",
+"Приватный": "Private",
+"Публичный": "Public",
+"Медленный режим": "Slow mode",
+"История видна новым участникам": "New members can see history",
+"Сохранить": "Save",
+"Заявки на вход": "Join requests",
+"Принять": "Approve",
+"Отклонить": "Decline",
+"Заявка принята": "Request approved",
+"Заявка отклонена": "Request declined",
+"Пользователь не найден": "User not found",
+"Только владелец или админ может настроить чат": "Only the owner or an admin can edit this chat",
+"Личный чат нельзя настроить": "A direct chat has no settings",
+"Введите @username для публичного чата": "Enter a @username for a public chat",
+"Приватный: зайти можно только по ссылке-приглашению или заявке.": "Private: only an invite link or an approved request lets people in.",
+"Публичный: любой может найти чат по @username.": "Public: anyone can find this chat by @username.",
+"Приватный: войти можно только по ссылке-приглашению или заявке.": "Private: only an invite link or an approved request lets people in.",
+"Публичный: любой сможет найти и войти по @username.": "Public: anyone can find it and join via @username.",
+"Название канала (например: Новости)": "Channel name (e.g. News)",
+"Добавить админов канала...": "Add channel admins...",
+"Настройки сохранены": "Settings saved",
+"Аватарка обновлена": "Photo updated",
+"Аватарка убрана": "Photo removed",
+"Выключен": "Off",
+"сек": "s",
+"мин": "min",
 "Включить звук": "Unmute",
 "Открепить чат": "Unpin chat",
 "Закрепить чат": "Pin chat",
@@ -1113,7 +1175,22 @@ function renderAtts(items){
   }).join("") + "</div>";
 }
 function highlightMentions(text){
-  return esc(text || "").replace(/(^|[\s(.,!?])@([a-zA-Z0-9_]{2,32})/g, function(all, pre, login){ return pre + '<span class="mention">@' + login + '</span>'; });
+  return esc(text || "").replace(/(^|[\s(.,!?])@([a-zA-Z0-9_-]{2,32})/g, function(all, pre, login){ return pre + '<span class="mention" data-login="' + login + '">@' + login + '</span>'; });
+}
+function userIdByLogin(login){
+  var lc = String(login || "").toLowerCase();
+  var hit = (STATE.membersCache || []).filter(function(u){ return String(u.login || "").toLowerCase() === lc; })[0];
+  return hit ? hit.user_id : null;
+}
+async function openMentionProfile(login){
+  var uid = userIdByLogin(login);
+  if (uid) { openUserProfile(uid); return; }
+  try {
+    var d = await api("/chat/api/users/search?session_token=" + tk() + "&q=" + encodeURIComponent(login));
+    var u = (d.items || []).filter(function(x){ return String(x.login || "").toLowerCase() === String(login || "").toLowerCase(); })[0];
+    if (u) openUserProfile(u.user_id);
+    else toast(tr("Пользователь не найден"));
+  } catch(e) { toast(e.message); }
 }
 function linkify(html){
   return html.replace(/(https?:\/\/[^\s<]+)/g, function(u){ return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; });
@@ -1308,8 +1385,9 @@ function startPresence(){
 }
 
 /* ============================ router ============================ */
-var SCREENS = ["login","chats","chat","newchat","blog","post","support","ticket","newticket","devices","device","account","about","search"];
+var SCREENS = ["boot","login","chats","chat","newchat","blog","post","support","ticket","newticket","devices","device","account","about","search"];
 var CFG = {
+  boot:     { tab: null,      tabbar: false },
   login:    { tab: null,      tabbar: false },
   chats:    { tab: "chats",   tabbar: true  },
   chat:     { tab: null,      tabbar: false },
@@ -1367,7 +1445,7 @@ async function refreshChats(force){
     var d = await api("/chat/api/chats?session_token=" + tk());
     STATE.chats = d.items || [];
   } catch(e) {
-    if (e.status === 401 || e.status === 403) { clearAuth(); go("login"); return; }
+    if (e.status === 401) { clearAuth(); go("login"); return; }
     STATE.chats = STATE.chats || [];
   }
   renderChatRows();
@@ -1530,7 +1608,10 @@ async function doJoin(raw){
       var chat = (STATE.chats || []).filter(function(c){ return c.chat_id === cid; })[0];
       if (chat) openChat(chat);
     }
-  } catch(e) { toast(e.message); }
+  } catch(e) {
+    if (e.code === "chat_private") toast(tr("Это приватный чат — нужна ссылка-приглашение или одобренная заявка."));
+    else toast(e.message);
+  }
 }
 async function handleJoinLink(code){
   STATE.pendingJoin = code;
@@ -1582,6 +1663,17 @@ function renderChatHeader(){
   var chat = STATE.currentChat || {};
   var view = STATE.currentView || {};
   $("chat-title-t").textContent = chatDisplayTitle(chat);
+  var avaEl = $("chat-head-ava");
+  if (avaEl) {
+    if (chat.chat_type !== "dm") {
+      var cav = chatAvaFor(chatDisplayTitle(chat), chat.chat_id);
+      avaEl.classList.remove("hidden");
+      avaEl.style.background = cav.color;
+      avaEl.innerHTML = chat.avatar_url ? '<img src="' + esc(chat.avatar_url) + '" alt="">' : esc(cav.initials);
+    } else {
+      avaEl.classList.add("hidden");
+    }
+  }
   var sub = [];
   if (chat.chat_type === "channel") sub.push(tr("Канал"));
   else if (chat.chat_type === "dm") sub.push(tr("Личный чат"));
@@ -1700,6 +1792,9 @@ function buildMsgEl(m){
   div.querySelectorAll(".poll .po").forEach(function(b){
     b.onclick = function(){ votePoll(m.poll.poll_id, Number(b.getAttribute("data-opt"))); };
   });
+  div.querySelectorAll(".m-text .mention").forEach(function(sp){
+    sp.onclick = function(ev){ ev.stopPropagation(); openMentionProfile(sp.getAttribute("data-login") || sp.textContent.replace(/^@/, "")); };
+  });
 
   /* ---- жесты: тап/долгое нажатие — действия, свайп вправо — ответ ---- */
   var suppressClick = false, swiped = false, swipeOn = false, swipeX = 0, swipeY = 0, lpTimer = null;
@@ -1792,10 +1887,13 @@ async function votePoll(pollId, optionIndex){
 function jumpToMessage(mid){
   var node = document.querySelector('.m[data-mid="' + mid + '"]');
   if (!node) { toast(tr("Сообщение не в загруженной истории")); return; }
-  node.scrollIntoView({ block: "center" });
-  node.style.transition = "background .4s";
-  node.style.background = "#232338";
-  setTimeout(function(){ node.style.background = ""; }, 900);
+  try { node.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  catch(e) { node.scrollIntoView({ block: "center" }); }
+  node.classList.remove("flash");
+  void node.offsetWidth; /* restart the flash animation */
+  node.classList.add("flash");
+  clearTimeout(node._flashTimer);
+  node._flashTimer = setTimeout(function(){ node.classList.remove("flash"); }, 1700);
 }
 window.jumpToMessage = jumpToMessage;
 function scrollToPinned(){
@@ -2070,6 +2168,7 @@ async function showMentions(q){
   }).slice(0, 8);
   if (!found.length) { box.classList.add("hidden"); return; }
   box.classList.remove("hidden");
+  try { box.scrollIntoView({ block: "nearest" }); } catch(e) {}
   box.innerHTML = found.map(function(u, i){
     var name = STATE.names[u.user_id] || u.login || ("#" + u.user_id);
     return '<button data-i="' + i + '"><span class="avatar sm" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + "</span><span>" + esc(name) + " <span style=\"color:var(--sub)\">@" + esc(u.login || "") + "</span></span></button>";
@@ -2093,7 +2192,7 @@ function bindComposer(){
     updateSendBtn();
     saveDraft(input.value);
     var before = input.value.slice(0, input.selectionStart || 0);
-    var m = before.match(/@([a-zA-Z0-9_]{0,32})$/);
+    var m = before.match(/@([a-zA-Z0-9_-]{0,32})$/);
     if (m) showMentions(m[1]); else $("mention-list").classList.add("hidden");
   });
   input.addEventListener("keydown", function(e){
@@ -2102,11 +2201,20 @@ function bindComposer(){
 }
 
 /* ---------- меню чата ---------- */
-function openChatMenu(){
+async function openChatMenu(){
   var chat = STATE.currentChat || {};
   var view = STATE.currentView || {};
+  var perms = memberPerms();
   var items = [];
+  if (perms.canManage && chat.chat_type !== "dm") items.push({ icon: "i-gear", label: tr("Настройки чата"), action: openChatSettings });
   items.push({ icon: "i-users", label: tr("Участники") + (view.member_count ? " (" + view.member_count + ")" : ""), action: openMembers });
+  if (perms.canManage) {
+    try {
+      var reqs = await api("/chat/api/chats/" + STATE.currentChatId + "/requests?session_token=" + tk());
+      var list = reqs.items || [];
+      if (list.length) items.push({ icon: "i-check", label: tr("Заявки на вход") + " (" + list.length + ")", action: function(){ openJoinRequests(list); } });
+    } catch(e) { /* нет прав или нет заявок */ }
+  }
   if (view.can_post !== false) items.push({ icon: "i-link", label: tr("Ссылки-приглашения"), action: openInvites });
   if (view.can_post !== false) items.push({ icon: "i-poll", label: tr("Создать опрос"), action: openPollForm });
   items.push({ icon: chat.is_muted ? "i-bell-off" : "i-bell-off", label: chat.is_muted ? tr("Включить звук") : tr("Без звука"), action: function(){ toggleChatState("is_muted", !chat.is_muted); } });
@@ -2118,6 +2226,132 @@ function openChatMenu(){
   openSheet(chatDisplayTitle(chat), items);
 }
 window.openChatMenu = openChatMenu;
+async function openJoinRequests(list){
+  var html = '<div class="s-list">' + list.map(function(u, i){
+    return '<div class="s-item" style="display:flex;align-items:center;gap:10px;padding:10px 6px">' +
+      '<span class="avatar sm" style="background:#3d5a80">' + esc((u.login || "?").slice(0,2).toUpperCase()) + "</span>" +
+      '<span style="flex:1;min-width:0"><span style="display:block">' + esc(STATE.names[u.user_id] || u.login || ("#" + u.user_id)) + '</span><span style="color:var(--sub);font-size:13px">@' + esc(u.login || "") + "</span></span>" +
+      '<button class="btn-line" data-approve="' + i + '" style="width:auto;height:36px;padding:0 12px;font-size:14px">' + tr("Принять") + "</button>" +
+      '<button class="btn-line" data-decline="' + i + '" style="width:auto;height:36px;padding:0 12px;font-size:14px;color:#e14b52">' + tr("Отклонить") + "</button>" +
+      "</div>";
+  }).join("") + "</div>";
+  openSheetHtml(tr("Заявки на вход"), html, function(body){
+    body.querySelectorAll("[data-approve]").forEach(function(b){
+      b.onclick = function(){ decideJoinRequest(list[Number(b.getAttribute("data-approve"))], true); };
+    });
+    body.querySelectorAll("[data-decline]").forEach(function(b){
+      b.onclick = function(){ decideJoinRequest(list[Number(b.getAttribute("data-decline"))], false); };
+    });
+  });
+}
+async function decideJoinRequest(u, approve){
+  try {
+    await api("/chat/api/chats/" + STATE.currentChatId + "/requests/" + u.user_id, { method: "POST", body: JSON.stringify({ session_token: STATE.token, approve: approve }) });
+    closeSheet();
+    toast(approve ? tr("Заявка принята") : tr("Заявка отклонена"));
+  } catch(e) { toast(e.message); }
+}
+async function openChatSettings(){
+  var chat = STATE.currentChat || {};
+  if (chat.chat_type === "dm") { toast(tr("Личный чат нельзя настроить")); return; }
+  if (!memberPerms().canManage) { toast(tr("Только владелец или админ может настроить чат")); return; }
+  var cav = chatAvaFor(chatDisplayTitle(chat), chat.chat_id);
+  var avaInner = chat.avatar_url ? '<img src="' + esc(chat.avatar_url) + '" alt="">' : esc(cav.initials);
+  var slow = Number(chat.slow_mode_seconds || 0);
+  var slowOpts = [[0, tr("Выключен")], [10, "10 " + tr("сек")], [30, "30 " + tr("сек")], [60, "1 " + tr("мин")], [300, "5 " + tr("мин")]];
+  openFormSheet(tr("Настройки чата"),
+    '<div class="cs-ava-row">' +
+      '<span class="avatar lg" id="cs-ava">' + avaInner + '</span>' +
+      '<button class="btn-line" id="cs-ava-pick" style="width:auto;height:40px;padding:0 14px;font-size:14px">' + tr("Сменить аватарку") + '</button>' +
+      (chat.avatar_url ? '<button class="btn-line" id="cs-ava-del" style="width:auto;height:40px;padding:0 12px;font-size:14px">' + tr("Убрать") + '</button>' : "") +
+    '</div>' +
+    '<input type="file" id="cs-ava-file" accept="image/png,image/jpeg,image/webp" hidden>' +
+    '<input class="inp" id="cs-title" maxlength="64" value="' + esc(chat.title || "") + '" placeholder="' + tr("Название") + '">' +
+    '<textarea class="inp area" id="cs-desc" maxlength="200" style="min-height:70px" placeholder="' + tr("Описание") + '">' + esc(chat.description || "") + '</textarea>' +
+    '<div class="seg" style="margin:4px 0">' +
+      '<button class="chip' + (chat.is_public ? "" : " active") + '" id="cs-priv">' + tr("Приватный") + '</button>' +
+      '<button class="chip' + (chat.is_public ? " active" : "") + '" id="cs-pub">' + tr("Публичный") + '</button>' +
+    '</div>' +
+    '<div class="s-note" id="cs-vis-note"></div>' +
+    '<input class="inp ' + (chat.is_public ? "" : "hidden") + '" id="cs-username" maxlength="32" value="' + esc(chat.username || "") + '" placeholder="@username" autocapitalize="off">' +
+    '<label class="kv" style="padding:6px 4px"><span class="k">' + tr("Медленный режим") + '</span><select id="cs-slow" class="inp" style="width:auto;min-width:132px;height:38px">' +
+      slowOpts.map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === slow ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
+    '</select></label>' +
+    '<label class="kv" style="padding:6px 4px"><span class="k">' + tr("История видна новым участникам") + '</span><input type="checkbox" id="cs-hist" style="width:22px;height:22px;accent-color:#5856e0"' + (chat.history_visible ? " checked" : "") + '></label>' +
+    '<button class="btn-accent" id="cs-save">' + tr("Сохранить") + '</button>',
+    function(){
+      var pub = !!chat.is_public;
+      var setVis = function(v){
+        pub = v;
+        $("cs-priv").classList.toggle("active", !v);
+        $("cs-pub").classList.toggle("active", v);
+        $("cs-username").classList.toggle("hidden", !v);
+        $("cs-vis-note").textContent = v
+          ? tr("Публичный: любой может найти чат по @username.")
+          : tr("Приватный: зайти можно только по ссылке-приглашению или заявке.");
+      };
+      setVis(pub);
+      $("cs-priv").onclick = function(){ setVis(false); };
+      $("cs-pub").onclick = function(){ setVis(true); };
+      $("cs-ava-pick").onclick = function(){ $("cs-ava-file").click(); };
+      $("cs-ava-file").onchange = async function(){
+        var f = $("cs-ava-file").files && $("cs-ava-file").files[0];
+        $("cs-ava-file").value = "";
+        if (!f) return;
+        if (!/^image\//i.test(f.type || "")) { toast(tr("Только изображения PNG, JPEG или WEBP")); return; }
+        try {
+          var dataUrl = await downscaleImage(f, 512);
+          var r = await api("/chat/api/chats/" + STATE.currentChatId + "/avatar", { method: "POST", body: JSON.stringify({ session_token: STATE.token, image_base64: dataUrl, image_mime_type: "image/jpeg" }) });
+          if (r.chat) { STATE.currentChat = Object.assign({}, STATE.currentChat, r.chat); }
+          $("cs-ava").innerHTML = '<img src="' + esc(r.chat && r.chat.avatar_url ? r.chat.avatar_url : "") + '" alt="">';
+          var del = $("cs-ava-del");
+          if (!del) {
+            del = document.createElement("button");
+            del.className = "btn-line"; del.id = "cs-ava-del";
+            del.style.cssText = "width:auto;height:40px;padding:0 12px;font-size:14px";
+            del.textContent = tr("Убрать");
+            del.onclick = removeChatAvatar;
+            $("cs-ava").parentNode.appendChild(del);
+          }
+          toast(tr("Аватарка обновлена"));
+          renderChatHeader(); refreshChats(true);
+        } catch(e) { toast(e.message); }
+      };
+      if ($("cs-ava-del")) $("cs-ava-del").onclick = removeChatAvatar;
+      $("cs-save").onclick = async function(){
+        var title = $("cs-title").value.trim();
+        if (!title) { toast(tr("Введите название")); return; }
+        var username = pub ? $("cs-username").value.trim() : "";
+        if (pub && !username) { toast(tr("Введите @username для публичного чата")); return; }
+        try {
+          var r = await api("/chat/api/chats/" + STATE.currentChatId, { method: "PATCH", body: JSON.stringify({
+            session_token: STATE.token,
+            title: title,
+            description: $("cs-desc").value.trim(),
+            is_public: pub,
+            username: pub ? username : null,
+            slow_mode_seconds: Number($("cs-slow").value || 0),
+            history_visible: !!$("cs-hist").checked
+          }) });
+          if (r.chat) STATE.currentChat = Object.assign({}, STATE.currentChat, r.chat);
+          closeSheet();
+          toast(tr("Настройки сохранены"));
+          renderChatHeader();
+          refreshChats(true);
+        } catch(e) { toast(e.message); }
+      };
+    });
+}
+async function removeChatAvatar(){
+  try {
+    var r = await api("/chat/api/chats/" + STATE.currentChatId + "/avatar/remove", { method: "POST", body: JSON.stringify({ session_token: STATE.token }) });
+    if (r.chat) STATE.currentChat = Object.assign({}, STATE.currentChat, r.chat);
+    closeSheet();
+    toast(tr("Аватарка убрана"));
+    renderChatHeader();
+    refreshChats(true);
+  } catch(e) { toast(e.message); }
+}
 async function toggleChatState(key, value, goBack){
   try {
     await api("/chat/api/chats/" + STATE.currentChatId + "/state", { method: "POST", body: JSON.stringify({ session_token: STATE.token, [key]: value }) });
@@ -2353,19 +2587,42 @@ function openPollForm(){
       };
     });
 }
+window.openPollForm = openPollForm;
 
 /* ============================ новый чат ============================ */
 var ncType = "group";
 var ncSelected = [];
+var ncPublic = false;
 function setChatType(t){
   ncType = t;
   $("nc-type-group").classList.toggle("active", t === "group");
   $("nc-type-channel").classList.toggle("active", t === "channel");
-  $("nc-public-wrap").classList.toggle("hidden", t !== "channel");
+  updateNcNote();
 }
 window.setChatType = setChatType;
+function setNcVisibility(v){
+  ncPublic = !!v;
+  $("nc-vis-priv").classList.toggle("active", !ncPublic);
+  $("nc-vis-pub").classList.toggle("active", ncPublic);
+  $("nc-username").classList.toggle("hidden", !ncPublic);
+  updateNcNote();
+}
+window.setNcVisibility = setNcVisibility;
+function updateNcNote(){
+  var note = ncPublic
+    ? tr("Публичный: любой сможет найти и войти по @username.")
+    : tr("Приватный: войти можно только по ссылке-приглашению или заявке.");
+  $("nc-vis-note").textContent = note;
+  $("nc-title").placeholder = ncType === "channel"
+    ? tr("Название канала (например: Новости)")
+    : tr("Название (например: Друзья)");
+  $("nc-member-search").placeholder = ncType === "channel"
+    ? tr("Добавить админов канала...")
+    : tr("Поиск людей по логину...");
+}
 function bindNewChat(){
-  $("nc-public").onchange = function(){ $("nc-username").classList.toggle("hidden", !$("nc-public").checked); };
+  setChatType(ncType);
+  setNcVisibility(ncPublic);
   var timer = null;
   $("nc-member-search").addEventListener("input", function(){
     clearTimeout(timer);
@@ -2405,15 +2662,16 @@ async function createChat(){
   var title = $("nc-title").value.trim();
   if (!title) { toast(tr("Введите название")); return; }
   if (ncType !== "channel" && !ncSelected.length) { toast(tr("Добавьте хотя бы одного участника")); return; }
-  var isPublic = ncType === "channel" && $("nc-public").checked;
-  var username = isPublic ? ($("nc-username").value.trim() || undefined) : undefined;
+  var isPublic = !!ncPublic;
+  var username = isPublic ? $("nc-username").value.trim() : "";
+  if (isPublic && !username) { toast(tr("Введите @username для публичного чата")); return; }
   var btn = $("nc-submit");
   btn.disabled = true;
   try {
     var res = await api("/chat/api/chats", { method: "POST", body: JSON.stringify({
       session_token: STATE.token, title: title, description: $("nc-desc").value.trim() || undefined,
       member_ids: ncSelected.map(function(u){ return u.user_id; }),
-      chat_type: ncType, is_public: isPublic || undefined, username: username, history_visible: true
+      chat_type: ncType, is_public: isPublic, username: username || undefined, history_visible: true
     }) });
     toast(tr("Чат создан"));
     ncSelected = [];
@@ -3155,12 +3413,25 @@ async function start(){
   setLoginMode("login");
   setInterval(tick, 2000);
   loadAbout();
+  if ($("boot-retry")) $("boot-retry").onclick = function(){ location.reload(); };
 
   var joinMatch = location.hash.match(/^#\/join\/(.+)$/);
   if (joinMatch) {
     STATE.pendingJoin = decodeURIComponent(joinMatch[1]);
   }
   if (STATE.token) {
+    show("boot");
+    await bootWithSession();
+  } else {
+    show("login");
+  }
+}
+async function bootWithSession(){
+  // Never drop the session on a network hiccup: keep retrying until the server
+  // answers. Only a real 401 (invalid session) sends the user back to login.
+  var fails = 0;
+  var txt = $("boot-text");
+  while (true) {
     try {
       var d = await api("/account/api/profile?session_token=" + tk());
       STATE.profile = d.profile;
@@ -3178,12 +3449,16 @@ async function start(){
       var initial = location.hash.replace(/^#\//, "");
       if (SCREENS.indexOf(initial) >= 0 && initial !== "login") show(initial);
       else show("chats");
+      return;
     } catch(e) {
-      clearAuth();
-      show("login");
+      if (e && e.status === 401) { clearAuth(); show("login"); return; }
+      fails++;
+      if (txt) txt.textContent = fails >= 3
+        ? tr("Нет связи с сервером. Проверьте, что вы в сети local-chat.")
+        : tr("Подключение…");
+      if (fails === 3 && $("boot-retry")) $("boot-retry").classList.remove("hidden");
+      await new Promise(function(r){ setTimeout(r, fails < 3 ? 1200 : 3500); });
     }
-  } else {
-    show("login");
   }
 }
 start();

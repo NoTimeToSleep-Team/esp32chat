@@ -1142,6 +1142,24 @@ class ChatService:
                     (normalized,),
                 ).fetchone()
             if row is None:
+                # Distinguish "no such chat" from "this chat is private": in the
+                # latter case a public join must never succeed.
+                if chat_id:
+                    probe = connection.execute(
+                        "SELECT is_public FROM chats WHERE id = ?",
+                        (int(chat_id),),
+                    ).fetchone()
+                else:
+                    probe = connection.execute(
+                        "SELECT is_public FROM chats WHERE username = ?",
+                        (normalized,),
+                    ).fetchone()
+                if probe is not None and not bool(probe["is_public"]):
+                    raise ChatError(
+                        "chat_private",
+                        "This chat is private. Ask the owner for an invite link or request access.",
+                        403,
+                    )
                 raise ChatError("chat_not_found", "Chat not found", 404)
 
             existing = connection.execute(
@@ -1426,7 +1444,9 @@ class ChatService:
                 (new_message_id, message_id),
             )
             connection.execute(
-                "UPDATE chats SET updated_at_ms = ? WHERE id = ?",
+                # Monotonic bump: even if the clock jumps backwards, a new message
+                # always lifts its chat to the top of the list.
+                "UPDATE chats SET updated_at_ms = MAX(?, updated_at_ms + 1) WHERE id = ?",
                 (now_ms, target_chat_id),
             )
 
@@ -1573,7 +1593,7 @@ class ChatService:
                   AND m.created_at_ms >= COALESCE(cm.cleared_at_ms, 0)
                   AND (c.history_visible = 1 OR m.created_at_ms >= COALESCE(cm.joined_at_ms, 0))
                   {chat_filter}
-                ORDER BY m.created_at_ms DESC, m.id DESC
+                ORDER BY m.id DESC
                 LIMIT ?
                 """,
                 tuple(params),
@@ -1610,7 +1630,7 @@ class ChatService:
                            FROM chat_messages msg
                            WHERE msg.chat_id = c.id
                              AND msg.created_at_ms >= COALESCE(m.cleared_at_ms, 0)
-                           ORDER BY msg.created_at_ms DESC, msg.id DESC
+                           ORDER BY msg.id DESC
                            LIMIT 1
                        ) AS last_message_text,
                        (
@@ -1618,7 +1638,7 @@ class ChatService:
                            FROM chat_messages msg
                            WHERE msg.chat_id = c.id
                              AND msg.created_at_ms >= COALESCE(m.cleared_at_ms, 0)
-                           ORDER BY msg.created_at_ms DESC, msg.id DESC
+                           ORDER BY msg.id DESC
                            LIMIT 1
                        ) AS last_message_at_ms
                 FROM chats c
@@ -1705,7 +1725,7 @@ class ChatService:
                     now_ms,
                 ),
             )
-            connection.execute("UPDATE chats SET updated_at_ms = ? WHERE id = ?", (now_ms, chat_id))
+            connection.execute("UPDATE chats SET updated_at_ms = MAX(?, updated_at_ms + 1) WHERE id = ?", (now_ms, chat_id))
 
             row = self._select_message_row(connection, message_id)
             if row is None:
@@ -2264,7 +2284,9 @@ class ChatService:
                 raise ChatError(exc.code, exc.message, exc.status_code) from exc
 
             connection.execute(
-                "UPDATE chats SET updated_at_ms = ? WHERE id = ?",
+                # Monotonic bump: a new message always lifts its chat to the top,
+                # even after a clock rollback (no RTC battery on the board).
+                "UPDATE chats SET updated_at_ms = MAX(?, updated_at_ms + 1) WHERE id = ?",
                 (now_ms, chat_id),
             )
 
@@ -2317,11 +2339,17 @@ class ChatService:
                 LEFT JOIN chat_messages rm ON rm.id = m.reply_to_message_id
                 LEFT JOIN users ru ON ru.id = rm.author_user_id
                 WHERE m.chat_id = ?
-                  AND m.created_at_ms >= ?
-                ORDER BY m.created_at_ms DESC, m.id DESC
+                  AND (
+                        m.created_at_ms >= ?
+                     OR m.id > COALESCE((
+                            SELECT MAX(before_m.id) FROM chat_messages before_m
+                            WHERE before_m.chat_id = m.chat_id AND before_m.created_at_ms < ?
+                        ), 0)
+                  )
+                ORDER BY m.id DESC
                 LIMIT ? OFFSET ?
                 """,
-                (chat_id, min_created_at_ms, safe_limit, safe_offset),
+                (chat_id, min_created_at_ms, min_created_at_ms, safe_limit, safe_offset),
             ).fetchall()
             # Offset counts from the newest message; return oldest-first for rendering.
             rows = list(reversed(rows))

@@ -77,7 +77,7 @@ class AuthResult:
 
 
 class AuthService:
-    def __init__(self, db_path: str | Path, *, session_ttl_ms: int = 86_400_000) -> None:
+    def __init__(self, db_path: str | Path, *, session_ttl_ms: int = 2_592_000_000) -> None:
         self._db_path = Path(db_path)
         self._session_ttl_ms = session_ttl_ms
 
