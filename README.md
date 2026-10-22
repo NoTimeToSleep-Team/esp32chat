@@ -41,6 +41,8 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Chat settings for owners: title, description, avatar, visibility, slow mode,
   history visibility, join-request queue.
 - Mentions with @-autocomplete and tap-to-open profiles.
+- Responsive UI: phone-first single column, two-pane layout (chat list + chat)
+  on tablets/desktop from 940px, compact chrome for landscape phones.
 - Custom chat limits: up to 5 per user, unlimited for admins; guests cannot
   create chats; admins can access all chats.
 - Message history, media attachments, chat avatars.

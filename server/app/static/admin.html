@@ -139,6 +139,11 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   html,body{background:#050507}
   #app{height:calc(100dvh - 24px);margin:12px auto;border-radius:26px;box-shadow:0 0 0 1px var(--hair),0 30px 70px rgba(0,0,0,.6)}
 }
+/* широкий десктоп: рабочая область шире, шторки по центру */
+@media (min-width:1100px) and (min-height:620px){
+  #app{max-width:880px}
+  .sheet{left:50%;right:auto;margin-left:-280px;width:560px}
+}
 @media (max-width:379px){
   .topbar{padding:10px 10px 4px}
   .chips{padding:8px 10px 8px}

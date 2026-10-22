@@ -285,6 +285,23 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 @media (min-width:900px) and (min-height:620px){
   #app{max-width:452px}
 }
+/* десктоп и планшеты в ландшафте: две панели — список слева, чат справа */
+@media (min-width:940px) and (min-height:540px){
+  #app{max-width:1160px}
+  body.pane2 #screen-chats{position:absolute;left:0;top:0;bottom:0;width:372px;display:flex!important;border-right:1px solid var(--hair);z-index:1}
+  body.pane2 #screen-chat{margin-left:372px}
+  body.pane2:not(.chatopen) #pane-empty{display:flex}
+  body.pane2 .tabbar{right:auto;width:348px}
+  body.pane2.chatopen .sheet{left:calc(50% + 186px);margin-left:-215px;right:auto;width:430px;max-width:calc(100% - 392px)}
+  body.pane2:not(.chatopen) .sheet{left:50%;margin-left:-215px;right:auto;width:430px;max-width:92%}
+  body:not(.pane2) .screen > .scroll{max-width:680px;width:100%;margin:0 auto}
+  body:not(.pane2) .screen > .topbar{max-width:680px;width:100%;margin:0 auto}
+  body:not(.pane2) .login{max-width:430px;width:100%;margin:0 auto}
+  body:not(.pane2) .tabbar{left:50%;right:auto;margin-left:-290px;width:580px;max-width:calc(100% - 24px)}
+  body:not(.pane2) .sheet{left:50%;right:auto;margin-left:-215px;width:430px;max-width:92%}
+}
+#pane-empty{display:none;position:absolute;left:372px;right:0;top:0;bottom:0;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--sub);font-size:15px;text-align:center;padding:20px}
+#pane-empty .pe-icon{width:64px;height:64px;border-radius:999px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:28px}
 /* узкие телефоны (320-379px): компактнее отступы и шрифты */
 @media (max-width:379px){
   body{font-size:16px}
@@ -300,6 +317,23 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   .chat-head{padding:10px 10px 6px}
   .msgs{padding:6px 10px 10px}
   .sheet{left:8px;right:8px}
+}
+/* телефоны в ландшафте: компактнее по вертикали, больше места сообщениям */
+@media (max-height:520px) and (max-width:939px){
+  .sheet{max-height:88%}
+  .chat-head{padding:8px 12px 5px}
+  .chat-ava{width:30px;height:30px;font-size:12px}
+  .chat-title .t{font-size:16px}
+  .chat-title .s{font-size:12px}
+  .pinned{padding:7px 12px 8px}
+  .pinned .p-label{font-size:12.5px}
+  .pinned .p-text{font-size:14px}
+  .m{margin:8px 0}
+  .m-text{font-size:15.5px}
+  .composer{padding:6px 12px calc(8px + env(safe-area-inset-bottom,0px))}
+  .tabbar{bottom:calc(6px + env(safe-area-inset-bottom,0px))}
+  .topbar{padding:10px 14px 4px}
+  .quick{display:none}
 }
 </style>
 </head>
@@ -706,6 +740,12 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
     </div>
   </section>
 
+  <!-- ================= ДЕСКТОП: ПУСТАЯ ПРАВАЯ ПАНЕЛЬ ================= -->
+  <div id="pane-empty">
+    <div class="pe-icon">💬</div>
+    <div style="max-width:240px">Выберите чат слева</div>
+  </div>
+
   <!-- ================= НИЖНЯЯ НАВИГАЦИЯ ================= -->
   <nav class="tabbar hidden" id="tabbar">
     <div class="pill">
@@ -816,6 +856,7 @@ var EN = {
 "Участники": "Members",
 "Ссылки-приглашения": "Invite links",
 "Создать опрос": "Create poll",
+"Выберите чат слева": "Pick a chat on the left",
 "Только админы могут писать в этом канале": "Only admins can post in this channel",
 "Вас упомянули: ": "You were mentioned: ",
 "Это приватный чат — нужна ссылка-приглашение или одобренная заявка.": "This chat is private — you need an invite link or an approved request.",
@@ -1409,6 +1450,9 @@ var PUBLIC = { login: 1, about: 1 };
 function show(name){
   if (!PUBLIC[name] && !STATE.token) name = "login";
   if (SCREENS.indexOf(name) < 0) name = STATE.token ? "chats" : "login";
+  var pane2 = (name === "chats" || name === "chat");
+  document.body.classList.toggle("pane2", pane2);
+  document.body.classList.toggle("chatopen", name === "chat");
   SCREENS.forEach(function(s){ $("screen-" + s).classList.toggle("hidden", s !== name); });
   var c = CFG[name] || {};
   $("tabbar").classList.toggle("hidden", !c.tabbar);
@@ -2230,6 +2274,13 @@ function bindComposer(){
   });
   input.addEventListener("keydown", function(e){
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+  input.addEventListener("focus", function(){
+    // Когда открывается экранная клавиатура, держим последние сообщения на виду.
+    setTimeout(function(){
+      var msgs = $("msgs");
+      if (msgs && (msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 600)) msgs.scrollTop = msgs.scrollHeight;
+    }, 320);
   });
 }
 
