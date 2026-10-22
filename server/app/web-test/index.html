@@ -448,7 +448,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
       <div class="quick">
         <button class="qcard" data-filter="dm" onclick="setFilter('dm')"><svg class="i s24"><use href="#i-chat"/></svg><div class="qt">Личные</div><div class="qs" id="qc-dm">0</div></button>
         <button class="qcard" data-filter="pinned" onclick="setFilter('pinned')"><svg class="i s24"><use href="#i-star"/></svg><div class="qt">Важные</div><div class="qs" id="qc-pin">0</div></button>
-        <button class="qcard" data-filter="drafts" onclick="setFilter('drafts')"><svg class="i s24"><use href="#i-pencil"/></svg><div class="qt">Черновики</div><div class="qs" id="qc-draft">0</div></button>
+        <button class="qcard" onclick="go('about')"><svg class="i s24"><use href="#i-info"/></svg><div class="qt">О проекте</div><div class="qs">Local Chat</div></button>
       </div>
 
       <div class="group">
@@ -1549,9 +1549,11 @@ function renderChatRows(){
   var drafts = all.filter(function(c){ return (c.draft_text || "").trim(); });
   $("qc-dm").textContent = dm.length ? (dm.length + tr(" шт.")) : tr("нет");
   $("qc-pin").textContent = pinned.length ? (pinned.length + tr(" шт.")) : tr("нет");
-  $("qc-draft").textContent = drafts.length ? (drafts.length + tr(" шт.")) : tr("нет");
+  var qcDraft = $("qc-draft");
+  if (qcDraft) qcDraft.textContent = drafts.length ? (drafts.length + tr(" шт.")) : tr("нет");
   document.querySelectorAll(".qcard").forEach(function(c){
-    c.classList.toggle("active", c.getAttribute("data-filter") === STATE.filter);
+    var f = c.getAttribute("data-filter");
+    c.classList.toggle("active", !!f && f === STATE.filter);
   });
   var list = all.slice();
   var label = tr("Чаты");
@@ -1605,10 +1607,12 @@ function setFilter(f){
 }
 function openChatsMenu(){
   var archived = (STATE.chats || []).filter(function(c){ return c.is_archived; }).length;
+  var drafts = (STATE.chats || []).filter(function(c){ return (c.draft_text || "").trim(); }).length;
   var items = [
     { icon: "i-plus", label: tr("Новый чат"), action: function(){ go("newchat"); } },
     { icon: "i-link", label: tr("Присоединиться по ссылке"), action: function(){ openJoinSheet(); } }
   ];
+  if (drafts) items.push({ icon: "i-pencil", label: tr("Черновики") + " (" + drafts + ")", action: function(){ STATE.showArchived = false; STATE.filter = "drafts"; renderChatRows(); $("chats-scroll").scrollTop = 0; } });
   if (archived) items.push({ icon: "i-archive", label: STATE.showArchived ? tr("Скрыть архив (") + archived + ")" : tr("Показать архив (") + archived + ")", action: function(){ STATE.showArchived = !STATE.showArchived; STATE.filter = null; renderChatRows(); } });
   openSheet(tr("Чаты"), items);
 }
@@ -1676,18 +1680,23 @@ async function openChat(chat){
   STATE.membersCache = null;
   cancelReply();
   clearAttach();
-  $("msg-input").value = "";
+  var inp = $("msg-input");
+  var listDraft = typeof chat.draft_text === "string" ? chat.draft_text : "";
+  inp.value = "";
   updateSendBtn();
   $("chat-title-t").textContent = chatDisplayTitle(chat);
   $("chat-title-s").textContent = "";
   $("pin-bar").classList.add("hidden");
   $("msgs").innerHTML = '<div class="spin"></div>';
   go("chat");
+  setComposerText(listDraft);
   try {
     var d = await api("/chat/api/chats/" + chat.chat_id + "?session_token=" + tk());
     STATE.currentView = d.view || null;
     if (d.chat) { STATE.currentChat = Object.assign({}, chat, d.chat); }
     renderChatHeader();
+    var serverDraft = (STATE.currentView && typeof STATE.currentView.draft_text === "string") ? STATE.currentView.draft_text : listDraft;
+    if (inp.value === listDraft && serverDraft !== listDraft) setComposerText(serverDraft);
   } catch(e) { /* оставим как есть */ }
   updateChatOnline();
   await loadMessages(true);
@@ -2096,6 +2105,18 @@ async function deleteMessage(mid){
 }
 
 /* ---------- отправка ---------- */
+function fitComposer(){
+  var input = $("msg-input");
+  if (!input) return;
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 120) + "px";
+}
+function setComposerText(text){
+  var input = $("msg-input");
+  input.value = text || "";
+  fitComposer();
+  updateSendBtn();
+}
 function updateSendBtn(){
   var v = $("msg-input").value.trim();
   $("send").classList.toggle("ready", !!v || STATE.attachFiles.length > 0);
@@ -2264,8 +2285,7 @@ async function showMentions(q){
 function bindComposer(){
   var input = $("msg-input");
   input.addEventListener("input", function(){
-    input.style.height = "auto";
-    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    fitComposer();
     updateSendBtn();
     saveDraft(input.value);
     var before = input.value.slice(0, input.selectionStart || 0);
