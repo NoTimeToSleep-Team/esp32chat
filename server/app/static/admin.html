@@ -134,6 +134,46 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .lg-title{font-size:26px;font-weight:800;text-align:center}
 .lg-sub{color:var(--sub);font-size:15px;text-align:center;margin-bottom:14px}
 
+/* ---------- motion ---------- */
+:root{--ease-out:cubic-bezier(.22,.75,.28,1)}
+@keyframes screenIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.screen:not(.hidden){animation:screenIn .2s var(--ease-out)}
+@keyframes contentIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#content.content-in{animation:contentIn .22s var(--ease-out)}
+@keyframes itemIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.anim-in{animation:itemIn .22s var(--ease-out) both}
+@keyframes sheetItem{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.sheet.show .srow,.sheet.show .s-item,.sheet.show .s-form>*{animation:sheetItem .2s var(--ease-out) both}
+.sheet.show .s-list .s-item:nth-child(n+25){animation:none}
+.sheet.show .s-title{animation:screenIn .16s ease}
+@keyframes dropIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.rep-ctx.show{animation:dropIn .2s var(--ease-out)}
+@keyframes shake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-3px)}40%,60%{transform:translateX(3px)}}
+.l-error:not(:empty){animation:shake .28s ease}
+@keyframes onPulse{0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,.32)}55%{box-shadow:0 0 0 4px rgba(52,199,89,0)}}
+.on-dot{animation:onPulse 2.6s ease-out infinite}
+
+button{transition:transform .12s var(--ease-out),background-color .16s ease,border-color .16s ease,color .16s ease,opacity .16s ease,box-shadow .16s ease}
+button:active{transform:scale(.97)}
+button:disabled:active{transform:none}
+.icon-btn:active{transform:scale(.92);background:#2a2a2e}
+.row:active{transform:none;background:rgba(255,255,255,.035)}
+.sheet .srow:active,.sheet .s-item:active{transform:none}
+.chip{transition:transform .12s var(--ease-out),background .18s ease,border-color .18s ease,color .18s ease}
+.chip:active{transform:scale(.96)}
+.inp{transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}
+.inp:focus{border-color:rgba(88,86,224,.72);box-shadow:0 0 0 3px rgba(88,86,224,.14)}
+.sheet-bg{transition:opacity .2s ease}
+.sheet{transition:transform .26s var(--ease-out),visibility .26s;box-shadow:0 -18px 50px rgba(0,0,0,.5)}
+.toast{transition:opacity .2s ease,transform .24s var(--ease-out)}
+.card{transition:background .18s ease}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .spin{animation:sp 1s linear infinite!important}
+  .on-dot{animation:none!important}
+}
+
 /* ---------- адаптация под экраны ---------- */
 @media (min-width:620px) and (min-height:620px){
   html,body{background:#050507}
@@ -220,6 +260,23 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 (function(){
 "use strict";
 var $ = function(id){ return document.getElementById(id); };
+function entrance(root, sel, step){
+  if (!root) return;
+  var els = root.querySelectorAll(sel);
+  if (!els.length) return;
+  var i;
+  for (i = 0; i < els.length; i++) els[i].classList.remove("anim-in");
+  void root.offsetWidth;
+  var max = Math.min(els.length, 24);
+  for (i = 0; i < max; i++) {
+    (function(el, delay){
+      el.style.animationDelay = delay + "ms";
+      el.classList.add("anim-in");
+      clearTimeout(el._animT);
+      el._animT = setTimeout(function(){ el.classList.remove("anim-in"); }, delay + 260);
+    })(els[i], Math.min(i, 10) * (step || 16));
+  }
+}
 function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
 var ST = null, ME = null, TAB = "users", SUB = null;
 var NAMES = {};
@@ -596,15 +653,19 @@ async function uploadFile(file){
 /* ---------- sheet ---------- */
 function openSheetHtml(title, html, onReady){
   $("sheet-title").textContent = title || "";
-  $("sheet-body").innerHTML = html;
+  var body = $("sheet-body");
+  body.innerHTML = html;
+  body.querySelectorAll(".s-form > *").forEach(function(el, i){
+    el.style.animationDelay = (i * 16) + "ms";
+  });
   $("sheet").classList.add("show");
   $("sheet-bg").classList.add("show");
-  if (onReady) setTimeout(function(){ onReady($("sheet-body")); }, 30);
+  if (onReady) setTimeout(function(){ onReady(body); }, 30);
 }
 function openSheet(title, items){
   var html = "";
   (items || []).forEach(function(it, i){
-    html += '<button class="srow' + (it.danger ? " danger" : "") + '" data-i="' + i + '">' +
+    html += '<button class="srow' + (it.danger ? " danger" : "") + '" data-i="' + i + '" style="animation-delay:' + (i * 18) + 'ms">' +
       (it.icon ? '<svg class="i s22"><use href="#' + it.icon + '"/></svg>' : "") + "<span>" + esc(it.label) + "</span></button>";
   });
   openSheetHtml(title, html, function(body){
@@ -755,6 +816,7 @@ function renderTabs(){
   $("tabs").querySelectorAll(".chip").forEach(function(b){
     b.onclick = function(){ switchTab(b.getAttribute("data-t")); };
   });
+  entrance($("tabs"), ".chip", 10);
 }
 function switchTab(t){
   TAB = t; SUB = null;
@@ -777,7 +839,16 @@ function renderTab(){
   else if (TAB === "passwords") renderPasswords();
   else if (TAB === "profile") renderProfile();
 }
-function setContent(html){ $("content").innerHTML = html; $("content").scrollTop = 0; }
+function setContent(html){
+  var c = $("content");
+  c.innerHTML = html;
+  c.scrollTop = 0;
+  c.classList.remove("content-in");
+  void c.offsetWidth;
+  c.classList.add("content-in");
+  clearTimeout(c._contentT);
+  c._contentT = setTimeout(function(){ c.classList.remove("content-in"); }, 260);
+}
 function emptyBox(msg){ return '<div class="empty">' + esc(msg) + "</div>"; }
 
 /* ================= ПОЛЬЗОВАТЕЛИ ================= */
@@ -794,7 +865,7 @@ async function renderUsers(){
     '<div class="search-wrap"><input class="inp" id="u-search" placeholder="' + tr("Поиск по логину...") + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
     '<div id="u-list"></div></div>';
   setContent(html);
-  var renderList = function(q){
+  var renderList = function(q, animate){
     q = String(q || "").trim().toLowerCase();
     var list = items.filter(function(u){
       return !q || String(u.login || "").toLowerCase().indexOf(q) >= 0;
@@ -812,8 +883,9 @@ async function renderUsers(){
     box.querySelectorAll("[data-i]").forEach(function(b){
       b.onclick = function(){ userSheet(list[Number(b.getAttribute("data-i"))]); };
     });
+    if (animate) entrance(box, ".row", 16);
   };
-  renderList("");
+  renderList("", true);
   $("u-search").addEventListener("input", function(){ renderList(this.value); });
 }
 function userSheet(u){
@@ -1043,6 +1115,12 @@ async function loadTicketMsgs(){
         '<div class="m-main"><div class="m-head"><span class="m-name">' + esc(name) + '</span><span class="m-time">' + fmtDate(m.created_at_ms) + "</span></div>" +
         '<div class="m-text">' + esc(m.body_text || "") + "</div>" + attsHtml(m.attachments) + "</div></div>";
     }).join("");
+    var msgs = box.querySelectorAll(".msg");
+    var from = Math.max(0, msgs.length - 3);
+    for (var mi = from; mi < msgs.length; mi++) {
+      msgs[mi].style.animationDelay = ((mi - from) * 22) + "ms";
+      msgs[mi].classList.add("anim-in");
+    }
   } catch(e) { box.innerHTML = emptyBox(e.message); }
 }
 

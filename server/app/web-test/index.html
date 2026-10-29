@@ -284,6 +284,74 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%) translateY(8px);background:#2c2c31;color:#eaeaea;font-size:14px;padding:9px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:84%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* ---------- motion ---------- */
+:root{--ease-out:cubic-bezier(.22,.75,.28,1)}
+@keyframes screenFade{from{opacity:0}to{opacity:1}}
+@keyframes screenFwd{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+@keyframes screenBack{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+.screen.anim-fade{animation:screenFade .18s ease-out}
+.screen.anim-fwd{animation:screenFwd .22s var(--ease-out)}
+.screen.anim-back{animation:screenBack .22s var(--ease-out)}
+@keyframes itemIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.anim-in{animation:itemIn .22s var(--ease-out) both}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.m.msg-in{animation:msgIn .2s var(--ease-out) both}
+@keyframes reactPop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+.m-reacts.react-pop{animation:reactPop .18s var(--ease-out)}
+@keyframes barUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.tabbar:not(.hidden){animation:barUp .22s var(--ease-out)}
+@keyframes dropIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.reply-bar:not(.hidden),.attach-chips:not(.hidden),.voice-bar:not(.hidden),.mention-list:not(.hidden),#pane-empty{animation:dropIn .18s var(--ease-out)}
+@keyframes revealIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.reveal{animation:revealIn .18s var(--ease-out)}
+@keyframes shake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-3px)}40%,60%{transform:translateX(3px)}}
+.l-error:not(:empty){animation:shake .28s ease}
+@keyframes sheetItem{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.sheet.show .srow,.sheet.show .s-item,.sheet.show .reacts button,.sheet.show .s-form>*{animation:sheetItem .2s var(--ease-out) both}
+.sheet.show .s-list .s-item:nth-child(n+25){animation:none}
+.sheet.show .s-title{animation:screenFade .16s ease}
+@keyframes growBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.poll.poll-in .pbar{animation:growBar .32s var(--ease-out);transform-origin:left}
+@keyframes onPulse{0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,.32)}55%{box-shadow:0 0 0 4px rgba(52,199,89,0)}}
+.login .netline .dot{animation:onPulse 2.6s ease-out infinite}
+
+button{transition:transform .12s var(--ease-out),background-color .16s ease,border-color .16s ease,color .16s ease,opacity .16s ease,box-shadow .16s ease}
+button:active{transform:scale(.97)}
+button:disabled:active{transform:none}
+.icon-btn:active{transform:scale(.92);background:#2a2a2e}
+.search-pill:active{transform:scale(.995)}
+.user-chip:active{transform:scale(.97)}
+.qcard{transition:transform .12s var(--ease-out),box-shadow .18s ease,background .18s ease}
+.qcard:active{transform:scale(.97)}
+.tab{transition:background .18s ease,color .18s ease,transform .12s var(--ease-out)}
+.tab .i{transition:transform .18s var(--ease-out)}
+.tab.active .i{transform:scale(1.06)}
+.tab:active{transform:scale(.9)}
+.row:active{transform:none;background:rgba(255,255,255,.035)}
+.sheet .srow:active,.sheet .s-item:active{transform:none}
+.post{transition:transform .12s var(--ease-out),background .18s ease}
+.post:active{transform:scale(.995)}
+.l-link{transition:opacity .15s ease}
+.l-link:active{opacity:.55}
+.group-head{transition:opacity .15s ease}
+.group-head:active{opacity:.65}
+.inp{transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}
+.inp:focus{border-color:rgba(88,86,224,.72);box-shadow:0 0 0 3px rgba(88,86,224,.14)}
+.chip{transition:transform .12s var(--ease-out),background .18s ease,border-color .18s ease,color .18s ease}
+.chip:active{transform:scale(.96)}
+.sheet-bg{transition:opacity .2s ease}
+.sheet{transition:transform .26s var(--ease-out),visibility .26s;box-shadow:0 -18px 50px rgba(0,0,0,.5)}
+.toast{transition:opacity .2s ease,transform .24s var(--ease-out)}
+.login .l-about-body{max-height:0;opacity:0;padding:0 13px;overflow:hidden;transition:max-height .24s var(--ease-out),opacity .16s ease,padding .24s var(--ease-out)}
+.login .l-about.open .l-about-body{max-height:220px;opacity:1;padding:0 13px 12px}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .spin{animation:sp 1s linear infinite!important}
+  .voice-bar .vdot{animation:pulse 1s infinite!important}
+  .login .netline .dot{animation:none!important}
+}
+
 /* ---------- адаптация под экраны ---------- */
 /* широкие экраны: приложение по центру в аккуратной рамке */
 @media (min-width:500px) and (min-height:620px){
@@ -426,7 +494,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
           <span>О проекте</span>
           <svg class="i s16 l-about-chev"><use href="#i-chev"/></svg>
         </button>
-        <div class="l-about-body hidden" id="login-about-body">
+        <div class="l-about-body" id="login-about-body" aria-hidden="true">
           <p>Local Chat — чат для локальной сети от команды no time to sleep. Сервер работает на Raspberry Pi 5, подключиться можно с телефона, ноутбука и устройств M5Stack. Это демо-версия, проект продолжает развиваться. Другие наши проекты — на github.com/No-time-to-sleep.</p>
         </div>
       </div>
@@ -1149,10 +1217,12 @@ function switchLang(){
 function toggleLoginAbout(){
   var body = $("login-about-body");
   var btn = $("login-about-btn");
-  if (!body || !btn) return;
-  var open = body.classList.contains("hidden");
-  body.classList.toggle("hidden", !open);
+  var wrap = btn && btn.closest ? btn.closest(".l-about") : null;
+  if (!body || !btn || !wrap) return;
+  var open = !wrap.classList.contains("open");
+  wrap.classList.toggle("open", open);
   btn.setAttribute("aria-expanded", open ? "true" : "false");
+  body.setAttribute("aria-hidden", open ? "false" : "true");
 }
 function applyStatic(){
   document.documentElement.lang = LANG === "eng" ? "en" : "ru";
@@ -1184,6 +1254,31 @@ function applyStatic(){
 }
 
 function $(id){ return document.getElementById(id); }
+function entrance(root, sel, step){
+  if (!root) return;
+  var els = root.querySelectorAll(sel);
+  if (!els.length) return;
+  var i;
+  for (i = 0; i < els.length; i++) els[i].classList.remove("anim-in");
+  void root.offsetWidth;
+  var max = Math.min(els.length, 24);
+  for (i = 0; i < max; i++) {
+    (function(el, delay){
+      el.style.animationDelay = delay + "ms";
+      el.classList.add("anim-in");
+      clearTimeout(el._animT);
+      el._animT = setTimeout(function(){ el.classList.remove("anim-in"); }, delay + 260);
+    })(els[i], Math.min(i, 10) * (step || 18));
+  }
+}
+function revealContent(el){
+  if (!el) return;
+  el.classList.remove("reveal");
+  void el.offsetWidth;
+  el.classList.add("reveal");
+  clearTimeout(el._revealT);
+  el._revealT = setTimeout(function(){ el.classList.remove("reveal"); }, 220);
+}
 function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
 function pad2(n){ return String(n).padStart(2, "0"); }
 function fmtTimeShort(ms){ var d = new Date(ms || Date.now()); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
@@ -1360,17 +1455,19 @@ function openSheet(title, items, opts){
   body.innerHTML = "";
   if (opts.reacts && opts.reacts.length) {
     var row = document.createElement("div"); row.className = "reacts";
-    opts.reacts.forEach(function(em){
+    opts.reacts.forEach(function(em, ri){
       var b = document.createElement("button"); b.textContent = em; b.type = "button";
+      b.style.animationDelay = (ri * 14) + "ms";
       b.onclick = function(){ closeSheet(); if (opts.onReact) opts.onReact(em); };
       row.appendChild(b);
     });
     body.appendChild(row);
   }
-  (items || []).forEach(function(it){
+  (items || []).forEach(function(it, ii){
     var b = document.createElement("button");
     b.type = "button";
     b.className = "srow" + (it.danger ? " danger" : "");
+    b.style.animationDelay = (ii * 18) + "ms";
     b.innerHTML = (it.icon ? '<svg class="i s22"><use href="#' + it.icon + '"/></svg>' : "") + "<span>" + esc(it.label) + "</span>";
     b.onclick = function(){ closeSheet(); setTimeout(function(){ if (it.action) it.action(); }, 60); };
     body.appendChild(b);
@@ -1386,13 +1483,16 @@ function openSheetHtml(title, html, onReady){
   $("sheet-title").textContent = title || "";
   var body = $("sheet-body");
   body.innerHTML = html;
+  body.querySelectorAll(".s-form > *").forEach(function(el, i){
+    el.style.animationDelay = (i * 16) + "ms";
+  });
   $("sheet").classList.add("show");
   $("sheet-bg").classList.add("show");
   if (onReady) setTimeout(function(){ onReady(body); }, 30);
 }
 function openListSheet(title, rows, emptyText){
   var html = '<div class="s-list">' + (rows.length ? rows.map(function(r, i){
-    return '<button class="s-item" data-idx="' + i + '">' + r.html + "</button>";
+    return '<button class="s-item" data-idx="' + i + '" style="animation-delay:' + (i * 16) + 'ms">' + r.html + "</button>";
   }).join("") : '<div class="s-empty">' + esc(emptyText || tr("Пусто")) + "</div>") + "</div>";
   openSheetHtml(title, html, function(body){
     body.querySelectorAll(".s-item").forEach(function(b){
@@ -1471,20 +1571,41 @@ var CFG = {
   search:   { tab: null,      tabbar: false }
 };
 var PUBLIC = { login: 1, about: 1 };
+var SCREEN_DEPTH = {
+  boot: 0, login: 0, chats: 0, blog: 0, support: 0, account: 0,
+  chat: 1, newchat: 1, post: 1, ticket: 1, newticket: 1, devices: 1, about: 1, search: 1,
+  device: 2
+};
 function show(name){
+  var prev = STATE.screen;
   if (!PUBLIC[name] && !STATE.token) name = "login";
   if (SCREENS.indexOf(name) < 0) name = STATE.token ? "chats" : "login";
   var pane2 = (name === "chats" || name === "chat");
   document.body.classList.toggle("pane2", pane2);
   document.body.classList.toggle("chatopen", name === "chat");
   SCREENS.forEach(function(s){ $("screen-" + s).classList.toggle("hidden", s !== name); });
+  var target = $("screen-" + name);
+  if (target && prev !== name) {
+    target.classList.remove("anim-fade", "anim-fwd", "anim-back");
+    void target.offsetWidth;
+    var dPrev = SCREEN_DEPTH[prev] || 0, dNext = SCREEN_DEPTH[name] || 0;
+    target.classList.add(dNext > dPrev ? "anim-fwd" : dNext < dPrev ? "anim-back" : "anim-fade");
+    clearTimeout(target._animT);
+    target._animT = setTimeout(function(){
+      target.classList.remove("anim-fade", "anim-fwd", "anim-back");
+    }, 260);
+  }
   var c = CFG[name] || {};
   $("tabbar").classList.toggle("hidden", !c.tabbar);
   $("tabbar").querySelectorAll(".tab").forEach(function(b){
     b.classList.toggle("active", b.getAttribute("data-tab") === c.tab);
   });
   STATE.screen = name;
-  if (name === "chats") { renderChatRows(); refreshChats(false); }
+  if (name === "chats") {
+    renderChatRows();
+    refreshChats(false);
+    if (prev !== name) entrance($("screen-chats"), ".qcard", 28);
+  }
   if (name === "blog") renderBlog();
   if (name === "support") renderSupport();
   if (name === "newticket") setTicketKind(STATE.newTicketKind || "bug");
@@ -1537,7 +1658,10 @@ function bindHeadCollapse(headId, key){
   var apply = function(){
     var col = !!getCollapsedMap()[key];
     head.classList.toggle("collapsed", col);
-    if (content) content.classList.toggle("hidden", col);
+    if (content) {
+      content.classList.toggle("hidden", col);
+      if (!col) revealContent(content);
+    }
   };
   head.onclick = function(){ setCollapsedKey(key, !getCollapsedMap()[key]); apply(); };
   apply();
@@ -1564,9 +1688,10 @@ function chatRowEl(chat){
   b.onclick = function(){ openChat(chat); };
   return b;
 }
-function renderChatRows(){
+function renderChatRows(animate){
   var box = $("chat-rows");
   if (!box) return;
+  var doAnim = !!animate;
   var all = STATE.chats || [];
   var dm = all.filter(function(c){ return c.chat_type === "dm"; });
   var pinned = all.filter(function(c){ return c.is_pinned; });
@@ -1587,6 +1712,7 @@ function renderChatRows(){
   else if (!STATE.showArchived) { list = list.filter(function(c){ return !c.is_archived; }); }
   else { list = list.filter(function(c){ return c.is_archived; }); }
   $("chats-head-label").textContent = label + (STATE.showArchived && !STATE.filter ? tr(" (архив)") : "");
+  if (!STATE.chatsRendered && list.length) doAnim = true;
   var map = getCollapsedMap();
   var master = $("chats-master");
   if (master) master.classList.toggle("collapsed", !!map["all"]);
@@ -1602,6 +1728,10 @@ function renderChatRows(){
   }
   if (STATE.filter) {
     list.forEach(function(chat){ box.appendChild(chatRowEl(chat)); });
+    if (doAnim) {
+      entrance(box, ".row", 16);
+      if (STATE.screen === "chats") STATE.chatsRendered = true;
+    }
     return;
   }
   var secs = [
@@ -1618,15 +1748,17 @@ function renderChatRows(){
     var head = document.createElement("div");
     head.className = "subhead" + (collapsed ? " collapsed" : "");
     head.innerHTML = '<span class="tri"></span><span>' + s[1] + '</span><span class="grow"></span><span class="badge">' + part.length + "</span>";
-    head.onclick = function(){ setCollapsedKey(s[0], !collapsed); renderChatRows(); };
+    head.onclick = function(){ setCollapsedKey(s[0], !collapsed); renderChatRows(true); };
     box.appendChild(head);
     if (!collapsed) part.forEach(function(chat){ box.appendChild(chatRowEl(chat)); });
   });
   if (!shown) box.innerHTML = '<div class="empty">' + tr("Чатов пока нет — создайте первый или присоединитесь по ссылке.") + '</div>';
+  else if (doAnim) entrance(box, ".subhead, .row", 16);
+  if (doAnim && STATE.screen === "chats") STATE.chatsRendered = true;
 }
 function setFilter(f){
   STATE.filter = (STATE.filter === f) ? null : f;
-  renderChatRows();
+  renderChatRows(true);
   $("chats-scroll").scrollTop = 0;
 }
 function openChatsMenu(){
@@ -1636,8 +1768,8 @@ function openChatsMenu(){
     { icon: "i-plus", label: tr("Новый чат"), action: function(){ go("newchat"); } },
     { icon: "i-link", label: tr("Присоединиться по ссылке"), action: function(){ openJoinSheet(); } }
   ];
-  if (drafts) items.push({ icon: "i-pencil", label: tr("Черновики") + " (" + drafts + ")", action: function(){ STATE.showArchived = false; STATE.filter = "drafts"; renderChatRows(); $("chats-scroll").scrollTop = 0; } });
-  if (archived) items.push({ icon: "i-archive", label: STATE.showArchived ? tr("Скрыть архив (") + archived + ")" : tr("Показать архив (") + archived + ")", action: function(){ STATE.showArchived = !STATE.showArchived; STATE.filter = null; renderChatRows(); } });
+  if (drafts) items.push({ icon: "i-pencil", label: tr("Черновики") + " (" + drafts + ")", action: function(){ STATE.showArchived = false; STATE.filter = "drafts"; renderChatRows(true); $("chats-scroll").scrollTop = 0; } });
+  if (archived) items.push({ icon: "i-archive", label: STATE.showArchived ? tr("Скрыть архив (") + archived + ")" : tr("Показать архив (") + archived + ")", action: function(){ STATE.showArchived = !STATE.showArchived; STATE.filter = null; renderChatRows(true); } });
   openSheet(tr("Чаты"), items);
 }
 function openJoinSheet(){
@@ -1805,6 +1937,9 @@ async function loadMessages(force, older){
       box.scrollTop = prevTop + (box.scrollHeight - prevH);
       return;
     }
+    var prevMsgs = box.querySelectorAll(".m[data-mid]");
+    var prevMaxMsgId = prevMsgs.length ? Number(prevMsgs[prevMsgs.length - 1].getAttribute("data-mid")) || 0 : 0;
+    var hadMsgs = prevMsgs.length > 0;
     var wasBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
     var oldTop = box.scrollTop;
     var myLogin = String((STATE.profile && STATE.profile.login) || (STATE.user && STATE.user.login) || "").toLowerCase();
@@ -1843,6 +1978,19 @@ async function loadMessages(force, older){
     if (!items.length) frag2.appendChild(emptyEl(tr("Сообщений пока нет — напишите первым.")));
     box.innerHTML = "";
     box.appendChild(frag2);
+    var renderedMsgs = box.querySelectorAll(".m[data-mid]");
+    var animFrom = prevMaxMsgId;
+    if (!hadMsgs && renderedMsgs.length > 6) {
+      animFrom = Number(renderedMsgs[renderedMsgs.length - 7].getAttribute("data-mid")) || 0;
+    }
+    var animCount = 0;
+    renderedMsgs.forEach(function(el){
+      if ((Number(el.getAttribute("data-mid")) || 0) > animFrom) {
+        el.classList.add("msg-in");
+        el.style.animationDelay = Math.min(animCount, 6) * 22 + "ms";
+        animCount++;
+      }
+    });
     STATE.msgOffset = items.length;
     if (wasBottom) box.scrollTop = box.scrollHeight; else box.scrollTop = oldTop;
     if (mentionHit) {
@@ -1990,6 +2138,8 @@ async function votePoll(pollId, optionIndex){
       if (node) {
         var old = node.querySelector(".poll");
         if (old) old.outerHTML = pollHtml(res.message.poll);
+        var freshPoll = node.querySelector(".poll");
+        if (freshPoll) freshPoll.classList.add("poll-in");
       }
     }
   } catch(e) { toast(e.message); }
@@ -2050,7 +2200,9 @@ async function toggleReaction(mid, emoji){
           el2.querySelectorAll("button").forEach(function(b){
             b.onclick = function(ev){ ev.stopPropagation(); toggleReaction(mid, b.getAttribute("data-emoji")); };
           });
+          el2.classList.add("react-pop");
           node.appendChild(el2);
+          setTimeout(function(){ el2.classList.remove("react-pop"); }, 220);
         }
       }
     }
@@ -2835,6 +2987,7 @@ async function renderBlog(){
       div.onclick = function(){ openPost(p); };
       box.appendChild(div);
     });
+    entrance(box, ".post", 22);
   } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
 }
 function openPost(p){
@@ -2902,6 +3055,7 @@ async function renderSupport(){
       b.onclick = function(){ openTicket(tk2); };
       box.appendChild(b);
     });
+    entrance(box, ".row", 18);
   } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
 }
 async function openTicket(tk2){
@@ -3131,6 +3285,7 @@ async function renderDevices(){
         };
         box.appendChild(b);
       });
+      entrance(box, ".row", 18);
     }
   } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
   var cat = $("device-catalog");
@@ -3150,6 +3305,7 @@ async function renderDevices(){
       b.onclick = function(){ openDevice(dev); };
       cat.appendChild(b);
     });
+    entrance(cat, ".row", 18);
   } catch(e) { cat.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
 }
 async function pairDevice(){
@@ -3283,6 +3439,7 @@ async function renderAccount(){
       } catch(e) { toast(e.message); }
     };
   }
+  entrance(box, ".profile-hero, .group, .sect-label", 22);
 }
 async function doLogout(){
   if (!confirm(tr("Выйти из аккаунта?"))) return;
@@ -3534,7 +3691,7 @@ async function start(){
   bindAvatarInput();
   bindSearch();
   var masterHead = $("chats-master");
-  if (masterHead) masterHead.onclick = function(){ setCollapsedKey("all", !getCollapsedMap()["all"]); renderChatRows(); };
+  if (masterHead) masterHead.onclick = function(){ setCollapsedKey("all", !getCollapsedMap()["all"]); renderChatRows(true); };
   bindHeadCollapse("support-head", "head_support");
   bindHeadCollapse("pair-head", "head_pair");
   bindHeadCollapse("devices-head", "head_devices");
