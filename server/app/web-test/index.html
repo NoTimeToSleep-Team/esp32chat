@@ -23,10 +23,14 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .i.s22{width:22px;height:22px}.i.s24{width:24px;height:24px}.i.s26{width:26px;height:26px}
 
 /* ---------- top bars ---------- */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;gap:10px}
+.topbar{display:flex;flex-direction:column;padding:14px 16px 6px;gap:10px}
+.topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .topbar .ttl{font-size:20px;font-weight:700}
 .topbar .sub{font-size:13px;color:var(--sub);margin-top:2px}
 .topbar .acts{display:flex;gap:8px}
+.search-pill{display:flex;align-items:center;gap:9px;width:100%;height:38px;background:var(--card);border:0;border-radius:999px;color:var(--sub);font-family:inherit;font-size:14.5px;padding:0 15px;text-align:left;cursor:pointer;flex:none}
+.search-pill .i{color:var(--sub)}
+.search-pill:active{background:#232327}
 .user-chip{display:flex;align-items:center;gap:10px;background:var(--card);border:0;color:var(--text);font-size:17px;font-weight:600;padding:7px 18px 7px 9px;border-radius:999px;font-family:inherit;cursor:pointer;max-width:60%}
 .user-chip .chip-ava{width:30px;height:30px;border-radius:999px;background:#3d5a80;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;overflow:hidden}
 .user-chip .chip-ava img{width:100%;height:100%;object-fit:cover}
@@ -35,7 +39,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 
 /* ---------- quick cards (inside the feed) ---------- */
 .quick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px 14px 2px}
-.qcard{background:var(--card);border:0;border-radius:18px;padding:13px 13px 11px;text-align:left;color:var(--text);font-family:inherit;min-height:90px;display:flex;flex-direction:column;cursor:pointer;position:relative}
+.qcard{background:var(--card);border:0;border-radius:14px;padding:13px 13px 11px;text-align:left;color:var(--text);font-family:inherit;min-height:90px;display:flex;flex-direction:column;cursor:pointer;position:relative}
 .qcard .i{color:#e9e9ee}
 .qcard .qt{margin-top:auto;font-size:14.5px;font-weight:600}
 .qcard .qs{font-size:12.5px;color:var(--sub);margin-top:2px}
@@ -44,7 +48,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 /* ---------- group cards / rows ---------- */
 .scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
 .scroll.nopad{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
-.group{background:var(--card);border-radius:20px;margin:12px 14px;padding:4px 0 6px}
+.group{background:var(--card);border-radius:15px;margin:12px 14px;padding:4px 0 6px}
 .group-head{display:flex;align-items:center;gap:9px;padding:12px 16px 4px;color:var(--sub);font-size:15px}
 .group-head{cursor:pointer}
 .group-head .tri{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #6f6f75;flex:none;transition:transform .2s}
@@ -95,7 +99,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 @keyframes pinIn{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
 .pinned{animation:pinIn .3s cubic-bezier(.2,.7,.3,1)}
 @keyframes msgFlash{0%{background:rgba(88,86,224,.34)}55%{background:rgba(88,86,224,.2)}100%{background:rgba(88,86,224,0)}}
-.m.flash{animation:msgFlash 1.6s ease forwards;border-radius:12px}
+.m.flash{animation:msgFlash 1.6s ease forwards;border-radius:10px}
 .chat-ava{width:36px;height:36px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff;margin-right:2px;flex:0 0 auto}
 .chat-ava img{width:100%;height:100%;object-fit:cover}
 .cs-ava-row{display:flex;align-items:center;gap:10px;padding:4px 2px 10px}
@@ -130,13 +134,13 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .day{background:#26262a;color:#c9c9ce;font-size:13px;padding:4px 13px;border-radius:999px;width:max-content;margin:16px auto}
 .load-older{display:block;margin:6px auto 2px;background:none;border:1px solid var(--hair);color:var(--sub);border-radius:999px;padding:6px 14px;font-size:13.5px;font-family:inherit;cursor:pointer}
 .att-wrap{margin-top:6px;display:flex;flex-direction:column;gap:6px}
-.att-img img{max-width:230px;max-height:280px;border-radius:14px;display:block;cursor:pointer}
+.att-img img{max-width:230px;max-height:280px;border-radius:12px;display:block;cursor:pointer}
 .att-audio audio{max-width:260px;height:38px}
-.att-file{display:inline-flex;gap:8px;align-items:center;color:var(--link);font-size:14.5px;text-decoration:none;background:#26262b;border-radius:12px;padding:8px 12px;max-width:100%}
+.att-file{display:inline-flex;gap:8px;align-items:center;color:var(--link);font-size:14.5px;text-decoration:none;background:#26262b;border-radius:10px;padding:8px 12px;max-width:100%}
 .att-file span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.poll{background:#232327;border-radius:14px;padding:12px;margin-top:6px}
+.poll{background:#232327;border-radius:12px;padding:12px;margin-top:6px}
 .poll .pq{font-weight:600;font-size:15px;margin-bottom:8px}
-.poll .po{display:block;width:100%;text-align:left;background:#2a2a2e;border:1px solid transparent;border-radius:10px;color:var(--text);font-family:inherit;font-size:14.5px;padding:9px 12px;margin-top:6px;position:relative;overflow:hidden;cursor:pointer}
+.poll .po{display:block;width:100%;text-align:left;background:#2a2a2e;border:1px solid transparent;border-radius:8px;color:var(--text);font-family:inherit;font-size:14.5px;padding:9px 12px;margin-top:6px;position:relative;overflow:hidden;cursor:pointer}
 .poll .po.mine{border-color:var(--accent)}
 .poll .po .pbar{position:absolute;left:0;top:0;bottom:0;background:rgba(88,86,224,.25)}
 .poll .po .pt{position:relative}
@@ -150,7 +154,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .c-icons .send{margin-left:auto;color:#5a5a60}
 .c-icons .send.ready{color:var(--link)}
 .c-icons .ic.rec{color:var(--red)}
-.reply-bar,.attach-chips,.voice-bar,.mention-list{background:#1c1c1f;border-radius:14px;margin-bottom:8px;padding:8px 12px}
+.reply-bar,.attach-chips,.voice-bar,.mention-list{background:#1c1c1f;border-radius:12px;margin-bottom:8px;padding:8px 12px}
 .reply-bar{display:flex;align-items:center;gap:10px}
 .reply-bar .rb-main{flex:1;min-width:0}
 .reply-bar .rb-a{font-size:13px;font-weight:600;color:var(--link)}
@@ -164,17 +168,17 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 @keyframes pulse{50%{opacity:.35}}
 .voice-bar .vtime{font-variant-numeric:tabular-nums}
 .mention-list{max-height:180px;overflow-y:auto;padding:4px}
-.mention-list button{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--text);font-family:inherit;font-size:15px;padding:9px 10px;border-radius:10px;cursor:pointer;text-align:left}
+.mention-list button{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--text);font-family:inherit;font-size:15px;padding:9px 10px;border-radius:8px;cursor:pointer;text-align:left}
 .mention-list button:active{background:#26262b}
 
 /* ---------- forms ---------- */
-.inp{width:100%;background:var(--card);border:1px solid var(--hair);border-radius:14px;color:var(--text);font-size:16px;font-family:inherit;padding:13px 14px;outline:none}
+.inp{width:100%;background:var(--card);border:1px solid var(--hair);border-radius:12px;color:var(--text);font-size:16px;font-family:inherit;padding:13px 14px;outline:none}
 .inp::placeholder{color:var(--muted)}
 .inp.area{min-height:110px;resize:none}
 .form{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px}
-.btn-accent{width:100%;height:50px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-accent{width:100%;height:50px;border:0;border-radius:13px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
 .btn-accent:disabled{opacity:.5}
-.btn-line{width:100%;height:48px;border:1px solid var(--hair);border-radius:16px;background:none;color:var(--text);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-line{width:100%;height:48px;border:1px solid var(--hair);border-radius:13px;background:none;color:var(--text);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
 .seg{display:flex;gap:8px;padding:0 14px;flex-wrap:wrap}
 .chip{background:var(--card);border:1px solid var(--hair);color:var(--sub);border-radius:999px;padding:9px 15px;font-size:14.5px;font-family:inherit;cursor:pointer}
 .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -202,24 +206,24 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .st-closed{background:#2a2a2e;color:#9a9aa0}
 
 /* ---------- blog ---------- */
-.post{background:var(--card);border-radius:20px;margin:12px 14px;padding:16px;cursor:pointer}
+.post{background:var(--card);border-radius:15px;margin:12px 14px;padding:16px;cursor:pointer}
 .post .p-title{font-size:17px;font-weight:700}
 .post .p-meta{font-size:13px;color:var(--sub);margin-top:3px}
 .post .p-body{font-size:15px;color:#c9c9ce;margin-top:8px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
-.post-view{background:var(--card);border-radius:20px;margin:12px 14px;padding:18px}
+.post-view{background:var(--card);border-radius:15px;margin:12px 14px;padding:18px}
 .post-view .p-title{font-size:20px;font-weight:700;line-height:1.3}
 .post-view .p-meta{font-size:13px;color:var(--sub);margin-top:5px}
 .post-view .p-body{font-size:16px;line-height:1.5;margin-top:12px;white-space:pre-wrap}
 
 /* ---------- profile ---------- */
-.profile-hero{background:var(--card);border-radius:22px;margin:14px 14px 4px;padding:24px 18px 18px;text-align:center}
+.profile-hero{background:var(--card);border-radius:16px;margin:14px 14px 4px;padding:24px 18px 18px;text-align:center}
 .hero-ava{width:96px;height:96px;border-radius:999px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:44px;background:#2a2a2e;overflow:hidden}
 .hero-ava img{width:100%;height:100%;object-fit:cover}
 .hero-name{font-size:22px;font-weight:700;margin-top:14px}
 .hero-login{font-size:14px;color:var(--sub);margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
-.hero-btn{margin-top:16px;width:100%;height:50px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;cursor:pointer}
+.hero-btn{margin-top:16px;width:100%;height:50px;border:0;border-radius:13px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;cursor:pointer}
 .emoji-grid{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;padding:8px 14px 14px}
-.emoji-grid button{width:44px;height:44px;border-radius:12px;border:1px solid transparent;background:#232327;font-size:22px;cursor:pointer;font-family:inherit}
+.emoji-grid button{width:44px;height:44px;border-radius:10px;border:1px solid transparent;background:#232327;font-size:22px;cursor:pointer;font-family:inherit}
 .emoji-grid button.sel{border-color:var(--accent);background:#2b2b40}
 .sect-label{color:var(--sub);font-size:15px;margin:18px 22px 8px}
 
@@ -236,14 +240,19 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 /* ---------- login ---------- */
 .login{padding:28px 22px calc(28px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;min-height:0;overflow-y:auto}
 .login .brand{display:flex;align-items:center;gap:12px}
-.login .brand .logo{width:46px;height:46px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center}
+.login .brand .logo{width:46px;height:46px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center}
 .login .brand .logo svg{width:24px;height:24px;display:block}
 .login .brand .name{font-size:24px;font-weight:800}
 .login .tagline{color:var(--sub);font-size:15px;margin-top:10px}
-.login .points{list-style:none;padding:0;margin:18px 0 0;display:flex;flex-direction:column;gap:9px}
-.login .points li{display:flex;align-items:center;gap:9px;color:#c9c9ce;font-size:14.5px}
-.login .points .i{color:var(--green)}
-.login .l-card{margin-top:26px;display:flex;flex-direction:column;gap:10px}
+.login .l-about{margin-top:16px;background:var(--card);border-radius:12px;overflow:hidden}
+.login .l-about-btn{display:flex;align-items:center;gap:9px;width:100%;padding:11px 13px;background:none;border:0;color:var(--text);font-family:inherit;font-size:14.5px;text-align:left;cursor:pointer}
+.login .l-about-btn span{flex:1}
+.login .l-about-btn .i{color:var(--sub)}
+.login .l-about-btn .l-about-chev{transition:transform .2s}
+.login .l-about-btn[aria-expanded="true"] .l-about-chev{transform:rotate(90deg)}
+.login .l-about-body{padding:0 13px 12px;color:#c9c9ce;font-size:13.5px;line-height:1.45}
+.login .l-about-body p{margin:0}
+.login .l-card{margin-top:18px;display:flex;flex-direction:column;gap:10px}
 .login .l-link{color:var(--link);font-size:14.5px;text-align:center;margin-top:14px;cursor:pointer}
 .login .l-guest{margin-top:auto;padding-top:18px}
 .login .netline{display:flex;align-items:center;gap:8px;color:var(--sub);font-size:13px;margin-top:16px}
@@ -252,7 +261,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 /* ---------- sheet ---------- */
 .sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:30}
 .sheet-bg.show{opacity:1;pointer-events:auto}
-.sheet{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#202024;border-radius:22px;padding:8px 0 10px;transform:translateY(115%);transition:.25s;z-index:31;max-height:74%;overflow-y:auto;overscroll-behavior:contain;visibility:hidden}
+.sheet{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#202024;border-radius:17px;padding:8px 0 10px;transform:translateY(115%);transition:.25s;z-index:31;max-height:74%;overflow-y:auto;overscroll-behavior:contain;visibility:hidden}
 .sheet.show{transform:translateY(0);visibility:visible}
 .sheet .s-title{font-size:13px;color:var(--sub);text-align:center;padding:10px 16px 6px}
 .sheet .srow{display:flex;align-items:center;gap:14px;width:100%;padding:13px 20px;background:none;border:0;color:var(--text);font-size:16.5px;font-family:inherit;text-align:left;cursor:pointer}
@@ -266,7 +275,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .sheet .s-form{padding:4px 18px 12px;display:flex;flex-direction:column;gap:10px}
 .sheet .s-form .inp{background:#26262b}
 .sheet .s-list{padding:0 12px}
-.sheet .s-item{display:flex;align-items:center;gap:12px;width:100%;padding:10px 8px;background:none;border:0;color:var(--text);font-family:inherit;font-size:15.5px;text-align:left;cursor:pointer;border-radius:12px}
+.sheet .s-item{display:flex;align-items:center;gap:12px;width:100%;padding:10px 8px;background:none;border:0;color:var(--text);font-family:inherit;font-size:15.5px;text-align:left;cursor:pointer;border-radius:10px}
 .sheet .s-item:active{background:#2a2a2e}
 .sheet .s-empty{color:var(--sub);font-size:14px;text-align:center;padding:14px}
 .sheet .s-note{color:var(--sub);font-size:13px;padding:0 18px 8px}
@@ -279,7 +288,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 /* широкие экраны: приложение по центру в аккуратной рамке */
 @media (min-width:500px) and (min-height:620px){
   html,body{background:#050507}
-  #app{height:calc(100dvh - 24px);margin:12px auto;border-radius:26px;box-shadow:0 0 0 1px var(--hair),0 30px 70px rgba(0,0,0,.6)}
+  #app{height:calc(100dvh - 24px);margin:12px auto;border-radius:20px;box-shadow:0 0 0 1px var(--hair),0 30px 70px rgba(0,0,0,.6)}
 }
 /* очень широкие: чуть больше воздуха */
 @media (min-width:900px) and (min-height:620px){
@@ -332,7 +341,8 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   .m-text{font-size:15.5px}
   .composer{padding:6px 12px calc(8px + env(safe-area-inset-bottom,0px))}
   .tabbar{bottom:calc(6px + env(safe-area-inset-bottom,0px))}
-  .topbar{padding:10px 14px 4px}
+  .topbar{padding:10px 14px 4px;gap:7px}
+  .search-pill{height:34px;font-size:14px}
   .quick{display:none}
 }
 </style>
@@ -410,11 +420,16 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
         <span class="name">Local Chat</span>
       </div>
       <div class="tagline">Локальный чат в вашей сети</div>
-      <ul class="points">
-        <li><svg class="i s18"><use href="#i-check"/></svg>Работает без интернета</li>
-        <li><svg class="i s18"><use href="#i-check"/></svg>Телефон, ноутбук, устройства</li>
-        <li><svg class="i s18"><use href="#i-check"/></svg>Сообщения и файлы остаются внутри сети</li>
-      </ul>
+      <div class="l-about">
+        <button class="l-about-btn" id="login-about-btn" onclick="toggleLoginAbout()" aria-expanded="false" aria-controls="login-about-body">
+          <svg class="i s18"><use href="#i-info"/></svg>
+          <span>О проекте</span>
+          <svg class="i s16 l-about-chev"><use href="#i-chev"/></svg>
+        </button>
+        <div class="l-about-body hidden" id="login-about-body">
+          <p>Local Chat — чат для локальной сети от команды no time to sleep. Сервер работает на Raspberry Pi 5, подключиться можно с телефона, ноутбука и устройств M5Stack. Это демо-версия, проект продолжает развиваться. Другие наши проекты — на github.com/No-time-to-sleep.</p>
+        </div>
+      </div>
       <div class="l-card">
         <input class="inp" id="login-user" placeholder="Логин" autocomplete="username">
         <input class="inp" id="login-pass" type="password" placeholder="Пароль" autocomplete="current-password">
@@ -434,14 +449,19 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   <!-- ================= ЧАТЫ ================= -->
   <section class="screen hidden" id="screen-chats">
     <header class="topbar">
-      <button class="user-chip" id="chip-btn" onclick="go('account')">
-        <span class="chip-ava" id="chip-ava">?</span>
-        <span class="chip-name" id="chip-name">Профиль</span>
-      </button>
-      <div class="acts">
-        <button class="icon-btn" onclick="go('search')" title="Поиск"><svg class="i s22"><use href="#i-search"/></svg></button>
-        <button class="icon-btn" onclick="go('newchat')" title="Новый чат"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      <div class="topbar-row">
+        <button class="user-chip" id="chip-btn" onclick="go('account')">
+          <span class="chip-ava" id="chip-ava">?</span>
+          <span class="chip-name" id="chip-name">Профиль</span>
+        </button>
+        <div class="acts">
+          <button class="icon-btn" onclick="go('newchat')" title="Новый чат"><svg class="i s22"><use href="#i-plus"/></svg></button>
+        </div>
       </div>
+      <button class="search-pill" onclick="go('search')" title="Поиск" aria-label="Поиск">
+        <svg class="i s18"><use href="#i-search"/></svg>
+        <span>Поиск</span>
+      </button>
     </header>
 
     <div class="scroll" id="chats-scroll">
@@ -809,9 +829,7 @@ try {
 } catch(e) {}
 var EN = {
 "Локальный чат в вашей сети": "Local chat in your network",
-"Работает без интернета": "Works without internet",
-"Телефон, ноутбук, устройства": "Phone, laptop, devices",
-"Сообщения и файлы остаются внутри сети": "Messages and files stay inside the network",
+"Local Chat — чат для локальной сети от команды no time to sleep. Сервер работает на Raspberry Pi 5, подключиться можно с телефона, ноутбука и устройств M5Stack. Это демо-версия, проект продолжает развиваться. Другие наши проекты — на github.com/No-time-to-sleep.": "Local Chat is a local-network chat by the no time to sleep team. The server runs on a Raspberry Pi 5, and you can connect from a phone, a laptop, or M5Stack devices. This is a demo; the project keeps evolving. Our other projects are on github.com/No-time-to-sleep.",
 "Логин": "Login",
 "Пароль": "Password",
 "Телефон (+7...)": "Phone",
@@ -1129,6 +1147,14 @@ function switchLang(){
   LANG = (LANG === "eng") ? "rus" : "eng";
   try { localStorage.setItem("lc_lang", LANG); } catch(e) {}
   location.reload();
+}
+function toggleLoginAbout(){
+  var body = $("login-about-body");
+  var btn = $("login-about-btn");
+  if (!body || !btn) return;
+  var open = body.classList.contains("hidden");
+  body.classList.toggle("hidden", !open);
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
 }
 function applyStatic(){
   document.documentElement.lang = LANG === "eng" ? "en" : "ru";
@@ -3496,6 +3522,7 @@ window.unpinMessage = unpinMessage;
 window.startMention = startMention;
 window.openMsgMenu = openMsgMenu;
 window.switchLang = switchLang;
+window.toggleLoginAbout = toggleLoginAbout;
 
 /* ============================ старт ============================ */
 async function start(){
