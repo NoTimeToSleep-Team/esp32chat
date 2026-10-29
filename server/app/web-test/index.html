@@ -23,15 +23,15 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .i.s22{width:22px;height:22px}.i.s24{width:24px;height:24px}.i.s26{width:26px;height:26px}
 
 /* ---------- top bars ---------- */
-.topbar{display:flex;flex-direction:column;padding:14px 16px 6px;gap:10px}
-.topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.topbar{display:flex;align-items:center;padding:14px 16px 6px;gap:8px}
 .topbar .ttl{font-size:20px;font-weight:700}
 .topbar .sub{font-size:13px;color:var(--sub);margin-top:2px}
-.topbar .acts{display:flex;gap:8px}
-.search-pill{display:flex;align-items:center;gap:9px;width:100%;height:38px;background:var(--card);border:0;border-radius:999px;color:var(--sub);font-family:inherit;font-size:14.5px;padding:0 15px;text-align:left;cursor:pointer;flex:none}
+.topbar .acts{display:flex;gap:8px;flex:none}
+.search-pill{display:flex;align-items:center;gap:8px;flex:1;min-width:0;height:38px;background:var(--card);border:0;border-radius:999px;color:var(--sub);font-family:inherit;font-size:14.5px;padding:0 13px;text-align:left;cursor:pointer}
 .search-pill .i{color:var(--sub)}
+.search-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .search-pill:active{background:#232327}
-.user-chip{display:flex;align-items:center;gap:10px;background:var(--card);border:0;color:var(--text);font-size:17px;font-weight:600;padding:7px 18px 7px 9px;border-radius:999px;font-family:inherit;cursor:pointer;max-width:60%}
+.user-chip{display:flex;align-items:center;gap:10px;background:var(--card);border:0;color:var(--text);font-size:17px;font-weight:600;padding:7px 14px 7px 9px;border-radius:999px;font-family:inherit;cursor:pointer;max-width:44%;flex:none}
 .user-chip .chip-ava{width:30px;height:30px;border-radius:999px;background:#3d5a80;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;overflow:hidden}
 .user-chip .chip-ava img{width:100%;height:100%;object-fit:cover}
 .user-chip .chip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -449,19 +449,17 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
   <!-- ================= ЧАТЫ ================= -->
   <section class="screen hidden" id="screen-chats">
     <header class="topbar">
-      <div class="topbar-row">
-        <button class="user-chip" id="chip-btn" onclick="go('account')">
-          <span class="chip-ava" id="chip-ava">?</span>
-          <span class="chip-name" id="chip-name">Профиль</span>
-        </button>
-        <div class="acts">
-          <button class="icon-btn" onclick="go('newchat')" title="Новый чат"><svg class="i s22"><use href="#i-plus"/></svg></button>
-        </div>
-      </div>
+      <button class="user-chip" id="chip-btn" onclick="go('account')">
+        <span class="chip-ava" id="chip-ava">?</span>
+        <span class="chip-name" id="chip-name">Профиль</span>
+      </button>
       <button class="search-pill" onclick="go('search')" title="Поиск" aria-label="Поиск">
         <svg class="i s18"><use href="#i-search"/></svg>
         <span>Поиск</span>
       </button>
+      <div class="acts">
+        <button class="icon-btn" onclick="go('newchat')" title="Новый чат"><svg class="i s22"><use href="#i-plus"/></svg></button>
+      </div>
     </header>
 
     <div class="scroll" id="chats-scroll">
