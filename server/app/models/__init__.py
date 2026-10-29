@@ -21,6 +21,7 @@ from app.models.chat import (
     ChatMessage,
     ChatPoll,
     ChatPollOption,
+    ChatPollVoter,
     ChatReaction,
     ChatRoom,
     ChatType,

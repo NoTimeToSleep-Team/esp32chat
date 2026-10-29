@@ -23,6 +23,7 @@ from app.models import (
     ChatMessage,
     ChatPoll,
     ChatPollOption,
+    ChatPollVoter,
     ChatReaction,
     ChatRoom,
     ChatType,
@@ -2674,6 +2675,40 @@ class ChatService:
                 bool(vote_row["mine"]),
             )
 
+        # Only non-anonymous polls expose who voted for each option. Anonymous
+        # polls keep the aggregate counts, but never send voter identities.
+        non_anonymous_ids = [
+            int(row["id"]) for row in rows if not self._row_bool(row, "is_anonymous")
+        ]
+        voters: dict[int, dict[int, list[ChatPollVoter]]] = {}
+        if non_anonymous_ids:
+            voter_placeholders = ",".join("?" for _ in non_anonymous_ids)
+            voter_rows = connection.execute(
+                f"""
+                SELECT v.poll_id, v.option_index, v.user_id,
+                       u.login AS login,
+                       u.display_name AS display_name,
+                       u.avatar_emoji AS avatar_emoji
+                FROM chat_poll_votes v
+                JOIN users u ON u.id = v.user_id
+                WHERE v.poll_id IN ({voter_placeholders})
+                ORDER BY v.created_at_ms ASC, v.user_id ASC
+                """,
+                tuple(non_anonymous_ids),
+            ).fetchall()
+            for voter_row in voter_rows:
+                option_voters = voters.setdefault(
+                    int(voter_row["poll_id"]), {}
+                ).setdefault(int(voter_row["option_index"]), [])
+                option_voters.append(
+                    ChatPollVoter(
+                        user_id=int(voter_row["user_id"]),
+                        login=str(voter_row["login"]),
+                        display_name=self._row_optional_str_lenient(voter_row, "display_name"),
+                        avatar_emoji=self._row_optional_str_lenient(voter_row, "avatar_emoji"),
+                    )
+                )
+
         result: dict[int, ChatPoll] = {}
         for row in rows:
             poll_id = int(row["id"])
@@ -2689,7 +2724,13 @@ class ChatService:
                 count, mine = votes.get(poll_id, {}).get(index, (0, False))
                 total_votes += count
                 options.append(
-                    ChatPollOption(index=index, text=str(text), votes=count, mine=mine)
+                    ChatPollOption(
+                        index=index,
+                        text=str(text),
+                        votes=count,
+                        mine=mine,
+                        voters=tuple(voters.get(poll_id, {}).get(index, ())),
+                    )
                 )
             poll = ChatPoll(
                 poll_id=poll_id,

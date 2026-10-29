@@ -139,13 +139,28 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 .att-file{display:inline-flex;gap:8px;align-items:center;color:var(--link);font-size:14.5px;text-decoration:none;background:#26262b;border-radius:10px;padding:8px 12px;max-width:100%}
 .att-file span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .poll{background:#232327;border-radius:12px;padding:12px;margin-top:6px}
-.poll .pq{font-weight:600;font-size:15px;margin-bottom:8px}
-.poll .po{display:block;width:100%;text-align:left;background:#2a2a2e;border:1px solid transparent;border-radius:8px;color:var(--text);font-family:inherit;font-size:14.5px;padding:9px 12px;margin-top:6px;position:relative;overflow:hidden;cursor:pointer}
+.poll .poll-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+.poll .pq{font-weight:600;font-size:15px;flex:1;min-width:0}
+.poll .pv{font-size:12px;color:var(--sub);background:#1b1b1f;border-radius:999px;padding:3px 8px;white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}
+.poll .po{display:block;width:100%;text-align:left;background:#2a2a2e;border:1px solid transparent;border-radius:8px;color:var(--text);font-family:inherit;font-size:14.5px;padding:9px 12px;margin-top:6px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .16s ease,background .16s ease}
 .poll .po.mine{border-color:var(--accent)}
-.poll .po .pbar{position:absolute;left:0;top:0;bottom:0;background:rgba(88,86,224,.25)}
+.poll .po .pbar{position:absolute;left:0;top:0;bottom:0;background:rgba(88,86,224,.25);transition:width .24s var(--ease-out)}
 .poll .po .pt{position:relative}
 .poll .po .pc{position:relative;float:right;color:var(--sub);font-size:13px}
-.poll .pm{font-size:12.5px;color:var(--sub);margin-top:8px}
+.poll .pm{font-size:12.5px;color:var(--sub);margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.poll .pm .pmeta{flex:1;min-width:0}
+.poll .pvoters{background:none;border:0;color:var(--link);font-family:inherit;font-size:12.5px;display:inline-flex;align-items:center;gap:4px;padding:0;cursor:pointer;white-space:nowrap}
+.poll .pvoters:active{opacity:.6}
+.pv-list{padding:2px 16px calc(12px + env(safe-area-inset-bottom,0px));max-height:62vh;overflow-y:auto}
+.pv-sec{padding:8px 0 4px;border-top:1px solid var(--hair)}
+.pv-sec:first-child{border-top:0;padding-top:0}
+.pv-q{font-size:13px;color:var(--sub);font-weight:600;padding:2px 0 6px;display:flex;align-items:center;gap:8px}
+.pv-q .pv-n{background:#26262b;border-radius:999px;padding:1px 7px;font-size:11.5px;color:var(--muted);font-weight:500}
+.pv-user{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--text);font-family:inherit;text-align:left;padding:7px 6px;border-radius:8px;cursor:pointer}
+.pv-user:active{background:#2a2a2e}
+.pv-ava{width:30px;height:30px;border-radius:999px;background:#2c2c31;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none}
+.pv-name{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-login{font-size:12.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
 .composer{padding:8px 16px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg)}
 .composer input,.composer textarea{width:100%;background:none;border:0;outline:none;color:var(--text);font-size:17px;font-family:inherit;padding:4px 0;resize:none}
 .composer input::placeholder,.composer textarea::placeholder{color:var(--muted)}
@@ -309,6 +324,7 @@ body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF
 @keyframes sheetItem{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .sheet.show .srow,.sheet.show .s-item,.sheet.show .reacts button,.sheet.show .s-form>*{animation:sheetItem .2s var(--ease-out) both}
 .sheet.show .s-list .s-item:nth-child(n+25){animation:none}
+.sheet.show .pv-sec{animation:sheetItem .2s var(--ease-out) both}
 .sheet.show .s-title{animation:screenFade .16s ease}
 @keyframes growBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .poll.poll-in .pbar{animation:growBar .32s var(--ease-out);transform-origin:left}
@@ -879,6 +895,8 @@ var STATE = {
   device: null,
   lastChatsLoad: 0,
   lastMsgsLoad: 0,
+  pollOptimistic: {},
+  pollRecent: {},
   pendingJoin: null,
   membersCache: null,
   onlineCount: 0,
@@ -995,6 +1013,15 @@ var EN = {
 "Переслано от": "Forwarded from",
 "(изменено)": "(edited)",
 " голосов": " votes",
+"голос": "vote",
+"голоса": "votes",
+"голосов": "votes",
+"имена видны": "voters visible",
+"Кто голосовал": "Who voted",
+"Пока никто не голосовал": "No votes yet",
+"Опрос закрыт": "Poll is closed",
+"Будет видно, кто за какой вариант голосовал.": "Voters will be visible for each option.",
+"Кто голосовал, не будет видно.": "Voters will stay hidden.",
 "несколько вариантов": "multiple answers",
 "анонимный": "anonymous",
 "закрыт": "closed",
@@ -2047,9 +2074,7 @@ function buildMsgEl(m){
   div.querySelectorAll(".m-reacts button").forEach(function(b){
     b.onclick = function(ev){ ev.stopPropagation(); toggleReaction(m.message_id, b.getAttribute("data-emoji")); };
   });
-  div.querySelectorAll(".poll .po").forEach(function(b){
-    b.onclick = function(){ votePoll(m.poll.poll_id, Number(b.getAttribute("data-opt"))); };
-  });
+  bindPoll(div.querySelector(".poll"), m.message_id);
   div.querySelectorAll(".m-text .mention").forEach(function(sp){
     sp.onclick = function(ev){ ev.stopPropagation(); openMentionProfile(sp.getAttribute("data-login") || sp.textContent.replace(/^@/, "")); };
   });
@@ -2118,31 +2143,274 @@ function reactsHtml(m){
     return '<button data-emoji="' + esc(r.emoji) + '" class="' + (r.mine ? "mine" : "") + '">' + esc(r.emoji) + " " + r.count + "</button>";
   }).join("") + "</div>";
 }
-function pollHtml(poll){
-  var total = poll.total_votes || 0;
-  var opts = (poll.options || []).map(function(o){
-    var pct = total ? Math.round((o.votes / total) * 100) : 0;
-    return '<button class="po' + (o.mine ? " mine" : "") + '" data-opt="' + o.index + '"><span class="pbar" style="width:' + pct + '%"></span><span class="pc">' + o.votes + (total ? " · " + pct + "%" : "") + '</span><span class="pt">' + esc(o.text) + "</span></button>";
-  }).join("");
-  var meta = [total + tr(" голосов")];
-  if (poll.is_multiple) meta.push(tr("несколько вариантов"));
-  if (poll.is_anonymous) meta.push(tr("анонимный"));
-  if (poll.closed) meta.push(tr("закрыт"));
-  return '<div class="poll"><div class="pq">' + esc(poll.question) + '</div><div>' + opts + '</div><div class="pm">' + esc(meta.join(" · ")) + "</div></div>";
+function votesWord(n){
+  n = Math.abs(Number(n) || 0);
+  if (LANG === "eng") return n === 1 ? "vote" : "votes";
+  var n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return tr("голос");
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return tr("голоса");
+  return tr("голосов");
 }
-async function votePoll(pollId, optionIndex){
-  try {
-    var res = await api("/chat/api/chats/" + STATE.currentChatId + "/polls/" + pollId + "/vote", { method: "POST", body: JSON.stringify({ session_token: STATE.token, option_index: optionIndex }) });
-    if (res.message) {
-      var node = document.querySelector('.m[data-mid="' + res.message.message_id + '"]');
-      if (node) {
-        var old = node.querySelector(".poll");
-        if (old) old.outerHTML = pollHtml(res.message.poll);
-        var freshPoll = node.querySelector(".poll");
-        if (freshPoll) freshPoll.classList.add("poll-in");
+function effectivePoll(poll){
+  if (!poll) return poll;
+  var overlay = STATE.pollOptimistic && STATE.pollOptimistic[poll.poll_id];
+  if (overlay) return overlay.poll;
+  var recent = STATE.pollRecent && STATE.pollRecent[poll.poll_id];
+  if (recent) {
+    if (recent.until > Date.now() && recent.poll) return recent.poll;
+    delete STATE.pollRecent[poll.poll_id];
+  }
+  return poll;
+}
+function clonePoll(poll){
+  return {
+    poll_id: poll.poll_id,
+    question: poll.question,
+    options: (poll.options || []).map(function(o){
+      return {
+        index: o.index,
+        text: o.text,
+        votes: Number(o.votes) || 0,
+        mine: !!o.mine,
+        voters: (o.voters || []).map(function(v){ return Object.assign({}, v); })
+      };
+    }),
+    total_votes: Number(poll.total_votes) || 0,
+    is_multiple: !!poll.is_multiple,
+    is_anonymous: !!poll.is_anonymous,
+    closed: !!poll.closed
+  };
+}
+function currentPollVoter(){
+  var u = STATE.user || {};
+  var p = STATE.profile || {};
+  var login = p.login || u.login || "";
+  if (!login) return null;
+  return {
+    user_id: Number(u.id || p.user_id || 0),
+    login: String(login),
+    display_name: p.display_name || null,
+    avatar_emoji: p.avatar_emoji || null
+  };
+}
+function pollRemoveVoter(option, userId){
+  if (!option.voters) option.voters = [];
+  option.voters = option.voters.filter(function(v){ return Number(v.user_id) !== Number(userId); });
+}
+function applyPollChoice(poll, optionIndex, selected){
+  var me = currentPollVoter();
+  var opt = poll.options[optionIndex];
+  if (!opt) return poll;
+  if (poll.is_multiple && !!opt.mine === !!selected) return poll;
+  if (!poll.is_anonymous && me) {
+    if (poll.is_multiple) pollRemoveVoter(opt, me.user_id);
+    else poll.options.forEach(function(o){ pollRemoveVoter(o, me.user_id); });
+  }
+  if (poll.is_multiple) {
+    opt.mine = !!selected;
+    opt.votes = Math.max(0, (Number(opt.votes) || 0) + (selected ? 1 : -1));
+    if (!poll.is_anonymous && me && selected) {
+      if (!opt.voters) opt.voters = [];
+      opt.voters.push(me);
+    }
+  } else {
+    poll.options.forEach(function(o){
+      if (o.mine) {
+        o.mine = false;
+        o.votes = Math.max(0, (Number(o.votes) || 0) - 1);
+      }
+    });
+    if (selected) {
+      opt.mine = true;
+      opt.votes = (Number(opt.votes) || 0) + 1;
+      if (!poll.is_anonymous && me) {
+        if (!opt.voters) opt.voters = [];
+        opt.voters.push(me);
       }
     }
-  } catch(e) { toast(e.message); }
+  }
+  poll.total_votes = poll.options.reduce(function(sum, o){ return sum + (Number(o.votes) || 0); }, 0);
+  return poll;
+}
+function pollMetaText(poll){
+  var meta = [poll.is_anonymous ? tr("анонимный") : tr("имена видны")];
+  if (poll.is_multiple) meta.push(tr("несколько вариантов"));
+  if (poll.closed) meta.push(tr("закрыт"));
+  return meta.join(" · ");
+}
+function pollHasVoters(poll){
+  if (!poll || poll.is_anonymous) return false;
+  return (poll.options || []).some(function(o){ return (o.voters || []).length > 0; });
+}
+function pollVotersBtnHtml(poll){
+  if (!pollHasVoters(poll)) return "";
+  return '<button class="pvoters" type="button"><svg class="i s15"><use href="#i-users"/></svg><span>' + tr("Кто голосовал") + "</span></button>";
+}
+function pollHtml(poll){
+  poll = effectivePoll(poll);
+  if (!poll) return "";
+  var total = Number(poll.total_votes) || 0;
+  var opts = (poll.options || []).map(function(o){
+    var votes = Number(o.votes) || 0;
+    var pct = total ? Math.round((votes / total) * 100) : 0;
+    return '<button type="button" class="po' + (o.mine ? " mine" : "") + '" data-opt="' + o.index + '" aria-pressed="' + (o.mine ? "true" : "false") + '"><span class="pbar" style="width:' + pct + '%"></span><span class="pc">' + votes + (total ? " · " + pct + "%" : "") + '</span><span class="pt">' + esc(o.text) + "</span></button>";
+  }).join("");
+  return '<div class="poll" data-poll-id="' + poll.poll_id + '">' +
+    '<div class="poll-head"><div class="pq">' + esc(poll.question) + '</div><div class="pv">' + total + " " + esc(votesWord(total)) + "</div></div>" +
+    "<div>" + opts + "</div>" +
+    '<div class="pm"><span class="pmeta">' + esc(pollMetaText(poll)) + "</span>" + pollVotersBtnHtml(poll) + "</div>" +
+    "</div>";
+}
+function bindPoll(pollEl, mid){
+  if (!pollEl) return;
+  var pollId = Number(pollEl.getAttribute("data-poll-id"));
+  pollEl.querySelectorAll(".po").forEach(function(b){
+    b.onclick = function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      votePoll(pollId, Number(b.getAttribute("data-opt")), mid);
+    };
+  });
+  var votersBtn = pollEl.querySelector(".pvoters");
+  if (votersBtn) {
+    votersBtn.onclick = function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      openPollVoters(pollId, mid);
+    };
+  }
+}
+function updatePollDom(pollEl, poll, mid){
+  if (!pollEl || !poll) return;
+  pollEl.setAttribute("data-poll-id", String(poll.poll_id));
+  var total = Number(poll.total_votes) || 0;
+  var totalEl = pollEl.querySelector(".pv");
+  if (totalEl) totalEl.textContent = total + " " + votesWord(total);
+  var metaEl = pollEl.querySelector(".pmeta");
+  if (metaEl) metaEl.textContent = pollMetaText(poll);
+  pollEl.querySelectorAll(".po").forEach(function(btn){
+    var idx = Number(btn.getAttribute("data-opt"));
+    var o = (poll.options || [])[idx];
+    if (!o) return;
+    var votes = Number(o.votes) || 0;
+    var pct = total ? Math.round((votes / total) * 100) : 0;
+    btn.classList.toggle("mine", !!o.mine);
+    btn.setAttribute("aria-pressed", o.mine ? "true" : "false");
+    var bar = btn.querySelector(".pbar");
+    if (bar) bar.style.width = pct + "%";
+    var count = btn.querySelector(".pc");
+    if (count) count.textContent = votes + (total ? " · " + pct + "%" : "");
+  });
+  var pm = pollEl.querySelector(".pm");
+  if (pm) {
+    var votersBtn = pm.querySelector(".pvoters");
+    var shouldShow = pollHasVoters(poll);
+    if (shouldShow && !votersBtn) {
+      var wrap = document.createElement("span");
+      wrap.innerHTML = pollVotersBtnHtml(poll);
+      votersBtn = wrap.firstChild;
+      if (votersBtn) {
+        votersBtn.onclick = function(ev){
+          ev.preventDefault();
+          ev.stopPropagation();
+          openPollVoters(poll.poll_id, mid);
+        };
+        pm.appendChild(votersBtn);
+      }
+    } else if (!shouldShow && votersBtn) {
+      votersBtn.remove();
+    }
+  }
+}
+function renderPollMessage(mid, poll){
+  var node = document.querySelector('.m[data-mid="' + mid + '"]');
+  if (!node) return;
+  var pollEl = node.querySelector(".poll");
+  if (pollEl) updatePollDom(pollEl, poll, mid);
+}
+var pollQueues = {};
+function votePoll(pollId, optionIndex, mid){
+  var msg = STATE.msgCache[mid];
+  if (!msg || !msg.poll) return;
+  var base = effectivePoll(msg.poll);
+  if (base.closed) { toast(tr("Опрос закрыт")); return; }
+  var opt = (base.options || [])[optionIndex];
+  if (!opt) return;
+  var selected = !opt.mine;
+  var draft = clonePoll(base);
+  applyPollChoice(draft, optionIndex, selected);
+  var slot = STATE.pollOptimistic[pollId];
+  if (!slot) slot = STATE.pollOptimistic[pollId] = {};
+  slot.poll = draft;
+  renderPollMessage(mid, draft);
+  var q = pollQueues[pollId];
+  if (!q) q = pollQueues[pollId] = { items: [], sending: false };
+  q.items.push({ optionIndex: optionIndex, mid: mid, chatId: STATE.currentChatId });
+  if (!q.sending) processPollQueue(pollId);
+}
+async function processPollQueue(pollId){
+  var q = pollQueues[pollId];
+  if (!q) return;
+  q.sending = true;
+  try {
+    while (q.items.length) {
+      var item = q.items.shift();
+      try {
+        var res = await api("/chat/api/chats/" + item.chatId + "/polls/" + pollId + "/vote", {
+          method: "POST",
+          body: JSON.stringify({ session_token: STATE.token, option_index: item.optionIndex })
+        });
+        if (res.message) {
+          STATE.msgCache[res.message.message_id] = res.message;
+          if (!q.items.length) {
+            delete STATE.pollOptimistic[pollId];
+            STATE.pollRecent[pollId] = { poll: res.message.poll, until: Date.now() + 4000 };
+            renderPollMessage(res.message.message_id || item.mid, res.message.poll);
+          }
+        }
+      } catch(e) {
+        q.items.length = 0;
+        delete STATE.pollOptimistic[pollId];
+        delete STATE.pollRecent[pollId];
+        toast(e.message);
+        if (STATE.currentChatId === item.chatId) setTimeout(function(){ loadMessages(true); }, 0);
+        break;
+      }
+    }
+  } finally {
+    q.sending = false;
+    if (!q.items.length) delete pollQueues[pollId];
+  }
+}
+function openPollVoters(pollId, mid){
+  var msg = STATE.msgCache[mid];
+  if (!msg || !msg.poll) return;
+  var poll = effectivePoll(msg.poll);
+  if (poll.is_anonymous) return;
+  var sections = (poll.options || []).map(function(o){
+    var voters = o.voters || [];
+    if (!voters.length) return "";
+    return '<div class="pv-sec"><div class="pv-q"><span>' + esc(o.text) + '</span><span class="pv-n">' + voters.length + "</span></div>" +
+      voters.map(function(v){
+        var name = v.display_name || v.login || userName(v.user_id);
+        var login = v.login ? "@" + v.login : "";
+        return '<button type="button" class="pv-user" data-uid="' + Number(v.user_id || 0) + '">' +
+          avatarHtml("", v.avatar_emoji || userEmoji(v.user_id), "pv-ava") +
+          '<span class="pv-name">' + esc(name) + "</span>" +
+          (login ? '<span class="pv-login">' + esc(login) + "</span>" : "") +
+          "</button>";
+      }).join("") + "</div>";
+  }).filter(Boolean);
+  if (!sections.length) { toast(tr("Пока никто не голосовал")); return; }
+  openSheetHtml(tr("Кто голосовал"), '<div class="pv-list">' + sections.join("") + "</div>", function(body){
+    body.querySelectorAll(".pv-user").forEach(function(b){
+      b.onclick = function(){
+        var uid = Number(b.getAttribute("data-uid"));
+        closeSheet();
+        if (uid) setTimeout(function(){ openUserProfile(uid); }, 80);
+      };
+    });
+  });
 }
 function jumpToMessage(mid){
   var node = document.querySelector('.m[data-mid="' + mid + '"]');
@@ -2834,9 +3102,19 @@ function openPollForm(){
     '<button class="btn-line" id="poll-add" style="height:42px">' + tr("+ Добавить вариант") + '</button>' +
     '<label class="kv" style="padding:6px 4px"><span class="k">' + tr("Несколько вариантов") + '</span><input type="checkbox" id="poll-multi" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
     '<label class="kv" style="padding:6px 4px"><span class="k">' + tr("Анонимный") + '</span><input type="checkbox" id="poll-anon" style="width:22px;height:22px;accent-color:#5856e0"></label>' +
+    '<div class="s-note" id="poll-anon-note"></div>' +
     '<button class="btn-accent" id="poll-create">' + tr("Создать") + '</button>',
     function(){
       var box = $("poll-opts");
+      var anonBox = $("poll-anon");
+      var anonNote = $("poll-anon-note");
+      var syncAnonNote = function(){
+        anonNote.textContent = anonBox.checked
+          ? tr("Кто голосовал, не будет видно.")
+          : tr("Будет видно, кто за какой вариант голосовал.");
+      };
+      anonBox.onchange = syncAnonNote;
+      syncAnonNote();
       var addOpt = function(){
         if (box.querySelectorAll("input").length >= 10) return;
         var inp = document.createElement("input");

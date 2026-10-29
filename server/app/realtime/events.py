@@ -27,7 +27,21 @@ def chat_message_payload(message: ChatMessage) -> dict[str, object]:
             "poll_id": message.poll.poll_id,
             "question": message.poll.question,
             "options": [
-                {"index": option.index, "text": option.text, "votes": option.votes, "mine": option.mine}
+                {
+                    "index": option.index,
+                    "text": option.text,
+                    "votes": option.votes,
+                    "mine": option.mine,
+                    "voters": [
+                        {
+                            "user_id": voter.user_id,
+                            "login": voter.login,
+                            "display_name": voter.display_name,
+                            "avatar_emoji": voter.avatar_emoji,
+                        }
+                        for voter in option.voters
+                    ],
+                }
                 for option in message.poll.options
             ],
             "total_votes": message.poll.total_votes,

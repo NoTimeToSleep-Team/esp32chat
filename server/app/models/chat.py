@@ -108,11 +108,20 @@ class ChatReaction:
 
 
 @dataclass(frozen=True)
+class ChatPollVoter:
+    user_id: int
+    login: str
+    display_name: str | None = None
+    avatar_emoji: str | None = None
+
+
+@dataclass(frozen=True)
 class ChatPollOption:
     index: int
     text: str
     votes: int = 0
     mine: bool = False
+    voters: tuple[ChatPollVoter, ...] = ()
 
 
 @dataclass(frozen=True)
