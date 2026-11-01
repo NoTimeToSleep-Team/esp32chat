@@ -73,6 +73,10 @@ def cmd_create_admin(args) -> None:
                 "updated_at_ms = ? WHERE id = ?",
                 (hash_password(args.password), _now_ms(), row[0]),
             )
+            connection.execute(
+                "UPDATE sessions SET revoked_at_ms = ? WHERE user_id = ? AND revoked_at_ms IS NULL",
+                (_now_ms(), row[0]),
+            )
             connection.commit()
             print(f"admin '{username}' already exists: password updated, role=admin")
             return
@@ -100,6 +104,13 @@ def cmd_create_admin(args) -> None:
         connection.execute(
             "UPDATE users SET role = 'admin', updated_at_ms = ? WHERE login = ?",
             (_now_ms(), username),
+        )
+        # register_user() creates a normal web session as part of account
+        # creation.  The CLI has no browser to use it, and leaving an unknown
+        # live admin token behind is unnecessary risk.
+        connection.execute(
+            "DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE login = ?)",
+            (username,),
         )
         connection.commit()
     finally:
