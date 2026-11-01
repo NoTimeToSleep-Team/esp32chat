@@ -285,6 +285,7 @@ async def pair_device(request: Request, payload: PairDeviceRequest) -> dict[str,
     )
     conn.commit()
     conn.close()
+    _auth_service(request).revoke_device_sessions(payload.device_id)
     return {"status": "ok", "device_id": payload.device_id, "user_id": user_id}
 
 
@@ -311,6 +312,7 @@ async def unpair_device(request: Request, payload: UnpairDeviceRequest) -> dict[
             status_code=404,
             detail={"code": "pairing_not_found", "message": "Active pairing for this device was not found"},
         )
+    _auth_service(request).revoke_device_sessions(payload.device_id)
     return {"status": "ok"}
 
 
@@ -440,6 +442,7 @@ async def claim_pairing_code(
             detail={"code": exc.code, "message": exc.message},
         ) from exc
 
+    auth_service.revoke_device_sessions(device.device_id)
     return {"status": "ok", "device": _paired_device_payload(device)}
 
 

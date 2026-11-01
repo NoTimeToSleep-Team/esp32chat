@@ -30,11 +30,13 @@ class ToggleRfidCardActiveRequest(BaseModel):
 
 
 class VerifyRfidCardRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
     card_uid: str = Field(min_length=4, max_length=64)
     source: str | None = Field(default=None, max_length=128)
 
 
 class SwitchModeByRfidCardRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
     card_uid: str = Field(min_length=4, max_length=64)
     target_mode: AccessMode = AccessMode.OPEN
     source: str | None = Field(default=None, max_length=128)
@@ -271,6 +273,7 @@ async def verify_rfid_card(
     request: Request,
     payload: VerifyRfidCardRequest,
 ) -> dict[str, object]:
+    _resolve_admin_user_id(request, payload.session_token)
     service = _rfid_service(request)
 
     try:
@@ -289,6 +292,7 @@ async def switch_mode_by_rfid_card(
     request: Request,
     payload: SwitchModeByRfidCardRequest,
 ) -> dict[str, object]:
+    _resolve_admin_user_id(request, payload.session_token)
     service = _rfid_service(request)
 
     try:

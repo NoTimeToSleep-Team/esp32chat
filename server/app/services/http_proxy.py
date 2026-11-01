@@ -19,7 +19,10 @@ import os
 
 PROXY_PORT = 3128
 SERVER_URL = os.environ.get("LC_SERVER_URL", "http://192.168.4.1:18080")
-DB_PATH = "/home/gamecat/lc-server/data/sqlite/local_chat.db"
+DB_PATH = os.environ.get(
+    "LC_DB_PATH",
+    "/opt/local-chat-server/data/sqlite/local_chat.db",
+)
 
 BANNER_HTML = """
 <div id="lc-banner" style="
@@ -105,7 +108,9 @@ def user_ip_to_id(ip: str) -> int | None:
         conn = get_db()
         row = conn.execute(
             "SELECT user_id FROM sessions WHERE ip_address = ? "
-            "AND expires_at_ms > ? ORDER BY created_at_ms DESC LIMIT 1",
+            "AND revoked_at_ms IS NULL AND expires_at_ms > ? "
+            "AND client_kind = 'web' "
+            "ORDER BY created_at_ms DESC LIMIT 1",
             (ip, int(time.time() * 1000))
         ).fetchone()
         conn.close()
@@ -124,16 +129,8 @@ def check_internet(ip: str) -> bool:
 
     user_id = user_ip_to_id(ip)
     if user_id is None:
-        # Fallback: if any user has internet, allow it
-        try:
-            conn = get_db()
-            row = conn.execute("SELECT enabled FROM internet_access WHERE enabled = 1 LIMIT 1").fetchone()
-            conn.close()
-            if row and row[0]:
-                ip_cache[ip] = True
-                return True
-        except:
-            pass
+        # No authenticated web session on this client IP: never grant internet.
+        # Per-user internet control must not become a global allow rule.
         ip_cache[ip] = False
         return False
 

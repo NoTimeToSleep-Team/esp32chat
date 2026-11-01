@@ -125,7 +125,12 @@ class RegistrationService:
                 ) from exc
 
             user_id = self._lastrowid(cursor)
-            session = self._create_session(connection, user_id=user_id)
+            session = self._create_session(
+                connection,
+                user_id=user_id,
+                client_kind=client_kind,
+                device_id=normalized_device_id if client_kind == ClientKind.DEVICE else None,
+            )
 
             user = User(
                 login=normalized_login,
@@ -179,7 +184,11 @@ class RegistrationService:
             )
             user_id = self._lastrowid(cursor)
 
-            session = self._create_session(connection, user_id=user_id)
+            session = self._create_session(
+                connection,
+                user_id=user_id,
+                client_kind=ClientKind.WEB,
+            )
             user = User(
                 login=guest_login,
                 role=UserRole.GUEST,
@@ -207,17 +216,34 @@ class RegistrationService:
         except ValueError:
             return AccessMode.CLOSED
 
-    def _create_session(self, connection: sqlite3.Connection, *, user_id: int) -> SessionInfo:
+    def _create_session(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        user_id: int,
+        client_kind: ClientKind = ClientKind.WEB,
+        device_id: str | None = None,
+    ) -> SessionInfo:
         created_at_ms = _now_ms()
         expires_at_ms = created_at_ms + self._session_ttl_ms
         token = secrets.token_urlsafe(32)
 
         connection.execute(
             """
-            INSERT INTO sessions(id, user_id, created_at_ms, expires_at_ms, revoked_at_ms)
-            VALUES (?, ?, ?, ?, NULL)
+            INSERT INTO sessions(
+                id, user_id, created_at_ms, expires_at_ms, revoked_at_ms,
+                client_kind, device_id
+            )
+            VALUES (?, ?, ?, ?, NULL, ?, ?)
             """,
-            (token, user_id, created_at_ms, expires_at_ms),
+            (
+                token,
+                user_id,
+                created_at_ms,
+                expires_at_ms,
+                client_kind.value,
+                (device_id or "").strip() or None,
+            ),
         )
 
         return SessionInfo(
@@ -226,6 +252,8 @@ class RegistrationService:
             created_at_ms=created_at_ms,
             expires_at_ms=expires_at_ms,
             revoked_at_ms=None,
+            client_kind=client_kind,
+            device_id=(device_id or "").strip() or None,
         )
 
     @staticmethod

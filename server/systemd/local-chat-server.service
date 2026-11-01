@@ -10,7 +10,7 @@ Group=localchat
 WorkingDirectory=/opt/local-chat-server
 EnvironmentFile=/opt/local-chat-server/config/app.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/local-chat-server/.venv/bin/uvicorn app.main:app --host ${LCS_HOST} --port ${LCS_PORT} --no-proxy-headers
+ExecStart=/opt/local-chat-server/.venv/bin/uvicorn app.main:app --host ${LCS_HOST} --port ${LCS_PORT} --no-proxy-headers --ws-max-size 65536
 Restart=always
 RestartSec=5
 TimeoutStartSec=60

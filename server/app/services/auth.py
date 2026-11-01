@@ -69,6 +69,8 @@ class SessionInfo:
     created_at_ms: int
     expires_at_ms: int
     revoked_at_ms: int | None = None
+    client_kind: ClientKind = ClientKind.WEB
+    device_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -139,7 +141,13 @@ class AuthService:
                     403,
                 )
 
-            session = self._create_session(connection, user_id=int(user_row["id"]), ip_address=ip_address)
+            session = self._create_session(
+                connection,
+                user_id=int(user_row["id"]),
+                ip_address=ip_address,
+                client_kind=client_kind,
+                device_id=normalized_device or None,
+            )
             if normalized_device:
                 connection.execute(
                     "UPDATE users SET registration_device_id = ? WHERE id = ? AND COALESCE(registration_device_id, '') != ?",
@@ -157,7 +165,13 @@ class AuthService:
                 (normalized,),
             ).fetchone() is not None
 
-    def login_by_user_id(self, user_id: int) -> AuthResult:
+    def login_by_user_id(
+        self,
+        user_id: int,
+        *,
+        client_kind: ClientKind = ClientKind.WEB,
+        device_id: str | None = None,
+    ) -> AuthResult:
         if user_id <= 0:
             raise AuthError("invalid_user_id", "Invalid user ID", 400)
         with self._connect() as connection:
@@ -171,7 +185,12 @@ class AuthService:
                 raise AuthError("user_blocked", "User account is not active", 403)
             user = self._row_to_user(user_row)
             access_mode = self._read_access_mode(connection)
-            session = self._create_session(connection, user_id=user_id)
+            session = self._create_session(
+                connection,
+                user_id=user_id,
+                client_kind=client_kind,
+                device_id=(device_id or "").strip() or None,
+            )
             return AuthResult(user=user, session=session, access_mode=access_mode)
 
     def logout(self, session_token: str) -> bool:
@@ -202,6 +221,20 @@ class AuthService:
             ).rowcount
             return updated
 
+
+    def revoke_device_sessions(self, device_id: str) -> int:
+        normalized = (device_id or "").strip()
+        if not normalized:
+            return 0
+        with self._connect() as connection:
+            return connection.execute(
+                """
+                UPDATE sessions
+                SET revoked_at_ms = ?
+                WHERE revoked_at_ms IS NULL AND device_id = ?
+                """,
+                (_now_ms(), normalized),
+            ).rowcount
 
     def revoke_user_sessions(self, user_id: int) -> int:
         with self._connect() as connection:
@@ -234,6 +267,8 @@ class AuthService:
                     s.created_at_ms,
                     s.expires_at_ms,
                     s.revoked_at_ms,
+                    s.client_kind,
+                    s.device_id,
                     u.login,
                     u.password_hash,
                     u.role,
@@ -283,6 +318,13 @@ class AuthService:
                 if row is None:
                     raise AuthError("invalid_session", "Session not found or revoked", 401)
 
+            if str(row["client_kind"] or "web") != client_kind.value:
+                raise AuthError(
+                    "wrong_client_kind",
+                    "Session is not valid for this client type",
+                    403,
+                )
+
             user = self._row_to_user(row)
             access_mode = self._read_access_mode(connection)
 
@@ -302,6 +344,8 @@ class AuthService:
                 created_at_ms=int(row["created_at_ms"]),
                 expires_at_ms=int(row["expires_at_ms"]),
                 revoked_at_ms=None,
+                client_kind=ClientKind(str(row["client_kind"])),
+                device_id=(str(row["device_id"]).strip() or None) if row["device_id"] else None,
             )
             return AuthResult(user=user, session=session, access_mode=access_mode)
 
@@ -375,17 +419,36 @@ class AuthService:
         except ValueError:
             return AccessMode.CLOSED
 
-    def _create_session(self, connection: sqlite3.Connection, *, user_id: int, ip_address: str = "") -> SessionInfo:
+    def _create_session(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        user_id: int,
+        ip_address: str = "",
+        client_kind: ClientKind = ClientKind.WEB,
+        device_id: str | None = None,
+    ) -> SessionInfo:
         created_at_ms = _now_ms()
         expires_at_ms = created_at_ms + self._session_ttl_ms
         token = secrets.token_urlsafe(32)
 
         connection.execute(
             """
-            INSERT INTO sessions(id, user_id, created_at_ms, expires_at_ms, revoked_at_ms, ip_address)
-            VALUES (?, ?, ?, ?, NULL, ?)
+            INSERT INTO sessions(
+                id, user_id, created_at_ms, expires_at_ms, revoked_at_ms,
+                ip_address, client_kind, device_id
+            )
+            VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
             """,
-            (token, user_id, created_at_ms, expires_at_ms, ip_address),
+            (
+                token,
+                user_id,
+                created_at_ms,
+                expires_at_ms,
+                ip_address,
+                client_kind.value,
+                (device_id or "").strip() or None,
+            ),
         )
 
         return SessionInfo(
@@ -394,6 +457,8 @@ class AuthService:
             created_at_ms=created_at_ms,
             expires_at_ms=expires_at_ms,
             revoked_at_ms=None,
+            client_kind=client_kind,
+            device_id=(device_id or "").strip() or None,
         )
 
     @staticmethod

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from app.models import ClientKind, MessageDraft
@@ -12,6 +14,7 @@ from pydantic import BaseModel, Field
 
 
 router = APIRouter(tags=["realtime"])
+MAX_WS_FRAME_BYTES = 64 * 1024
 
 
 class OnlineCheckRequest(BaseModel):
@@ -137,7 +140,20 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
     try:
         while True:
             try:
-                payload = await websocket.receive_json()
+                raw = await websocket.receive_text()
+            except KeyError:
+                await websocket.send_json(
+                    _error_payload("invalid_frame", "Only text WebSocket frames are supported")
+                )
+                continue
+            if len(raw.encode("utf-8")) > MAX_WS_FRAME_BYTES:
+                await websocket.send_json(
+                    _error_payload("frame_too_large", "WebSocket frame exceeds 64KB")
+                )
+                await websocket.close(code=1009)
+                return
+            try:
+                payload = json.loads(raw)
             except (ValueError, KeyError):
                 await websocket.send_json(
                     _error_payload("invalid_json", "WebSocket frame must be valid JSON")

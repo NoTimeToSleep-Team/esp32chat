@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import os
 import sys
 from time import monotonic
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl, urlsplit, urlencode
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -60,6 +61,7 @@ from app.db import initialize_data_layer
 from app.logging import configure_logging, get_logger, install_runtime_log_filters
 from app.realtime import ChatRealtimeBroker
 from app.security import InMemoryRateLimiter, SecurityAuditService
+from app.security.body_limit import BodySizeLimitMiddleware
 from app.security.network import resolve_client_ip
 from app.services.chat import ChatService
 from app.services.debug_log import DebugLogService
@@ -169,6 +171,7 @@ def create_app() -> FastAPI:
     )
 
     app.state.settings = settings
+    app.add_middleware(BodySizeLimitMiddleware)
     app.state.rfid_router_included = False
     app.state.enable_rfid_router = lambda: _include_rfid_router_once(app)
 
@@ -396,9 +399,54 @@ def create_app() -> FastAPI:
         )
 
 
-    # Captive portal proxy for WiFi login pages
+    # Captive portal proxy for WiFi login pages.
+    # Disabled by default: relaying credentials is only safe to an explicit
+    # HTTPS allowlist.  The response never contains upstream HTML.
     @app.post('/captive-proxy')
     async def captive_proxy(request: Request):
+        enabled = os.environ.get('LCS_CAPTIVE_PROXY_ENABLED', '').strip().lower()
+        if enabled not in {'1', 'true', 'yes', 'on'}:
+            return JSONResponse(
+                {'status': 'error', 'message': 'Captive proxy is disabled'},
+                status_code=404,
+            )
+
+        allowed_hosts = {
+            item.strip().lower()
+            for item in os.environ.get('LCS_CAPTIVE_ALLOWED_HOSTS', '').split(',')
+            if item.strip()
+        }
+        if not allowed_hosts:
+            return JSONResponse(
+                {'status': 'error', 'message': 'Captive proxy allowlist is not configured'},
+                status_code=503,
+            )
+
+        target_url = None
+        try:
+            with open('/tmp/captive_info.txt', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('REDIR='):
+                        target_url = line.split('=', 1)[1].strip()
+        except OSError:
+            pass
+        if not target_url:
+            return JSONResponse({'status': 'error', 'message': 'No captive portal'}, status_code=404)
+
+        parsed = urlsplit(target_url)
+        host = (parsed.hostname or '').lower()
+        if (
+            parsed.scheme != 'https'
+            or not host
+            or host not in allowed_hosts
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            return JSONResponse(
+                {'status': 'error', 'message': 'Captive portal target is not allowed'},
+                status_code=400,
+            )
+
         try:
             import requests
         except ImportError:
@@ -406,21 +454,29 @@ def create_app() -> FastAPI:
                 {'status': 'error', 'message': 'Proxy support unavailable (requests module missing)'},
                 status_code=503,
             )
-        target_url = None
-        try:
-            with open('/tmp/captive_info.txt') as f:
-                for line in f:
-                    if line.startswith('REDIR='):
-                        target_url = line.split('=',1)[1].strip()
-        except: pass
-        if not target_url:
-            return JSONResponse({'status': 'error', 'message': 'No captive portal'})
+
         form_data = await request.form()
         try:
-            resp = requests.post(target_url, data=dict(form_data), allow_redirects=True, timeout=15)
-        except Exception as exc:
-            return JSONResponse({'status': 'error', 'message': f'Upstream request failed: {exc}'}, status_code=502)
-        return HTMLResponse(content=resp.text, status_code=200)
+            resp = requests.post(
+                target_url,
+                data=dict(form_data),
+                allow_redirects=False,
+                timeout=10,
+                stream=True,
+            )
+            upstream_status = resp.status_code
+            resp.close()
+        except Exception:
+            return JSONResponse(
+                {'status': 'error', 'message': 'Upstream request failed'},
+                status_code=502,
+            )
+        if 200 <= upstream_status < 400:
+            return {'status': 'ok', 'upstream_status': upstream_status}
+        return JSONResponse(
+            {'status': 'error', 'message': 'Upstream rejected the login', 'upstream_status': upstream_status},
+            status_code=502,
+        )
     return app
 
 

@@ -179,6 +179,7 @@ async function verifyCard() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      session_token: state.sessionToken,
       card_uid: ui.scanUid.value.trim(),
       source: ui.scanSource.value.trim() || null,
     }),
@@ -192,6 +193,7 @@ async function switchModeByCard() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      session_token: state.sessionToken,
       card_uid: ui.scanUid.value.trim(),
       target_mode: ui.targetMode.value,
       source: ui.scanSource.value.trim() || null,

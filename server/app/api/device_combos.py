@@ -42,7 +42,12 @@ def _combo_service(request: Request) -> DeviceComboService:
     return DeviceComboService(db_path=data_layer.database_path)
 
 
-def _resolve_device_user_id(request: Request, session_token: str) -> int:
+def _resolve_device_user_id(
+    request: Request,
+    session_token: str,
+    *,
+    device_id: str | None = None,
+) -> int:
     service = _auth_service(request)
     try:
         session = service.get_session(session_token, client_kind=ClientKind.DEVICE)
@@ -56,6 +61,13 @@ def _resolve_device_user_id(request: Request, session_token: str) -> int:
         raise HTTPException(
             status_code=500,
             detail={"code": "invalid_user", "message": "Authenticated user id is missing"},
+        )
+    bound_device_id = (session.session.device_id or "").strip()
+    requested_device_id = (device_id or "").strip()
+    if bound_device_id and requested_device_id and bound_device_id != requested_device_id:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "device_scope_mismatch", "message": "Session is bound to another device"},
         )
     return session.user.user_id
 
@@ -85,7 +97,11 @@ def _raise_combo_error(exc: DeviceComboError) -> None:
 
 @router.post("/set")
 async def set_device_combo(payload: DeviceComboRequest, request: Request) -> dict[str, object]:
-    user_id = _resolve_device_user_id(request, payload.session_token)
+    user_id = _resolve_device_user_id(
+        request,
+        payload.session_token,
+        device_id=payload.device_id,
+    )
     service = _combo_service(request)
     try:
         record = service.set_combo(
@@ -100,7 +116,11 @@ async def set_device_combo(payload: DeviceComboRequest, request: Request) -> dic
 
 @router.post("/verify")
 async def verify_device_combo(payload: DeviceComboVerifyRequest, request: Request) -> dict[str, object]:
-    user_id = _resolve_device_user_id(request, payload.session_token)
+    user_id = _resolve_device_user_id(
+        request,
+        payload.session_token,
+        device_id=payload.device_id,
+    )
     service = _combo_service(request)
     try:
         result = service.verify_combo(
@@ -122,7 +142,11 @@ async def reset_device_combo(
     payload: DeviceComboResetRequest,
     request: Request,
 ) -> dict[str, object]:
-    user_id = _resolve_device_user_id(request, payload.session_token)
+    user_id = _resolve_device_user_id(
+        request,
+        payload.session_token,
+        device_id=payload.device_id,
+    )
     service = _combo_service(request)
     try:
         record = service.reset_combo(user_id=user_id, device_id=payload.device_id)

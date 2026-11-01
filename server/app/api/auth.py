@@ -236,7 +236,11 @@ async def device_session(request: Request, payload: DeviceSessionRequest) -> dic
 
     service = _auth_service(request)
     try:
-        result = service.login_by_user_id(user_id=user_id)
+        result = service.login_by_user_id(
+            user_id=user_id,
+            client_kind=ClientKind.DEVICE,
+            device_id=payload.device_id,
+        )
     except AuthError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     _activity_log(request).log("device_session", user_id=result.user.user_id, user_login=result.user.login, details=f"device={payload.device_id}")

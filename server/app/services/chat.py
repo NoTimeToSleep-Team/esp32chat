@@ -32,6 +32,7 @@ from app.models import (
     UserStatus,
     default_admin_permissions,
 )
+from app.security.visibility import message_is_readable
 from app.services.chat_limits import ChatLimitsService
 from app.services.media import MAX_ATTACHMENTS_PER_MESSAGE, MediaError, MediaService
 
@@ -1454,11 +1455,17 @@ class ChatService:
             self._require_chat_member(connection, chat_row=chat, user_id=user_id)
 
             row = connection.execute(
-                "SELECT id FROM chat_messages WHERE id = ? AND chat_id = ?",
+                "SELECT * FROM chat_messages WHERE id = ? AND chat_id = ?",
                 (message_id, chat_id),
             ).fetchone()
             if row is None:
                 raise ChatError("message_not_found", "Message not found", 404)
+            self._require_message_readable(
+                connection,
+                chat_row=chat,
+                message_row=row,
+                user_id=user_id,
+            )
 
             existing = connection.execute(
                 "SELECT 1 FROM chat_message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?",
@@ -1491,6 +1498,7 @@ class ChatService:
                 connection,
                 self._row_to_message(message_row),
                 reactions_by_id=reactions,
+                viewer_user_id=user_id,
             )
 
     def forward_message(
@@ -1510,6 +1518,12 @@ class ChatService:
             source_row = self._select_message_row(connection, message_id)
             if source_row is None or int(source_row["chat_id"]) != source_chat_id:
                 raise ChatError("message_not_found", "Message not found", 404)
+            self._require_message_readable(
+                connection,
+                chat_row=source_chat,
+                message_row=source_row,
+                user_id=actor_user_id,
+            )
 
             target_chat = self._require_chat(connection, target_chat_id)
             if not self._can_access_chat(connection, chat_row=target_chat, user_id=actor_user_id):
@@ -1555,7 +1569,11 @@ class ChatService:
             row = self._select_message_row(connection, new_message_id)
             if row is None:
                 raise ChatError("message_create_failed", "Failed to forward the message", 500)
-            return self._with_message_attachments(connection, self._row_to_message(row))
+            return self._with_message_attachments(
+                connection,
+                self._row_to_message(row),
+                viewer_user_id=actor_user_id,
+            )
 
     def mark_read(self, *, chat_id: int, user_id: int, message_id: int) -> None:
         with self._connect() as connection:
@@ -1732,6 +1750,7 @@ class ChatService:
                            FROM chat_messages msg
                            WHERE msg.chat_id = c.id
                              AND msg.created_at_ms >= COALESCE(m.cleared_at_ms, 0)
+                             AND (c.history_visible = 1 OR msg.created_at_ms >= COALESCE(m.joined_at_ms, 0))
                            ORDER BY msg.id DESC
                            LIMIT 1
                        ) AS last_message_text,
@@ -1740,6 +1759,7 @@ class ChatService:
                            FROM chat_messages msg
                            WHERE msg.chat_id = c.id
                              AND msg.created_at_ms >= COALESCE(m.cleared_at_ms, 0)
+                             AND (c.history_visible = 1 OR msg.created_at_ms >= COALESCE(m.joined_at_ms, 0))
                            ORDER BY msg.id DESC
                            LIMIT 1
                        ) AS last_message_at_ms
@@ -1837,6 +1857,7 @@ class ChatService:
                 connection,
                 self._row_to_message(row),
                 polls_by_id=polls,
+                viewer_user_id=author_user_id,
             )
 
     def vote_poll(
@@ -1901,11 +1922,18 @@ class ChatService:
             message_row = self._select_message_row(connection, message_id)
             if message_row is None:
                 raise ChatError("message_not_found", "Message not found", 404)
+            self._require_message_readable(
+                connection,
+                chat_row=chat,
+                message_row=message_row,
+                user_id=user_id,
+            )
             polls = self._polls_for_messages(connection, [message_id], viewer_user_id=user_id)
             return self._with_message_attachments(
                 connection,
                 self._row_to_message(message_row),
                 polls_by_id=polls,
+                viewer_user_id=user_id,
             )
 
     # --- User blocks ---
@@ -2106,6 +2134,26 @@ class ChatService:
             user_id=user_id,
         ) is None:
             raise ChatError("join_required", "Join the chat first", 403)
+
+    @staticmethod
+    def _require_message_readable(
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        message_row: sqlite3.Row,
+        user_id: int,
+    ) -> None:
+        if not message_is_readable(
+            connection,
+            message_row=message_row,
+            chat_row=chat_row,
+            user_id=user_id,
+        ):
+            raise ChatError(
+                "message_not_visible",
+                "Message is not available in this chat history",
+                403,
+            )
 
     def _can_post(
         self,
@@ -2379,11 +2427,17 @@ class ChatService:
             reply_to_message_id = draft.reply_to_message_id
             if reply_to_message_id is not None:
                 parent = connection.execute(
-                    "SELECT id FROM chat_messages WHERE id = ? AND chat_id = ?",
+                    "SELECT * FROM chat_messages WHERE id = ? AND chat_id = ?",
                     (int(reply_to_message_id), chat_id),
                 ).fetchone()
                 if parent is None:
                     raise ChatError("reply_target_not_found", "Replied message was not found", 404)
+                self._require_message_readable(
+                    connection,
+                    chat_row=chat,
+                    message_row=parent,
+                    user_id=author_user_id,
+                )
 
             try:
                 cursor = connection.execute(
@@ -2419,7 +2473,11 @@ class ChatService:
                     ).fetchone()
                     if row is not None:
                         message = self._row_to_message(row)
-                        return self._with_message_attachments(connection, message)
+                        return self._with_message_attachments(
+                            connection,
+                            message,
+                            viewer_user_id=author_user_id,
+                        )
                 raise ChatError("message_create_failed", "Failed to save chat message", 409) from exc
             except MediaError as exc:
                 raise ChatError(exc.code, exc.message, exc.status_code) from exc
@@ -2434,7 +2492,11 @@ class ChatService:
             row = self._select_message_row(connection, message_id)
             if row is None:
                 raise ChatError("message_create_failed", "Failed to save chat message", 500)
-            return self._with_message_attachments(connection, self._row_to_message(row))
+            return self._with_message_attachments(
+                connection,
+                self._row_to_message(row),
+                viewer_user_id=author_user_id,
+            )
 
     def list_messages(
         self,
@@ -2528,6 +2590,7 @@ class ChatService:
                     attachments_by_id=attachments_by_id,
                     reactions_by_id=reactions_by_id,
                     polls_by_id=polls_by_id,
+                    viewer_user_id=requester_user_id,
                 )
                 for message in messages
             ]
@@ -2705,12 +2768,38 @@ class ChatService:
         attachments_by_id: dict[int, tuple[object, ...]] | None = None,
         reactions_by_id: dict[int, tuple[object, ...]] | None = None,
         polls_by_id: dict[int, object] | None = None,
+        viewer_user_id: int | None = None,
     ) -> ChatMessage:
         if attachments_by_id is None:
             attachments_by_id = MediaService(self._db_path, self._storage_root).list_for_chat_messages(
                 connection,
                 [message.message_id],
             )
+        reply_to_message_id = message.reply_to_message_id
+        reply_to_login = message.reply_to_login
+        reply_to_text = message.reply_to_text
+        if reply_to_message_id is not None and viewer_user_id is not None:
+            parent = connection.execute(
+                "SELECT * FROM chat_messages WHERE id = ?",
+                (reply_to_message_id,),
+            ).fetchone()
+            chat = connection.execute(
+                "SELECT * FROM chats WHERE id = ?",
+                (message.chat_id,),
+            ).fetchone()
+            if (
+                parent is None
+                or chat is None
+                or not message_is_readable(
+                    connection,
+                    message_row=parent,
+                    chat_row=chat,
+                    user_id=viewer_user_id,
+                )
+            ):
+                reply_to_message_id = None
+                reply_to_login = None
+                reply_to_text = None
         return ChatMessage(
             message_id=message.message_id,
             chat_id=message.chat_id,
@@ -2722,9 +2811,9 @@ class ChatService:
             attachments=attachments_by_id.get(message.message_id, ()),
             author_login=message.author_login,
             author_avatar_emoji=message.author_avatar_emoji,
-            reply_to_message_id=message.reply_to_message_id,
-            reply_to_login=message.reply_to_login,
-            reply_to_text=message.reply_to_text,
+            reply_to_message_id=reply_to_message_id,
+            reply_to_login=reply_to_login,
+            reply_to_text=reply_to_text,
             forwarded_from_login=message.forwarded_from_login,
             forwarded_from_chat_id=message.forwarded_from_chat_id,
             reactions=(reactions_by_id or {}).get(message.message_id, message.reactions),

@@ -76,11 +76,11 @@ async function connectWiFi() {
   s.textContent='Подключение...';
   var ssid=document.getElementById('ssid').value.trim();
   var pass=document.getElementById('wpass').value.trim();
-  if(!ssid){s.innerHTML='<span class=err>Введите название сети</span>';return}
+  if(!ssid){s.textContent='Введите название сети';return}
   try{
     var r=await fetch('/admin/network/wifi/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_token:localStorage.getItem('lc_session_token')||'',ssid:ssid,password:pass})});
     var d=await r.json();
-    s.innerHTML='<span class=ok>Подключено! IP: '+(d.ip_address||'?')+'</span>';
+    s.textContent='Подключено! IP: '+(d.ip_address||'?');
     // Check for internet
     setTimeout(async function(){
       try{
@@ -90,7 +90,7 @@ async function connectWiFi() {
         if(!sd.connected){document.getElementById('portal-card').style.display='block'}
       }catch(e){document.getElementById('portal-card').style.display='block'}
     },3000);
-  }catch(e){s.innerHTML='<span class=err>'+e.message+'</span>'}
+  }catch(e){s.textContent=e.message}
 }
 async function submitPortal(){
   var s=document.getElementById('pstatus');
@@ -102,12 +102,12 @@ async function submitPortal(){
     fd.append('password',document.getElementById('ppass').value);
     var r=await fetch('/captive-proxy',{method:'POST',body:fd});
     if(r.status===200){
-      s.innerHTML='<span class=ok>Вход выполнен</span>';
+      s.textContent='Вход выполнен';
     } else {
       var d=await r.json().catch(function(){return{}});
-      s.innerHTML='<span class=err>'+(d.message||('HTTP '+r.status))+'</span>';
+      s.textContent=(d.message||('HTTP '+r.status));
     }
-  }catch(e){s.innerHTML='<span class=err>'+e.message+'</span>'}
+  }catch(e){s.textContent=e.message}
 }
 </script>
 </body>

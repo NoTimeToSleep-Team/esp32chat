@@ -11,10 +11,24 @@ from pathlib import Path
 from time import time
 
 from app.models import MediaAttachment, MediaDownload, MediaKind, UserRole
+from app.security.visibility import message_is_readable
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(float(raw))
+        return value if value > 0 else default
+    except ValueError:
+        return default
 
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_ATTACHMENTS_PER_MESSAGE = 8
+MAX_ATTACHMENTS_PER_USER = _env_int("LCS_MEDIA_MAX_FILES_PER_USER", 200)
+MAX_USER_STORAGE_BYTES = _env_int("LCS_MEDIA_MAX_USER_BYTES", 100 * 1024 * 1024)
 MIN_FREE_BYTES_DEFAULT = 200 * 1024 * 1024
 
 
@@ -144,7 +158,33 @@ class MediaService:
         sha256_hex = hashlib.sha256(content).hexdigest()
 
         with self._connect() as connection:
-            self._require_active_user(connection, owner_user_id)
+            owner = self._require_active_user(connection, owner_user_id)
+            if str(owner["role"]) == UserRole.GUEST.value:
+                raise MediaError(
+                    "guest_forbidden",
+                    "Guest accounts cannot upload files",
+                    403,
+                )
+            usage = connection.execute(
+                """
+                SELECT COUNT(*) AS files, COALESCE(SUM(size_bytes), 0) AS total
+                FROM media_attachments
+                WHERE owner_user_id = ?
+                """,
+                (owner_user_id,),
+            ).fetchone()
+            if usage is not None and int(usage["files"]) >= MAX_ATTACHMENTS_PER_USER:
+                raise MediaError(
+                    "media_quota_exceeded",
+                    "Attachment count limit reached for this account",
+                    429,
+                )
+            if usage is not None and int(usage["total"]) + len(content) > MAX_USER_STORAGE_BYTES:
+                raise MediaError(
+                    "media_quota_exceeded",
+                    "Attachment storage limit reached for this account",
+                    429,
+                )
             absolute_path.write_bytes(content)
             try:
                 cursor = connection.execute(
@@ -423,25 +463,35 @@ class MediaService:
         is_admin = user is not None and str(user["role"]) == UserRole.ADMIN.value
         if is_admin:
             return True
-        chat_row = connection.execute(
+        chat_rows = connection.execute(
             """
-            SELECT c.id AS chat_id, c.kind, c.owner_user_id
+            SELECT cm.created_at_ms AS message_created_at_ms,
+                   c.id AS chat_id,
+                   c.kind,
+                   c.is_public,
+                   c.history_visible,
+                   c.owner_user_id
             FROM chat_message_attachments cma
             JOIN chat_messages cm ON cm.id = cma.message_id
             JOIN chats c ON c.id = cm.chat_id
             WHERE cma.attachment_id = ?
-            LIMIT 1
             """,
             (attachment_id,),
-        ).fetchone()
-        if chat_row is not None:
-            if str(chat_row["kind"]) == "common" or int(chat_row["owner_user_id"] or -1) == requester_user_id:
-                return True
-            member = connection.execute(
-                "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
-                (int(chat_row["chat_id"]), requester_user_id),
-            ).fetchone()
-            if member is not None:
+        ).fetchall()
+        for chat_row in chat_rows:
+            chat_view = {
+                "id": chat_row["chat_id"],
+                "kind": chat_row["kind"],
+                "is_public": chat_row["is_public"],
+                "history_visible": chat_row["history_visible"],
+            }
+            message_view = {"created_at_ms": chat_row["message_created_at_ms"]}
+            if message_is_readable(
+                connection,
+                message_row=message_view,
+                chat_row=chat_view,
+                user_id=requester_user_id,
+            ):
                 return True
         support_row = connection.execute(
             """

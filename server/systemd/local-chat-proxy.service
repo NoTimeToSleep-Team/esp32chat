@@ -6,7 +6,8 @@ Wants=local-chat-server.service
 [Service]
 Type=simple
 User=root
-ExecStart=/home/gamecat/lc-server/venv/bin/python /home/gamecat/lc-server/app/services/http_proxy.py
+Environment=LC_DB_PATH=/opt/local-chat-server/data/sqlite/local_chat.db
+ExecStart=/opt/local-chat-server/.venv/bin/python /opt/local-chat-server/app/services/http_proxy.py
 Restart=always
 RestartSec=5
 StandardOutput=journal
