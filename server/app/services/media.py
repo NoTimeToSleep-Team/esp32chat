@@ -158,6 +158,10 @@ class MediaService:
         sha256_hex = hashlib.sha256(content).hexdigest()
 
         with self._connect() as connection:
+            # Serialize quota reservation with the insert.  A plain
+            # SELECT COUNT/SUM followed by INSERT lets concurrent uploads all
+            # pass the check and overshoot the configured quota.
+            connection.execute("BEGIN IMMEDIATE")
             owner = self._require_active_user(connection, owner_user_id)
             if str(owner["role"]) == UserRole.GUEST.value:
                 raise MediaError(
@@ -408,6 +412,7 @@ class MediaService:
         connection = sqlite3.connect(self._db_path)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 5000")
         return connection
 
     @staticmethod

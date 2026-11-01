@@ -377,6 +377,11 @@ class PairClaimRequest(BaseModel):
     code: str = Field(min_length=6, max_length=6)
 
 
+class PairResetRequest(BaseModel):
+    session_token: str = Field(min_length=8, max_length=512)
+    device_id: str = Field(min_length=1, max_length=256)
+
+
 def _pairing_service(request: Request) -> DevicePairingService:
     data_layer = request.app.state.data_layer
     return DevicePairingService(db_path=data_layer.database_path)
@@ -444,6 +449,32 @@ async def claim_pairing_code(
 
     auth_service.revoke_device_sessions(device.device_id)
     return {"status": "ok", "device": _paired_device_payload(device)}
+
+
+@router.post("/devices/api/pair/reset")
+async def reset_device_identity(
+    request: Request,
+    payload: PairResetRequest,
+) -> dict[str, object]:
+    auth_service = _auth_service(request)
+    session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
+    if session.user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "admin_only", "message": "Only an administrator can reset a device identity"},
+        )
+
+    service = _pairing_service(request)
+    try:
+        reset = service.reset_identity(payload.device_id)
+    except DevicePairingError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+    auth_service.revoke_device_sessions(payload.device_id)
+    return {"status": "ok", "reset": reset, "device_id": payload.device_id}
 
 
 @router.post("/devices/api/catalog/{device_id}/ownership")

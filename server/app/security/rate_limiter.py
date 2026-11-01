@@ -15,6 +15,7 @@ def _is_auth_path(path: str) -> bool:
             "/devices/api/pair",
             "/devices/api/pair/request",
             "/devices/api/pair/claim",
+            "/devices/api/pair/reset",
         }
     )
 

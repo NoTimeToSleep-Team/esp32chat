@@ -89,6 +89,24 @@ class DevicePairingService:
         pairing_id = secrets.token_hex(16)
 
         with self._connect() as connection:
+            # A known device identity may only be re-paired with the same
+            # secret commitment.  Otherwise an anonymous first-come request
+            # could replace a real device's secret and hijack its id.  An
+            # administrator can explicitly reset the identity if a device is
+            # lost or its secret must be rotated.
+            known = connection.execute(
+                "SELECT status, device_secret_hash FROM device_pairings WHERE device_id = ?",
+                (device_id,),
+            ).fetchone()
+            if known is not None:
+                stored_hash = str(known["device_secret_hash"] or "").strip().lower()
+                if not stored_hash or not hmac.compare_digest(stored_hash, secret_hash):
+                    raise DevicePairingError(
+                        "device_identity_mismatch",
+                        "Device identity is already bound; an administrator must reset it before re-pairing",
+                        409,
+                    )
+
             existing = connection.execute(
                 """
                 SELECT pairing_id, device_id, device_type, name, code,
@@ -159,6 +177,26 @@ class DevicePairingService:
             status="pending",
         )
 
+    def reset_identity(self, device_id: str) -> bool:
+        normalized = device_id.strip()
+        if not normalized:
+            raise DevicePairingError("invalid_device_id", "device_id is required", 422)
+        now_ms = _now_ms()
+        with self._connect() as connection:
+            changed = connection.execute(
+                "DELETE FROM device_pairings WHERE device_id = ?",
+                (normalized,),
+            ).rowcount
+            connection.execute(
+                """
+                UPDATE device_pair_requests
+                SET status = 'expired'
+                WHERE device_id = ? AND status = 'pending' AND expires_at_ms > ?
+                """,
+                (normalized, now_ms),
+            )
+        return changed > 0
+
     def get_status(self, pairing_id: str) -> str:
         pairing_id = pairing_id.strip()
         with self._connect() as connection:
@@ -206,9 +244,18 @@ class DevicePairingService:
                 raise DevicePairingError("code_expired", "Pairing code has expired", 410)
 
             existing = connection.execute(
-                "SELECT user_id, status FROM device_pairings WHERE device_id = ?",
+                "SELECT user_id, status, device_secret_hash FROM device_pairings WHERE device_id = ?",
                 (row["device_id"],),
             ).fetchone()
+            if existing is not None:
+                stored_hash = str(existing["device_secret_hash"] or "").strip().lower()
+                request_hash = str(row["device_secret_hash"] or "").strip().lower()
+                if not stored_hash or not hmac.compare_digest(stored_hash, request_hash):
+                    raise DevicePairingError(
+                        "device_identity_mismatch",
+                        "Device identity changed after this code was issued; request a new pairing code",
+                        409,
+                    )
             if (
                 existing is not None
                 and str(existing["status"]) == "active"

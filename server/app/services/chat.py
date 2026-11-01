@@ -6,7 +6,7 @@ import json
 import secrets
 import sqlite3
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import time
 
@@ -656,9 +656,20 @@ class ChatService:
 
             pinned_message: dict[str, object] | None = None
             pinned_id = self._row_optional_int_lenient(chat, "pinned_message_id")
+            pinned_visible = False
             if pinned_id:
                 pinned_row = self._select_message_row(connection, pinned_id)
-                if pinned_row is not None and int(pinned_row["chat_id"]) == chat_id:
+                if (
+                    pinned_row is not None
+                    and int(pinned_row["chat_id"]) == chat_id
+                    and message_is_readable(
+                        connection,
+                        message_row=pinned_row,
+                        chat_row=chat,
+                        user_id=requester_user_id,
+                    )
+                ):
+                    pinned_visible = True
                     pinned_message = {
                         "message_id": int(pinned_row["id"]),
                         "author_login": self._row_optional_str_lenient(pinned_row, "author_login"),
@@ -666,8 +677,14 @@ class ChatService:
                         "created_at_ms": int(pinned_row["created_at_ms"]),
                     }
 
+            chat_view = self._row_to_chat(chat)
+            if pinned_id and not pinned_visible:
+                # Do not leak even the id of a pinned message the requester
+                # cannot read; the sticky banner is simply absent for them.
+                chat_view = replace(chat_view, pinned_message_id=None)
+
             return {
-                "chat": self._row_to_chat(chat),
+                "chat": chat_view,
                 "my_role": role,
                 "is_member": role is not None,
                 "is_owner": self._is_chat_owner(connection, chat_row=chat, user_id=requester_user_id),
@@ -1421,11 +1438,17 @@ class ChatService:
 
             if message_id is not None:
                 row = connection.execute(
-                    "SELECT 1 FROM chat_messages WHERE id = ? AND chat_id = ?",
+                    "SELECT * FROM chat_messages WHERE id = ? AND chat_id = ?",
                     (message_id, chat_id),
                 ).fetchone()
                 if row is None:
                     raise ChatError("message_not_found", "Message not found", 404)
+                self._require_message_readable(
+                    connection,
+                    chat_row=chat,
+                    message_row=row,
+                    user_id=actor_user_id,
+                )
 
             now_ms = _now_ms()
             connection.execute(

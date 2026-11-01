@@ -140,7 +140,7 @@ def main() -> int:
     check("device session with proof", status == 200 and len(device_token) >= 8, f"{status} {str(data)[:140]}")
 
     status, data = request("GET", f"/chat/api/chats?session_token={device_token}")
-    check("device token can read chats", status == 200 and data.get("status") == "ok", f"{status} {str(data)[:140]}")
+    check("device token cannot use web API", status == 403, f"{status} {str(data)[:140]}")
 
     status, data = request(
         "POST",
@@ -151,6 +151,38 @@ def main() -> int:
 
     status, data = request("POST", "/auth/device-challenge", {"device_id": device_id})
     check("challenge after unpair rejected", status == 404, f"{status} {str(data)[:140]}")
+
+    new_secret_hash = hashlib.sha256(b"another-device-secret").hexdigest()
+    status, data = request(
+        "POST",
+        "/devices/api/pair/request",
+        {
+            "device_id": device_id,
+            "device_type": "cardputer",
+            "name": "Cardputer Test",
+            "device_secret_hash": new_secret_hash,
+        },
+    )
+    check("different secret cannot replace known identity", status == 409, f"{status} {str(data)[:140]}")
+
+    status, data = request(
+        "POST",
+        "/devices/api/pair/reset",
+        {"session_token": token, "device_id": device_id},
+    )
+    check("admin can reset device identity", status == 200, f"{status} {str(data)[:140]}")
+
+    status, data = request(
+        "POST",
+        "/devices/api/pair/request",
+        {
+            "device_id": device_id,
+            "device_type": "cardputer",
+            "name": "Cardputer Test",
+            "device_secret_hash": new_secret_hash,
+        },
+    )
+    check("new secret accepted after reset", status == 200, f"{status} {str(data)[:140]}")
 
     print(f"\nRESULT: {passed} passed, {failed} failed")
     return 0 if failed == 0 else 1

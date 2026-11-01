@@ -59,3 +59,30 @@ intentionally not changed, as requested by the owner.
 - **Dependency CVEs**: no lockfile/vulnerability database run was performed.
 - **Mass registration**: existing per-IP auth rate limits remain; open-mode
   registration policy still needs a product decision.
+
+## Follow-up pass (round 3)
+
+- **Pinned messages:** `GET /chat/api/chats/{id}` now runs the same
+  `message_is_readable()` check as list/search before exposing
+  `view.pinned_message`. The pinned id is also removed from the chat payload
+  when the body is not readable. `set_pinned_message()` rejects a message the
+  actor cannot read.
+- **Media quota:** upload reservation now runs inside `BEGIN IMMEDIATE` with a
+  5 s busy timeout, so concurrent uploads cannot pass the same
+  `COUNT/SUM` snapshot. The local 8-way upload test with a quota of 2 produced
+  exactly two successes and six `429` responses.
+- **Device identity binding:** a known `device_id` can only be re-paired with
+  the same secret commitment. Different commits receive
+  `409 device_identity_mismatch`; an administrator must call
+  `POST /devices/api/pair/reset` to permit a new secret. Claim re-checks the
+  binding to cover legacy pending requests.
+- **Legacy DB:** `/home/gamecat/lc-server/data/sqlite/local_chat.db` was moved
+  to `/root/lc-legacy-2026-11-01/local_chat.db` (`0600`, root-only); the
+  remaining legacy test DB directory is `0700` and not used by services.
+
+Residual device-pairing note: anonymous first pairing is still
+trust-on-first-use. A factory-provisioned hardware public key (or a separate
+physical provisioning step) would be required to prove possession of a
+particular device before the first admin claim. The new binding prevents
+replacing an already-known device id, but an admin must still verify that a
+new code belongs to the physical device being onboarded.

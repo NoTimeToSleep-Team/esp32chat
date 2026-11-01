@@ -21,7 +21,7 @@ import paramiko
 RPI_HOST = os.environ.get("LC_RPI_HOST", "169.254.93.1")
 RPI_USER = os.environ.get("LC_RPI_USER", "gamecat")
 RPI_PASS = os.environ.get("LC_RPI_PASS")
-RPI_ROOT = os.environ.get("LC_RPI_ROOT", "/home/gamecat/lc-server")
+RPI_ROOT = os.environ.get("LC_RPI_ROOT", "/opt/local-chat-server")
 BASE = os.environ.get("LC_BASE", "http://169.254.93.1:18080")
 ADMIN_LOGIN = os.environ.get("LC_ADMIN_LOGIN", "admin")
 ADMIN_PASSWORD = os.environ.get("LC_ADMIN_PASSWORD", "")
