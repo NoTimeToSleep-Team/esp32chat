@@ -51,6 +51,8 @@ def main() -> int:
     try:
         debug_count = connection.execute("SELECT COUNT(*) AS n FROM debug_events").fetchone()["n"]
         connection.execute("DELETE FROM debug_events")
+        ip_blocks = connection.execute("SELECT COUNT(*) AS n FROM ip_blocks").fetchone()["n"]
+        connection.execute("DELETE FROM ip_blocks")
         revoked = 0
         if not args.keep_sessions:
             revoked = connection.execute(
@@ -62,6 +64,7 @@ def main() -> int:
         connection.close()
 
     print(f"debug_events deleted: {debug_count}")
+    print(f"ip_blocks cleared: {ip_blocks}")
     print(f"sessions revoked: {revoked}")
     return 0
 
