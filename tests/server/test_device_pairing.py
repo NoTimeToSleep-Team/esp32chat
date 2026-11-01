@@ -144,6 +144,13 @@ def main() -> int:
 
     status, data = request(
         "POST",
+        "/devices/api/pair/reset",
+        {"session_token": device_token, "device_id": device_id},
+    )
+    check("device token cannot use pair reset", status == 403, f"{status} {str(data)[:140]}")
+
+    status, data = request(
+        "POST",
         "/devices/api/unpair",
         {"session_token": token, "device_id": device_id},
     )

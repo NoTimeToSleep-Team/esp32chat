@@ -86,3 +86,29 @@ physical provisioning step) would be required to prove possession of a
 particular device before the first admin claim. The new binding prevents
 replacing an already-known device id, but an admin must still verify that a
 new code belongs to the physical device being onboarded.
+
+## Follow-up pass (round 4)
+
+- **Polling side channel:** `/chat/api/updates` now joins the requester's
+  `chat_members` row and applies `history_visible`, `joined_at_ms` and
+  `cleared_at_ms` in SQL. Public/common access remains, but a new member no
+  longer receives pre-join messages through `since_ms=0`.
+- **Private-room join:** `/chat/api/private/{id}/join` now treats a private
+  chat without a room code as invite-only (`403 invite_required`) instead of
+  joining by numeric id. Guests are rejected from private joins even with a
+  valid code (`403 guest_forbidden`).
+- **Installed-tree integrity:** `/opt/local-chat-server` was re-owned
+  `root:root`; app/migrations/scripts are no longer group/other-writable,
+  config is `root:localchat` `0640`, and runtime data is
+  `localchat:localchat` `0750/0640`. A deploy helper was added at
+  `scripts/harden_install_permissions.sh`. The server unit now uses
+  `ProtectSystem=strict`, `ReadWritePaths=/opt/local-chat-server/data`,
+  `NoNewPrivileges`, `PrivateTmp`, `ProtectHome` and `UMask=0027`.
+- **Pair reset auth errors:** admin-only device routes now translate
+  `AuthError` to the original `401/403`; a device token receives
+  `403 wrong_client_kind`, an invalid token `401 invalid_session`, not a 500.
+
+Verification on the test board: 13/13 live checks covering pre-join updates,
+private no-code, guest joins, room-code joins, and device/invalid token reset;
+media upload after permission hardening returned 200; zero group/other-writable
+files or directories under `/opt/local-chat-server`.

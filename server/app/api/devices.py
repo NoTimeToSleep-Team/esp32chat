@@ -41,6 +41,24 @@ def _auth_service(request: Request) -> AuthService:
     return AuthService(db_path=data_layer.database_path)
 
 
+def _require_admin_web_session(request: Request, session_token: str):
+    """Resolve a web admin session and translate AuthError to HTTP responses."""
+    service = _auth_service(request)
+    try:
+        session = service.get_session(session_token, client_kind=ClientKind.WEB)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+    if session.user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "admin_only", "message": "Administrator session required"},
+        )
+    return session
+
+
 def _device_service(request: Request) -> DeviceCatalogService:
     data_layer = request.app.state.data_layer
     return DeviceCatalogService(db_path=data_layer.database_path)
@@ -247,15 +265,12 @@ async def list_pairings(
 
 @router.post("/devices/api/pair")
 async def pair_device(request: Request, payload: PairDeviceRequest) -> dict[str, object]:
-    user_id = _resolve_user_id(request, payload.session_token)
-
-    # Block guest pairing
-    service = _auth_service(request)
-    session = service.get_session(payload.session_token, client_kind=ClientKind.WEB)
-    if session.user.role != UserRole.ADMIN:
+    session = _require_admin_web_session(request, payload.session_token)
+    user_id = session.user.user_id
+    if user_id is None:
         raise HTTPException(
-            status_code=403,
-            detail={"code": "admin_only", "message": "Only an administrator can pair devices"},
+            status_code=500,
+            detail={"code": "invalid_user", "message": "Authenticated user id is missing"},
         )
 
     import sqlite3, time
@@ -428,14 +443,12 @@ async def claim_pairing_code(
     request: Request,
     payload: PairClaimRequest,
 ) -> dict[str, object]:
-    user_id = _resolve_user_id(request, payload.session_token)
-
-    auth_service = _auth_service(request)
-    session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
-    if session.user.role != UserRole.ADMIN:
+    session = _require_admin_web_session(request, payload.session_token)
+    user_id = session.user.user_id
+    if user_id is None:
         raise HTTPException(
-            status_code=403,
-            detail={"code": "admin_only", "message": "Only an administrator can claim devices"},
+            status_code=500,
+            detail={"code": "invalid_user", "message": "Authenticated user id is missing"},
         )
 
     service = _pairing_service(request)
@@ -447,6 +460,7 @@ async def claim_pairing_code(
             detail={"code": exc.code, "message": exc.message},
         ) from exc
 
+    auth_service = _auth_service(request)
     auth_service.revoke_device_sessions(device.device_id)
     return {"status": "ok", "device": _paired_device_payload(device)}
 
@@ -456,13 +470,7 @@ async def reset_device_identity(
     request: Request,
     payload: PairResetRequest,
 ) -> dict[str, object]:
-    auth_service = _auth_service(request)
-    session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
-    if session.user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=403,
-            detail={"code": "admin_only", "message": "Only an administrator can reset a device identity"},
-        )
+    _require_admin_web_session(request, payload.session_token)
 
     service = _pairing_service(request)
     try:
@@ -473,6 +481,7 @@ async def reset_device_identity(
             detail={"code": exc.code, "message": exc.message},
         ) from exc
 
+    auth_service = _auth_service(request)
     auth_service.revoke_device_sessions(payload.device_id)
     return {"status": "ok", "reset": reset, "device_id": payload.device_id}
 

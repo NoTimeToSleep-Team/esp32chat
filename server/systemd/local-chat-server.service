@@ -10,6 +10,7 @@ Group=localchat
 WorkingDirectory=/opt/local-chat-server
 EnvironmentFile=/opt/local-chat-server/config/app.env
 Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/local-chat-server/.venv/bin/uvicorn app.main:app --host ${LCS_HOST} --port ${LCS_PORT} --no-proxy-headers --ws-max-size 65536
 Restart=always
 RestartSec=5
@@ -17,6 +18,12 @@ TimeoutStartSec=60
 TimeoutStopSec=30
 KillSignal=SIGINT
 LimitNOFILE=65535
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/local-chat-server/data
+UMask=0027
 
 [Install]
 WantedBy=multi-user.target

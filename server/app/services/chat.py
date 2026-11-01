@@ -395,22 +395,27 @@ class ChatService:
                     m.created_at_ms AS created_at_ms
                 FROM chat_messages m
                 JOIN chats c ON c.id = m.chat_id
+                LEFT JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = ?
+                JOIN users viewer ON viewer.id = ?
                 LEFT JOIN users u ON u.id = m.author_user_id
                 WHERE m.created_at_ms > ?
                   AND m.author_user_id != ?
                   AND (
-                        c.kind = ?
-                     OR EXISTS(
-                            SELECT 1
-                            FROM chat_members cm
-                            WHERE cm.chat_id = c.id
-                              AND cm.user_id = ?
+                        (
+                            cm.user_id IS NOT NULL
+                            AND (COALESCE(c.history_visible, 1) = 1
+                                 OR m.created_at_ms >= COALESCE(cm.joined_at_ms, 0))
+                            AND m.created_at_ms >= COALESCE(cm.cleared_at_ms, 0)
+                        )
+                     OR (
+                            cm.user_id IS NULL
+                            AND (c.kind = ? OR viewer.role IN ('admin', 'moderator'))
                         )
                   )
                 ORDER BY m.created_at_ms DESC
                 LIMIT ?
                 """,
-                (safe_since, user_id, ChatKind.COMMON.value, user_id, safe_limit),
+                (user_id, user_id, safe_since, user_id, ChatKind.COMMON.value, safe_limit),
             ).fetchall()
             return [dict(row) for row in rows]
 
@@ -502,16 +507,31 @@ class ChatService:
             if existing is not None:
                 return self._row_to_member(existing)
 
-            if str(user["role"]) != UserRole.ADMIN.value:
-                if self._row_bool(chat, "is_private"):
-                    code_hash = self._row_optional_str(chat, "room_code_hash")
-                    if code_hash:
-                        normalized_code = self._normalize_room_code(room_code, allow_legacy=True)
-                        if normalized_code is None or not self._verify_room_code(
-                            normalized_code,
-                            code_hash,
-                        ):
-                            raise ChatError("invalid_room_code", "Invalid room code", 403)
+            role = str(user["role"])
+            if role == UserRole.GUEST.value:
+                raise ChatError(
+                    "guest_forbidden",
+                    "Guests cannot join private chats",
+                    403,
+                )
+
+            if self._row_bool(chat, "is_private"):
+                code_hash = self._row_optional_str(chat, "room_code_hash")
+                if not code_hash:
+                    # A private chat without a room code is invite-only.
+                    # Joining by a numeric chat id must never bypass that.
+                    raise ChatError(
+                        "invite_required",
+                        "Private chat requires an invite",
+                        403,
+                    )
+                if role != UserRole.ADMIN.value:
+                    normalized_code = self._normalize_room_code(room_code, allow_legacy=True)
+                    if normalized_code is None or not self._verify_room_code(
+                        normalized_code,
+                        code_hash,
+                    ):
+                        raise ChatError("invalid_room_code", "Invalid room code", 403)
 
             now_ms = _now_ms()
             connection.execute(

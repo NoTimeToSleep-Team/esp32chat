@@ -52,6 +52,24 @@ def request(method: str, path: str, payload: dict | None = None):
         return exc.code, parsed
 
 
+def register(prefix: str) -> tuple[str, int]:
+    login = f"{prefix}-{os.urandom(4).hex()}"
+    status, data = request(
+        "POST",
+        "/auth/register",
+        {
+            "login": login,
+            "password": "Sec-pass-12345",
+            "phone": f"+7999{int.from_bytes(os.urandom(4), 'big') % 10_000_000:07d}",
+            "device_id": f"web-{login}",
+            "client_kind": "web",
+        },
+    )
+    if status != 200:
+        raise RuntimeError(f"register failed: {status} {str(data)[:200]}")
+    return str(data["session"]["token"]), int(data["user"]["id"])
+
+
 def main() -> int:
     status, data = request(
         "POST",
@@ -103,6 +121,61 @@ def main() -> int:
         f"/chat/api/updates?session_token={token}&since_ms={int(time.time() * 1000) + 60000}",
     )
     check("future since_ms gives empty list", status == 200 and data.get("count") == 0, f"{status} {str(data)[:140]}")
+
+    # Hidden history must also be enforced by the polling endpoint.
+    member_token, member_id = register("updates-member")
+    late_token, _late_id = register("updates-late")
+    status, data = request(
+        "POST",
+        "/chat/api/chats",
+        {
+            "session_token": token,
+            "title": f"hidden-updates-{int(time.time())}",
+            "member_ids": [member_id],
+            "chat_type": "group",
+            "is_public": True,
+            "history_visible": False,
+            "username": f"hiddenupdates{int(time.time() * 1000)}",
+        },
+    )
+    hidden_id = int(data.get("chat", {}).get("chat_id", 0)) if isinstance(data, dict) else 0
+    check("hidden updates chat created", status == 200 and hidden_id > 0, f"{status} {str(data)[:160]}")
+    request(
+        "POST",
+        f"/chat/api/chats/{hidden_id}/messages",
+        {"session_token": token, "body_text": "hidden-update-old-secret"},
+    )
+    time.sleep(0.05)
+    status, data = request(
+        "POST",
+        "/chat/api/join",
+        {"session_token": late_token, "chat_id": hidden_id},
+    )
+    check("late user joins hidden updates chat", status == 200, f"{status} {str(data)[:160]}")
+    request(
+        "POST",
+        f"/chat/api/chats/{hidden_id}/messages",
+        {"session_token": token, "body_text": "hidden-update-new-visible"},
+    )
+    status, data = request(
+        "GET",
+        f"/chat/api/updates?session_token={late_token}&since_ms=0&limit=200",
+    )
+    bodies = [
+        item.get("body_text")
+        for item in data.get("items", [])
+        if int(item.get("chat_id", 0)) == hidden_id
+    ] if isinstance(data, dict) else []
+    check(
+        "updates hides pre-join history",
+        status == 200 and "hidden-update-old-secret" not in bodies,
+        f"{status} bodies={bodies}",
+    )
+    check(
+        "updates keeps post-join messages",
+        status == 200 and "hidden-update-new-visible" in bodies,
+        f"{status} bodies={bodies}",
+    )
 
     print(f"\nRESULT: {passed} passed, {failed} failed")
     return 0 if failed == 0 else 1
