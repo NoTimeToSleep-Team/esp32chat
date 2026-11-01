@@ -13,6 +13,7 @@ _JSON_SECRET = re.compile(
     r'(?i)("(?:session_token|access_token|token|password|secret|authorization)"\s*:\s*")[^"]*(")'
 )
 _BEARER_SECRET = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
+_SECRET_PATH = re.compile(r"(?i)(/auth/session/)[A-Za-z0-9._~-]{8,}")
 
 
 def _redact(value: str | None) -> str | None:
@@ -22,6 +23,7 @@ def _redact(value: str | None) -> str | None:
     text = _KEY_VALUE_SECRET.sub(lambda match: f"{match.group(1)}=[redacted]", text)
     text = _JSON_SECRET.sub(r"\1[redacted]\2", text)
     text = _BEARER_SECRET.sub("Bearer [redacted]", text)
+    text = _SECRET_PATH.sub(r"\1[redacted]", text)
     return text
 
 

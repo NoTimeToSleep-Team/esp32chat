@@ -10,10 +10,12 @@ from app.config import Settings
 _SECRET_QUERY = re.compile(
     r"(?i)(session_token|access_token|token|password|secret|authorization)=([^&\s,;]+)"
 )
+_SECRET_PATH = re.compile(r"(?i)(/auth/session/)[A-Za-z0-9._~-]{8,}")
 
 
 def _redact_text(value: str) -> str:
-    return _SECRET_QUERY.sub(lambda match: f"{match.group(1)}=[redacted]", value)
+    redacted = _SECRET_QUERY.sub(lambda match: f"{match.group(1)}=[redacted]", value)
+    return _SECRET_PATH.sub(r"\1[redacted]", redacted)
 
 
 class RedactSecretsFilter(logging.Filter):
