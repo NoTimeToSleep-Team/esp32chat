@@ -344,7 +344,8 @@ async def get_account_avatar(
     session_token: str = Query(..., min_length=8, max_length=512),
     user_id: int | None = Query(default=None),
 ) -> FileResponse:
-    target_user_id = user_id if user_id is not None else _resolve_user_id(request, session_token)
+    requester_user_id = _resolve_user_id(request, session_token)
+    target_user_id = user_id if user_id is not None else requester_user_id
     service = _account_service(request)
 
     try:

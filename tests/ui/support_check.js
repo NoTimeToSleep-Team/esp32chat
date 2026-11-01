@@ -15,7 +15,7 @@ const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8B
   const errs = [];
   page.on("pageerror", e => errs.push(e.message));
 
-  await login(page, "admin", "7428");
+  await login(page, "admin");
   await page.goto(page.url().split("#")[0].replace(/\/$/, "") + "/support", { waitUntil: "load" });
   await page.waitForTimeout(2500);
 

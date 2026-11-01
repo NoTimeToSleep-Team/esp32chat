@@ -21,7 +21,7 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
   // The admin page must not touch the app session keys
   await page.evaluate(() => localStorage.setItem("lc_session_token", "spa-sentinel"));
   await page.fill("#l", "admin");
-  await page.fill("#p", "7428");
+  await page.fill("#p", process.env.LC_ADMIN_PASSWORD || "");
   await page.evaluate(() => document.querySelector("#login form").dispatchEvent(new Event("submit", { cancelable: true })));
   await page.waitForTimeout(2500);
   const loggedIn = await page.evaluate(() => (document.querySelector("#login").textContent || "").includes("Logged in"));

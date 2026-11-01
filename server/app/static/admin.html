@@ -277,7 +277,7 @@ function entrance(root, sel, step){
     })(els[i], Math.min(i, 10) * (step || 16));
   }
 }
-function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 var ST = null, ME = null, TAB = "users", SUB = null;
 var NAMES = {};
 var ADMIN_TOKEN_KEY = "lc_admin_token";
@@ -562,6 +562,20 @@ function toast(msg){
 }
 window.onerror = function(m){ try { toast(tr("Ошибка: ") + m); } catch(e){} };
 function tk(){ return encodeURIComponent(ST || ""); }
+function stripSessionToken(url){
+  try {
+    var u = new URL(url, location.origin);
+    u.searchParams.delete("session_token");
+    return u.pathname + (u.search || "") + (u.hash || "");
+  } catch(e) {
+    return String(url || "").replace(/([?&])session_token=[^&]*/g, "$1").replace(/[?&]$/, "");
+  }
+}
+function adminAuthHeaders(extra){
+  var headers = Object.assign({}, extra || {});
+  if (ST) headers["X-Session-Token"] = ST;
+  return headers;
+}
 function pad2(n){ return String(n).padStart(2, "0"); }
 function fmtTime(ms){ var d = new Date(ms || Date.now()); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 function fmtDate(ms){
@@ -604,12 +618,13 @@ function attsHtml(items){
 
 /* ---------- api ---------- */
 async function api(url, method, body, timeoutMs){
-  var opts = { method: method || "GET", headers: { "Content-Type": "application/json" } };
+  var opts = { method: method || "GET", headers: adminAuthHeaders({ "Content-Type": "application/json" }) };
   if (body) opts.body = JSON.stringify(body);
+  var requestUrl = ST ? stripSessionToken(url) : url;
   var controller = new AbortController();
   var timer = setTimeout(function(){ controller.abort(); }, timeoutMs || 15000);
   try {
-    var r = await fetch(url, Object.assign({}, opts, { signal: controller.signal }));
+    var r = await fetch(requestUrl, Object.assign({}, opts, { signal: controller.signal }));
     var d = await r.json().catch(function(){ return {}; });
     if (!r.ok) {
       var m = "HTTP " + r.status;
@@ -644,7 +659,7 @@ function deviceId(){
 }
 async function uploadFile(file){
   var fd = new FormData(); fd.append("file", file);
-  var r = await fetch("/media/api/attachments?session_token=" + tk(), { method: "POST", body: fd });
+  var r = await fetch("/media/api/attachments", { method: "POST", body: fd, headers: adminAuthHeaders() });
   var d = await r.json().catch(function(){ return {}; });
   if (!r.ok) throw new Error((d.detail && (d.detail.message || d.detail.code)) || (tr("Ошибка загрузки (") + r.status + ")"));
   return d;

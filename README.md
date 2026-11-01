@@ -217,7 +217,7 @@ Run the server locally:
 ```bash
 cd server
 python -m pip install -e ".[dev]"
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --no-proxy-headers
 ```
 
 Useful endpoints:

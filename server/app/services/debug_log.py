@@ -1,8 +1,28 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 from time import time
+
+
+_KEY_VALUE_SECRET = re.compile(
+    r"(?i)(session_token|access_token|token|password|secret|authorization)=([^&\s,;]+)"
+)
+_JSON_SECRET = re.compile(
+    r'(?i)("(?:session_token|access_token|token|password|secret|authorization)"\s*:\s*")[^"]*(")'
+)
+_BEARER_SECRET = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
+
+
+def _redact(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    text = _KEY_VALUE_SECRET.sub(lambda match: f"{match.group(1)}=[redacted]", text)
+    text = _JSON_SECRET.sub(r"\1[redacted]\2", text)
+    text = _BEARER_SECRET.sub("Bearer [redacted]", text)
+    return text
 
 
 class DebugLogService:
@@ -44,13 +64,13 @@ class DebugLogService:
                     int(time() * 1000),
                     stage,
                     trace_id,
-                    action,
+                    _redact(action)[:512] if action else None,
                     method,
                     status,
                     None if ok is None else (1 if ok else 0),
                     stages_done,
-                    error,
-                    details,
+                    _redact(error)[:1000] if error else None,
+                    _redact(details)[:2000] if details else None,
                     user_login,
                     ip,
                     t1_ms,

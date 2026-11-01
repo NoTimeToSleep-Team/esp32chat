@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -16,12 +16,12 @@ class CreatePrivateChatRequest(BaseModel):
     title: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=2048)
     avatar_url: str | None = Field(default=None, max_length=1024)
-    room_code: str | None = Field(default=None, max_length=4)
+    room_code: str | None = Field(default=None, max_length=6)
 
 
 class JoinPrivateChatRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
-    room_code: str | None = Field(default=None, max_length=4)
+    room_code: str | None = Field(default=None, max_length=6)
 
 
 class UpdatePrivateConfigRequest(BaseModel):
@@ -29,7 +29,7 @@ class UpdatePrivateConfigRequest(BaseModel):
     title: str | None = Field(default=None, max_length=256)
     description: str | None = Field(default=None, max_length=2048)
     avatar_url: str | None = Field(default=None, max_length=1024)
-    room_code: str | None = Field(default=None, max_length=4)
+    room_code: str | None = Field(default=None, max_length=6)
     is_private: bool | None = None
 
 

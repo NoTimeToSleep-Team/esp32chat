@@ -6,12 +6,27 @@ const STATE = {
   ticketCache: {},
 };
 
+function stripSessionToken(url) {
+  try {
+    const u = new URL(url, window.location.origin);
+    u.searchParams.delete('session_token');
+    return u.pathname + (u.search || '') + (u.hash || '');
+  } catch (e) {
+    return String(url || '').replace(/([?&])session_token=[^&]*/g, '$1').replace(/[?&]$/, '');
+  }
+}
+
+function authHeaders(extra) {
+  const headers = Object.assign({}, extra || {});
+  if (STATE.token) headers['X-Session-Token'] = STATE.token;
+  return headers;
+}
 
 // Кэш имён пользователей
 var _names = {};
 function loadUserNames() {
   if (!STATE.token) return;
-  fetch("/admin/users?session_token=" + encodeURIComponent(STATE.token) + "&limit=200")
+  fetch("/admin/users?limit=200", {headers: authHeaders()})
     .then(function(r) { return r.json(); })
     .then(function(d) {
       (d.items || []).forEach(function(u) {
@@ -102,9 +117,10 @@ function fmtTime(ms){const d=new Date(ms);return d.toLocaleString()}function fmt
 function debugReport(payload) {
   try {
     if (STATE && STATE.token) payload.session_token = STATE.token;
+    if (payload.action) payload.action = stripSessionToken(payload.action);
     fetch('/debug/api/client-event', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: authHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify(payload),
       keepalive: true
     }).catch(function(){});
@@ -131,8 +147,8 @@ function apiErrorMessage(d, status) {
 }
 
 async function api(url, opts={}) {
-  const headers={'Content-Type':'application/json'};
-  if (opts.sessionHeader) headers['X-Session-Token'] = STATE.token;
+  const headers = authHeaders({'Content-Type':'application/json'});
+  const requestUrl = STATE.token ? stripSessionToken(url) : url;
   const traceId = newTraceId('tr');
   headers['X-Debug-Trace'] = traceId;
   const method = (opts.method || 'GET').toUpperCase();
@@ -143,18 +159,18 @@ async function api(url, opts={}) {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const t1 = Date.now();
     try {
-      const r = await fetch(url, {...opts, headers, signal: controller.signal});
+      const r = await fetch(requestUrl, {...opts, headers, signal: controller.signal});
       const t2 = Date.now();
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
         const errMsg = apiErrorMessage(d, r.status);
-        debugReport({trace_id: traceId, action: url, method, ok: false, status: r.status, stages_done: 2, error: errMsg, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+        debugReport({trace_id: traceId, action: stripSessionToken(url), method, ok: false, status: r.status, stages_done: 2, error: errMsg, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
         const err = new Error(errMsg);
         err.status = r.status;
         err.code = (d && d.detail && d.detail.code) ? String(d.detail.code) : null;
         throw err;
       }
-      debugReport({trace_id: traceId, action: url, method, ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
+      debugReport({trace_id: traceId, action: stripSessionToken(url), method, ok: true, status: r.status, stages_done: 3, t1_ms: t1, t2_ms: t2, t3_ms: Date.now()});
       return d;
     } catch(e) {
       if (e.name === 'TypeError' && attempt < maxAttempts) {
@@ -182,7 +198,7 @@ async function uploadAttachment(file) {
   const traceId = newTraceId('up');
   const t1 = Date.now();
   try {
-    const r = await fetch(`/media/api/attachments?session_token=${encodeURIComponent(STATE.token)}`, {method:'POST', body:form, headers:{'X-Debug-Trace': traceId}});
+    const r = await fetch('/media/api/attachments', {method:'POST', body:form, headers:authHeaders({'X-Debug-Trace': traceId})});
     const t2 = Date.now();
     const d = await r.json().catch(()=>({}));
     if (!r.ok) {
@@ -3576,7 +3592,7 @@ async function loadTicketDetail(ticketId, title, itemEl, status) {
   }
 }
 /* ===== ROUTER ===== */
-function esc(s) {const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function esc(s) {const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 let warnChecked = false;
 async function checkWarnings() {
@@ -3683,29 +3699,6 @@ window.lcStaticLoginComplete = function() {
   handleRoute();
 };
 window.onload = async () => {
-  // Auto-login from ?token= in URL (captive portal login)
-  const params = new URLSearchParams(window.location.search);
-  const urlToken = params.get('token');
-  if (urlToken && !STATE.token) {
-    try {
-      const session = await api(`/auth/session/${encodeURIComponent(urlToken)}`);
-      if (session.user && session.session) {
-        setAuth(session);
-        window.history.replaceState({}, '', window.location.pathname + window.location.hash);
-        // Match the manual-login appearance: hide the form, show the app.
-        const sl = document.getElementById('static-login');
-        const ct = document.getElementById('content');
-        const nv = document.querySelector('.nav');
-        if (sl) sl.style.display = 'none';
-        if (ct) ct.style.display = '';
-        if (nv) nv.style.display = '';
-        const nvRight = document.getElementById('nav-right');
-        if (nvRight) nvRight.style.display = '';
-        const nvUser = document.getElementById('nav-user');
-        if (nvUser && session.user) nvUser.textContent = session.user.login || '';
-      }
-    } catch(e) { /* token invalid, proceed normally */ }
-  }
   if (messagesPollTimer) clearInterval(messagesPollTimer);
   handleRoute();
   // hamburger

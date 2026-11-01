@@ -14,7 +14,7 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
   await page.waitForTimeout(700);
   check("static login visible", await page.isVisible("#static-login"));
   await page.fill("#sl", "admin");
-  await page.fill("#sp", "7428");
+  await page.fill("#sp", process.env.LC_ADMIN_PASSWORD || "");
   await page.click("#sbtn");
   await page.waitForTimeout(2500);
   check("nav visible after login", await page.isVisible(".nav"));

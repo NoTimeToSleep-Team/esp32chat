@@ -76,7 +76,7 @@ async def readiness(request: Request) -> dict[str, object]:
             "data_layer_initialized": data_layer is not None,
         },
         "data_layer": {
-            "database_path": str(data_layer.database_path) if data_layer else None,
+            "initialized": data_layer is not None,
             "applied_migrations": len(data_layer.applied_migrations) if data_layer else 0,
         },
         "runtime": runtime_state,

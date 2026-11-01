@@ -1,13 +1,18 @@
 # UI test suites (SPA)
 
+> Credentials are not stored in the repository. Set `LC_ADMIN_PASSWORD`
+> before running any suite. The parallel version of the suite (`ui_test.js`)
+> also requires it.
+
 Требуется запущенный локальный сервер на `127.0.0.1:18080` и Playwright (берётся из npx-кэша, см. `lib.js`).
 
 ## Запуск сервера (Windows, из корня репозитория)
 
 ```powershell
 $env:PYTHONIOENCODING = "utf-8"
-$p = Start-Process -FilePath python -ArgumentList "-m","uvicorn","app.main:app","--host","127.0.0.1","--port","18080" `
-  -WorkingDirectory "D:\opencode\LC_PROJECT\server" `
+$env:LC_ADMIN_PASSWORD = "<local test admin password>"
+$p = Start-Process -FilePath python -ArgumentList "-m","uvicorn","app.main:app","--host","127.0.0.1","--port","18080","--no-proxy-headers" `
+  -WorkingDirectory "D:\opencode\LC_RELEASE\server" `
   -RedirectStandardOutput "C:\WINDOWS\TEMP\opencode\lc-server.log" `
   -RedirectStandardError "C:\WINDOWS\TEMP\opencode\lc-server.err.log" -PassThru -WindowStyle Hidden
 try {

@@ -4,6 +4,7 @@ const { chromium } = require(pwPath);
 
 const BASE = process.env.LC_BASE || "http://127.0.0.1:18080";
 const SHOTS = path.join(__dirname, "..", "..", "experiments", "ui", "shots") + path.sep;
+const ADMIN_PASSWORD = process.env.LC_ADMIN_PASSWORD || "";
 
 let pass = 0;
 let fail = 0;
@@ -19,13 +20,15 @@ function summary() {
 }
 
 async function login(page, user, password, settleMs) {
+  const resolvedPassword = password || ADMIN_PASSWORD;
+  if (!resolvedPassword) throw new Error("LC_ADMIN_PASSWORD is required for UI tests");
   // Suites assert Russian-localized labels; the app itself defaults to English.
   // Set the language before app scripts run, then re-apply once the app is up.
   await page.addInitScript(() => { try { localStorage.setItem("lc_lang", "rus"); } catch (e) {} });
   await page.goto(BASE + "/");
   await page.waitForTimeout(700);
   await page.fill("#sl", user || "admin");
-  await page.fill("#sp", password || "7428");
+  await page.fill("#sp", resolvedPassword);
   await page.click("#sbtn");
   await page.waitForTimeout(settleMs || 2500);
   await page.evaluate(() => {
@@ -63,4 +66,4 @@ function swipeFactory(cdp) {
   };
 }
 
-module.exports = { chromium, BASE, SHOTS, check, summary, login, launch, launchMobile, swipeFactory };
+module.exports = { chromium, BASE, SHOTS, ADMIN_PASSWORD, check, summary, login, launch, launchMobile, swipeFactory };

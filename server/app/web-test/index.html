@@ -1306,7 +1306,7 @@ function revealContent(el){
   clearTimeout(el._revealT);
   el._revealT = setTimeout(function(){ el.classList.remove("reveal"); }, 220);
 }
-function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+function esc(s){ var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 function pad2(n){ return String(n).padStart(2, "0"); }
 function fmtTimeShort(ms){ var d = new Date(ms || Date.now()); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 function fmtTime(ms){
@@ -1396,13 +1396,24 @@ function copyText(text){
 }
 
 /* ============================ API ============================ */
+function stripSessionToken(url){
+  try {
+    var u = new URL(url, location.origin);
+    u.searchParams.delete("session_token");
+    return u.pathname + (u.search || "") + (u.hash || "");
+  } catch(e) {
+    return String(url || "").replace(/([?&])session_token=[^&]*/g, "$1").replace(/[?&]$/, "");
+  }
+}
 async function api(url, opts){
   opts = opts || {};
   var headers = { "Content-Type": "application/json" };
+  if (STATE.token) headers["X-Session-Token"] = STATE.token;
+  var requestUrl = STATE.token ? stripSessionToken(url) : url;
   var controller = new AbortController();
   var timer = setTimeout(function(){ controller.abort(); }, opts.timeoutMs || 12000);
   try {
-    var r = await fetch(url, Object.assign({}, opts, { headers: headers, signal: controller.signal }));
+    var r = await fetch(requestUrl, Object.assign({}, opts, { headers: headers, signal: controller.signal }));
     var d = await r.json().catch(function(){ return {}; });
     if (!r.ok) {
       var msg = "HTTP " + r.status;
@@ -1439,7 +1450,7 @@ function tk(){ return encodeURIComponent(STATE.token || ""); }
 async function uploadFile(file){
   var form = new FormData();
   form.append("file", file);
-  var r = await fetch("/media/api/attachments?session_token=" + tk(), { method: "POST", body: form });
+  var r = await fetch("/media/api/attachments", { method: "POST", body: form, headers: STATE.token ? { "X-Session-Token": STATE.token } : {} });
   var d = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
     var msg = (d && d.detail && (d.detail.message || d.detail.code)) || (tr("Ошибка загрузки (") + r.status + ")");

@@ -277,6 +277,7 @@ class ChatService:
                 else ChatMemberRole.MEMBER.value
             )
 
+            normalized_title = self._clean_chat_title(draft.title)
             now_ms = _now_ms()
             cursor = connection.execute(
                 """
@@ -299,7 +300,7 @@ class ChatService:
                 """,
                 (
                     ChatKind.CUSTOM.value,
-                    draft.title.strip(),
+                    normalized_title,
                     (draft.description or "").strip() or None,
                     self._row_int(creator, "id"),
                     1 if private_flag else 0,
@@ -432,7 +433,10 @@ class ChatService:
                     409,
                 )
 
-            if target_user_id != actor_user_id and not self._has_permission(
+            # Membership changes always require an explicit chat permission.
+            # In particular, self-insertion must never bypass the invite/room
+            # code/public-chat consent flows.
+            if not self._has_permission(
                 connection,
                 chat_row=chat,
                 user_id=actor_user_id,
@@ -440,15 +444,20 @@ class ChatService:
             ):
                 raise ChatError("forbidden", "Only the owner or an admin can add members", 403)
 
+            if role is not None:
+                raise ChatError(
+                    "invalid_role",
+                    "Use the member role endpoint to change roles",
+                    422,
+                )
+
             chat_type = self._row_optional_str_lenient(chat, "chat_type") or ChatType.GROUP.value
             default_role = (
                 ChatMemberRole.SUBSCRIBER.value
                 if chat_type == ChatType.CHANNEL.value
                 else ChatMemberRole.MEMBER.value
             )
-            resolved_role = role.value if role is not None else default_role
-            if resolved_role == ChatMemberRole.OWNER.value:
-                raise ChatError("invalid_role", "Use ownership transfer to change the owner", 422)
+            resolved_role = default_role
 
             now_ms = _now_ms()
             connection.execute(
@@ -496,7 +505,7 @@ class ChatService:
                 if self._row_bool(chat, "is_private"):
                     code_hash = self._row_optional_str(chat, "room_code_hash")
                     if code_hash:
-                        normalized_code = self._normalize_room_code(room_code)
+                        normalized_code = self._normalize_room_code(room_code, allow_legacy=True)
                         if normalized_code is None or not self._verify_room_code(
                             normalized_code,
                             code_hash,
@@ -697,9 +706,7 @@ class ChatService:
 
             next_title = str(chat["title"]).strip()
             if title is not None:
-                next_title = title.strip()
-                if not next_title:
-                    raise ChatError("invalid_title", "Chat title must not be empty", 422)
+                next_title = self._clean_chat_title(title)
 
             next_description = (
                 (description or "").strip() or None
@@ -1165,7 +1172,13 @@ class ChatService:
                 return {"status": "joined", "chat": self._row_to_chat(chat), "already_member": True}
 
             if invite.requires_approval:
-                self._upsert_join_request(connection, chat_id=invite.chat_id, user_id=user_id, now_ms=now_ms)
+                self._upsert_join_request(
+                    connection,
+                    chat_id=invite.chat_id,
+                    user_id=user_id,
+                    now_ms=now_ms,
+                    invite_id=invite.invite_id,
+                )
                 return {"status": "pending", "chat": self._row_to_chat(chat)}
 
             connection.execute(
@@ -1336,18 +1349,46 @@ class ChatService:
                 raise ChatError("request_already_decided", "Join request was already decided", 409)
 
             now_ms = _now_ms()
+            status = "declined"
             if approve:
                 self._require_active_user(connection, target_user_id)
-                connection.execute(
-                    """
-                    INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (chat_id, target_user_id, self._default_member_role(chat), now_ms),
-                )
-                status = "approved"
-            else:
-                status = "declined"
+                invite_id = self._row_optional_int_lenient(row, "invite_id")
+                can_approve = True
+                if invite_id is not None:
+                    invite = connection.execute(
+                        "SELECT expires_at_ms, max_uses, uses FROM chat_invites WHERE id = ?",
+                        (invite_id,),
+                    ).fetchone()
+                    if invite is None:
+                        can_approve = False
+                    else:
+                        expires_at_ms = self._row_optional_int_lenient(invite, "expires_at_ms")
+                        max_uses = self._row_optional_int_lenient(invite, "max_uses")
+                        uses = int(self._row_optional_int_lenient(invite, "uses") or 0)
+                        if expires_at_ms is not None and expires_at_ms < now_ms:
+                            can_approve = False
+                        elif max_uses is not None and uses >= max_uses:
+                            can_approve = False
+                        else:
+                            claimed = connection.execute(
+                                """
+                                UPDATE chat_invites
+                                SET uses = uses + 1
+                                WHERE id = ?
+                                  AND (max_uses IS NULL OR uses < max_uses)
+                                """,
+                                (invite_id,),
+                            ).rowcount
+                            can_approve = claimed > 0
+                if can_approve:
+                    connection.execute(
+                        """
+                        INSERT OR IGNORE INTO chat_members(chat_id, user_id, role, joined_at_ms)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (chat_id, target_user_id, self._default_member_role(chat), now_ms),
+                    )
+                    status = "approved"
 
             connection.execute(
                 "UPDATE chat_join_requests SET status = ?, decided_by = ?, decided_at_ms = ? WHERE chat_id = ? AND user_id = ?",
@@ -1922,18 +1963,20 @@ class ChatService:
         chat_id: int,
         user_id: int,
         now_ms: int,
+        invite_id: int | None = None,
     ) -> None:
         connection.execute(
             """
-            INSERT INTO chat_join_requests(chat_id, user_id, status, created_at_ms)
-            VALUES (?, ?, 'pending', ?)
+            INSERT INTO chat_join_requests(chat_id, user_id, status, created_at_ms, invite_id)
+            VALUES (?, ?, 'pending', ?, ?)
             ON CONFLICT(chat_id, user_id) DO UPDATE SET
                 status = 'pending',
                 created_at_ms = excluded.created_at_ms,
                 decided_by = NULL,
-                decided_at_ms = NULL
+                decided_at_ms = NULL,
+                invite_id = excluded.invite_id
             """,
-            (chat_id, user_id, now_ms),
+            (chat_id, user_id, now_ms, invite_id),
         )
 
     @staticmethod
@@ -1942,6 +1985,19 @@ class ChatService:
         if chat_type == ChatType.CHANNEL.value:
             return ChatMemberRole.SUBSCRIBER.value
         return ChatMemberRole.MEMBER.value
+
+    @staticmethod
+    def _clean_chat_title(value: str) -> str:
+        title = str(value or "").strip()
+        if not title:
+            raise ChatError("invalid_title", "Chat title must not be empty", 422)
+        if len(title) > 256:
+            raise ChatError("invalid_title", "Chat title is too long", 422)
+        if "<" in title or ">" in title:
+            raise ChatError("invalid_title", "Chat title contains forbidden markup", 422)
+        if any(ord(char) < 32 for char in title):
+            raise ChatError("invalid_title", "Chat title contains control characters", 422)
+        return title
 
     @staticmethod
     def _generate_invite_code() -> str:
@@ -2210,7 +2266,7 @@ class ChatService:
                     if normalized_code is None:
                         raise ChatError(
                             "invalid_room_code",
-                            "Room code must contain exactly 4 digits",
+                            "Room code must contain exactly 6 digits",
                             422,
                         )
                     code_hash = self._hash_room_code(normalized_code)
@@ -2378,10 +2434,22 @@ class ChatService:
                 (chat_id, requester_user_id),
             ).fetchone()
 
+            history_visible = self._row_bool_default(chat, "history_visible", True)
+            if (
+                member_row is None
+                and not history_visible
+                and not self._is_platform_moderator(connection, user_id=requester_user_id)
+            ):
+                raise ChatError(
+                    "join_required",
+                    "Join the chat to view its history",
+                    403,
+                )
+
             # History for new members: everything posted before joining stays hidden.
             min_created_at_ms = 0
             if member_row is not None:
-                if not self._row_bool_default(chat, "history_visible", True):
+                if not history_visible:
                     min_created_at_ms = int(member_row["joined_at_ms"] or 0)
                 cleared_at_ms = self._row_optional_int_lenient(member_row, "cleared_at_ms")
                 if cleared_at_ms:
@@ -2861,16 +2929,21 @@ class ChatService:
         return unique_ids
 
     @staticmethod
-    def _normalize_room_code(room_code: str | None) -> str | None:
+    def _normalize_room_code(
+        room_code: str | None,
+        *,
+        allow_legacy: bool = False,
+    ) -> str | None:
         if room_code is None:
             return None
         normalized = room_code.strip()
         if normalized == "":
             return None
-        if len(normalized) != 4 or not normalized.isdigit():
+        valid_length = len(normalized) == 6 or (allow_legacy and len(normalized) == 4)
+        if not valid_length or not normalized.isdigit():
             raise ChatError(
                 "invalid_room_code",
-                "Room code must contain exactly 4 digits",
+                "Room code must contain exactly 6 digits",
                 422,
             )
         return normalized

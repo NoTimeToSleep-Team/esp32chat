@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.models import ClientKind, UserRole
+from app.security.network import resolve_client_ip
 from app.services.auth import AuthError, AuthService
 from app.services.debug_log import DebugLogService
 
@@ -28,28 +29,22 @@ class ClientEventRequest(BaseModel):
     session_token: str | None = Field(default=None, max_length=512)
 
 
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        first = forwarded.split(",", 1)[0].strip()
-        if first:
-            return first
-    client = request.client
-    return client.host if client and client.host else "unknown"
+
 
 
 @router.post("/api/client-event")
 async def client_event(request: Request, payload: ClientEventRequest) -> dict[str, object]:
-    user_login = None
-    if payload.session_token:
-        try:
-            session = AuthService(db_path=request.app.state.data_layer.database_path).get_session(
-                payload.session_token,
-                client_kind=ClientKind.WEB,
-            )
-            user_login = session.user.login
-        except AuthError:
-            user_login = None
+    token = (payload.session_token or request.headers.get("x-session-token") or "").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail={"code": "invalid_session", "message": "Authentication required"})
+    try:
+        session = AuthService(db_path=request.app.state.data_layer.database_path).get_session(
+            token,
+            client_kind=ClientKind.WEB,
+        )
+    except AuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    user_login = session.user.login
     stage = payload.stage if payload.stage in _STAGES else "client"
     DebugLogService(db_path=request.app.state.data_layer.database_path).log(
         stage=stage,
@@ -62,7 +57,7 @@ async def client_event(request: Request, payload: ClientEventRequest) -> dict[st
         error=(payload.error or "").strip() or None,
         details=(payload.details or "").strip() or None,
         user_login=user_login,
-        ip=_client_ip(request),
+        ip=resolve_client_ip(request),
         t1_ms=payload.t1_ms,
         t2_ms=payload.t2_ms,
         t3_ms=payload.t3_ms,
@@ -78,8 +73,8 @@ def _require_admin(request: Request, session_token: str) -> None:
         )
     except AuthError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
-    if session.user.role not in {UserRole.ADMIN, UserRole.MODERATOR}:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Admin or moderator required"})
+    if session.user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Admin required"})
 
 
 @router.get("/api/events")

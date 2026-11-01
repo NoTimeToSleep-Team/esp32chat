@@ -18,7 +18,7 @@ import urllib.request
 
 BASE = os.environ.get("LC_BASE", "http://127.0.0.1:18080")
 ADMIN_LOGIN = os.environ.get("LC_ADMIN_LOGIN", "admin")
-ADMIN_PASSWORD = os.environ.get("LC_ADMIN_PASSWORD", "7428")
+ADMIN_PASSWORD = os.environ.get("LC_ADMIN_PASSWORD", "")
 
 passed = 0
 failed = 0

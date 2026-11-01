@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.models import ClientKind
 from app.security import BruteForceGuard, SecurityAuditService
+from app.security.network import resolve_client_ip
 from app.services.activity_log import ActivityLogService
 from app.services.auth import AuthError, AuthResult, AuthService
 from app.services.chat import ChatService
@@ -66,16 +67,7 @@ def _security_audit(request: Request) -> SecurityAuditService:
     return request.app.state.security_audit
 
 
-def _client_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        first = forwarded_for.split(",", 1)[0].strip()
-        if first:
-            return first
-    client = request.client
-    if client and client.host:
-        return client.host
-    return "unknown"
+
 
 
 def _auth_result_payload(result: AuthResult) -> dict[str, object]:
@@ -101,7 +93,7 @@ async def login(payload: LoginRequest, request: Request) -> dict[str, object]:
     service = _auth_service(request)
     guard = _bruteforce_guard(request)
     audit = _security_audit(request)
-    ip_address = _client_ip(request)
+    ip_address = resolve_client_ip(request)
     normalized_login = payload.login.strip()
 
     decision = guard.check_allowed(ip_address=ip_address)
@@ -317,15 +309,15 @@ async def logout(payload: LogoutRequest, request: Request) -> dict[str, object]:
     }
 
 
-@router.get("/session/{session_token}")
+@router.get("/session")
 async def get_session(
-    session_token: str,
     request: Request,
+    x_session_token: str = Header(..., alias="X-Session-Token"),
     client_kind: ClientKind = ClientKind.WEB,
 ) -> dict[str, object]:
     service = _auth_service(request)
     try:
-        result = service.get_session(session_token, client_kind=client_kind)
+        result = service.get_session(x_session_token, client_kind=client_kind)
     except AuthError as exc:
         raise HTTPException(
             status_code=exc.status_code,

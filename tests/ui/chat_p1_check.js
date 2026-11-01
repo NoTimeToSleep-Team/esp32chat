@@ -41,7 +41,7 @@ async function tokenFor(login, password) {
   const errs = [];
   page.on("pageerror", e => errs.push(e.message));
   page.on("dialog", d => d.accept());
-  await login(page, "admin", "7428");
+  await login(page, "admin");
   await page.waitForTimeout(600);
   const adminToken = await page.evaluate(() => STATE.token);
 

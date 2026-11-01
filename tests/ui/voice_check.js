@@ -15,7 +15,7 @@ const FAKE_MEDIA_ARGS = ["--use-fake-ui-for-media-stream", "--use-fake-device-fo
   const page = await ctx.newPage();
   const errs = [];
   page.on("pageerror", e => errs.push(e.message));
-  await login(page, "admin", "7428");
+  await login(page, "admin");
   const items = await page.$$("#chat-list .chat-item");
   check("chat list has items", items.length > 0, "n=" + items.length);
   await items[0].click();
@@ -82,7 +82,7 @@ const FAKE_MEDIA_ARGS = ["--use-fake-ui-for-media-stream", "--use-fake-device-fo
   await page2.addInitScript(() => {
     Object.defineProperty(navigator, "mediaDevices", { get: () => undefined, configurable: true });
   });
-  await login(page2, "admin", "7428");
+  await login(page2, "admin");
   const items2 = await page2.$$("#chat-list .chat-item");
   await items2[0].click();
   await page2.waitForTimeout(1200);
@@ -108,7 +108,7 @@ const FAKE_MEDIA_ARGS = ["--use-fake-ui-for-media-stream", "--use-fake-device-fo
   buf.writeUInt32LE(8000, 24); buf.writeUInt32LE(16000, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
   buf.write("data", 36); buf.writeUInt32LE(samples * 2, 40);
   fs.writeFileSync(wavPath, buf);
-  await login(page3, "admin", "7428");
+  await login(page3, "admin");
   const items3 = await page3.$$("#chat-list .chat-item");
   await items3[0].click();
   await page3.waitForTimeout(1200);

@@ -85,7 +85,7 @@ async function connectWiFi() {
     setTimeout(async function(){
       try{
         var c=await fetch('http://example.com',{mode:'no-cors'});
-        var f=await fetch('/admin/network/wifi/status?session_token='+localStorage.getItem('lc_session_token'));
+        var f=await fetch('/admin/network/wifi/status', {headers:{'X-Session-Token': localStorage.getItem('lc_session_token') || ''}});
         var sd=await f.json();
         if(!sd.connected){document.getElementById('portal-card').style.display='block'}
       }catch(e){document.getElementById('portal-card').style.display='block'}

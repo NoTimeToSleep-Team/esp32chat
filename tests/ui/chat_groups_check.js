@@ -42,7 +42,7 @@ async function tokenFor(login, password) {
   const errs = [];
   page.on("pageerror", e => errs.push(e.message));
   page.on("dialog", d => d.accept());
-  await login(page, "admin", "7428");
+  await login(page, "admin");
   await page.waitForTimeout(600);
   const adminToken = await page.evaluate(() => STATE.token);
 
@@ -268,7 +268,7 @@ async function tokenFor(login, password) {
   // --- mobile: channel profile fits ---
   const { browser: mBrowser, page: mPage } = await launchMobile();
   mPage.on("dialog", d => d.accept());
-  await login(mPage, "admin", "7428");
+  await login(mPage, "admin");
   await mPage.waitForTimeout(2500);
   await mPage.click("#chat-list .chat-item");
   await mPage.waitForTimeout(1500);

@@ -31,7 +31,7 @@ async function api(method, path, body) {
   memberId = reg.json && reg.json.user ? (reg.json.user.id || reg.json.user.user_id) : null;
   check("member account created", !!memberId, JSON.stringify(reg.json).slice(0, 200));
 
-  await login(page, "admin", "7428");
+  await login(page, "admin");
   await page.waitForTimeout(600);
   const adminToken = await page.evaluate(() => STATE.token);
 

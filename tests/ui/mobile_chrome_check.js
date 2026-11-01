@@ -6,7 +6,7 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   const { browser, ctx, page: m } = await launchMobile();
   const errs = [];
   m.on("pageerror", e => errs.push(e.message));
-  await login(m, "admin", "7428");
+  await login(m, "admin");
 
   const listInfo = await m.evaluate(() => {
     const nav = document.querySelector(".nav");

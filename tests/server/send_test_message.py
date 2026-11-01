@@ -15,7 +15,7 @@ import urllib.request
 
 BASE = os.environ.get("LC_BASE", "http://169.254.93.1:18080")
 ADMIN_LOGIN = os.environ.get("LC_ADMIN_LOGIN", "admin")
-ADMIN_PASSWORD = os.environ.get("LC_ADMIN_PASSWORD", "7428")
+ADMIN_PASSWORD = os.environ.get("LC_ADMIN_PASSWORD", "")
 
 
 def request(method: str, path: str, payload: dict | None = None):

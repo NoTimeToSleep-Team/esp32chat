@@ -57,7 +57,7 @@ This directory contains the Raspberry Pi server side of the system.
 
 ```bash
 python -m pip install -e .
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --no-proxy-headers
 ```
 
 ## Configuration
@@ -82,9 +82,13 @@ uvicorn app.main:app --reload
 
 - `POST /auth/login`
 - `POST /auth/logout`
-- `GET /auth/session/{session_token}`
+- `GET /auth/session` (`X-Session-Token` header only; the old token-in-path route is removed)
 - `POST /auth/register`
 - `POST /auth/guest`
+
+Authenticated API calls should send `X-Session-Token`. Query `session_token`
+is still accepted for compatibility with older clients and media URLs, but it
+is redacted from application/access logs. Session lifetime is 24 hours.
 
 Registration constraints:
 

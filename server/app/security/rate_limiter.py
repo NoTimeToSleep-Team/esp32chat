@@ -6,7 +6,11 @@ from threading import Lock
 
 
 def _is_auth_path(path: str) -> bool:
-    return path.startswith("/auth/")
+    return (
+        path.startswith("/auth/")
+        or path.startswith("/chat/api/private/")
+        or path == "/devices/api/pair/claim"
+    )
 
 
 def _is_exempt_path(path: str) -> bool:
@@ -19,8 +23,6 @@ def _is_exempt_path(path: str) -> bool:
     if path == "/openapi.json":
         return True
     if path.startswith("/static/"):
-        return True
-    if path.startswith("/debug/api/client-event"):
         return True
     return False
 

@@ -83,7 +83,7 @@ def _deployment_payload(deployment: EdgeNodeDeployment) -> dict[str, object]:
         "module_id": deployment.module_id,
         "network_ssid": deployment.network_ssid,
         "network_ssid_storage": "obfuscated_placeholder_not_plaintext",
-        "network_password_hash": deployment.network_password_hash,
+        "network_password_configured": bool(deployment.network_password_hash),
         "status": deployment.status,
         "local_profile": deployment.local_profile,
         "local_ip": deployment.local_ip,
@@ -149,7 +149,11 @@ async def deployment_status(
 
 
 @router.get("/api/m5tab/info")
-async def m5tab_info(request: Request) -> dict[str, object]:
+async def m5tab_info(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    _resolve_admin_user_id(request, session_token)
     modules = _registry_service(request).load_registry()
     capability_map = _registry_service(request).compute_capability_map()
     uptime_seconds = int(monotonic() - getattr(request.app.state, "started_at_monotonic", monotonic()))
@@ -180,7 +184,11 @@ async def m5tab_admin(
 
 
 @router.get("/api/m5tab/deployment")
-async def m5tab_deployment(request: Request) -> dict[str, object]:
+async def m5tab_deployment(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    _resolve_admin_user_id(request, session_token)
     modules = _registry_service(request).load_registry()
     deployments = _edge_service(request).list_deployments()
     available_modules = [

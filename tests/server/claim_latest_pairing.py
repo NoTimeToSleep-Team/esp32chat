@@ -24,7 +24,7 @@ RPI_PASS = os.environ.get("LC_RPI_PASS")
 RPI_ROOT = os.environ.get("LC_RPI_ROOT", "/home/gamecat/lc-server")
 BASE = os.environ.get("LC_BASE", "http://169.254.93.1:18080")
 ADMIN_LOGIN = os.environ.get("LC_ADMIN_LOGIN", "admin")
-ADMIN_PASSWORD = os.environ.get("LC_ADMIN_PASSWORD", "7428")
+ADMIN_PASSWORD = os.environ.get("LC_ADMIN_PASSWORD", "")
 
 REMOTE_QUERY = """cd {root} && ./venv/bin/python3 - <<'PYEOF'
 import sqlite3

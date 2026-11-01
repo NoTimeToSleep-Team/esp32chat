@@ -47,7 +47,7 @@ async function setAutomod(adminToken, payload) {
   page.on("pageerror", e => errs.push(e.message));
   page.on("dialog", d => d.accept());
 
-  await login(page, "admin", "7428");
+  await login(page, "admin");
   await page.waitForTimeout(600);
   const adminToken = await page.evaluate(() => STATE.token);
   check("admin session is ready", !!adminToken);
@@ -143,7 +143,7 @@ async function setAutomod(adminToken, payload) {
   await page.goto(BASE + "/admin");
   await page.waitForTimeout(900);
   await page.fill("#l", "admin");
-  await page.fill("#p", "7428");
+  await page.fill("#p", process.env.LC_ADMIN_PASSWORD || "");
   await page.evaluate(() => document.querySelector("#login form").dispatchEvent(new Event("submit", { cancelable: true })));
   await page.waitForTimeout(2500);
   await page.evaluate(() => switchTab("reports"));

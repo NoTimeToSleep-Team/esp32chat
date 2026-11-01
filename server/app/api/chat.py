@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import (
     ChatDraft,
@@ -446,9 +446,10 @@ async def delete_chat_message(request: Request, chat_id: int, message_id: int, p
 # --- Add member to group ---
 
 class AddMemberRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     session_token: str = Field(min_length=8, max_length=512)
     user_id: int
-    role: str | None = Field(default=None, max_length=16)
 
 
 @router.post("/chat/api/chats/{chat_id}/members")
@@ -460,7 +461,6 @@ async def add_chat_member(request: Request, chat_id: int, payload: AddMemberRequ
             chat_id=chat_id,
             target_user_id=payload.user_id,
             actor_user_id=user_id,
-            role=_parse_member_role(payload.role),
         )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc

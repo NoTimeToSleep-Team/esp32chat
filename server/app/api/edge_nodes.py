@@ -1,9 +1,10 @@
 ﻿# DEPRECATED RPi-Only: требует внутренние контроллеры, не активно в RPi-only архитектуре.
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.models import ModuleInfo, ModuleKind, ModuleStatus
+from app.models import ClientKind, ModuleInfo, ModuleKind, ModuleStatus, UserRole
+from app.services.auth import AuthError, AuthService
 from app.services.edge_nodes import EdgeNodeService
 from app.services.module_registry import ModuleRegistryService
 
@@ -31,7 +32,17 @@ def _edge_module_payload(module: ModuleInfo) -> dict[str, object]:
 
 
 @router.get("/devices/api/edge/capabilities")
-async def edge_capabilities(request: Request) -> dict[str, object]:
+async def edge_capabilities(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    service = AuthService(db_path=request.app.state.data_layer.database_path)
+    try:
+        session = service.get_session(session_token, client_kind=ClientKind.WEB)
+    except AuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    if session.user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail={"code": "admin_only", "message": "Admin role is required"})
     registry = _registry_service(request)
     modules = registry.load_registry()
     usable_statuses = {ModuleStatus.DETECTED, ModuleStatus.DEGRADED, ModuleStatus.OK}

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import sys
 from time import monotonic
+from urllib.parse import parse_qsl, urlencode
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -56,9 +57,10 @@ from app.api.support import router as support_router
 from app.api.user_reports import router as user_reports_router
 from app.config import ConfigError, get_settings
 from app.db import initialize_data_layer
-from app.logging import configure_logging, get_logger
+from app.logging import configure_logging, get_logger, install_runtime_log_filters
 from app.realtime import ChatRealtimeBroker
 from app.security import InMemoryRateLimiter, SecurityAuditService
+from app.security.network import resolve_client_ip
 from app.services.chat import ChatService
 from app.services.debug_log import DebugLogService
 from app.services.module_registry import ModuleRegistryService
@@ -71,16 +73,7 @@ def _now_ms() -> int:
     return int(monotonic() * 1000)
 
 
-def _resolve_client_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        first = forwarded_for.split(",", 1)[0].strip()
-        if first:
-            return first
-    client = request.client
-    if client and client.host:
-        return client.host
-    return "unknown"
+
 
 
 def create_app() -> FastAPI:
@@ -108,6 +101,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        install_runtime_log_filters()
         app.state.started_at_monotonic = monotonic()
         app.state.data_layer = initialize_data_layer(settings, logger=logger)
         app.state.realtime_broker = ChatRealtimeBroker()
@@ -164,17 +158,81 @@ def create_app() -> FastAPI:
                 uptime_ms,
             )
 
+    expose_api_docs = settings.profile in {"dev", "test"}
     app = FastAPI(
         title="Local Chat Server",
         version=__version__,
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if expose_api_docs else None,
+        redoc_url="/redoc" if expose_api_docs else None,
+        openapi_url="/openapi.json" if expose_api_docs else None,
         lifespan=lifespan,
     )
 
     app.state.settings = settings
     app.state.rfid_router_included = False
     app.state.enable_rfid_router = lambda: _include_rfid_router_once(app)
+
+    @app.middleware("http")
+    async def session_header_compat_middleware(request: Request, call_next):
+        """Allow clients to authenticate with X-Session-Token without putting
+        the token in the URL.  Existing query-token clients keep working during
+        the transition; the header wins when both are present."""
+        header_token = (request.headers.get("x-session-token") or "").strip()
+        if header_token:
+            raw_query = request.scope.get("query_string", b"")
+            if isinstance(raw_query, bytes):
+                raw_query = raw_query.decode("latin-1")
+            params = [
+                (key, value)
+                for key, value in parse_qsl(raw_query, keep_blank_values=True)
+                if key != "session_token"
+            ]
+            params.append(("session_token", header_token))
+            request.scope["query_string"] = urlencode(params).encode("latin-1")
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def security_headers_middleware(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "img-src 'self' data: blob:; "
+            "media-src 'self' blob:; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self' ws: wss:; "
+            "font-src 'self' data:; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'",
+        )
+        path = request.url.path
+        if path == "/admin" or path.startswith(
+            (
+                "/auth/",
+                "/chat/",
+                "/account/",
+                "/blog/",
+                "/support/",
+                "/devices/",
+                "/ops/",
+                "/admin/",
+                "/debug/",
+                "/sync/",
+                "/media/",
+                "/reports/",
+                "/applications/",
+                "/rfid/",
+            )
+        ):
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
 
     @app.middleware("http")
     async def body_size_limit_middleware(request: Request, call_next):
@@ -208,14 +266,14 @@ def create_app() -> FastAPI:
 
         limiter: InMemoryRateLimiter = request.app.state.rate_limiter
         decision = limiter.check(
-            ip_address=_resolve_client_ip(request),
+            ip_address=resolve_client_ip(request),
             path=path,
             now_ms=_now_ms(),
         )
 
         if not decision.allowed:
             audit: SecurityAuditService = request.app.state.security_audit
-            ip_address = _resolve_client_ip(request)
+            ip_address = resolve_client_ip(request)
             audit.log_event(
                 "security.rate_limit_block",
                 actor_kind="ip",
@@ -258,7 +316,7 @@ def create_app() -> FastAPI:
                 status=response.status_code,
                 ok=response.status_code < 400,
                 details="duration_ms=%d" % int((monotonic() - started) * 1000),
-                ip=_resolve_client_ip(request),
+                ip=resolve_client_ip(request),
             )
         except Exception:
             pass

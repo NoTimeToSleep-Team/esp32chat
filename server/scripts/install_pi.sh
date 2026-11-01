@@ -414,7 +414,7 @@ if [[ "${SYSTEMD_OK}" == "1" ]]; then
 else
     mkdir -p "${APP_ROOT}/data/logs"
     ( cd "${APP_ROOT}" \
-        && nohup "${VENV_PATH}/bin/uvicorn" app.main:app --host 127.0.0.1 --port "${PORT}" \
+        && nohup "${VENV_PATH}/bin/uvicorn" app.main:app --host 127.0.0.1 --port "${PORT}" --no-proxy-headers \
             > "${APP_ROOT}/data/logs/smoke-server.log" 2>&1 \
         & echo $! > "${APP_ROOT}/data/logs/smoke-server.pid" )
     if wait_health "http://127.0.0.1:${PORT}"; then

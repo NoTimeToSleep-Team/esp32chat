@@ -6,7 +6,7 @@ const { SHOTS, check, summary, login, launch, launchMobile } = require("./lib");
   const { browser, page: d } = await launch({ viewport: { width: 1280, height: 800 } });
   const errs = [];
   d.on("pageerror", e => errs.push(e.message));
-  await login(d, "admin", "7428");
+  await login(d, "admin");
   await d.evaluate(() => { window.location.hash = "#/devices"; });
   await d.waitForTimeout(2000);
 
@@ -55,7 +55,7 @@ const { SHOTS, check, summary, login, launch, launchMobile } = require("./lib");
   const { browser: b2, page: m } = await launchMobile();
   const errs2 = [];
   m.on("pageerror", e => errs2.push(e.message));
-  await login(m, "admin", "7428");
+  await login(m, "admin");
   await m.evaluate(() => { window.location.hash = "#/devices"; });
   await m.waitForTimeout(2000);
 

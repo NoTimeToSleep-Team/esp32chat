@@ -6,6 +6,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from app.models import ClientKind, UserRole
+from app.services.auth import AuthError, AuthService
 from app.services.sync_queue import SyncEvent, SyncQueueService
 
 
@@ -25,6 +27,16 @@ class SyncAckRequest(BaseModel):
 
 def _sync_service(request: Request) -> SyncQueueService:
     return SyncQueueService(db_path=request.app.state.data_layer.database_path)
+
+
+def _require_admin(request: Request, session_token: str) -> None:
+    service = AuthService(db_path=request.app.state.data_layer.database_path)
+    try:
+        session = service.get_session(session_token, client_kind=ClientKind.WEB)
+    except AuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    if session.user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail={"code": "admin_only", "message": "Admin role is required"})
 
 
 def _event_payload(event: SyncEvent) -> dict[str, object]:
@@ -53,7 +65,12 @@ def _raise_sync_error(exc: Exception) -> None:
 
 
 @router.post("")
-async def push_sync_event(payload: SyncEventRequest, request: Request) -> dict[str, object]:
+async def push_sync_event(
+    payload: SyncEventRequest,
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    _require_admin(request, session_token)
     try:
         event = _sync_service(request).enqueue_event(
             event_type=payload.event_type,
@@ -71,7 +88,9 @@ async def pull_pending_sync_events(
     request: Request,
     target_node_id: str = Query(..., min_length=1, max_length=128),
     limit: int = Query(50, ge=1, le=500),
+    session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
+    _require_admin(request, session_token)
     try:
         service = _sync_service(request)
         events = service.dequeue_pending(limit=limit, target_node_id=target_node_id)
@@ -88,7 +107,9 @@ async def acknowledge_sync_event(
     event_id: int,
     request: Request,
     payload: SyncAckRequest | None = None,
+    session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
+    _require_admin(request, session_token)
     try:
         service = _sync_service(request)
         if payload is not None and payload.reason:

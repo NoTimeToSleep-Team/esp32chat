@@ -18,6 +18,7 @@ const state = {
   sessionToken: localStorage.getItem('lc_session_token') || "",
   chats: [],
   activeChatId: null,
+  ws: null,
 };
 
 (function init() {
@@ -26,8 +27,6 @@ const state = {
     ui.sessionTokenInput.parentElement && (ui.sessionTokenInput.parentElement.style.display = 'none');
   }
 })();
-  ws: null,
-};
 
 function setRealtimeState(mode) {
   ui.realtimeState.textContent = mode;
@@ -111,15 +110,31 @@ function renderChats() {
     button.type = "button";
     button.dataset.chatId = String(chat.chat_id);
     button.className = state.activeChatId === chat.chat_id ? "active" : "";
-    button.innerHTML = `<strong>${chat.title}</strong><br><small>${chat.kind}</small>`;
+    const titleEl = document.createElement("strong");
+    titleEl.textContent = chat.title || "";
+    const kindEl = document.createElement("small");
+    kindEl.textContent = chat.kind || "";
+    button.append(titleEl, document.createElement("br"), kindEl);
     button.addEventListener("click", () => openChat(chat.chat_id));
     li.appendChild(button);
     ui.chatList.appendChild(li);
   }
 }
 
+function stripSessionToken(url) {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.delete("session_token");
+    return parsed.pathname + (parsed.search || "") + (parsed.hash || "");
+  } catch (_) {
+    return String(url || "").replace(/([?&])session_token=[^&]*/g, "$1").replace(/[?&]$/, "");
+  }
+}
+
 async function fetchJSON(url, options = {}) {
-  const response = await fetch(url, options);
+  const headers = Object.assign({}, options.headers || {});
+  if (state.sessionToken) headers["X-Session-Token"] = state.sessionToken;
+  const response = await fetch(stripSessionToken(url), Object.assign({}, options, { headers }));
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     const message = payload?.detail?.message || payload?.message || `HTTP ${response.status}`;

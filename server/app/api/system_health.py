@@ -1,14 +1,30 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
+from app.models import ClientKind, UserRole
+from app.services.auth import AuthError, AuthService
 from app.services.system_health import SystemHealthService
 
 router = APIRouter(tags=["ops"])
 
 
+def _require_admin(request: Request, session_token: str) -> None:
+    service = AuthService(db_path=request.app.state.data_layer.database_path)
+    try:
+        session = service.get_session(session_token, client_kind=ClientKind.WEB)
+    except AuthError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    if session.user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail={"code": "admin_only", "message": "Admin role is required"})
+
+
 @router.get("/ops/system-health", summary="Get RPi system health snapshot")
-async def get_system_health(request: Request):
+async def get_system_health(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+):
+    _require_admin(request, session_token)
     settings = request.app.state.settings
     dl = request.app.state.data_layer
     service = SystemHealthService(

@@ -95,7 +95,7 @@ async function openChatByTitle(page, title, chatId) {
   const errs = [];
   page.on("pageerror", e => errs.push(e.message));
   page.on("dialog", d => d.accept());
-  await login(page, "admin", "7428");
+  await login(page, "admin");
   await page.waitForTimeout(600);
   const adminToken = await page.evaluate(() => STATE.token);
 
@@ -177,7 +177,7 @@ async function openChatByTitle(page, title, chatId) {
   const mErrs = [];
   mP.on("pageerror", e => mErrs.push(e.message));
   mP.on("dialog", d => d.accept());
-  await login(mP, "admin", "7428");
+  await login(mP, "admin");
   await mP.waitForTimeout(2500);
   await refreshChatList(mP);
   const openedMobile = await openChatByTitle(mP, grpTitle, chatId);
