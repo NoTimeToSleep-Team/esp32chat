@@ -136,7 +136,18 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
 
     try:
         while True:
-            payload = await websocket.receive_json(max_size=65536)  # 64KB limit
+            try:
+                payload = await websocket.receive_json()
+            except (ValueError, KeyError):
+                await websocket.send_json(
+                    _error_payload("invalid_json", "WebSocket frame must be valid JSON")
+                )
+                continue
+            if not isinstance(payload, dict):
+                await websocket.send_json(
+                    _error_payload("invalid_payload", "WebSocket frame must be a JSON object")
+                )
+                continue
             event_type = str(payload.get("type", "")).strip().lower()
 
             if event_type == "ping":

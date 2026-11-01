@@ -6,11 +6,12 @@ import logging
 LOGGER = logging.getLogger("lc.auto_moderation")
 
 
-def moderate_message(request, message) -> None:
+def moderate_message(request_or_app, message) -> None:
     """Scan a message and file a report if needed. Never raises."""
     if message is None:
         return
-    service = getattr(request.app.state, "auto_moderation", None)
+    app = getattr(request_or_app, "app", None) or request_or_app
+    service = getattr(getattr(app, "state", None), "auto_moderation", None)
     if service is None:
         return
     try:

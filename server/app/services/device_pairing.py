@@ -89,9 +89,44 @@ class DevicePairingService:
         pairing_id = secrets.token_hex(16)
 
         with self._connect() as connection:
+            existing = connection.execute(
+                """
+                SELECT pairing_id, device_id, device_type, name, code,
+                       device_secret_hash, created_at_ms, expires_at_ms
+                FROM device_pair_requests
+                WHERE device_id = ?
+                  AND status = 'pending'
+                  AND expires_at_ms > ?
+                ORDER BY created_at_ms DESC
+                LIMIT 1
+                """,
+                (device_id, now_ms),
+            ).fetchone()
+            if existing is not None:
+                if not hmac.compare_digest(str(existing["device_secret_hash"]), secret_hash):
+                    raise DevicePairingError(
+                        "pairing_pending",
+                        "Pairing is already in progress for this device",
+                        409,
+                    )
+                return DevicePairRequest(
+                    pairing_id=str(existing["pairing_id"]),
+                    device_id=str(existing["device_id"]),
+                    device_type=str(existing["device_type"]),
+                    name=str(existing["name"]),
+                    code=str(existing["code"]),
+                    created_at_ms=int(existing["created_at_ms"]),
+                    expires_at_ms=int(existing["expires_at_ms"]),
+                    status="pending",
+                )
+
             connection.execute(
-                "UPDATE device_pair_requests SET status = 'expired' WHERE device_id = ? AND status = 'pending'",
-                (device_id,),
+                """
+                UPDATE device_pair_requests
+                SET status = 'expired'
+                WHERE device_id = ? AND status = 'pending' AND expires_at_ms <= ?
+                """,
+                (device_id, now_ms),
             )
             code = ""
             for _ in range(_CODE_ATTEMPTS):

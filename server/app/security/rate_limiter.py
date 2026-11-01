@@ -9,7 +9,11 @@ def _is_auth_path(path: str) -> bool:
     return (
         path.startswith("/auth/")
         or path.startswith("/chat/api/private/")
-        or path == "/devices/api/pair/claim"
+        or path in {
+            "/devices/api/pair",
+            "/devices/api/pair/request",
+            "/devices/api/pair/claim",
+        }
     )
 
 

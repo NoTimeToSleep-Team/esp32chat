@@ -252,8 +252,11 @@ async def pair_device(request: Request, payload: PairDeviceRequest) -> dict[str,
     # Block guest pairing
     service = _auth_service(request)
     session = service.get_session(payload.session_token, client_kind=ClientKind.WEB)
-    if session.user.role == UserRole.GUEST:
-        raise HTTPException(status_code=403, detail={"code": "guest_blocked", "message": "Guest accounts cannot pair devices"})
+    if session.user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "admin_only", "message": "Only an administrator can pair devices"},
+        )
 
     import sqlite3, time
     db = request.app.state.data_layer.database_path
@@ -422,10 +425,10 @@ async def claim_pairing_code(
 
     auth_service = _auth_service(request)
     session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
-    if session.user.role == UserRole.GUEST:
+    if session.user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
-            detail={"code": "guest_blocked", "message": "Guest accounts cannot pair devices"},
+            detail={"code": "admin_only", "message": "Only an administrator can claim devices"},
         )
 
     service = _pairing_service(request)

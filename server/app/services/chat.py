@@ -1203,7 +1203,9 @@ class ChatService:
             raise ChatError("chat_not_found", "Chat not found", 404)
 
         with self._connect() as connection:
-            self._require_active_user(connection, user_id)
+            actor = self._require_active_user(connection, user_id)
+            if str(actor["role"]) == UserRole.GUEST.value:
+                raise ChatError("guest_forbidden", "Guest accounts cannot join public chats", 403)
             if chat_id:
                 row = connection.execute(
                     "SELECT * FROM chats WHERE id = ? AND is_public = 1",
@@ -1449,8 +1451,7 @@ class ChatService:
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
             chat = self._require_chat(connection, chat_id)
-            if not self._can_access_chat(connection, chat_row=chat, user_id=user_id):
-                raise ChatError("forbidden", "User has no access to this chat", 403)
+            self._require_chat_member(connection, chat_row=chat, user_id=user_id)
 
             row = connection.execute(
                 "SELECT id FROM chat_messages WHERE id = ? AND chat_id = ?",
@@ -1687,9 +1688,9 @@ class ChatService:
                 WHERE m.body_text LIKE ?
                   AND (
                         c.kind = 'common'
-                     OR c.is_public = 1
                      OR cm.user_id IS NOT NULL
                      OR EXISTS (SELECT 1 FROM users a WHERE a.id = ? AND a.role IN ('admin','moderator'))
+                     OR (c.is_public = 1 AND c.history_visible = 1)
                   )
                   AND m.created_at_ms >= COALESCE(cm.cleared_at_ms, 0)
                   AND (c.history_visible = 1 OR m.created_at_ms >= COALESCE(cm.joined_at_ms, 0))
@@ -1849,8 +1850,7 @@ class ChatService:
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
             chat = self._require_chat(connection, chat_id)
-            if not self._can_access_chat(connection, chat_row=chat, user_id=user_id):
-                raise ChatError("forbidden", "User has no access to this chat", 403)
+            self._require_chat_member(connection, chat_row=chat, user_id=user_id)
 
             row = connection.execute(
                 "SELECT * FROM chat_polls WHERE id = ? AND chat_id = ?",
@@ -2084,6 +2084,29 @@ class ChatService:
             return True
         return bool(data.get(permission, True))
 
+    @staticmethod
+    def _is_guest(connection: sqlite3.Connection, *, user_id: int) -> bool:
+        row = connection.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        return row is not None and str(row["role"]) == UserRole.GUEST.value
+
+    def _require_chat_member(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        user_id: int,
+    ) -> None:
+        if self._is_platform_moderator(connection, user_id=user_id):
+            return
+        if self._is_guest(connection, user_id=user_id):
+            raise ChatError("guest_forbidden", "Guest accounts cannot interact with chats", 403)
+        if self._member_role_value(
+            connection,
+            chat_id=self._row_int(chat_row, "id"),
+            user_id=user_id,
+        ) is None:
+            raise ChatError("join_required", "Join the chat first", 403)
+
     def _can_post(
         self,
         connection: sqlite3.Connection,
@@ -2091,6 +2114,8 @@ class ChatService:
         chat_row: sqlite3.Row,
         user_id: int,
     ) -> bool:
+        if self._is_guest(connection, user_id=user_id):
+            return False
         if self._is_platform_moderator(connection, user_id=user_id):
             return True
 
