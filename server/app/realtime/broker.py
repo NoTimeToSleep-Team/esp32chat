@@ -38,6 +38,46 @@ class ChatRealtimeBroker:
             if not room:
                 self._rooms.pop(chat_id, None)
 
+    async def disconnect_user(self, *, chat_id: int, user_id: int) -> int:
+        """Close every socket a user has in one chat (kick/leave)."""
+        async with self._lock:
+            room = self._rooms.get(chat_id, set())
+            targets = [
+                websocket
+                for websocket in room
+                if self._ws_users.get(websocket) == user_id
+            ]
+        for websocket in targets:
+            try:
+                await websocket.close(code=4403, reason="removed from chat")
+            except Exception:
+                pass
+        async with self._lock:
+            room = self._rooms.get(chat_id)
+            if room is not None:
+                for websocket in targets:
+                    room.discard(websocket)
+                    self._ws_users.pop(websocket, None)
+                if not room:
+                    self._rooms.pop(chat_id, None)
+        return len(targets)
+
+    async def close_room(self, *, chat_id: int, code: int = 4404, reason: str = "chat closed") -> int:
+        """Close all sockets in a room after the chat is deleted."""
+        async with self._lock:
+            targets = list(self._rooms.get(chat_id, set()))
+        for websocket in targets:
+            try:
+                await websocket.close(code=code, reason=reason)
+            except Exception:
+                pass
+        async with self._lock:
+            room = self._rooms.pop(chat_id, None)
+            if room is not None:
+                for websocket in room:
+                    self._ws_users.pop(websocket, None)
+        return len(targets)
+
     async def publish(self, *, chat_id: int, event: dict[str, object]) -> int:
         async with self._lock:
             targets = list(self._rooms.get(chat_id, set()))

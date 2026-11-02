@@ -112,3 +112,35 @@ Verification on the test board: 13/13 live checks covering pre-join updates,
 private no-code, guest joins, room-code joins, and device/invalid token reset;
 media upload after permission hardening returned 200; zero group/other-writable
 files or directories under `/opt/local-chat-server`.
+
+## Assessment follow-up (F8–F12, 2026-11-02)
+
+- **F8 closed-group join bypass:** `join_private_chat` now rejects every
+  non-public chat that has neither a private-room code nor an invite
+  (`403 invite_required`). The numeric `chat_id` path no longer treats
+  `room_code=null` as permission. Owner-level blocks are enforced on
+  private/closed joins and invite joins, and guest accounts cannot be added
+  directly. Invited members and public joins keep working.
+- **F10 group-admin escalation:** publishing (`is_public`), changing
+  `history_visible`/public link name, ownership transfer and deletion now
+  require the chat owner or a full platform admin. Group admins keep ordinary
+  title/description/slow-mode editing. Self-transfer is rejected
+  (`409 self_transfer_forbidden`).
+- **F11 WebSocket after kick:** the broker can disconnect every socket of a
+  user in a chat (`4403`) and close a deleted room (`4404`). Member removal,
+  leave and chat deletion call those paths; a kicked member no longer receives
+  new messages.
+- **F12 guest invite bypass:** `join_by_invite_code`, direct member addition and
+  join-request approval reject guest accounts (`403 guest_forbidden`).
+- **F9 read/draft contract:** non-members now receive `403 join_required`
+  instead of a silent `200` no-op. Common-chat markers are still created
+  lazily.
+- **Regression coverage:** `tests/server/test_chat_access_regressions.py` covers
+  closed groups, kick/rejoin, block/rejoin, guests, group-admin limits, WS kick
+  and read/draft. Live run: 37/37; prior updates/device regressions: 13/13.
+
+F1–F7 remain deliberate test-stand trade-offs (open registration, public docs,
+query-token compatibility, guest discovery, public admin shell, CSP, health
+detail, unlimited guests). F13 is an operational credential-history issue; the
+current stand rejects the old password and uses a different one. Never reuse
+that old value.

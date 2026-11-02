@@ -429,8 +429,28 @@ class ChatService:
     ) -> ChatMember:
         with self._connect() as connection:
             actor = self._require_active_user(connection, actor_user_id)
-            self._require_active_user(connection, target_user_id)
+            target = self._require_active_user(connection, target_user_id)
+            if str(target["role"]) == UserRole.GUEST.value:
+                raise ChatError(
+                    "guest_forbidden",
+                    "Guest accounts cannot be added to chats",
+                    403,
+                )
             chat = self._require_chat(connection, chat_id)
+
+            owner_id = self._chat_owner_user_id(connection, chat)
+            if (
+                owner_id is not None
+                and owner_id != target_user_id
+                and self._is_blocked_between(
+                    connection, user_a=owner_id, user_b=target_user_id
+                )
+            ):
+                raise ChatError(
+                    "blocked",
+                    "The chat owner has blocked this account",
+                    403,
+                )
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError(
@@ -515,11 +535,36 @@ class ChatService:
                     403,
                 )
 
-            if self._row_bool(chat, "is_private"):
-                code_hash = self._row_optional_str(chat, "room_code_hash")
+            is_public = self._row_bool(chat, "is_public")
+            is_private = self._row_bool(chat, "is_private")
+            code_hash = self._row_optional_str(chat, "room_code_hash")
+
+            if not is_public:
+                owner_id = self._chat_owner_user_id(connection, chat)
+                if (
+                    owner_id is not None
+                    and owner_id != user_id
+                    and self._is_blocked_between(connection, user_a=owner_id, user_b=user_id)
+                ):
+                    raise ChatError(
+                        "blocked",
+                        "The chat owner has blocked this account",
+                        403,
+                    )
+
+                # A non-public group without a room code is invite-only.
+                # The "private join" endpoint must never turn room_code=null
+                # into permission to join by a numeric chat id.
+                if not is_private and not code_hash:
+                    raise ChatError(
+                        "invite_required",
+                        "This chat requires an invite or join request",
+                        403,
+                    )
+
+            if is_private or code_hash:
                 if not code_hash:
                     # A private chat without a room code is invite-only.
-                    # Joining by a numeric chat id must never bypass that.
                     raise ChatError(
                         "invite_required",
                         "Private chat requires an invite",
@@ -742,6 +787,31 @@ class ChatService:
             ):
                 raise ChatError("forbidden", "Only the owner or an admin can change chat info", 403)
 
+            current_public = self._row_bool(chat, "is_public")
+            current_history = self._row_bool_default(chat, "history_visible", True)
+            current_username = self._row_optional_str_lenient(chat, "username")
+            owner_or_platform = self._is_chat_owner(
+                connection, chat_row=chat, user_id=actor_user_id
+            ) or self._is_admin(connection, user_id=actor_user_id)
+            if not owner_or_platform:
+                sensitive_change = (
+                    (is_public is not None and bool(is_public) != current_public)
+                    or (
+                        history_visible is not None
+                        and bool(history_visible) != current_history
+                    )
+                    or (
+                        username is not None
+                        and self._normalize_username(username) != current_username
+                    )
+                )
+                if sensitive_change:
+                    raise ChatError(
+                        "owner_only",
+                        "Only the chat owner or a platform administrator can publish or rename a chat",
+                        403,
+                    )
+
             next_title = str(chat["title"]).strip()
             if title is not None:
                 next_title = self._clean_chat_title(title)
@@ -936,17 +1006,19 @@ class ChatService:
             if str(chat["kind"]) == ChatKind.COMMON.value:
                 raise ChatError("common_chat_protected", "The general chat cannot be deleted", 409)
 
-            is_manager = self._is_chat_manager(connection, chat_row=chat, actor=actor)
+            is_owner_or_platform = self._is_chat_owner(
+                connection, chat_row=chat, user_id=actor_user_id
+            ) or self._is_admin(connection, user_id=actor_user_id)
             member = connection.execute(
                 "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
                 (chat_id, actor_user_id),
             ).fetchone()
             may_delete_dialog = member is not None and self._is_private_dialog(connection, chat)
 
-            if not (is_manager or may_delete_dialog):
+            if not (is_owner_or_platform or may_delete_dialog):
                 raise ChatError(
-                    "forbidden",
-                    "Only the owner or an admin can delete this chat",
+                    "owner_only",
+                    "Only the owner or a platform administrator can delete this chat",
                     403,
                 )
 
@@ -959,7 +1031,21 @@ class ChatService:
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Ownership is transferred only in custom chats", 409)
-            self._require_chat_manager(connection, chat_row=chat, actor=actor, action="transfer ownership")
+            if not (
+                self._is_chat_owner(connection, chat_row=chat, user_id=actor_user_id)
+                or self._is_admin(connection, user_id=actor_user_id)
+            ):
+                raise ChatError(
+                    "owner_only",
+                    "Only the chat owner or a platform administrator can transfer ownership",
+                    403,
+                )
+            if target_user_id == actor_user_id:
+                raise ChatError(
+                    "self_transfer_forbidden",
+                    "Ownership cannot be transferred to yourself",
+                    409,
+                )
 
             target = connection.execute(
                 "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
@@ -1183,7 +1269,13 @@ class ChatService:
             raise ChatError("invite_not_found", "Invite link is invalid", 404)
 
         with self._connect() as connection:
-            self._require_active_user(connection, user_id)
+            actor = self._require_active_user(connection, user_id)
+            if str(actor["role"]) == UserRole.GUEST.value:
+                raise ChatError(
+                    "guest_forbidden",
+                    "Guests cannot join chats",
+                    403,
+                )
             row = connection.execute(
                 "SELECT * FROM chat_invites WHERE code = ?",
                 (normalized,),
@@ -1201,6 +1293,18 @@ class ChatService:
             chat = self._require_chat(connection, invite.chat_id)
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Cannot join this chat", 409)
+
+            owner_id = self._chat_owner_user_id(connection, chat)
+            if (
+                owner_id is not None
+                and owner_id != user_id
+                and self._is_blocked_between(connection, user_a=owner_id, user_b=user_id)
+            ):
+                raise ChatError(
+                    "blocked",
+                    "The chat owner has blocked this account",
+                    403,
+                )
 
             existing = connection.execute(
                 "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
@@ -1391,7 +1495,26 @@ class ChatService:
             now_ms = _now_ms()
             status = "declined"
             if approve:
-                self._require_active_user(connection, target_user_id)
+                target = self._require_active_user(connection, target_user_id)
+                if str(target["role"]) == UserRole.GUEST.value:
+                    raise ChatError(
+                        "guest_forbidden",
+                        "Guest accounts cannot join chats",
+                        403,
+                    )
+                owner_id = self._chat_owner_user_id(connection, chat)
+                if (
+                    owner_id is not None
+                    and owner_id != target_user_id
+                    and self._is_blocked_between(
+                        connection, user_a=owner_id, user_b=target_user_id
+                    )
+                ):
+                    raise ChatError(
+                        "blocked",
+                        "The chat owner has blocked this account",
+                        403,
+                    )
                 invite_id = self._row_optional_int_lenient(row, "invite_id")
                 can_approve = True
                 if invite_id is not None:
@@ -1626,16 +1749,21 @@ class ChatService:
                 (chat_id, user_id),
             ).fetchone()
             if row is None:
-                # Common (server-wide) chats have no membership rows, so the read marker
-                # had nowhere to go and the unread badge could never be cleared.
-                # Create the row lazily: joined_at_ms = 0 keeps history fully visible,
-                # exactly as it was while there was no membership row.
                 chat_row = connection.execute(
                     "SELECT kind FROM chats WHERE id = ?",
                     (chat_id,),
                 ).fetchone()
-                if chat_row is None or str(chat_row["kind"]) != ChatKind.COMMON.value:
-                    return
+                if chat_row is None:
+                    raise ChatError("chat_not_found", "Chat not found", 404)
+                if str(chat_row["kind"]) != ChatKind.COMMON.value:
+                    raise ChatError(
+                        "join_required",
+                        "Join the chat before updating read state",
+                        403,
+                    )
+                # Common (server-wide) chats have no membership rows, so the
+                # read marker is created lazily. joined_at_ms = 0 keeps history
+                # fully visible, exactly as it was while there was no row.
                 connection.execute(
                     """
                     INSERT OR IGNORE INTO chat_members(
@@ -1659,16 +1787,39 @@ class ChatService:
 
     def save_draft(self, *, chat_id: int, user_id: int, text: str) -> None:
         with self._connect() as connection:
+            self._require_active_user(connection, user_id)
             row = connection.execute(
                 "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
                 (chat_id, user_id),
             ).fetchone()
-            if row is None:
-                return
             cleaned = (text or "").strip()
+            now_ms = _now_ms()
+            if row is None:
+                chat_row = connection.execute(
+                    "SELECT kind FROM chats WHERE id = ?",
+                    (chat_id,),
+                ).fetchone()
+                if chat_row is None:
+                    raise ChatError("chat_not_found", "Chat not found", 404)
+                if str(chat_row["kind"]) != ChatKind.COMMON.value:
+                    raise ChatError(
+                        "join_required",
+                        "Join the chat before saving a draft",
+                        403,
+                    )
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO chat_members(
+                        chat_id, user_id, role, joined_at_ms, draft_text, draft_updated_at_ms
+                    )
+                    VALUES (?, ?, 'member', 0, ?, ?)
+                    """,
+                    (chat_id, user_id, cleaned or None, now_ms),
+                )
+                return
             connection.execute(
                 "UPDATE chat_members SET draft_text = ?, draft_updated_at_ms = ? WHERE chat_id = ? AND user_id = ?",
-                (cleaned or None, _now_ms(), chat_id, user_id),
+                (cleaned or None, now_ms, chat_id, user_id),
             )
 
     def set_chat_user_state(
@@ -2119,6 +2270,20 @@ class ChatService:
         if self._row_optional_int(chat_row, "owner_user_id") == user_id:
             return True
         return self._is_owner(connection, chat_id=self._row_int(chat_row, "id"), user_id=user_id)
+
+    def _chat_owner_user_id(
+        self,
+        connection: sqlite3.Connection,
+        chat_row: sqlite3.Row,
+    ) -> int | None:
+        owner_id = self._row_optional_int(chat_row, "owner_user_id")
+        if owner_id is not None:
+            return owner_id
+        row = connection.execute(
+            "SELECT user_id FROM chat_members WHERE chat_id = ? AND role = ? LIMIT 1",
+            (self._row_int(chat_row, "id"), ChatMemberRole.OWNER.value),
+        ).fetchone()
+        return self._row_optional_int(row, "user_id") if row is not None else None
 
     def _has_permission(
         self,

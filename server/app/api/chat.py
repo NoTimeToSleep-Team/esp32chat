@@ -679,6 +679,18 @@ async def presence_ping(request: Request, payload: PresencePingRequest) -> dict[
     return {"status": "ok", "user_id": user_id}
 
 
+async def _disconnect_chat_user(request: Request, chat_id: int, user_id: int) -> None:
+    broker = getattr(request.app.state, "realtime_broker", None)
+    if broker is not None:
+        await broker.disconnect_user(chat_id=chat_id, user_id=user_id)
+
+
+async def _close_chat_room(request: Request, chat_id: int) -> None:
+    broker = getattr(request.app.state, "realtime_broker", None)
+    if broker is not None:
+        await broker.close_room(chat_id=chat_id)
+
+
 @router.delete("/chat/api/chats/{chat_id}/members/{user_id}")
 async def remove_chat_member(
     request: Request,
@@ -692,6 +704,7 @@ async def remove_chat_member(
         service.remove_member(chat_id=chat_id, target_user_id=user_id, actor_user_id=actor_id)
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    await _disconnect_chat_user(request, chat_id, user_id)
     return {"status": "ok"}
 
 
@@ -707,6 +720,7 @@ async def leave_chat(
         service.leave_chat(chat_id=chat_id, user_id=user_id)
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    await _disconnect_chat_user(request, chat_id, user_id)
     return {"status": "ok"}
 
 
@@ -722,6 +736,7 @@ async def delete_chat_room(
         service.delete_chat_room(chat_id=chat_id, actor_user_id=user_id)
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    await _close_chat_room(request, chat_id)
     return {"status": "ok", "deleted_chat_id": chat_id}
 
 
