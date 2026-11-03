@@ -429,6 +429,9 @@ fi
 
 # ---- lc command ----
 ln -sfn "${APP_ROOT}/scripts/lc.sh" /usr/local/bin/lc
+chmod 0750 "${APP_ROOT}/scripts/lc-operator.sh"
+install -d -m 0755 /usr/local/sbin
+ln -sfn "${APP_ROOT}/scripts/lc-operator.sh" /usr/local/sbin/lc-operator
 
 # ---- setup (apply) — after the install: create the admin, set the mode, … ----
 if [[ "${WIZARD_RAN}" == "1" ]]; then
