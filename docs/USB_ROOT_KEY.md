@@ -88,6 +88,11 @@ The USB stick must be writable: the code in `LC_ROOT_KEY.json` is replaced on
 every insertion. A write-protected or read-only stick makes the gate fail
 closed (SSH will not start), because it cannot advance the code.
 
+FAT32/exFAT cannot enforce Unix `0600` permissions. If the helper creates a
+private key on such a stick, copy it to a secure local disk (with mode 0600)
+before using it from an SSH client; OpenSSH will refuse a world-readable private
+key. The physical gate itself still works.
+
 ## Key manager
 
 ```bash

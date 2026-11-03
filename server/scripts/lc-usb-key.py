@@ -788,7 +788,7 @@ def generate_key_on_usb(mountpoint: Path, label: str) -> tuple[str, str]:
     public = Path(str(private) + ".pub")
     if not public.is_file():
         raise ToolError("ssh-keygen did not create a public key")
-    return public.read_text(encoding="utf-8").strip(), str(private)
+    return public.read_text(encoding="utf-8").strip(), str(private.relative_to(mountpoint))
 
 
 def validate_marker(
@@ -1100,6 +1100,11 @@ def enroll(
     if generated_private:
         print(f"  new private key on USB: {generated_private}")
         print("  Copy it to your computer before relying on it; keep a backup.")
+        if str(entry.get("fstype", "")).lower() in ("vfat", "exfat", "msdos"):
+            print(
+                "  WARNING: this filesystem does not enforce 0600 permissions; "
+                "copy the key to a secure local disk."
+            )
     print(f"  state:  {state_path()}")
     print(f"  {active_note}")
     return {"entry": entry, "usb": usb_entry, "added": added}
