@@ -529,6 +529,7 @@ def lsblk_devices() -> list[dict[str, Any]]:
                 and uuid
                 and (tran == "usb" or removable)
                 and mountpoint != "/"
+                and not mountpoint.startswith("/boot")
             ):
                 devices.append(
                     {
@@ -1184,6 +1185,15 @@ def manager() -> None:
                     ],
                 )
                 if not selected:
+                    continue
+                chosen = entries[int(selected) - 1]
+                if not ui.yes_no(
+                    "Remove root SSH key",
+                    f"Remove {chosen['fingerprint']} "
+                    f"({chosen['comment'] or 'no comment'})?\n\n"
+                    "Existing sessions are not closed, but new logins will need "
+                    "another key.",
+                ):
                     continue
                 removed = remove_authorized_key(selected)
                 ui.msg(

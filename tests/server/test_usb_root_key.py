@@ -67,6 +67,9 @@ class UsbRootKeyTests(unittest.TestCase):
         self.assertTrue(parsed["fingerprint"].startswith("SHA256:"))
         self.assertEqual(parsed["options"], 'from="10.0.0.0/8"')
 
+        cert = sample_key("cert").replace("ssh-ed25519", "ssh-ed25519-cert-v01@openssh.com", 1)
+        self.assertIsNotNone(self.key_module.parse_key_line(cert))
+
     def test_add_deduplicate_and_remove_authorized_keys(self) -> None:
         first = sample_key("alice")
         second = sample_key("bob")
