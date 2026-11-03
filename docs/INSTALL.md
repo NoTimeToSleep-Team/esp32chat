@@ -24,12 +24,14 @@ Run it as any regular user — `sudo` asks for the password once. The installer:
 - checks OS/architecture/Python/disk space, installs missing apt packages
   (waits out busy apt locks, cleans stale locks, retries);
 - **asks the setup questions first** — administrator, Wi-Fi AP, port,
-  registration mode, autostart (with `--preseed FILE` they come from a file);
+  registration mode, autostart, optional USB root SSH key (with
+  `--preseed FILE` they come from a file);
 - lays out `/opt/local-chat-server`, creates a venv, installs dependencies;
 - generates `app.env` with a random session secret, starts and enables the
   systemd service, waits for `/health`;
 - applies the answers: creates the administrator, sets the registration mode,
-  configures the access point, enables autostart.
+  configures the access point, enables autostart, and enrolls the USB root key
+  when requested.
 
 Log: `/var/log/lc-install.log`. Re-running = update; `data/` is never wiped.
 
@@ -48,8 +50,13 @@ Runs during the install, before the server is laid out — the answers decide
 how the server is installed, and cancelling (Esc) leaves the system untouched.
 Steps: administrator (login/password) → Wi-Fi access point (on/off, SSID,
 password, channel, country) → portal port (18080) → registration mode →
-**start on boot or start manually** → **start with an empty server or import
-data from an export file (path)** → summary → apply.
+**start on boot or start manually** → optional **USB root SSH key** → **start
+with an empty server or import data from an export file (path)** → summary →
+apply.
+
+If the USB root key is enabled, insert the stick after the install. The stick
+becomes a physical gate: root SSH is open only while it is inserted. See
+`docs/USB_ROOT_KEY.md`; manage keys with `sudo lc keys`.
 
 - `Esc` on any step cancels without changes.
 - Re-run: `sudo lc setup` (current values are offered as defaults).
@@ -68,6 +75,7 @@ lc backup              archive data/ + app.env
 lc export [FILE]       bundle data/ + app.env for moving to another server
 lc import FILE [--yes] restore an export here (pre-import export to /var/backups)
 lc logs                install log + service journal
+lc keys                root SSH / USB physical-key manager
 lc uninstall           remove (data kept); --purge removes everything
 lc version             version
 ```
@@ -77,7 +85,9 @@ lc version             version
 ```
 /opt/local-chat-server/        code, venv, data/, config/app.env
 /etc/systemd/system/local-chat-server.service
+/etc/lc-root-key/              optional USB root-key state (root-only)
 /usr/local/bin/lc
+/usr/local/sbin/lc-usb-key
 /var/log/lc-install.log
 ```
 
@@ -114,4 +124,7 @@ bash server/scripts/make_release_tarball.sh
 - The wizard is English-only in v0.1.
 - The administrator password is briefly visible in the process list (passed as
   a CLI argument).
+- The optional USB root-key gate needs a local console/HDMI for recovery if the
+  physical key is lost. Existing SSH sessions may survive until closed when the
+  stick is removed. See `docs/USB_ROOT_KEY.md`.
 - `x86_64` is allowed with a warning — for testing only.

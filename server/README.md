@@ -27,6 +27,7 @@ This directory contains the Raspberry Pi server side of the system.
 - Admin content and mode APIs are implemented in `app/api/admin/content.py`, `app/api/admin/mode.py`, `app/templates/admin/content/*`, `app/templates/admin/mode/*`, `app/static/admin/content/*`, `app/static/admin/mode/*`.
 - RFID/NFC domain and API are implemented in `app/models/rfid.py`, `app/services/rfid.py`, `app/api/rfid.py`, `app/templates/rfid/*`, `app/static/rfid/*`.
 - Security baseline is implemented in `app/security/*`, middleware in `app/main.py`, and login guard in `app/api/auth.py`.
+- Optional physical USB root-key gate: `scripts/lc-usb-key.py`, `lc keys`, udev/systemd gate for root SSH.
 - Ops-safety services and API are implemented in `app/services/backup.py`, `app/services/incidents.py`, `app/services/shutdown.py`, `app/api/ops.py`.
 - Raspberry Pi deploy package is prepared in `systemd/*`, `config/nginx/*`, `scripts/install_pi.*`, `docs/deploy-pi.md`.
 - Raspberry Pi AP+NAT helpers are available in `scripts/configure_pi_ap_nat.sh`, `scripts/disable_pi_ap_nat.sh`, `docs/pi-ap-nat.md`.

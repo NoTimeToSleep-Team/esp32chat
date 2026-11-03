@@ -55,6 +55,9 @@ sudo lc-operator reboot --confirm
 sudo lc-operator shutdown --confirm
 ```
 
+Root SSH itself can be tied to a physical USB stick; see
+`docs/USB_ROOT_KEY.md` and `sudo lc keys`.
+
 ## Verification
 
 - Admin web boundary: **26/26** (all infrastructure paths `404`, OpenAPI clean,

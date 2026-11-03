@@ -70,6 +70,9 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Global and per-route rate limiting.
 - Login brute-force guard (per-IP attempt budget with temporary blocks).
 - Security events are written to the `audit_log`.
+- Optional physical USB root key: an enrolled stick starts root SSH when
+  inserted and stops it when removed. Root still authenticates with a normal
+  OpenSSH public key. See `docs/USB_ROOT_KEY.md`.
 
 **Ops safety**
 
@@ -83,7 +86,7 @@ v0.1.0 is the first public release and ships the server side of the product.
 
 - One-command installer with an English setup wizard.
 - systemd service — start on boot or start manually (your choice in the wizard).
-- `lc` management CLI: status, setup, update, backup, logs, uninstall.
+- `lc` management CLI: status, setup, update, backup, logs, keys, uninstall.
 
 ## Hardware clients
 
@@ -131,10 +134,16 @@ The whiptail wizard (English-only in v0.1) walks through:
 - portal port (default 18080);
 - registration mode (open / closed);
 - start on boot or start manually;
+- optional USB root SSH key (insert a stick with `*.pub` keys, or let the
+  installer create a new key on the stick);
 - summary and apply.
 
 The wizard can be re-run anytime with `sudo lc setup`; current values are
 offered as defaults.
+
+If the USB root key is enabled, the installer asks for the stick after the
+server is installed. The stick becomes a physical gate: SSH is open only while
+it is inserted. Manage keys later with `sudo lc keys`.
 
 ### Installer options
 
@@ -168,6 +177,7 @@ After install the portal is available at `http://<pi-address>:18080`.
 | `lc export [FILE]` | bundle `data/` + `app.env` for moving to another server (a `.sha256` is written too) |
 | `lc import FILE [--yes]` | restore an export on this server (checks the checksum, keeps a safety backup) |
 | `lc logs` | install log and service journal |
+| `lc keys` | root SSH key manager and USB physical-key gate (list/add/new/remove) |
 | `lc uninstall` | remove the service; `data/` is kept (`--purge` removes everything) |
 | `lc version` | server version |
 Don't mix them with ls Linux command!
@@ -195,7 +205,9 @@ file").
 ```
 /opt/local-chat-server/        code, venv, data/, config/app.env
 /etc/systemd/system/local-chat-server.service
+/etc/lc-root-key/              optional USB root-key state (root-only)
 /usr/local/bin/lc
+/usr/local/sbin/lc-usb-key     udev helper for the USB root key
 /var/log/lc-install.log
 ```
 
@@ -259,6 +271,8 @@ on the releases page.
 
 - `docs/INSTALL.md` — full install guide: requirements, options, wizard,
   management, uninstall and known limitations.
+- `docs/USB_ROOT_KEY.md` — physical USB gate for root SSH, key manager and
+  recovery.
 - `docs/architecture.md` — server architecture and data flows.
 - `docs/device-matrix.md` — device roles and constraints.
 - `docs/glossary.md` — project terms.

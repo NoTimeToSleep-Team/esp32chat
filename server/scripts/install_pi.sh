@@ -264,6 +264,19 @@ else
     log "non-interactive mode — wizard skipped (run it later with: sudo lc setup)"
 fi
 
+# The USB root-key gate needs an SSH daemon.  Only install it when the wizard
+# enabled the feature; the key manager starts/stops it but never enables it at
+# boot, so a fresh boot without the key stays closed.
+ROOT_KEY_ENABLED="$(sed -n 's/^LC_ROOT_KEY_ENABLE=//p' "${ENV_FILE}" 2>/dev/null | tail -1 || true)"
+case "${ROOT_KEY_ENABLED}" in
+    1|true|yes|on)
+        if ! command -v sshd >/dev/null 2>&1; then
+            log "installing openssh-server for the USB root-key gate"
+            apt_run install openssh-server
+        fi
+        ;;
+esac
+
 # ---- service user ----
 if ! getent group "${APP_GROUP}" >/dev/null; then
     groupadd --system "${APP_GROUP}"
@@ -430,8 +443,11 @@ fi
 # ---- lc command ----
 ln -sfn "${APP_ROOT}/scripts/lc.sh" /usr/local/bin/lc
 chmod 0750 "${APP_ROOT}/scripts/lc-operator.sh"
+chmod 0750 "${APP_ROOT}/scripts/lc-usb-key.py"
 install -d -m 0755 /usr/local/sbin
 ln -sfn "${APP_ROOT}/scripts/lc-operator.sh" /usr/local/sbin/lc-operator
+rm -f /usr/local/sbin/lc-usb-key
+install -m 0750 -o root -g root "${APP_ROOT}/scripts/lc-usb-key.py" /usr/local/sbin/lc-usb-key
 
 # ---- setup (apply) — after the install: create the admin, set the mode, … ----
 if [[ "${WIZARD_RAN}" == "1" ]]; then

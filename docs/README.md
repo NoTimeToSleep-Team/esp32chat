@@ -5,6 +5,7 @@ Project documentation.
 User-facing:
 
 - `INSTALL.md` — installation, setup wizard, management CLI, uninstall.
+- `USB_ROOT_KEY.md` — physical USB gate for root SSH and the key manager.
 - `architecture.md` — server architecture and data flows.
 - `device-matrix.md` — device roles, constraints and autonomy notes.
 - `glossary.md` — project terms.

@@ -11,6 +11,7 @@
 #   lc export     — bundle data/ + app.env for moving to another server
 #   lc import     — restore an export on this server (safety backup first)
 #   lc logs       — install log + service journal
+#   lc keys       — root SSH key manager + USB physical-key gate
 #   lc uninstall  — stop and remove (data kept; --purge removes everything)
 #   lc version    — server version
 set -euo pipefail
@@ -298,6 +299,21 @@ cmd_logs() {
     fi
 }
 
+cmd_keys() {
+    require_root keys
+    local py="${APP_ROOT}/.venv/bin/python"
+    [[ -x "${py}" ]] || py="python3"
+    if [[ $# -eq 0 ]]; then
+        exec "${py}" "${APP_ROOT}/scripts/lc-usb-key.py" manager
+    fi
+    case "$1" in
+        add) shift; set -- enroll --interactive "$@" ;;
+        remove) shift; set -- remove-key "$@" ;;
+        usb) shift; set -- usb-list "$@" ;;
+    esac
+    exec "${py}" "${APP_ROOT}/scripts/lc-usb-key.py" "$@"
+}
+
 cmd_uninstall() {
     require_root uninstall
     local purge=0
@@ -354,6 +370,7 @@ Commands:
                           (checks the .sha256 if present; exports the current
                           data to /var/backups first when it is not empty). (sudo)
   logs                    Show the install log and the last 100 service log lines.
+  keys                    Open the root SSH key manager (USB physical-key gate). (sudo)
   uninstall               Stop and remove the server code; data is kept. (sudo)
   uninstall --purge       Also delete data and settings — irreversible. (sudo)
   help                    Show this help (same as -h / --help).
@@ -380,6 +397,7 @@ case "${1:-}" in
     export) shift; cmd_export "$@" ;;
     import) shift; cmd_import "$@" ;;
     logs) cmd_logs ;;
+    keys) shift; cmd_keys "$@" ;;
     uninstall) cmd_uninstall "${2:-}" ;;
     version) cmd_version ;;
     -h|--help|help|"") usage ;;

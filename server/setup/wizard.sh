@@ -107,9 +107,9 @@ else
 fi
 
 if [[ "${INTERACTIVE}" == "1" && "${PHASE}" != "apply" ]]; then
-    welcome_text="Welcome!\n\nLet's configure the portal first:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode.\n\nThe server is installed right after this.\nPress Esc on any step to cancel without changes."
+    welcome_text="Welcome!\n\nLet's configure the portal first:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode;\n- optional physical USB key for root SSH.\n\nThe server is installed right after this.\nPress Esc on any step to cancel without changes."
     if [[ "${PHASE}" == "all" ]]; then
-        welcome_text="Welcome!\n\nLet's configure the portal:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode.\n\nThe current values are offered as defaults.\nPress Esc on any step to cancel without changes."
+        welcome_text="Welcome!\n\nLet's configure the portal:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode;\n- optional physical USB key for root SSH.\n\nThe current values are offered as defaults.\nPress Esc on any step to cancel without changes."
     fi
     whiptail --title "${TITLE}" --msgbox "${welcome_text}" 16 68 </dev/tty || cancel
 fi
@@ -338,6 +338,35 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
     done
 fi
 
+# ---- root SSH USB key (physical gate) ----
+ROOT_KEY_NOTE="disabled"
+if bool_yes "$(val LC_ROOT_KEY_ENABLE)"; then
+    if [[ -f /etc/lc-root-key/state.json ]]; then
+        ROOT_KEY_NOTE="configured (SSH opens only with the USB key)"
+    elif [[ ! -f "${APP_ROOT}/scripts/lc-usb-key.py" ]]; then
+        ROOT_KEY_NOTE="NOT configured (helper missing; run: sudo lc keys)"
+        log "WARNING: root USB key helper is missing"
+    elif ! command -v sshd >/dev/null 2>&1; then
+        ROOT_KEY_NOTE="NOT configured (install openssh-server, then: sudo lc keys)"
+        log "WARNING: openssh-server is not installed"
+    else
+        log "configuring the USB root key (insert the enrolled USB stick)"
+        ENROLL_WAIT=90
+        if ! { : </dev/tty; } 2>/dev/null; then
+            ENROLL_WAIT=0
+        fi
+        if "${PY_CMD}" "${APP_ROOT}/scripts/lc-usb-key.py" enroll --interactive --wait "${ENROLL_WAIT}"; then
+            ROOT_KEY_NOTE="configured (SSH opens only with the USB key)"
+        else
+            ROOT_KEY_NOTE="NOT configured (SSH closed; run: sudo lc keys)"
+            log "WARNING: USB root key was not enrolled - SSH will stay closed"
+            "${PY_CMD}" "${APP_ROOT}/scripts/lc-usb-key.py" close >/dev/null 2>&1 || true
+        fi
+    fi
+elif [[ -f /etc/lc-root-key/state.json ]]; then
+    ROOT_KEY_NOTE="existing USB gate left unchanged (use: sudo lc keys)"
+fi
+
 # ---- done ----
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')" || IP=""
 PORT="${EFFECTIVE_PORT}"
@@ -352,14 +381,16 @@ Portal: http://${IP:-127.0.0.1}:${PORT}
 Administrator login: $(val ADMIN_USERNAME)
 Wi-Fi access point: ${AP_LINE}
 Server starts: ${AUTOSTART_LINE}
+Root USB key: ${ROOT_KEY_NOTE}
 
 Management:
   lc status   — status
   lc setup    — re-run this wizard
+  lc keys     — root SSH / USB key manager
   lc logs     — logs"
 
 if [[ "${INTERACTIVE}" == "1" ]]; then
-    whiptail --title "${TITLE}" --msgbox "${MSG}" 18 72 </dev/tty
+    whiptail --title "${TITLE}" --msgbox "${MSG}" 21 72 </dev/tty
 else
     log "${MSG}"
 fi

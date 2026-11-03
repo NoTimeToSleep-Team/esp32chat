@@ -130,6 +130,14 @@
       "persist": true
     },
     {
+      "key": "LC_ROOT_KEY_ENABLE",
+      "section": "security",
+      "label": "Add a USB root SSH key (SSH opens only while the key is inserted)",
+      "type": "bool",
+      "default": false,
+      "persist": true
+    },
+    {
       "key": "LC_DATA_MODE",
       "section": "data",
       "label": "Start the server with",
@@ -150,5 +158,5 @@
       "persist": false
     }
   ],
-  "actions": ["create_admin", "set_mode", "apply_ap", "restart_service"]
+  "actions": ["create_admin", "set_mode", "apply_ap", "restart_service", "enroll_root_key"]
 }
