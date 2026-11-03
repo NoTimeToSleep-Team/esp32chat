@@ -317,9 +317,7 @@ var EN = {
 "Обращения": "Tickets",
 "Жалобы": "Reports",
 "Режим": "Mode",
-"Сеть": "Network",
 "Очистка": "Cleanup",
-"Система": "System",
 "Активность": "Activity",
 "Пароли": "Passwords",
 "Профиль": "Profile",
@@ -442,56 +440,23 @@ var EN = {
 " · подтянуто": " · synced",
 "Время платы": "Board clock",
 "сверка с устройством": "synced with device",
-"Часы платы": "Board time",
-"Это устройство": "This device",
-"Расхождение": "Offset",
-"Синхронизировать с устройством": "Sync with this device",
 "live · 10с": "live · 10s",
-"Обновить сейчас": "Refresh now",
-"Сервисы": "Services",
-"Перезапуск": "Restart",
-"Перезагрузить плату": "Reboot the board",
-"Отладка": "Debug",
 "Журнал событий (100)": "Event log (100)",
-"Время сверено с устройством": "Time synced with the device",
-"Перезапустить сервис ": "Restart service ",
-"Перезапуск запущен": "Restart started",
-"Перезагрузка": "Reboot",
-"Перезагрузить Raspberry Pi? Портал будет недоступен ~минуту.": "Reboot the Raspberry Pi? The portal will be unavailable for ~1 minute.",
-"Плата перезагружается...": "The board is rebooting...",
-"Журнал событий": "Event log",
 "Пусто": "Empty",
 "Интернет (uplink)": "Internet (uplink)",
 "подключён": "connected",
 "нет связи": "no connection",
 "Интерфейс": "Interface",
 "IP-адрес": "IP address",
-"Сканировать сети": "Scan networks",
-"Отключить": "Disconnect",
 "Wi-Fi адаптеры": "Wi-Fi adapters",
 "роль: ": "role: ",
-"Перезапустить hostapd + dnsmasq": "Restart hostapd + dnsmasq",
-"Интернет для пользователей": "Internet for users",
 "вкл": "on",
 "выкл": "off",
 "открытая": "open",
 "пароль": "password",
-"Сетей не найдено": "No networks found",
 "Подключение к ": "Connect to ",
 "открытая сеть — пароль не нужен": "open network — no password needed",
 "Подключиться": "Connect",
-"Подключено: ": "Connected: ",
-"Не удалось подключиться": "Could not connect",
-"Отключение": "Disconnect",
-"Отключить интернет-подключение (uplink)?": "Disconnect the internet uplink?",
-"Отключено": "Disconnected",
-"Смена роли": "Change role",
-"Назначить ": "Assign ",
-" как ": " as ",
-"? Сетевые сервисы перезапустятся.": "? Network services will restart.",
-"Перезапуск сети": "Restart network",
-"Перезапустить hostapd и dnsmasq? Точка доступа мигнёт.": "Restart hostapd and dnsmasq? The access point will blink.",
-"Перезапущено: ": "Restarted: ",
 "сообщений (30д)": "messages (30d)",
 "новых (30д)": "new (30d)",
 "онлайн": "online",
@@ -717,13 +682,6 @@ function showMain(){
   loadNames();
   renderTabs();
   switchTab("users");
-  syncTimeSilent();
-}
-async function syncTimeSilent(){
-  try {
-    var d = await api("/ops/api/sync-time", "POST", { session_token: ST, client_time_ms: Date.now() });
-    if (d.adjusted) toast(tr("Время платы синхронизировано с устройством (было расхождение ") + Math.round(Math.abs(d.offset_ms) / 1000) + tr(" с)"));
-  } catch(e) { /* не критично */ }
 }
 async function loadNames(){
   try {
@@ -812,9 +770,7 @@ var TABS = [
   ["support", tr("Обращения")],
   ["reports", tr("Жалобы")],
   ["mode", tr("Режим")],
-  ["network", tr("Сеть")],
   ["cleanup", tr("Очистка")],
-  ["system", tr("Система")],
   ["activity", tr("Активность")],
   ["passwords", tr("Пароли")],
   ["profile", tr("Профиль")]
@@ -835,7 +791,6 @@ function renderTabs(){
 }
 function switchTab(t){
   TAB = t; SUB = null;
-  if (sysTimer) { clearInterval(sysTimer); sysTimer = null; }
   renderTabs();
   $("tb-title").textContent = (TABS.filter(function(x){ return x[0] === t; })[0] || ["", tr("Админка")])[1];
   renderTab();
@@ -847,9 +802,7 @@ function renderTab(){
   else if (TAB === "support") renderSupport();
   else if (TAB === "reports") renderReports();
   else if (TAB === "mode") renderMode();
-  else if (TAB === "network") renderNetwork();
   else if (TAB === "cleanup") renderCleanup();
-  else if (TAB === "system") renderSystem();
   else if (TAB === "activity") renderActivity();
   else if (TAB === "passwords") renderPasswords();
   else if (TAB === "profile") renderProfile();
@@ -1264,194 +1217,6 @@ function renderCleanup(){
           toast(tr("Готово") + (r && r.deleted_count != null ? tr(": удалено ") + r.deleted_count : ""));
         } catch(e) { toast(e.message); }
       });
-    };
-  });
-}
-
-/* ================= СИСТЕМА ================= */
-var sysTimer = null;
-var sysBusy = false;
-async function refreshSystemStats(){
-  var box = $("sys-stats");
-  if (!box || sysBusy) return;
-  sysBusy = true;
-  try {
-    try {
-      var h = await api("/ops/api/system-health?session_token=" + tk() + "&_=" + Date.now());
-      var hh = h.health || {};
-      var cpu = String(hh.cpu_temp == null ? "?" : hh.cpu_temp);
-      if (/can't open|error|permission|denied/i.test(cpu)) cpu = "—";
-      box.innerHTML =
-        '<div class="stat"><div class="n" style="color:#5fd97e">' + esc(cpu) + '</div><div class="l">' + tr("темп. CPU") + '</div></div>' +
-        '<div class="stat"><div class="n">' + esc(hh.ram_used || "?") + '</div><div class="l">' + tr("RAM из ") + esc(hh.ram_total || "?") + "</div></div>" +
-        '<div class="stat"><div class="n">' + esc(hh.disk_pct || "?") + '</div><div class="l">' + tr("диск ") + esc(hh.disk_used || "") + "</div></div>" +
-        '<div class="stat"><div class="n">' + esc(hh.load1 || "?") + '</div><div class="l">' + tr("нагрузка") + '</div></div>' +
-        '<div class="stat"><div class="n" style="font-size:13.5px">' + esc(fmtUptime(hh)) + '</div><div class="l">' + tr("аптайм") + '</div></div>' +
-        '<div class="stat"><div class="n" style="font-size:13.5px">' + new Date().toTimeString().slice(0, 8) + '</div><div class="l">' + tr("обновлено") + '</div></div>';
-    } catch(e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; }
-    try {
-      var c = await api("/ops/api/sync-time", "POST", { session_token: ST, client_time_ms: Date.now() });
-      var c1 = $("clk-server"); if (c1) c1.textContent = fmtDate(c.server_time_ms);
-      var c2 = $("clk-device"); if (c2) c2.textContent = fmtDate(Date.now());
-      var c3 = $("clk-off"); if (c3) c3.textContent = (c.offset_ms > 0 ? "+" : "") + (c.offset_ms / 1000).toFixed(1) + tr(" с") + (c.adjusted ? tr(" · подтянуто") : "");
-    } catch(e) {}
-  } finally { sysBusy = false; }
-}
-async function renderSystem(){
-  var s = null, err = "";
-  try { s = await api("/ops/api/services?session_token=" + tk() + "&_=" + Date.now()); } catch(e) { err = e.message; }
-  var html = "";
-  if (err) html += '<div class="card">' + emptyBox(err) + "</div>";
-  html += '<div class="card"><div class="card-head"><span>' + tr("Время платы") + '</span><span class="grow"></span><span class="badge">' + tr("сверка с устройством") + '</span></div>' +
-    '<div class="kv"><span class="k">' + tr("Часы платы") + '</span><span class="v" id="clk-server">—</span></div>' +
-    '<div class="kv"><span class="k">' + tr("Это устройство") + '</span><span class="v" id="clk-device">—</span></div>' +
-    '<div class="kv"><span class="k">' + tr("Расхождение") + '</span><span class="v" id="clk-off">—</span></div>' +
-    '<div class="form"><button class="btn-line" id="clk-sync">' + tr("Синхронизировать с устройством") + '</button></div></div>';
-  html += '<div class="card"><div class="card-head"><span>Raspberry Pi</span><span class="grow"></span><span class="badge">' + tr("live · 10с") + '</span></div>' +
-    '<div class="stats" id="sys-stats"><div class="spin" style="grid-column:1/-1"></div></div>' +
-    '<div class="form"><button class="btn-line" id="sys-refresh">' + tr("Обновить сейчас") + '</button></div></div>';
-  if (s && s.services) {
-    html += '<div class="card"><div class="card-head"><span>' + tr("Сервисы") + '</span></div>';
-    s.services.forEach(function(svc, i){
-      html += '<div class="row no-line"><span class="rcol"><span class="rt">' + esc(svc.name) + '</span><span class="rsub" style="color:' + (svc.active === "active" ? "#5fd97e" : "#ff8fa0") + '">' + esc(svc.active) + (svc.substate && svc.substate !== svc.active ? " · " + esc(svc.substate) : "") + '</span></span>' +
-        '<button class="chip" data-svc="' + i + '" style="padding:7px 12px;font-size:13.5px">' + tr("Перезапуск") + '</button></div>';
-    });
-    html += '<div class="form"><button class="btn-danger" id="reboot-btn">' + tr("Перезагрузить плату") + '</button></div></div>';
-  }
-  html += '<div class="card"><div class="card-head"><span>' + tr("Отладка") + '</span></div><div class="form"><button class="btn-line" id="dbg-btn">' + tr("Журнал событий (100)") + '</button></div></div>';
-  setContent(html);
-  refreshSystemStats();
-  if (sysTimer) clearInterval(sysTimer);
-  sysTimer = setInterval(function(){
-    if (!document.hidden && TAB === "system" && !SUB) refreshSystemStats();
-  }, 10000);
-  $("sys-refresh").onclick = refreshSystemStats;
-  $("clk-sync").onclick = async function(){ await refreshSystemStats(); toast(tr("Время сверено с устройством")); };
-  if (s && s.services) {
-    $("content").querySelectorAll("[data-svc]").forEach(function(b){
-      var svc = s.services[Number(b.getAttribute("data-svc"))];
-      b.onclick = function(){
-        askConfirm(tr("Перезапуск"), tr("Перезапустить сервис ") + svc.name + "?", async function(){
-          try { await api("/ops/api/restart-service", "POST", { session_token: ST, service: svc.name }, 30000); toast(tr("Перезапуск запущен")); setTimeout(renderSystem, 1500); }
-          catch(e) { toast(e.message); }
-        });
-      };
-    });
-    $("reboot-btn").onclick = function(){
-      askConfirm(tr("Перезагрузка"), tr("Перезагрузить Raspberry Pi? Портал будет недоступен ~минуту."), async function(){
-        try { await api("/ops/api/reboot", "POST", { session_token: ST, confirm: true }, 30000); toast(tr("Плата перезагружается...")); }
-        catch(e) { toast(e.message); }
-      });
-    };
-  }
-  $("dbg-btn").onclick = async function(){
-    openSheetHtml(tr("Журнал событий"), '<div class="spin"></div>');
-    try {
-      var d = await api("/debug/api/events?session_token=" + tk() + "&limit=100");
-      var items = d.items || [];
-      $("sheet-body").innerHTML = items.length ? '<div class="s-form">' + items.map(function(e){
-        return '<div style="font-size:12.5px"><span style="color:' + (e.ok === 1 ? "#5fd97e" : "#ff8fa0") + '">' + (e.ok === 1 ? "ok" : "FAIL") + "</span> " +
-          fmtDate(e.created_at_ms) + " · " + esc(e.stage) + " · " + esc(e.action || "") + (e.error ? '<div style="color:#ff8fa0">' + esc(e.error) + "</div>" : "") + "</div>";
-      }).join("") + "</div>" : '<div class="s-note">' + tr("Пусто") + '</div>';
-    } catch(e) { $("sheet-body").innerHTML = '<div class="s-note">' + esc(e.message) + "</div>"; }
-  };
-}
-
-/* ================= СЕТЬ ================= */
-async function renderNetwork(){
-  var st = null, ifs = null, users = null, err = "";
-  try { st = await api("/admin/network/wifi/status?session_token=" + tk()); } catch(e) { err = e.message; }
-  try { ifs = await api("/admin/network/interfaces?session_token=" + tk()); } catch(e) {}
-  try { users = await api("/admin/network/users?session_token=" + tk()); } catch(e) {}
-  var html = "";
-  if (err) html += '<div class="card">' + emptyBox(err) + "</div>";
-  html += '<div class="card"><div class="card-head"><span>' + tr("Интернет (uplink)") + '</span><span class="grow"></span>' +
-    (st ? (st.connected ? '<span class="pill st-active">' + tr("подключён") + '</span>' : '<span class="pill st-closed">' + tr("нет связи") + '</span>') : "") + "</div>";
-  if (st) {
-    html += '<div class="kv"><span class="k">' + tr("Сеть") + '</span><span class="v">' + esc(st.ssid || "—") + "</span></div>" +
-      '<div class="kv"><span class="k">' + tr("Интерфейс") + '</span><span class="v">' + esc(st.interface || "—") + "</span></div>" +
-      '<div class="kv"><span class="k">' + tr("IP-адрес") + '</span><span class="v">' + esc(st.ip_address || "—") + "</span></div>";
-  }
-  html += '<div class="form" style="flex-direction:row;gap:8px"><button class="btn-line" id="net-scan" style="flex:1">' + tr("Сканировать сети") + '</button>' +
-    '<button class="btn-line" id="net-disc" style="flex:1">' + tr("Отключить") + '</button></div>' +
-    '<div id="net-list" class="form"></div></div>';
-  if (ifs && ifs.items && ifs.items.length) {
-    html += '<div class="card"><div class="card-head"><span>' + tr("Wi-Fi адаптеры") + '</span></div>';
-    ifs.items.forEach(function(it, i){
-      html += '<div class="row no-line" style="flex-wrap:wrap"><span class="rcol"><span class="rt">' + esc(it.ifname) + ' <span style="color:var(--sub);font-size:12px">' + esc(it.chipset || "") + '</span></span>' +
-        '<span class="rsub">' + tr("роль: ") + esc(it.role || "none") + " · " + esc(it.tx_power_dbm || "?") + ' dBm</span></span>' +
-        '<button class="chip" data-if="' + i + '" data-role="ap" style="padding:6px 10px;font-size:12.5px">AP</button>' +
-        '<button class="chip" data-if="' + i + '" data-role="uplink" style="padding:6px 10px;font-size:12.5px">Uplink</button></div>';
-    });
-    html += '<div class="form"><button class="btn-line" id="net-restart">' + tr("Перезапустить hostapd + dnsmasq") + '</button></div></div>';
-  }
-  if (users && users.items && users.items.length) {
-    html += '<div class="card"><div class="card-head"><span>' + tr("Интернет для пользователей") + '</span></div>';
-    users.items.forEach(function(u, i){
-      html += '<div class="row no-line"><span class="rcol"><span class="rt">' + esc(u.login) + '</span><span class="rsub">' + esc(u.role) + "</span></span>" +
-        '<button class="chip" data-net-user="' + i + '" style="padding:7px 12px;font-size:13px;' + (u.internet_enabled ? "background:rgba(52,199,89,.2);color:#5fd97e;border-color:transparent" : "") + '">' + (u.internet_enabled ? tr("вкл") : tr("выкл")) + "</button></div>";
-    });
-    html += "</div>";
-  }
-  setContent(html);
-  var scanBox = $("net-list");
-  if ($("net-scan")) $("net-scan").onclick = async function(){
-    scanBox.innerHTML = '<div class="spin" style="margin:10px auto"></div>';
-    try {
-      var r = await api("/admin/network/wifi/scan?session_token=" + tk(), "GET", null, 45000);
-      var nets = r.networks || [];
-      scanBox.innerHTML = nets.length ? nets.map(function(n, i){
-        return '<button class="row no-line" data-net="' + i + '" style="background:#26262b;border-radius:10px;margin-bottom:6px"><span class="rcol"><span class="rt">' + esc(n.ssid) + '</span><span class="rsub">' + esc(n.signal) + '% · ' + esc(n.security === "open" ? tr("открытая") : tr("пароль")) + "</span></span><span class=\"chev\">›</span></button>";
-      }).join("") : emptyBox(tr("Сетей не найдено"));
-      scanBox.querySelectorAll("[data-net]").forEach(function(b){
-        b.onclick = function(){
-          var n = nets[Number(b.getAttribute("data-net"))];
-          openForm(tr("Подключение к ") + n.ssid,
-            '<input class="inp" id="wf-ssid" value="' + esc(n.ssid) + '" readonly>' +
-            '<input class="inp" id="wf-pass" type="password" placeholder="' + (n.security === "open" ? tr("открытая сеть — пароль не нужен") : tr("Пароль")) + '" autocapitalize="off" autocorrect="off">' +
-            '<button class="btn-accent" id="wf-go">' + tr("Подключиться") + '</button>',
-            function(){
-              $("wf-go").onclick = async function(){
-                var pass = $("wf-pass") ? $("wf-pass").value : "";
-                closeSheet();
-                try {
-                  var r2 = await api("/admin/network/wifi/connect", "POST", { session_token: ST, ssid: n.ssid, password: pass }, 45000);
-                  toast(r2.connected ? (tr("Подключено: ") + (r2.ip_address || "")) : tr("Не удалось подключиться"));
-                  renderNetwork();
-                } catch(e) { toast(e.message); }
-              };
-            });
-        };
-      });
-    } catch(e) { scanBox.innerHTML = emptyBox(e.message); }
-  };
-  if ($("net-disc")) $("net-disc").onclick = function(){
-    askConfirm(tr("Отключение"), tr("Отключить интернет-подключение (uplink)?"), async function(){
-      try { await api("/admin/network/wifi/disconnect", "POST", { session_token: ST }, 30000); toast(tr("Отключено")); renderNetwork(); }
-      catch(e) { toast(e.message); }
-    });
-  };
-  if (ifs && ifs.items) $("content").querySelectorAll("[data-if]").forEach(function(b){
-    var it = ifs.items[Number(b.getAttribute("data-if"))];
-    b.onclick = function(){
-      var role = b.getAttribute("data-role");
-      askConfirm(tr("Смена роли"), tr("Назначить ") + it.ifname + tr(" как ") + role.toUpperCase() + tr("? Сетевые сервисы перезапустятся."), async function(){
-        try { await api("/admin/network/interfaces/assign", "POST", { session_token: ST, ifname: it.ifname, role: role }, 60000); toast(tr("Готово")); renderNetwork(); }
-        catch(e) { toast(e.message); }
-      });
-    };
-  });
-  if ($("net-restart")) $("net-restart").onclick = function(){
-    askConfirm(tr("Перезапуск сети"), tr("Перезапустить hostapd и dnsmasq? Точка доступа мигнёт."), async function(){
-      try { var r = await api("/admin/network/services/restart?session_token=" + tk(), "POST", null, 45000); toast(tr("Перезапущено: ") + (r.ap_interface || "")); }
-      catch(e) { toast(e.message); }
-    });
-  };
-  if (users && users.items) $("content").querySelectorAll("[data-net-user]").forEach(function(b){
-    var u = users.items[Number(b.getAttribute("data-net-user"))];
-    b.onclick = async function(){
-      try { await api("/admin/network/users/internet", "POST", { session_token: ST, user_id: u.user_id, enabled: !u.internet_enabled }); toast(tr("Готово")); renderNetwork(); }
-      catch(e) { toast(e.message); }
     };
   });
 }

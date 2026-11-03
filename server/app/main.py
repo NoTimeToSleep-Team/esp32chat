@@ -14,7 +14,6 @@ from app.api.account import router as account_router
 from app.api.admin.content import router as admin_content_router
 from app.api.admin.mode import router as admin_mode_router
 from app.api.admin.users import router as admin_users_router
-from app.api.admin.network import router as admin_network_router
 from app.api.auth import router as auth_router
 from app.api.applications import router as applications_router
 from app.api.blog import router as blog_router
@@ -23,36 +22,18 @@ from app.api.chat_private import router as chat_private_router
 from app.api.debug import router as debug_router
 from app.api.devices import router as devices_router
 from app.api.device_combos import router as device_combos_router
-from app.api.deployment import router as deployment_router
 try:
     from app.api.discovery import router as discovery_router
 except ImportError:
     discovery_router = None
 try:
-    from app.api.device_runtime import router as device_runtime_router
-except ImportError:
-    device_runtime_router = None
-try:
-    from app.api.edge_nodes import router as edge_nodes_router
-except ImportError:
-    edge_nodes_router = None
-try:
-    from app.api.module_control import router as module_control_router
-except ImportError:
-    module_control_router = None
-try:
     from app.api.sync import router as sync_router
 except ImportError:
     sync_router = None
-try:
-    from app.api.rfid import router as rfid_router
-except ImportError:
-    rfid_router = None
 from app.api.health import router as health_router
 from app.api.mode import router as mode_router
 from app.api.media import router as media_router
 from app.api.moderation import router as moderation_router
-from app.api.ops import router as ops_router
 from app.api.realtime import router as realtime_router
 from app.api.support import router as support_router
 from app.api.user_reports import router as user_reports_router
@@ -62,13 +43,12 @@ from app.logging import configure_logging, get_logger, install_runtime_log_filte
 from app.realtime import ChatRealtimeBroker
 from app.security import InMemoryRateLimiter, SecurityAuditService
 from app.security.body_limit import BodySizeLimitMiddleware
+from app.security.infrastructure import is_infrastructure_path
 from app.security.network import resolve_client_ip
 from app.services.chat import ChatService
 from app.services.debug_log import DebugLogService
-from app.services.module_registry import ModuleRegistryService
 from app.services.auto_moderator import AutoModerator  # noqa: F401 (legacy scanner)
 from app.services.auto_moderation import AutoModerationService
-from app.api.system_health import router as system_health_router
 
 
 def _now_ms() -> int:
@@ -87,19 +67,6 @@ def create_app() -> FastAPI:
 
     configure_logging(settings)
     logger = get_logger("app.main")
-
-    def _is_pn532_enabled(app: FastAPI) -> bool:
-        data_layer = getattr(app.state, "data_layer", None)
-        if data_layer is None:
-            return False
-        service = ModuleRegistryService(db_path=data_layer.database_path)
-        return service.is_module_enabled("pn532")
-
-    def _include_rfid_router_once(app: FastAPI) -> None:
-        if getattr(app.state, "rfid_router_included", False):
-            return
-        app.include_router(rfid_router)
-        app.state.rfid_router_included = True
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -126,9 +93,6 @@ def create_app() -> FastAPI:
         app.state.auto_moderation = AutoModerationService(
             app.state.data_layer.database_path
         )
-
-        if _is_pn532_enabled(app):
-            _include_rfid_router_once(app)
 
         logger.info(
             "Application startup profile=%s host=%s port=%s default_common_chat_id=%s common_members_added=%s",
@@ -172,8 +136,15 @@ def create_app() -> FastAPI:
 
     app.state.settings = settings
     app.add_middleware(BodySizeLimitMiddleware)
-    app.state.rfid_router_included = False
-    app.state.enable_rfid_router = lambda: _include_rfid_router_once(app)
+
+    @app.middleware("http")
+    async def infrastructure_boundary(request: Request, call_next):
+        if is_infrastructure_path(request.url.path):
+            return JSONResponse(
+                status_code=404,
+                content={"detail": {"code": "not_found", "message": "Not found"}},
+            )
+        return await call_next(request)
 
     @app.middleware("http")
     async def session_header_compat_middleware(request: Request, call_next):
@@ -243,22 +214,6 @@ def create_app() -> FastAPI:
             content_length = request.headers.get("content-length")
             if content_length and int(content_length) > 10 * 1024 * 1024:
                 return JSONResponse({"detail": {"code": "payload_too_large", "message": "Max 10MB"}}, status_code=413)
-        return await call_next(request)
-
-    @app.middleware("http")
-    async def rfid_gate_middleware(request: Request, call_next):
-        path = request.url.path
-        if path == "/rfid" or path.startswith("/rfid/"):
-            if not _is_pn532_enabled(request.app):
-                return JSONResponse(
-                    status_code=404,
-                    content={
-                        "detail": {
-                            "code": "rfid_disabled",
-                            "message": "RFID module is disabled",
-                        }
-                    },
-                )
         return await call_next(request)
 
     @app.middleware("http")
@@ -338,7 +293,6 @@ def create_app() -> FastAPI:
     app.include_router(admin_content_router)
     app.include_router(admin_mode_router)
     app.include_router(admin_users_router)
-    app.include_router(admin_network_router)
     app.include_router(auth_router)
     app.include_router(applications_router)
     app.include_router(blog_router)
@@ -351,24 +305,13 @@ def create_app() -> FastAPI:
     app.include_router(debug_router)
     app.include_router(media_router)
     app.include_router(mode_router)
-    app.include_router(ops_router)
     app.include_router(moderation_router)
-    if device_runtime_router:
-        app.include_router(device_runtime_router)
     if discovery_router:
         app.include_router(discovery_router)
-    app.include_router(deployment_router)
-    if edge_nodes_router:
-        app.include_router(edge_nodes_router)
-    if module_control_router:
-        app.include_router(module_control_router)
     if sync_router:
         app.include_router(sync_router)
-    if rfid_router:
-        app.include_router(rfid_router)
     app.include_router(realtime_router)
     app.include_router(health_router)
-    app.include_router(system_health_router)
 
     @app.get("/", tags=["meta"], response_class=HTMLResponse)
     async def root() -> HTMLResponse:

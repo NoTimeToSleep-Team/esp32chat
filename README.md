@@ -55,6 +55,8 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Content: applications queue, support queue, blog publishing.
 - Access-mode switch (open / closed registration).
 - Reports, warnings and moderation tools.
+- Chat-only web administration: host, network, service, RFID and hardware
+  controls are deliberately not exposed to browser sessions, including admins.
 
 **Interface languages**
 
@@ -71,8 +73,11 @@ v0.1.0 is the first public release and ships the server side of the product.
 
 **Ops safety**
 
-- Backups: snapshot files plus history; restore runs as dry-run.
-- Incidents journal, degraded-mode state, safe-shutdown dry-run.
+- Host operations are local-only: use a root TTY/SSH session and
+  `sudo lc-operator` for service restarts, reboot or shutdown.
+- The web admin panel has no system, network, hardware or reboot endpoints.
+- Application backup/incident records are not a browser-operated host control
+  plane.
 
 **Install & management**
 
