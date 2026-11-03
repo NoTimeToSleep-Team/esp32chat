@@ -600,8 +600,18 @@ class MountedUSB:
                 pass
 
 
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def read_marker(mountpoint: Path) -> dict[str, Any] | None:
     path = mountpoint / MARKER_NAME
+    if path.is_symlink():
+        raise ToolError("USB key marker must not be a symlink")
     if not path.is_file():
         return None
     try:
@@ -646,6 +656,8 @@ def write_marker(
     )
     atomic_write(mountpoint / README_NAME, readme, 0o644)
     key_dir = mountpoint / KEY_DIR
+    if key_dir.is_symlink():
+        raise ToolError("USB key directory must not be a symlink")
     if key_dir.is_dir():
         atomic_write(key_dir / "README.txt", readme, 0o644)
 
@@ -661,7 +673,7 @@ def read_public_keys(mountpoint: Path) -> list[str]:
             candidates.append(path)
     lines: list[str] = []
     for path in candidates:
-        if path.is_dir():
+        if path.is_symlink() or not path.is_file() or not _is_within(path, mountpoint):
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -677,11 +689,13 @@ def generate_key_on_usb(mountpoint: Path, label: str) -> tuple[str, str]:
     if not shutil.which("ssh-keygen"):
         raise ToolError("ssh-keygen is required to create a new USB key")
     key_dir = mountpoint / KEY_DIR
+    if key_dir.is_symlink():
+        raise ToolError("USB key directory must not be a symlink")
     ensure_private_dir(key_dir)
     stem = "id_ed25519"
     private = key_dir / stem
     suffix = 2
-    while private.exists():
+    while private.exists() or private.is_symlink():
         private = key_dir / f"{stem}_{suffix}"
         suffix += 1
     comment = f"lc-usb-root-{label or 'key'} {now_iso()}"
