@@ -70,9 +70,9 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Global and per-route rate limiting.
 - Login brute-force guard (per-IP attempt budget with temporary blocks).
 - Security events are written to the `audit_log`.
-- Optional physical USB root key: an enrolled stick starts root SSH when
-  inserted and stops it when removed. Root still authenticates with a normal
-  OpenSSH public key. See `docs/USB_ROOT_KEY.md`.
+- Optional physical USB root key: an enrolled stick starts the SSH daemon
+  when inserted and stops it when removed. Root still authenticates with a
+  normal OpenSSH public key. See `docs/USB_ROOT_KEY.md`.
 
 **Ops safety**
 

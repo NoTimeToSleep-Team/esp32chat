@@ -26,6 +26,10 @@ PubkeyAuthentication yes
 
 in `/etc/ssh/sshd_config.d/10-lc-root-key.conf`.
 
+The gate controls the SSH daemon as a whole. While the stick is absent, normal
+(non-root) SSH logins are closed too; when it is inserted, the existing password
+or key rules for those users still apply.
+
 ## Install
 
 The setup wizard asks:
