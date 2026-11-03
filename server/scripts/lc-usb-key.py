@@ -75,7 +75,8 @@ SKIP_SSH = os.environ.get("LC_ROOT_KEY_SKIP_SSH", "") in ("1", "yes", "true")
 FS_TYPES = {"vfat", "exfat", "ext2", "ext3", "ext4", "ntfs", "ntfs3", "msdos"}
 
 KEY_TYPE_RE = re.compile(
-    r"^(?:ssh-(?:ed25519|rsa|dss)|ecdsa-sha2-[^ ]+|"
+    r"^(?:ssh-(?:ed25519|rsa|dss)(?:-cert-v01@openssh\.com)?|"
+    r"ecdsa-sha2-[^ ]+|"
     r"sk-(?:ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)$"
 )
 UUID_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
