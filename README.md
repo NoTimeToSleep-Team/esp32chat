@@ -71,8 +71,9 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Login brute-force guard (per-IP attempt budget with temporary blocks).
 - Security events are written to the `audit_log`.
 - Optional physical USB root key: an enrolled stick starts the SSH daemon
-  when inserted and stops it when removed. Root still authenticates with a
-  normal OpenSSH public key. See `docs/USB_ROOT_KEY.md`.
+  when inserted and stops it when removed. Its one-time code rotates on every
+  insertion, so a copied marker becomes invalid after the next use. Root still
+  authenticates with a normal OpenSSH public key. See `docs/USB_ROOT_KEY.md`.
 
 **Ops safety**
 
@@ -135,7 +136,7 @@ The whiptail wizard (English-only in v0.1) walks through:
 - registration mode (open / closed);
 - start on boot or start manually;
 - optional USB root SSH key (insert a stick with `*.pub` keys, or let the
-  installer create a new key on the stick);
+  installer create a new key on the stick; its code rotates on each insertion);
 - summary and apply.
 
 The wizard can be re-run anytime with `sudo lc setup`; current values are
@@ -143,7 +144,8 @@ offered as defaults.
 
 If the USB root key is enabled, the installer asks for the stick after the
 server is installed. The stick becomes a physical gate: SSH is open only while
-it is inserted. Manage keys later with `sudo lc keys`.
+it is inserted, and its one-time code rotates on every insertion. Manage keys
+later with `sudo lc keys`.
 
 ### Installer options
 

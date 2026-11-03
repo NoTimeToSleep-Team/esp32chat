@@ -24,8 +24,8 @@ Run it as any regular user — `sudo` asks for the password once. The installer:
 - checks OS/architecture/Python/disk space, installs missing apt packages
   (waits out busy apt locks, cleans stale locks, retries);
 - **asks the setup questions first** — administrator, Wi-Fi AP, port,
-  registration mode, autostart, optional USB root SSH key (with
-  `--preseed FILE` they come from a file);
+  registration mode, autostart, optional USB root SSH key (its one-time code
+  rotates on each insertion; with `--preseed FILE` answers come from a file);
 - lays out `/opt/local-chat-server`, creates a venv, installs dependencies;
 - generates `app.env` with a random session secret, starts and enables the
   systemd service, waits for `/health`;
@@ -55,7 +55,8 @@ with an empty server or import data from an export file (path)** → summary →
 apply.
 
 If the USB root key is enabled, insert the stick after the install. The stick
-becomes a physical gate: root SSH is open only while it is inserted. See
+becomes a physical gate: root SSH is open only while it is inserted, and its
+one-time code rotates on each insertion so a copied marker becomes stale. See
 `docs/USB_ROOT_KEY.md`; manage keys with `sudo lc keys`.
 
 - `Esc` on any step cancels without changes.
@@ -125,6 +126,8 @@ bash server/scripts/make_release_tarball.sh
 - The administrator password is briefly visible in the process list (passed as
   a CLI argument).
 - The optional USB root-key gate needs a local console/HDMI for recovery if the
-  physical key is lost. Existing SSH sessions may survive until closed when the
+  physical key is lost. Its one-time code rotates on each insertion, but a plain
+  USB mass-storage device cannot be made mathematically clone-proof; the first
+  inserted copy wins. Existing SSH sessions may survive until closed when the
   stick is removed. See `docs/USB_ROOT_KEY.md`.
 - `x86_64` is allowed with a warning — for testing only.

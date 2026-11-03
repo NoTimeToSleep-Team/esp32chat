@@ -1,16 +1,31 @@
-# USB root key (physical SSH gate)
+# USB root key (rotating physical SSH gate)
 
 ## What it does
 
 The USB stick is a physical key for root SSH:
 
-- one or more USB partitions are enrolled by UUID/serial and a random marker
-  token;
+- one or more USB partitions are enrolled by UUID/serial and a one-time code;
 - an enrolled USB stick carries a marker (`LC_ROOT_KEY.json`) and can carry
   public SSH keys (`*.pub`);
 - an `udev` rule starts `lc-usb-key@<device>.service` when the enrolled stick is
-  inserted; the helper validates the marker and starts `ssh.service`;
+  inserted;
+- the helper validates the current one-time code, writes a **new code** to the
+  stick and to the server state, and only then starts `ssh.service`;
 - removing the stick stops the gate and closes the SSH daemon again.
+
+A simple file copy of the marker to another USB stick does not work: the
+partition UUID and USB serial must also match the enrolled values. If someone
+copies the current marker together with a spoofed UUID/serial, only one copy can
+be valid after the first insertion: the copy used first rotates the code, and
+every other copy becomes stale.
+
+This is **not** mathematically clone-proof on a plain USB mass-storage device.
+There is no secret element inside a normal flash drive that the server can
+challenge. If an attacker can duplicate the entire device identity **and uses
+the copy before the real stick is inserted**, the first-inserted copy becomes
+the active key and the other copy becomes stale. For protection against that
+scenario use a hardware token with a non-exportable secret (smart card /
+YubiKey / secure element) instead of a plain USB stick.
 
 The web application and the `localchat` account cannot run the helper. It is a
 root-only local tool, like `lc-operator`.
@@ -35,7 +50,7 @@ or key rules for those users still apply.
 The setup wizard asks:
 
 ```text
-Add a USB root SSH key (SSH opens only while the key is inserted)?
+Add a USB root SSH key (one-time code rotates on each insertion)?
 ```
 
 Choose **yes**, finish the install, then insert the USB stick when the installer
@@ -57,9 +72,9 @@ connections will stay closed until the USB key is inserted.
 
 ## Usage
 
-Insert the enrolled USB stick into the Raspberry Pi. The SSH daemon starts.
-Connect normally with a private key that matches one of the imported public
-keys:
+Insert the enrolled USB stick into the Raspberry Pi. The helper rotates the
+one-time code and starts the SSH daemon. Connect normally with a private key
+that matches one of the imported public keys:
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 root@<pi-address>
@@ -68,6 +83,10 @@ ssh -i ~/.ssh/id_ed25519 root@<pi-address>
 Remove the stick to stop the SSH daemon. Existing sessions are not forcibly
 killed on all OpenSSH versions; close them explicitly if the physical gate must
 also terminate current sessions.
+
+The USB stick must be writable: the code in `LC_ROOT_KEY.json` is replaced on
+every insertion. A write-protected or read-only stick makes the gate fail
+closed (SSH will not start), because it cannot advance the code.
 
 ## Key manager
 
@@ -118,16 +137,24 @@ physical gate.
 /opt/local-chat-server/scripts/lc-usb-key.py  source implementation
 ```
 
-The marker token is stored in plain text on the USB stick. The server stores
-only its SHA-256 hash; validation also checks the partition UUID and serial.
-A cloned USB stick with the same UUID/serial and copied marker is a copy of the
-physical key, so protect and back up the original.
+The one-time marker code is stored in plain text on the USB stick. The server
+stores only its SHA-256 hash and the generation counter; validation also checks
+the partition UUID and serial. The next code is written to the server state
+before the USB marker, so an interrupted rotation is completed on the next
+insertion instead of locking out the key.
+
+The first copy used after a clone wins the rotation race: the code advances on
+that copy and all other copies become stale. Keep the original physically safe;
+if a copy may have been used first, re-enroll the stick from the local console.
 
 ## Recovery
 
 - Lost or broken USB stick: use the local console/HDMI keyboard, run
   `sudo lc keys`, remove the old USB token or add a new key. SSH remains closed
   until a valid physical key is inserted.
+- If a copied marker was used first, the original stick's code is stale. Keep
+  the stick inserted and run `sudo lc keys` from the local console to enroll it
+  again; the helper will issue a fresh generation.
 - No root SSH key yet: log in locally and run `sudo lc keys` (or
   `sudo lc keys new` with a USB stick).
 - If `openssh-server` is missing, install it with
@@ -141,5 +168,6 @@ physical key, so protect and back up the original.
 
 The USB partition must have a filesystem UUID and be supported by the running
 kernel: FAT32 (`vfat`), exFAT (when the kernel/exfat package is present),
-ext2/3/4 or NTFS. The helper mounts it with `nosuid,nodev,noexec`; for
-enrollment it uses read/write, for opening it remounts read-only.
+ext2/3/4 or NTFS. The helper mounts it with `nosuid,nodev,noexec`; enrollment
+and every opening are read/write because the one-time code must be updated.
+A read-only or write-protected stick is rejected (fail closed).

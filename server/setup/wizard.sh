@@ -107,9 +107,9 @@ else
 fi
 
 if [[ "${INTERACTIVE}" == "1" && "${PHASE}" != "apply" ]]; then
-    welcome_text="Welcome!\n\nLet's configure the portal first:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode;\n- optional physical USB key for root SSH.\n\nThe server is installed right after this.\nPress Esc on any step to cancel without changes."
+    welcome_text="Welcome!\n\nLet's configure the portal first:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode;\n- optional physical USB key for root SSH (rotating one-time code).\n\nThe server is installed right after this.\nPress Esc on any step to cancel without changes."
     if [[ "${PHASE}" == "all" ]]; then
-        welcome_text="Welcome!\n\nLet's configure the portal:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode;\n- optional physical USB key for root SSH.\n\nThe current values are offered as defaults.\nPress Esc on any step to cancel without changes."
+        welcome_text="Welcome!\n\nLet's configure the portal:\n- administrator account;\n- Wi-Fi access point;\n- port and registration mode;\n- optional physical USB key for root SSH (rotating one-time code).\n\nThe current values are offered as defaults.\nPress Esc on any step to cancel without changes."
     fi
     whiptail --title "${TITLE}" --msgbox "${welcome_text}" 16 68 </dev/tty || cancel
 fi

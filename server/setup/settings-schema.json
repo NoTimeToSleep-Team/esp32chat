@@ -132,7 +132,7 @@
     {
       "key": "LC_ROOT_KEY_ENABLE",
       "section": "security",
-      "label": "Add a USB root SSH key (SSH opens only while the key is inserted)",
+      "label": "Add a USB root SSH key (one-time code rotates on each insertion)",
       "type": "bool",
       "default": false,
       "persist": true

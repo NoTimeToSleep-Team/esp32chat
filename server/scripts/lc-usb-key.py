@@ -30,9 +30,15 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+try:  # Unix only; unit tests can import this module on other platforms.
+    import fcntl
+except ImportError:  # pragma: no cover - Windows test host
+    fcntl = None  # type: ignore[assignment]
 
 try:  # Unix only; unit tests can import this module on other platforms.
     import pwd
@@ -41,6 +47,7 @@ except ImportError:  # pragma: no cover - Windows test host
 
 
 STATE_VERSION = 1
+MARKER_VERSION = 2
 MARKER_NAME = "LC_ROOT_KEY.json"
 KEY_DIR = "lc-root-key"
 README_NAME = "LC_ROOT_KEY_README.txt"
@@ -319,9 +326,53 @@ def save_state(state: dict[str, Any]) -> None:
     )
 
 
+@contextmanager
+def state_lock():
+    """Serialize rotations between two copies of the same USB key."""
+    ensure_private_dir(STATE_DIR)
+    if fcntl is None:
+        yield
+        return
+    lock_path = STATE_DIR / "lock"
+    with open(lock_path, "a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _entry_current_hash(entry: dict[str, Any]) -> str:
+    # token_sha256 is the v1 field; it is kept in sync for older state files.
+    return str(entry.get("current_sha256") or entry.get("token_sha256") or "")
+
+
+def _entry_pending_hash(entry: dict[str, Any]) -> str:
+    return str(entry.get("pending_sha256") or "")
+
+
+def _entry_generation(entry: dict[str, Any]) -> int:
+    try:
+        return int(entry.get("generation") or 1)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _normalize_tokens(state: dict[str, Any]) -> None:
+    for item in state.get("usb_keys", []):
+        if not isinstance(item, dict):
+            continue
+        if not item.get("current_sha256") and item.get("token_sha256"):
+            item["current_sha256"] = item["token_sha256"]
+        if "generation" not in item:
+            item["generation"] = 1
+        item.setdefault("pending_sha256", None)
+
+
 def _find_token(
     state: dict[str, Any], uuid: str, serial: str = ""
 ) -> dict[str, Any] | None:
+    _normalize_tokens(state)
     for item in state.get("usb_keys", []):
         if not isinstance(item, dict) or item.get("uuid") != uuid:
             continue
@@ -333,12 +384,13 @@ def _find_token(
 
 def add_usb_token(
     state: dict[str, Any],
-    token: str,
+    code: str,
     *,
     uuid: str,
     serial: str = "",
     label: str = "",
     fstype: str = "",
+    generation: int = 1,
 ) -> dict[str, Any]:
     if not uuid or not UUID_RE.match(uuid):
         raise ToolError("the USB partition has no usable filesystem UUID")
@@ -346,15 +398,21 @@ def add_usb_token(
     if existing is None and len(state.get("usb_keys", [])) >= MAX_USB_KEYS:
         raise ToolError(f"too many USB keys (max {MAX_USB_KEYS})")
     entry = {
-        "id": sha256_hex(f"{uuid}:{token}")[:16],
+        "id": sha256_hex(f"{uuid}:{code}")[:16],
         "uuid": uuid,
         "serial": serial,
         "label": label,
         "fstype": fstype,
-        "token_sha256": token_hash(token),
+        "generation": int(generation),
+        "current_sha256": token_hash(code),
+        "pending_sha256": None,
+        # Compatibility with state files written by the first USB-key release.
+        "token_sha256": token_hash(code),
         "enrolled_at": now_iso(),
+        "rotated_at": now_iso(),
     }
     if existing is not None:
+        entry["id"] = existing.get("id", entry["id"])
         entry["enrolled_at"] = existing.get("enrolled_at", entry["enrolled_at"])
         state["usb_keys"] = [
             item for item in state.get("usb_keys", []) if item is not existing
@@ -622,31 +680,39 @@ def read_marker(mountpoint: Path) -> dict[str, Any] | None:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise ToolError(f"cannot read USB key marker: {exc}") from exc
-    if not isinstance(data, dict) or data.get("version") != 1:
+    if not isinstance(data, dict) or data.get("version") not in (1, MARKER_VERSION):
         raise ToolError("unsupported USB key marker")
     return data
 
 
 def write_marker(
     mountpoint: Path,
-    token: str,
+    code: str,
     entry: dict[str, Any],
+    *,
+    generation: int = 1,
+    write_readme: bool = True,
 ) -> None:
     payload = {
-        "version": 1,
-        "token": token,
+        "version": MARKER_VERSION,
+        "code": code,
+        "generation": int(generation),
         "uuid": entry.get("uuid", ""),
         "serial": entry.get("serial", ""),
         "label": entry.get("label", ""),
         "created_at": now_iso(),
     }
     atomic_write(mountpoint / MARKER_NAME, json.dumps(payload, indent=2) + "\n", 0o600)
+    if not write_readme:
+        return
     readme = (
         "Local Chat root USB key\n"
         "========================\n\n"
         "This USB stick is a physical key for root SSH on the Raspberry Pi.\n"
         "Keep it safe: anyone who has it and a matching private SSH key can\n"
         "open root SSH while it is inserted.\n\n"
+        "The code inside LC_ROOT_KEY.json changes on every insertion. A copied\n"
+        "old code stops working after the real key has been used once.\n\n"
         "Insert it into the Raspberry Pi to start the SSH daemon; remove it to\n"
         "stop the SSH daemon. Existing SSH sessions may stay connected until\n"
         "they are closed.\n\n"
@@ -729,10 +795,16 @@ def validate_marker(
     state: dict[str, Any],
     entry: dict[str, Any],
     marker: dict[str, Any],
-) -> dict[str, Any]:
-    token = str(marker.get("token") or "")
+) -> tuple[dict[str, Any], bool]:
+    """Return (enrolled_entry, matched_pending_code).
+
+    The USB stores only a one-time code.  The server keeps the hash of the
+    current code and, during rotation, the hash of the next code.  A copied old
+    code is rejected as soon as the server has advanced.
+    """
+    code = str(marker.get("code") or marker.get("token") or "")
     uuid = str(marker.get("uuid") or "")
-    if not token or not uuid:
+    if not code or not uuid:
         raise ToolError("USB key marker is incomplete")
     if entry.get("uuid") and uuid != entry["uuid"]:
         raise ToolError("USB key UUID does not match the enrolled key")
@@ -742,10 +814,73 @@ def validate_marker(
     enrolled = _find_token(state, uuid, marker_serial)
     if enrolled is None:
         raise ToolError("this USB key is not enrolled")
-    if not hmac.compare_digest(
-        str(enrolled.get("token_sha256", "")), token_hash(token)
-    ):
-        raise ToolError("USB key token is invalid")
+    digest = token_hash(code)
+    current = _entry_current_hash(enrolled)
+    pending = _entry_pending_hash(enrolled)
+    if current and hmac.compare_digest(current, digest):
+        return enrolled, False
+    if pending and hmac.compare_digest(pending, digest):
+        return enrolled, True
+    raise ToolError("USB key code is stale or invalid")
+
+
+def rotate_key_code(
+    state: dict[str, Any],
+    enrolled: dict[str, Any],
+    entry: dict[str, Any],
+    mountpoint: Path,
+    marker: dict[str, Any],
+    matched_pending: bool,
+) -> dict[str, Any]:
+    """Advance the one-time code and write the new value to the USB stick."""
+    if matched_pending:
+        # The previous insertion wrote the USB but crashed before committing
+        # state.  Promote that pending code first.
+        pending = _entry_pending_hash(enrolled)
+        enrolled["current_sha256"] = pending
+        enrolled["token_sha256"] = pending
+        enrolled["generation"] = int(
+            enrolled.get("pending_generation") or _entry_generation(enrolled)
+        )
+        enrolled["pending_sha256"] = None
+        enrolled.pop("pending_generation", None)
+        save_state(state)
+
+    marker_generation = 1
+    try:
+        marker_generation = int(marker.get("generation") or 1)
+    except (TypeError, ValueError):
+        pass
+    base_generation = max(_entry_generation(enrolled), marker_generation)
+    next_generation = base_generation + 1
+    next_code = secrets.token_hex(32)
+
+    # Persist intent first.  If the USB write or the final state write is
+    # interrupted, the next insertion accepts the pending code and completes
+    # the rotation instead of bricking the key.
+    enrolled["pending_sha256"] = token_hash(next_code)
+    enrolled["pending_generation"] = next_generation
+    save_state(state)
+    try:
+        write_marker(
+            mountpoint,
+            next_code,
+            entry,
+            generation=next_generation,
+            write_readme=False,
+        )
+    except Exception:
+        enrolled["pending_sha256"] = None
+        enrolled.pop("pending_generation", None)
+        save_state(state)
+        raise
+    enrolled["current_sha256"] = token_hash(next_code)
+    enrolled["token_sha256"] = enrolled["current_sha256"]
+    enrolled["generation"] = next_generation
+    enrolled["pending_sha256"] = None
+    enrolled.pop("pending_generation", None)
+    enrolled["rotated_at"] = now_iso()
+    save_state(state)
     return enrolled
 
 
@@ -753,12 +888,21 @@ def open_usb(path: str) -> None:
     if SKIP_SSH:
         return
     entry = device_info(path)
-    state = load_state()
-    with MountedUSB(entry, rw=False) as mountpoint:
-        marker = read_marker(mountpoint)
-        if marker is None:
-            raise ToolError("this USB stick is not an enrolled root key")
-        enrolled = validate_marker(state, entry, marker)
+    with state_lock():
+        state = load_state()
+        with MountedUSB(entry, rw=True) as mountpoint:
+            marker = read_marker(mountpoint)
+            if marker is None:
+                raise ToolError("this USB stick is not an enrolled root key")
+            enrolled, matched_pending = validate_marker(state, entry, marker)
+            enrolled = rotate_key_code(
+                state,
+                enrolled,
+                entry,
+                mountpoint,
+                marker,
+                matched_pending,
+            )
     start_ssh()
     ensure_private_dir(RUN_DIR)
     atomic_write(
@@ -767,6 +911,7 @@ def open_usb(path: str) -> None:
             {
                 "usb_id": enrolled.get("id"),
                 "uuid": entry.get("uuid"),
+                "generation": enrolled.get("generation"),
                 "opened_at": now_iso(),
             },
             indent=2,
@@ -774,7 +919,10 @@ def open_usb(path: str) -> None:
         + "\n",
         0o600,
     )
-    print(f"SSH enabled by USB key {enrolled.get('id')}")
+    print(
+        "SSH enabled by USB key "
+        f"{enrolled.get('id')} (code generation {enrolled.get('generation')})"
+    )
 
 
 def _other_enrolled_key_present(state: dict[str, Any], exclude_uuid: str) -> bool:
@@ -868,21 +1016,27 @@ def enroll(
     existing = _find_token(state, str(entry.get("uuid", "")), str(entry.get("serial", "")))
     with MountedUSB(entry, rw=True) as mountpoint:
         marker = read_marker(mountpoint)
-        token = ""
+        marker_generation = 0
         if marker is not None:
-            candidate = str(marker.get("token") or "")
-            if candidate and existing is not None:
-                if hmac.compare_digest(
-                    str(existing.get("token_sha256", "")), token_hash(candidate)
-                ):
-                    token = candidate
-            if not token and not force:
-                raise ToolError(
-                    "this USB stick already has a marker; use a different stick "
-                    "or pass --force to re-enroll it"
-                )
-        if not token:
-            token = secrets.token_hex(32)
+            try:
+                marker_generation = int(marker.get("generation") or 1)
+            except (TypeError, ValueError):
+                marker_generation = 1
+        if marker is not None and existing is None and not force:
+            raise ToolError(
+                "this USB stick already has a marker; use a different stick "
+                "or pass --force to re-enroll it"
+            )
+        # Enrollment always issues a fresh one-time code.  A copy of the old
+        # marker is invalid immediately.
+        code = secrets.token_hex(32)
+        if existing is not None or marker is not None:
+            generation = max(
+                _entry_generation(existing) if existing is not None else 1,
+                marker_generation,
+            ) + 1
+        else:
+            generation = 1
         public_lines = read_public_keys(mountpoint)
         generated_private = ""
         if generate or not public_lines:
@@ -903,18 +1057,25 @@ def enroll(
                 "the USB stick has no public key (*.pub). Put a key there "
                 "or run 'sudo lc keys new' to create one."
             )
-        write_marker(mountpoint, token, entry)
+        write_marker(
+            mountpoint,
+            code,
+            entry,
+            generation=generation,
+            write_readme=True,
+        )
         added = add_public_keys(public_lines, source="usb")
         if not added:
             # Still refresh ownership/permissions of an existing file.
             write_authorized_keys(load_authorized_keys())
         usb_entry = add_usb_token(
             state,
-            token,
+            code,
             uuid=str(entry.get("uuid", "")),
             serial=str(entry.get("serial", "")),
             label=str(entry.get("label", "")),
             fstype=str(entry.get("fstype", "")),
+            generation=generation,
         )
         save_state(state)
 
@@ -934,7 +1095,7 @@ def enroll(
     ) or "no new keys (already present)"
     print("USB root key enrolled")
     print(f"  USB:    {entry.get('path')} ({entry.get('label') or 'no label'})")
-    print(f"  token:  {usb_entry['id']}")
+    print(f"  token:  {usb_entry['id']} (generation {usb_entry.get('generation')})")
     print(f"  keys:   {keys_text}")
     if generated_private:
         print(f"  new private key on USB: {generated_private}")
@@ -1051,6 +1212,7 @@ def show_usb_keys() -> None:
     for index, entry in enumerate(entries, 1):
         print(
             f"  {index}. {entry.get('id', '?')}  UUID={entry.get('uuid', '?')}  "
+            f"gen={entry.get('generation', 1)}  "
             f"{entry.get('label') or '(no label)'}"
         )
 
@@ -1219,6 +1381,7 @@ def manager() -> None:
                         (
                             str(entry.get("id")),
                             f"{entry.get('id')}  {entry.get('uuid')}  "
+                            f"gen={entry.get('generation', 1)}  "
                             f"{entry.get('label') or ''}",
                         )
                         for entry in entries

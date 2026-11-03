@@ -104,21 +104,48 @@ class UsbRootKeyTests(unittest.TestCase):
         loaded = self.key_module.load_state()
         self.assertEqual(loaded["usb_keys"][0]["id"], entry["id"])
         marker = {
-            "version": 1,
-            "token": token,
+            "version": 2,
+            "code": token,
+            "generation": 1,
             "uuid": "1234-ABCD",
             "serial": "SERIAL-1",
         }
-        validated = self.key_module.validate_marker(
+        validated, matched_pending = self.key_module.validate_marker(
             loaded, {"uuid": "1234-ABCD", "serial": "SERIAL-1"}, marker
         )
         self.assertEqual(validated["id"], entry["id"])
+        self.assertFalse(matched_pending)
 
-        bad_marker = dict(marker, token="b" * 64)
+        bad_marker = dict(marker, code="b" * 64)
         with self.assertRaises(self.key_module.ToolError):
             self.key_module.validate_marker(
                 loaded, {"uuid": "1234-ABCD", "serial": "SERIAL-1"}, bad_marker
             )
+
+    def test_v1_marker_is_migrated_on_next_open(self) -> None:
+        state = self.key_module.default_state()
+        code = "2" * 64
+        state["usb_keys"] = [
+            {
+                "id": "oldid",
+                "uuid": "OLD-0001",
+                "serial": "OLD-SERIAL",
+                "label": "old",
+                "token_sha256": self.key_module.token_hash(code),
+            }
+        ]
+        state["ssh_gate"] = True
+        marker = {
+            "version": 1,
+            "token": code,
+            "uuid": "OLD-0001",
+            "serial": "OLD-SERIAL",
+        }
+        enrolled, matched_pending = self.key_module.validate_marker(
+            state, {"uuid": "OLD-0001", "serial": "OLD-SERIAL"}, marker
+        )
+        self.assertEqual(enrolled["id"], "oldid")
+        self.assertFalse(matched_pending)
 
     def test_usb_marker_and_udev_rule(self) -> None:
         state = self.key_module.default_state()
@@ -132,15 +159,141 @@ class UsbRootKeyTests(unittest.TestCase):
             mount,
             token,
             {"uuid": "ABCD-1234", "serial": "SERIAL-2", "label": "key2"},
+            generation=1,
         )
         marker = self.key_module.read_marker(mount)
         assert marker is not None
-        self.assertEqual(marker["token"], token)
+        self.assertEqual(marker["version"], 2)
+        self.assertEqual(marker["code"], token)
+        self.assertEqual(marker["generation"], 1)
         self.assertTrue((mount / "LC_ROOT_KEY_README.txt").is_file())
         rules = self.key_module.render_udev_rules(state)
         self.assertIn('ENV{ID_FS_UUID}=="ABCD-1234"', rules)
         self.assertIn("lc-usb-key@%k.service", rules)
         self.assertEqual(entry["label"], "key2")
+
+    def test_rotation_invalidates_a_copied_old_code(self) -> None:
+        state = self.key_module.default_state()
+        old_code = "e" * 64
+        entry = self.key_module.add_usb_token(
+            state, old_code, uuid="ROTATE-0001", serial="SERIAL-R", label="rotate"
+        )
+        mount = self.root / "usb"
+        mount.mkdir()
+        self.key_module.write_marker(
+            mount,
+            old_code,
+            {"uuid": "ROTATE-0001", "serial": "SERIAL-R", "label": "rotate"},
+            generation=1,
+        )
+        marker = self.key_module.read_marker(mount)
+        assert marker is not None
+        enrolled, matched_pending = self.key_module.validate_marker(
+            state, {"uuid": "ROTATE-0001", "serial": "SERIAL-R"}, marker
+        )
+        self.assertFalse(matched_pending)
+        self.key_module.rotate_key_code(
+            state, enrolled, {"uuid": "ROTATE-0001", "serial": "SERIAL-R"}, mount, marker, matched_pending
+        )
+        new_marker = self.key_module.read_marker(mount)
+        assert new_marker is not None
+        self.assertNotEqual(new_marker["code"], old_code)
+        self.assertEqual(new_marker["generation"], 2)
+        self.assertTrue(state["usb_keys"][0]["generation"] == 2)
+
+        # A copy made before rotation still has the old code and must fail.
+        with self.assertRaises(self.key_module.ToolError):
+            self.key_module.validate_marker(
+                state,
+                {"uuid": "ROTATE-0001", "serial": "SERIAL-R"},
+                {"version": 2, "code": old_code, "generation": 1, "uuid": "ROTATE-0001", "serial": "SERIAL-R"},
+            )
+
+        # The new code is accepted.
+        enrolled2, matched_pending2 = self.key_module.validate_marker(
+            state,
+            {"uuid": "ROTATE-0001", "serial": "SERIAL-R"},
+            new_marker,
+        )
+        self.assertEqual(enrolled2["id"], entry["id"])
+        self.assertFalse(matched_pending2)
+
+    def test_pending_code_recovers_after_interrupted_rotation(self) -> None:
+        state = self.key_module.default_state()
+        old_code = "f" * 64
+        new_code = "1" * 64
+        entry = self.key_module.add_usb_token(
+            state, old_code, uuid="PENDING-0001", serial="SERIAL-P", label="pending"
+        )
+        entry["pending_sha256"] = self.key_module.token_hash(new_code)
+        entry["pending_generation"] = 2
+        mount = self.root / "usb"
+        mount.mkdir()
+        self.key_module.write_marker(
+            mount,
+            new_code,
+            {"uuid": "PENDING-0001", "serial": "SERIAL-P", "label": "pending"},
+            generation=2,
+        )
+        marker = self.key_module.read_marker(mount)
+        assert marker is not None
+        enrolled, matched_pending = self.key_module.validate_marker(
+            state, {"uuid": "PENDING-0001", "serial": "SERIAL-P"}, marker
+        )
+        self.assertTrue(matched_pending)
+        self.key_module.rotate_key_code(
+            state,
+            enrolled,
+            {"uuid": "PENDING-0001", "serial": "SERIAL-P"},
+            mount,
+            marker,
+            matched_pending,
+        )
+        self.assertEqual(state["usb_keys"][0]["generation"], 3)
+
+    def test_open_usb_rotates_code_and_starts_once(self) -> None:
+        state = self.key_module.default_state()
+        old_code = "3" * 64
+        entry = self.key_module.add_usb_token(
+            state, old_code, uuid="OPEN-0001", serial="SERIAL-O", label="open"
+        )
+        self.key_module.save_state(state)
+        mount = self.root / "usb-open"
+        mount.mkdir()
+        self.key_module.write_marker(
+            mount,
+            old_code,
+            {"uuid": "OPEN-0001", "serial": "SERIAL-O", "label": "open"},
+            generation=1,
+        )
+        info = {
+            "path": "/dev/fake",
+            "source": str(mount),
+            "uuid": "OPEN-0001",
+            "serial": "SERIAL-O",
+            "label": "open",
+            "fstype": "dir",
+        }
+        self.key_module.SKIP_SSH = False
+        with (
+            mock.patch.object(self.key_module, "device_info", lambda _path: info),
+            mock.patch.object(self.key_module, "start_ssh", lambda: None),
+        ):
+            self.key_module.open_usb("/dev/fake")
+        marker = self.key_module.read_marker(mount)
+        assert marker is not None
+        self.assertNotEqual(marker["code"], old_code)
+        self.assertEqual(marker["code"] != old_code, True)
+        self.assertEqual(marker["generation"], 2)
+        loaded = self.key_module.load_state()
+        self.assertEqual(loaded["usb_keys"][0]["generation"], 2)
+        self.assertTrue((self.key_module.RUN_DIR / "active.json").is_file())
+        with self.assertRaises(self.key_module.ToolError):
+            self.key_module.validate_marker(
+                loaded,
+                {"uuid": "OPEN-0001", "serial": "SERIAL-O"},
+                {"version": 2, "code": old_code, "generation": 1, "uuid": "OPEN-0001", "serial": "SERIAL-O"},
+            )
 
     def test_remove_last_usb_token_disables_gate(self) -> None:
         state = self.key_module.default_state()
