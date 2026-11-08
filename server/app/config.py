@@ -33,6 +33,7 @@ class Settings:
     bruteforce_login_attempt_limit: int
     bruteforce_ip_attempt_limit: int
     bruteforce_block_ms: int
+    debug_trace_enabled: bool
 
 
 def _read_str(
@@ -186,6 +187,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         min_value=10000,
         max_value=86400000,
     )
+    debug_trace_enabled = _read_bool(source, "LCS_DEBUG_TRACE_ENABLED", False)
 
     if profile == "prod":
         if reload_enabled:
@@ -214,6 +216,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         bruteforce_login_attempt_limit=bruteforce_login_attempt_limit,
         bruteforce_ip_attempt_limit=bruteforce_ip_attempt_limit,
         bruteforce_block_ms=bruteforce_block_ms,
+        debug_trace_enabled=debug_trace_enabled,
     )
 
 

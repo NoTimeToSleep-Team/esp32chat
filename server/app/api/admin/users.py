@@ -51,6 +51,12 @@ class AdminResetPasswordRequest(BaseModel):
 
 
 
+async def _disconnect_user(request: Request, user_id: int) -> None:
+    broker = getattr(request.app.state, "realtime_broker", None)
+    if broker is not None:
+        await broker.disconnect_all_user(user_id)
+
+
 def _template_path() -> Path:
     return Path(__file__).resolve().parents[2] / "templates" / "admin" / "users" / "index.html"
 
@@ -209,6 +215,7 @@ async def ban_user(
     except AdminUsersError as exc:
         _raise_admin_error(exc)
 
+    await _disconnect_user(request, user_id)
     return {
         "status": "ok",
         "user": _admin_user_payload(record),
@@ -257,6 +264,7 @@ async def temporary_block_user(
     except AdminUsersError as exc:
         _raise_admin_error(exc)
 
+    await _disconnect_user(request, user_id)
     return {
         "status": "ok",
         "user": _admin_user_payload(record),
@@ -282,6 +290,7 @@ async def blacklist_device(
     except AdminUsersError as exc:
         _raise_admin_error(exc)
 
+    await _disconnect_user(request, user_id)
     return {
         "status": "ok",
         "user": _admin_user_payload(record),
@@ -370,6 +379,7 @@ async def reset_user_password(
     from app.services.auth import AuthService
     auth = AuthService(db_path=request.app.state.data_layer.database_path)
     auth.revoke_user_sessions(user_id)
+    await _disconnect_user(request, user_id)
     return {"status": "ok", "login": user["login"], "message": "Password reset. All sessions revoked."}
 
 
@@ -390,6 +400,7 @@ async def delete_user(
     except AdminUsersError as exc:
         _raise_admin_error(exc)
 
+    await _disconnect_user(request, user_id)
     return {
         "status": "ok",
         "deleted_user_id": deleted_user_id,

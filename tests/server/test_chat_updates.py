@@ -74,7 +74,12 @@ def main() -> int:
     status, data = request(
         "POST",
         "/auth/login",
-        {"login": ADMIN_LOGIN, "password": ADMIN_PASSWORD, "client_kind": "web"},
+        {
+            "login": ADMIN_LOGIN,
+            "password": ADMIN_PASSWORD,
+            "device_id": "test-admin-web",
+            "client_kind": "web",
+        },
     )
     token = str(data.get("session", {}).get("token", ""))
     check("admin login", status == 200 and len(token) >= 8, f"{status} {str(data)[:140]}")

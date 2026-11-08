@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from time import monotonic
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
@@ -92,6 +93,21 @@ def _to_message_dict(chat_message: object) -> dict[str, object]:
 async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
     await websocket.accept()
 
+    client_ip = websocket.client.host if websocket.client is not None else ""
+    limiter = getattr(websocket.app.state, "rate_limiter", None)
+    if limiter is not None:
+        decision = limiter.check(
+            ip_address=client_ip or "unknown",
+            path=f"/realtime/chat/{chat_id}",
+            now_ms=int(monotonic() * 1000),
+        )
+        if not decision.allowed:
+            await websocket.send_json(
+                _error_payload("rate_limited", "Too many WebSocket handshake attempts")
+            )
+            await websocket.close(code=4429)
+            return
+
     session_token = (websocket.query_params.get("session_token") or "").strip()
     if not session_token:
         await websocket.send_json(_error_payload("missing_session", "session_token is required"))
@@ -128,7 +144,17 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
         await websocket.close(code=4403)
         return
 
-    await broker.connect(chat_id=chat_id, websocket=websocket, user_id=user_id)
+    connected = await broker.connect(
+        chat_id=chat_id,
+        websocket=websocket,
+        user_id=user_id,
+        session_id=session.session.token,
+        expires_at_ms=session.session.expires_at_ms,
+        ip_address=client_ip,
+        device_id=session.session.device_id,
+    )
+    if not connected:
+        return
     await websocket.send_json(
         {
             "type": "realtime.connected",
@@ -136,6 +162,14 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
             "user_id": user_id,
         }
     )
+
+    def refresh_session() -> bool:
+        nonlocal session
+        try:
+            session = auth_service.get_session(session_token, client_kind=ClientKind.WEB)
+        except AuthError:
+            return False
+        return session.user.user_id == user_id
 
     try:
         while True:
@@ -146,6 +180,12 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
                     _error_payload("invalid_frame", "Only text WebSocket frames are supported")
                 )
                 continue
+            if not refresh_session():
+                await websocket.send_json(
+                    _error_payload("invalid_session", "Session is no longer valid")
+                )
+                await websocket.close(code=4401)
+                return
             if len(raw.encode("utf-8")) > MAX_WS_FRAME_BYTES:
                 await websocket.send_json(
                     _error_payload("frame_too_large", "WebSocket frame exceeds 64KB")

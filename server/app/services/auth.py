@@ -108,15 +108,25 @@ class AuthService:
                 raise AuthError("invalid_credentials", "Invalid login or password", 401)
 
             normalized_device = (device_id or "").strip()
-            if normalized_device and connection.execute(
-                "SELECT 1 FROM device_blacklist WHERE device_id = ?",
-                (normalized_device,),
-            ).fetchone() is not None:
+            if client_kind == ClientKind.WEB and not normalized_device:
                 raise AuthError(
-                    "device_blacklisted",
-                    "This device is blocked by the administrator",
-                    403,
+                    "device_required",
+                    "A stable device id is required for web login",
+                    422,
                 )
+            registered_device = str(user_row["registration_device_id"] or "").strip()
+            for candidate in {normalized_device, registered_device}:
+                if not candidate:
+                    continue
+                if connection.execute(
+                    "SELECT 1 FROM device_blacklist WHERE device_id = ?",
+                    (candidate,),
+                ).fetchone() is not None:
+                    raise AuthError(
+                        "device_blacklisted",
+                        "This device is blocked by the administrator",
+                        403,
+                    )
 
             refreshed = self._refresh_temporary_block_if_needed(
                 connection,
@@ -149,9 +159,12 @@ class AuthService:
                 device_id=normalized_device or None,
             )
             if normalized_device:
+                # Keep the first device as the account's registration identity.
+                # Letting every login overwrite it would make the device
+                # blacklist trivially bypassable by generating a new id.
                 connection.execute(
-                    "UPDATE users SET registration_device_id = ? WHERE id = ? AND COALESCE(registration_device_id, '') != ?",
-                    (normalized_device, int(user_row["id"]), normalized_device),
+                    "UPDATE users SET registration_device_id = ? WHERE id = ? AND COALESCE(registration_device_id, '') = ''",
+                    (normalized_device, int(user_row["id"])),
                 )
             return AuthResult(user=user, session=session, access_mode=access_mode)
 
@@ -176,13 +189,24 @@ class AuthService:
             raise AuthError("invalid_user_id", "Invalid user ID", 400)
         with self._connect() as connection:
             user_row = connection.execute(
-                "SELECT id, login, password_hash, role, status FROM users WHERE id = ?",
+                "SELECT id, login, password_hash, role, status, registration_device_id FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
             if user_row is None:
                 raise AuthError("user_not_found", "User not found", 404)
             if str(user_row["status"]) not in ("active",):
                 raise AuthError("user_blocked", "User account is not active", 403)
+            normalized_device = (device_id or "").strip()
+            for candidate in {normalized_device, str(user_row["registration_device_id"] or "").strip()}:
+                if candidate and connection.execute(
+                    "SELECT 1 FROM device_blacklist WHERE device_id = ?",
+                    (candidate,),
+                ).fetchone() is not None:
+                    raise AuthError(
+                        "device_blacklisted",
+                        "This device is blocked by the administrator",
+                        403,
+                    )
             user = self._row_to_user(user_row)
             access_mode = self._read_access_mode(connection)
             session = self._create_session(
@@ -272,7 +296,8 @@ class AuthService:
                     u.login,
                     u.password_hash,
                     u.role,
-                    u.status
+                    u.status,
+                    u.registration_device_id
                 FROM sessions s
                 JOIN users u ON u.id = s.user_id
                 WHERE s.id = ? AND s.revoked_at_ms IS NULL
@@ -291,6 +316,23 @@ class AuthService:
                 )
                 raise AuthError("session_expired", "Session has expired", 401)
 
+            session_device = str(row["device_id"] or "").strip()
+            registered_device = str(row["registration_device_id"] or "").strip()
+            for candidate in {session_device, registered_device}:
+                if candidate and connection.execute(
+                    "SELECT 1 FROM device_blacklist WHERE device_id = ?",
+                    (candidate,),
+                ).fetchone() is not None:
+                    connection.execute(
+                        "UPDATE sessions SET revoked_at_ms = ? WHERE id = ?",
+                        (now_ms, token),
+                    )
+                    raise AuthError(
+                        "device_blacklisted",
+                        "This device is blocked by the administrator",
+                        403,
+                    )
+
             refreshed = self._refresh_temporary_block_if_needed(
                 connection,
                 user_id=int(row["user_id"]),
@@ -308,7 +350,8 @@ class AuthService:
                         u.login,
                         u.password_hash,
                         u.role,
-                        u.status
+                        u.status,
+                        u.registration_device_id
                     FROM sessions s
                     JOIN users u ON u.id = s.user_id
                     WHERE s.id = ? AND s.revoked_at_ms IS NULL
@@ -359,7 +402,7 @@ class AuthService:
     def _read_login_row(connection: sqlite3.Connection, *, login: str) -> sqlite3.Row | None:
         return connection.execute(
             """
-            SELECT id, login, password_hash, role, status
+            SELECT id, login, password_hash, role, status, registration_device_id
             FROM users
             WHERE login = ?
             """,

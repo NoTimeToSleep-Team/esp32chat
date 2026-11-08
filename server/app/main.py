@@ -83,6 +83,10 @@ def create_app() -> FastAPI:
         app.state.security_audit = SecurityAuditService(
             db_path=app.state.data_layer.database_path
         )
+        try:
+            DebugLogService(db_path=app.state.data_layer.database_path).prune()
+        except Exception:
+            pass
 
         chat_service = ChatService(app.state.data_layer.database_path)
         default_chat = chat_service.ensure_default_common_chat()
@@ -260,6 +264,19 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def client_debug_trace_middleware(request: Request, call_next):
+        # Debug traces are a development aid.  In production a client-controlled
+        # header must never turn every request into a synchronous SQLite write.
+        if not settings.debug_trace_enabled:
+            return await call_next(request)
+        path = request.url.path
+        if (
+            path.startswith("/health")
+            or path.startswith("/static/")
+            or path.startswith("/docs")
+            or path.startswith("/redoc")
+            or path == "/openapi.json"
+        ):
+            return await call_next(request)
         trace_id = request.headers.get("x-debug-trace")
         if not trace_id:
             return await call_next(request)

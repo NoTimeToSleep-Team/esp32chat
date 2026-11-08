@@ -48,7 +48,7 @@ def main() -> int:
     status, body = request(
         "POST",
         "/auth/login",
-        {"login": LOGIN, "password": PASSWORD, "client_kind": "web"},
+        {"login": LOGIN, "password": PASSWORD, "device_id": "test-second-web", "client_kind": "web"},
     )
     if status != 200:
         status, body = request(

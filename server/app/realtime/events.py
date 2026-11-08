@@ -3,8 +3,12 @@ from __future__ import annotations
 from app.models import ChatMessage
 
 
-def chat_message_payload(message: ChatMessage) -> dict[str, object]:
-    return {
+def chat_message_payload(
+    message: ChatMessage,
+    *,
+    include_reply_preview: bool = True,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
         "message_id": message.message_id,
         "chat_id": message.chat_id,
         "author_user_id": message.author_user_id,
@@ -15,8 +19,6 @@ def chat_message_payload(message: ChatMessage) -> dict[str, object]:
         "created_at_ms": message.created_at_ms,
         "edited_at_ms": message.edited_at_ms,
         "reply_to_message_id": message.reply_to_message_id,
-        "reply_to_login": message.reply_to_login,
-        "reply_to_text": (message.reply_to_text or "")[:200] or None,
         "forwarded_from_login": message.forwarded_from_login,
         "forwarded_from_chat_id": message.forwarded_from_chat_id,
         "reactions": [
@@ -61,12 +63,20 @@ def chat_message_payload(message: ChatMessage) -> dict[str, object]:
             for item in message.attachments
         ],
     }
+    if include_reply_preview:
+        payload["reply_to_login"] = message.reply_to_login
+        payload["reply_to_text"] = (message.reply_to_text or "")[:200] or None
+    return payload
 
 
 def chat_message_event(message: ChatMessage) -> dict[str, object]:
+    # Broadcasts are shared by every room member.  A reply preview must be
+    # filtered per viewer because history_visible=false can hide the parent
+    # message from newly joined members.  Send only the id; the client can
+    # resolve the preview through the per-viewer HTTP history endpoint.
     return {
         "type": "chat.message",
-        "message": chat_message_payload(message),
+        "message": chat_message_payload(message, include_reply_preview=False),
     }
 
 

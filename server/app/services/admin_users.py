@@ -278,6 +278,12 @@ class AdminUsersService:
                 ),
             )
 
+            # A blacklist entry is only a boundary if it also terminates the
+            # sessions that were established before the entry existed.
+            connection.execute(
+                "UPDATE sessions SET revoked_at_ms = ? WHERE revoked_at_ms IS NULL AND user_id = ?",
+                (now_ms, target_user_id),
+            )
             entry_row = connection.execute(
                 "SELECT * FROM device_blacklist WHERE device_id = ?",
                 (selected_device_id,),

@@ -300,13 +300,16 @@ async def guest_login(payload: GuestRequest, request: Request) -> dict[str, obje
 async def logout(payload: LogoutRequest, request: Request) -> dict[str, object]:
     service = _auth_service(request)
     try:
-        service.get_session(payload.session_token, client_kind=ClientKind.WEB)
+        session = service.get_session(payload.session_token, client_kind=ClientKind.WEB)
     except AuthError as exc:
         raise HTTPException(
             status_code=401,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
     revoked = service.logout(payload.session_token)
+    broker = getattr(request.app.state, "realtime_broker", None)
+    if broker is not None:
+        await broker.disconnect_session(session.session.token)
     return {
         "status": "ok",
         "revoked": revoked,

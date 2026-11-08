@@ -137,14 +137,22 @@ function staticValidate() {
   e.style.display = "none";
   return { login: l, pass: p, phone: ph };
 }
+function staticDeviceId() {
+  var id = localStorage.getItem("lc_device_id");
+  if (!id) {
+    id = "web-" + (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)));
+    localStorage.setItem("lc_device_id", id);
+  }
+  return id;
+}
 async function staticSubmit() {
   var v = staticValidate();
   if (!v) return;
   var isReg = staticMode === "register";
   var url = isReg ? "/auth/register" : "/auth/login";
   var payload = isReg
-    ? { login: v.login, password: v.pass, phone: v.phone || "No Phone", device_id: "web-" + Date.now().toString(36), client_kind: "web" }
-    : { login: v.login, password: v.pass, client_kind: "web" };
+    ? { login: v.login, password: v.pass, phone: v.phone || "No Phone", device_id: staticDeviceId(), client_kind: "web" }
+    : { login: v.login, password: v.pass, device_id: staticDeviceId(), client_kind: "web" };
   var btn = document.getElementById("sbtn"); btn.disabled = true;
   var tr = (isReg ? "reg-" : "login-") + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
   var t1 = Date.now();

@@ -41,6 +41,12 @@ def _auth_service(request: Request) -> AuthService:
     return AuthService(db_path=data_layer.database_path)
 
 
+async def _disconnect_device(request: Request, device_id: str) -> None:
+    broker = getattr(request.app.state, "realtime_broker", None)
+    if broker is not None:
+        await broker.disconnect_device(device_id)
+
+
 def _require_admin_web_session(request: Request, session_token: str):
     """Resolve a web admin session and translate AuthError to HTTP responses."""
     service = _auth_service(request)
@@ -301,6 +307,7 @@ async def pair_device(request: Request, payload: PairDeviceRequest) -> dict[str,
     conn.commit()
     conn.close()
     _auth_service(request).revoke_device_sessions(payload.device_id)
+    await _disconnect_device(request, payload.device_id)
     return {"status": "ok", "device_id": payload.device_id, "user_id": user_id}
 
 
@@ -328,6 +335,7 @@ async def unpair_device(request: Request, payload: UnpairDeviceRequest) -> dict[
             detail={"code": "pairing_not_found", "message": "Active pairing for this device was not found"},
         )
     _auth_service(request).revoke_device_sessions(payload.device_id)
+    await _disconnect_device(request, payload.device_id)
     return {"status": "ok"}
 
 
@@ -462,6 +470,7 @@ async def claim_pairing_code(
 
     auth_service = _auth_service(request)
     auth_service.revoke_device_sessions(device.device_id)
+    await _disconnect_device(request, device.device_id)
     return {"status": "ok", "device": _paired_device_payload(device)}
 
 
@@ -483,6 +492,7 @@ async def reset_device_identity(
 
     auth_service = _auth_service(request)
     auth_service.revoke_device_sessions(payload.device_id)
+    await _disconnect_device(request, payload.device_id)
     return {"status": "ok", "reset": reset, "device_id": payload.device_id}
 
 

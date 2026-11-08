@@ -437,6 +437,12 @@ class ChatService:
                     403,
                 )
             chat = self._require_chat(connection, chat_id)
+            if self._is_dm(connection, chat):
+                raise ChatError(
+                    "dm_immutable",
+                    "Direct chats cannot have additional members",
+                    403,
+                )
 
             owner_id = self._chat_owner_user_id(connection, chat)
             if (
@@ -519,6 +525,8 @@ class ChatService:
                     "Private join is available only for custom chats",
                     409,
                 )
+            if self._is_dm(connection, chat):
+                raise ChatError("chat_private", "Direct chats cannot be joined", 403)
 
             existing = connection.execute(
                 "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
@@ -782,7 +790,31 @@ class ChatService:
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Only custom chats can be edited", 409)
-            if not self._has_permission(
+            is_dm = self._is_dm(connection, chat)
+            safety_unpublish = False
+            if is_dm:
+                # A participant must be able to revoke a legacy public DM, but
+                # nobody may publish, rename or otherwise convert a DM here.
+                safety_unpublish = (
+                    is_public is False
+                    and username is None
+                    and title is None
+                    and description is None
+                    and slow_mode_seconds is None
+                    and history_visible is None
+                    and self._member_role_value(
+                        connection,
+                        chat_id=chat_id,
+                        user_id=actor_user_id,
+                    ) is not None
+                )
+                if not safety_unpublish:
+                    raise ChatError(
+                        "dm_immutable",
+                        "Direct chats cannot be renamed or published",
+                        403,
+                    )
+            if not safety_unpublish and not self._has_permission(
                 connection, chat_row=chat, user_id=actor_user_id, permission="change_info"
             ):
                 raise ChatError("forbidden", "Only the owner or an admin can change chat info", 403)
@@ -793,7 +825,7 @@ class ChatService:
             owner_or_platform = self._is_chat_owner(
                 connection, chat_row=chat, user_id=actor_user_id
             ) or self._is_admin(connection, user_id=actor_user_id)
-            if not owner_or_platform:
+            if not owner_or_platform and not safety_unpublish:
                 sensitive_change = (
                     (is_public is not None and bool(is_public) != current_public)
                     or (
@@ -965,6 +997,19 @@ class ChatService:
             if target is None:
                 raise ChatError("member_not_found", "Member not found", 404)
 
+            if self._is_dm(connection, chat):
+                if target_user_id != actor_user_id:
+                    raise ChatError(
+                        "dm_immutable",
+                        "A direct chat participant cannot remove the other participant",
+                        403,
+                    )
+                connection.execute(
+                    "DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                    (chat_id, target_user_id),
+                )
+                return
+
             if target_user_id == actor_user_id:
                 if str(target["role"]) == ChatMemberRole.OWNER.value:
                     raise ChatError(
@@ -1005,6 +1050,14 @@ class ChatService:
 
             if str(chat["kind"]) == ChatKind.COMMON.value:
                 raise ChatError("common_chat_protected", "The general chat cannot be deleted", 409)
+            if self._is_dm(connection, chat) and not self._is_platform_moderator(
+                connection, user_id=actor_user_id
+            ):
+                raise ChatError(
+                    "dm_delete_forbidden",
+                    "A direct chat cannot be deleted unilaterally",
+                    403,
+                )
 
             is_owner_or_platform = self._is_chat_owner(
                 connection, chat_row=chat, user_id=actor_user_id
@@ -1031,6 +1084,12 @@ class ChatService:
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Ownership is transferred only in custom chats", 409)
+            if self._is_dm(connection, chat):
+                raise ChatError(
+                    "dm_immutable",
+                    "Direct chats have no transferable owner",
+                    403,
+                )
             if not (
                 self._is_chat_owner(connection, chat_row=chat, user_id=actor_user_id)
                 or self._is_admin(connection, user_id=actor_user_id)
@@ -1089,6 +1148,8 @@ class ChatService:
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Roles are managed only in custom chats", 409)
+            if self._is_dm(connection, chat):
+                raise ChatError("dm_immutable", "Direct chats have no member roles", 403)
             self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change member roles")
 
             if role == ChatMemberRole.OWNER:
@@ -1147,6 +1208,8 @@ class ChatService:
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Permissions are managed only in custom chats", 409)
+            if self._is_dm(connection, chat):
+                raise ChatError("dm_immutable", "Direct chats have no member permissions", 403)
             self._require_chat_manager(connection, chat_row=chat, actor=actor, action="change admin rights")
 
             target = connection.execute(
@@ -1189,6 +1252,8 @@ class ChatService:
 
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Invites are available only for custom chats", 409)
+            if self._is_dm(connection, chat):
+                raise ChatError("dm_immutable", "Direct chats cannot have invite links", 403)
             self._require_chat_manager(connection, chat_row=chat, actor=actor, action="manage invites")
 
             now_ms = _now_ms()
@@ -1293,6 +1358,8 @@ class ChatService:
             chat = self._require_chat(connection, invite.chat_id)
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError("invalid_chat_kind", "Cannot join this chat", 409)
+            if self._is_dm(connection, chat):
+                raise ChatError("dm_immutable", "Direct chats cannot be joined by invite", 403)
 
             owner_id = self._chat_owner_user_id(connection, chat)
             if (
@@ -1350,12 +1417,12 @@ class ChatService:
                 raise ChatError("guest_forbidden", "Guest accounts cannot join public chats", 403)
             if chat_id:
                 row = connection.execute(
-                    "SELECT * FROM chats WHERE id = ? AND is_public = 1",
+                    "SELECT * FROM chats WHERE id = ? AND is_public = 1 AND is_private = 0",
                     (int(chat_id),),
                 ).fetchone()
             else:
                 row = connection.execute(
-                    "SELECT * FROM chats WHERE username = ? AND is_public = 1",
+                    "SELECT * FROM chats WHERE username = ? AND is_public = 1 AND is_private = 0",
                     (normalized,),
                 ).fetchone()
             if row is None:
@@ -1379,6 +1446,8 @@ class ChatService:
                     )
                 raise ChatError("chat_not_found", "Chat not found", 404)
 
+            if self._is_dm(connection, row):
+                raise ChatError("chat_private", "Direct chats cannot be joined publicly", 403)
             existing = connection.execute(
                 "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
                 (self._row_int(row, "id"), user_id),
@@ -1411,11 +1480,15 @@ class ChatService:
         safe_limit = min(max(int(limit), 1), 50)
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
+            if self._is_guest(connection, user_id=user_id):
+                return []
             rows = connection.execute(
                 """
                 SELECT c.*
                 FROM chats c
                 WHERE c.is_public = 1
+                  AND c.chat_type != 'dm'
+                  AND c.is_private = 0
                   AND NOT EXISTS (
                       SELECT 1 FROM chat_members m
                       WHERE m.chat_id = c.id AND m.user_id = ?
@@ -1619,6 +1692,7 @@ class ChatService:
             self._require_active_user(connection, user_id)
             chat = self._require_chat(connection, chat_id)
             self._require_chat_member(connection, chat_row=chat, user_id=user_id)
+            self._require_not_blocked(connection, chat_row=chat, user_id=user_id)
 
             row = connection.execute(
                 "SELECT * FROM chat_messages WHERE id = ? AND chat_id = ?",
@@ -1696,6 +1770,13 @@ class ChatService:
                 raise ChatError("forbidden", "User has no access to the target chat", 403)
             if not self._can_post(connection, chat_row=target_chat, user_id=actor_user_id):
                 raise ChatError("read_only", "Only admins can post in this chat", 403)
+            if not self._is_platform_moderator(connection, user_id=actor_user_id):
+                self._require_not_blocked(
+                    connection,
+                    chat_row=target_chat,
+                    user_id=actor_user_id,
+                )
+            self._enforce_slow_mode(connection, chat_row=target_chat, user_id=actor_user_id)
 
             now_ms = _now_ms()
             cursor = connection.execute(
@@ -1877,7 +1958,7 @@ class ChatService:
 
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
-            params: list[object] = [user_id, f"%{needle}%", user_id]
+            params: list[object] = [user_id, f"%{needle}%", user_id, user_id]
             chat_filter = ""
             if chat_id is not None:
                 chat_filter = " AND c.id = ? "
@@ -1902,7 +1983,12 @@ class ChatService:
                         c.kind = 'common'
                      OR cm.user_id IS NOT NULL
                      OR EXISTS (SELECT 1 FROM users a WHERE a.id = ? AND a.role IN ('admin','moderator'))
-                     OR (c.is_public = 1 AND c.history_visible = 1)
+                     OR (
+                         c.is_public = 1
+                         AND c.history_visible = 1
+                         AND c.chat_type != 'dm'
+                         AND (SELECT role FROM users WHERE id = ?) != 'guest'
+                     )
                   )
                   AND m.created_at_ms >= COALESCE(cm.cleared_at_ms, 0)
                   AND (c.history_visible = 1 OR m.created_at_ms >= COALESCE(cm.joined_at_ms, 0))
@@ -2009,6 +2095,12 @@ class ChatService:
                 raise ChatError("forbidden", "User has no access to this chat", 403)
             if not self._can_post(connection, chat_row=chat, user_id=author_user_id):
                 raise ChatError("read_only", "Only admins can post in this chat", 403)
+            if not self._is_platform_moderator(connection, user_id=author_user_id):
+                self._require_not_blocked(
+                    connection,
+                    chat_row=chat,
+                    user_id=author_user_id,
+                )
             self._enforce_slow_mode(connection, chat_row=chat, user_id=author_user_id)
 
             now_ms = _now_ms()
@@ -2066,6 +2158,7 @@ class ChatService:
             self._require_active_user(connection, user_id)
             chat = self._require_chat(connection, chat_id)
             self._require_chat_member(connection, chat_row=chat, user_id=user_id)
+            self._require_not_blocked(connection, chat_row=chat, user_id=user_id)
 
             row = connection.execute(
                 "SELECT * FROM chat_polls WHERE id = ? AND chat_id = ?",
@@ -2482,6 +2575,46 @@ class ChatService:
         ).fetchone()
         return count_row is not None and int(count_row["n"]) == 2
 
+    def _is_dm(self, connection: sqlite3.Connection, chat_row: sqlite3.Row) -> bool:
+        """DM includes legacy two-member private rooms without a room code."""
+        if str(chat_row["kind"]) != ChatKind.CUSTOM.value:
+            return False
+        chat_type = self._row_optional_str_lenient(chat_row, "chat_type") or ChatType.GROUP.value
+        if chat_type == ChatType.DM.value:
+            return True
+        return self._is_private_dialog(connection, chat_row)
+
+    def _require_not_blocked(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+        user_id: int,
+    ) -> None:
+        """Apply blocks to every message-creating path in a DM.
+
+        Previously only send_message checked blocks and only when the room had
+        exactly two members.  Forwarding, polls, edits and reactions bypassed
+        it, and adding a third member disabled it entirely.
+        """
+        if not self._is_dm(connection, chat_row):
+            return
+        rows = connection.execute(
+            "SELECT user_id FROM chat_members WHERE chat_id = ? AND user_id != ?",
+            (self._row_int(chat_row, "id"), user_id),
+        ).fetchall()
+        for row in rows:
+            if self._is_blocked_between(
+                connection,
+                user_a=user_id,
+                user_b=int(row["user_id"]),
+            ):
+                raise ChatError(
+                    "blocked",
+                    "Messaging is not available: one of the users is blocked",
+                    403,
+                )
+
     def _delete_chat_data(self, connection: sqlite3.Connection, chat_id: int) -> None:
         row = connection.execute("SELECT avatar_path FROM chats WHERE id = ?", (chat_id,)).fetchone()
         avatar_path = self._row_optional_str_lenient(row, "avatar_path") if row is not None else None
@@ -2515,6 +2648,12 @@ class ChatService:
                     "invalid_chat_kind",
                     "Private room configuration is available only for custom chats",
                     409,
+                )
+            if self._is_dm(connection, chat):
+                raise ChatError(
+                    "dm_immutable",
+                    "Direct chats cannot be converted to private rooms",
+                    403,
                 )
 
             is_admin = str(actor["role"]) == UserRole.ADMIN.value
@@ -2607,23 +2746,12 @@ class ChatService:
             if not self._can_post(connection, chat_row=chat, user_id=author_user_id):
                 raise ChatError("read_only", "Only admins can post in this chat", 403)
 
-            if self._is_private_dialog(connection, chat) and not self._is_platform_moderator(
-                connection, user_id=author_user_id
-            ):
-                other = connection.execute(
-                    "SELECT user_id FROM chat_members WHERE chat_id = ? AND user_id != ? LIMIT 1",
-                    (chat_id, author_user_id),
-                ).fetchone()
-                if other is not None and self._is_blocked_between(
+            if not self._is_platform_moderator(connection, user_id=author_user_id):
+                self._require_not_blocked(
                     connection,
-                    user_a=author_user_id,
-                    user_b=int(other["user_id"]),
-                ):
-                    raise ChatError(
-                        "blocked",
-                        "Messaging is not available: one of the users is blocked",
-                        403,
-                    )
+                    chat_row=chat,
+                    user_id=author_user_id,
+                )
 
             self._enforce_slow_mode(connection, chat_row=chat, user_id=author_user_id)
 
@@ -2845,17 +2973,25 @@ class ChatService:
         if kind == ChatKind.COMMON.value:
             return True
 
+        member = connection.execute(
+            "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
+            (self._row_int(chat_row, "id"), user_id),
+        ).fetchone()
+
+        if self._is_dm(connection, chat_row):
+            # A DM is never public, even if a legacy row has is_public=1, and
+            # guest accounts must not retain access to an old DM membership.
+            return member is not None and not self._is_guest(connection, user_id=user_id)
+
         if self._row_bool(chat_row, "is_public"):
-            return True
+            # Guests may read the common room but not arbitrary public custom
+            # chats (and therefore cannot read published legacy DMs).
+            return not self._is_guest(connection, user_id=user_id)
 
         owner_user_id = self._row_optional_int(chat_row, "owner_user_id")
         if owner_user_id == user_id:
             return True
 
-        member = connection.execute(
-            "SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?",
-            (self._row_int(chat_row, "id"), user_id),
-        ).fetchone()
         return member is not None
 
     @staticmethod
@@ -3381,11 +3517,16 @@ class ChatService:
         return int(value)
 
     def get_or_create_dm(self, user_id: int, target_user_id: int) -> ChatRoom:
-        import time
         if user_id == target_user_id:
             raise ChatError("invalid_target", "Cannot DM yourself", 400)
         with self._connect() as connection:
-            self._require_active_user(connection, user_id)
+            actor = self._require_active_user(connection, user_id)
+            if str(actor["role"]) == UserRole.GUEST.value:
+                raise ChatError(
+                    "guest_forbidden",
+                    "Guest accounts cannot create direct chats",
+                    403,
+                )
             self._require_active_user(connection, target_user_id)
             target = connection.execute("SELECT role FROM users WHERE id = ?", (target_user_id,)).fetchone()
             if target is not None and str(target["role"]) == UserRole.GUEST.value:
@@ -3400,32 +3541,55 @@ class ChatService:
                     "Messaging is not available: one of the users is blocked",
                     403,
                 )
-            # Check for existing 1-on-1 chat
-            rows = connection.execute("""
-                SELECT DISTINCT c.id FROM chats c
+            # Only a real two-member DM may be reused.  A private room with a
+            # third member is not a DM and must never be returned here.
+            rows = connection.execute(
+                """
+                SELECT c.id
+                FROM chats c
                 JOIN chat_members m1 ON c.id = m1.chat_id AND m1.user_id = ?
                 JOIN chat_members m2 ON c.id = m2.chat_id AND m2.user_id = ?
-                WHERE c.is_private = 1 AND c.kind = 'custom'
-            """, (user_id, target_user_id)).fetchall()
+                WHERE c.kind = 'custom'
+                  AND c.is_private = 1
+                  AND c.chat_type = 'dm'
+                  AND (SELECT COUNT(*) FROM chat_members m WHERE m.chat_id = c.id) = 2
+                """,
+                (user_id, target_user_id),
+            ).fetchall()
             if rows:
-                row = connection.execute("SELECT * FROM chats WHERE id=?", (rows[0][0],)).fetchone()
-                if row:
+                row = connection.execute("SELECT * FROM chats WHERE id = ?", (rows[0][0],)).fetchone()
+                if row is not None:
                     return self._row_to_chat(row)
-            # Create new DM
-            now_ms = int(time.time() * 1000)
+
+            # DM creation is a custom-chat creation and counts toward the same
+            # per-user limit.  It also rejects guests centrally.
+            decision = self._limits.evaluate_custom_chat_creation(
+                connection,
+                user_id=user_id,
+            )
+            if not decision.allowed:
+                raise ChatError(
+                    decision.reason_code or "custom_chat_forbidden",
+                    decision.reason_message or "Cannot create direct chat",
+                    decision.status_code,
+                )
+
+            now_ms = _now_ms()
             u1 = connection.execute("SELECT login FROM users WHERE id=?", (user_id,)).fetchone()
             u2 = connection.execute("SELECT login FROM users WHERE id=?", (target_user_id,)).fetchone()
             login1 = u1["login"] if u1 else str(user_id)
             login2 = u2["login"] if u2 else str(target_user_id)
             draft_title = f"{login1} & {login2}"
+            # The owner column is retained so DMs count toward the custom-chat
+            # limit, but every DM-specific operation below treats both
+            # participants as equal and refuses unilateral control.
             cursor = connection.execute(
                 "INSERT INTO chats (kind, title, description, owner_user_id, is_private, created_at_ms, updated_at_ms, chat_type) VALUES (?, ?, ?, ?, 1, ?, ?, 'dm')",
                 (ChatKind.CUSTOM.value, draft_title, "", user_id, now_ms, now_ms),
             )
-            chat_id = cursor.lastrowid
+            chat_id = self._lastrowid(cursor)
             connection.execute("INSERT INTO chat_members (chat_id, user_id, role, joined_at_ms) VALUES (?, ?, 'member', ?)", (chat_id, user_id, now_ms))
             connection.execute("INSERT INTO chat_members (chat_id, user_id, role, joined_at_ms) VALUES (?, ?, 'member', ?)", (chat_id, target_user_id, now_ms))
-            connection.commit()
             row = connection.execute("SELECT * FROM chats WHERE id=?", (chat_id,)).fetchone()
             if row is None:
                 raise ChatError("create_failed", "DM chat create failed", 500)
@@ -3541,6 +3705,12 @@ class ChatService:
 
     def edit_message(self, chat_id: int, message_id: int, actor_user_id: int, body_text: str):
         with self._connect() as connection:
+            self._require_active_user(connection, actor_user_id)
+            chat = self._require_chat(connection, chat_id)
+            if not self._can_access_chat(connection, chat_row=chat, user_id=actor_user_id):
+                raise ChatError("forbidden", "User has no access to this chat", 403)
+            self._require_not_blocked(connection, chat_row=chat, user_id=actor_user_id)
+            self._enforce_slow_mode(connection, chat_row=chat, user_id=actor_user_id)
             msg = connection.execute("SELECT * FROM chat_messages WHERE id = ? AND chat_id = ?", (message_id, chat_id)).fetchone()
             if not msg:
                 raise ChatError("message_not_found", "Message not found", 404)

@@ -87,6 +87,31 @@ class DebugLogService:
         except sqlite3.Error:
             return None
 
+    def prune(self, *, max_age_ms: int = 7 * 24 * 60 * 60 * 1000, max_rows: int = 50_000) -> int:
+        """Bound on-disk debug logs even when the client-event endpoint is used."""
+        try:
+            connection = sqlite3.connect(self._db_path, timeout=5)
+            connection.execute("PRAGMA busy_timeout = 3000")
+            cutoff_ms = int(time() * 1000) - max(int(max_age_ms), 0)
+            removed = connection.execute(
+                "DELETE FROM debug_events WHERE created_at_ms < ?",
+                (cutoff_ms,),
+            ).rowcount
+            removed += connection.execute(
+                """
+                DELETE FROM debug_events
+                WHERE id NOT IN (
+                    SELECT id FROM debug_events ORDER BY id DESC LIMIT ?
+                )
+                """,
+                (max(int(max_rows), 1),),
+            ).rowcount
+            connection.commit()
+            connection.close()
+            return int(removed)
+        except sqlite3.Error:
+            return 0
+
     def list_events(self, *, limit: int = 200, trace_id: str | None = None) -> list[dict]:
         try:
             connection = sqlite3.connect(self._db_path, timeout=5)

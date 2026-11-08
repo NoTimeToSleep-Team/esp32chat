@@ -469,6 +469,15 @@ function replaceRoute(hash) {
   handleRoute();
 }
 
+function deviceId() {
+  let id = localStorage.getItem('lc_device_id');
+  if (!id) {
+    id = 'web-' + (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)));
+    localStorage.setItem('lc_device_id', id);
+  }
+  return id;
+}
+
 function setAuth(data) {
   STATE.token = data.session.token;
   STATE.user = data.user;
@@ -582,7 +591,7 @@ async function renderLogin() {
     hide('#login-error');
     $('#login-btn').disabled = true; $('#login-btn').textContent = 'Signing in...';
     try {
-      const data = await api('/auth/login', {method:'POST',body:JSON.stringify({login,password:pass,client_kind:'web'})});
+      const data = await api('/auth/login', {method:'POST',body:JSON.stringify({login,password:pass,device_id:deviceId(),client_kind:'web'})});
       if (data.status !== 'ok') throw new Error(data.message || 'Auth failed');
       setAuth(data); replaceRoute('#/chat');
     } catch(e) { show('#login-error'); $('#login-error').textContent = e.message; $('#login-btn').disabled = false; $('#login-btn').textContent = 'Sign In'; }
@@ -601,7 +610,7 @@ async function renderLogin() {
     if (!login || !pass) {show('#login-error');$('#login-error').textContent='Fill in all fields';return}
     $('#login-btn').disabled = true; $('#login-btn').textContent = 'Registering...';
     try {
-      const data = await api('/auth/register', {method:'POST',body:JSON.stringify({login,password:pass,phone,device_id:'web-'+Date.now().toString(36),client_kind:'web'})});
+      const data = await api('/auth/register', {method:'POST',body:JSON.stringify({login,password:pass,phone,device_id:deviceId(),client_kind:'web'})});
       if (data.status !== 'ok') throw new Error(data.message || 'Registration failed');
       setAuth(data); replaceRoute('#/chat');
     } catch(e) { show('#login-error'); $('#login-error').textContent = e.message; $('#login-btn').disabled = false; $('#login-btn').textContent = 'Create Account'; }

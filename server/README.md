@@ -262,6 +262,8 @@ Tuning env vars:
 - `LCS_AUTH_RATE_LIMIT_WINDOW_MS`, `LCS_AUTH_RATE_LIMIT_MAX_REQUESTS`
 - `LCS_BRUTEFORCE_WINDOW_MS`, `LCS_BRUTEFORCE_LOGIN_ATTEMPT_LIMIT`
 - `LCS_BRUTEFORCE_IP_ATTEMPT_LIMIT`, `LCS_BRUTEFORCE_BLOCK_MS`
+- `LCS_DEBUG_TRACE_ENABLED` (default `false`; enables the `X-Debug-Trace`
+  request-to-SQLite middleware only for development)
 
 ## Ops Safety
 

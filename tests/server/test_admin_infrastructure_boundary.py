@@ -70,7 +70,7 @@ check("no infrastructure paths in OpenAPI", not exposed, exposed[:10])
 status, body = request(
     "POST",
     "/auth/login",
-    {"login": "admin", "password": ADMIN_PASSWORD, "client_kind": "web"},
+    {"login": "admin", "password": ADMIN_PASSWORD, "device_id": "test-admin-web", "client_kind": "web"},
 )
 check("admin can log in", status == 200, status)
 token = ""
