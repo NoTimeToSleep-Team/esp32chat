@@ -28,9 +28,12 @@ the remaining items are explicitly operator or deployment actions.
 
 ## Read state and enumeration
 
-- `mark_read` ignores message ids that do not belong to the requested chat, so
-  a foreign or stale id cannot advance the caller's read marker. Valid ids are
-  still accepted.
+- `mark_read` first checks chat access (membership, or the implicit common-chat
+  path) and only then validates the message id. A non-member always gets
+  `403 join_required`, even when the supplied id is foreign or stale. For a
+  member, a foreign/stale id is ignored and cannot advance the read marker.
+  Valid ids are still accepted. This ordering was tightened in follow-up
+  commit `51c49c0` after the first deep-test pass.
 - Registration now has a failure-only limiter (10 `login_taken`/`phone_taken`
   failures per IP in 10 minutes, then a 10-minute block). Normal registrations
   of free logins do not consume the budget.
@@ -79,9 +82,13 @@ the remaining items are explicitly operator or deployment actions.
 ## Verification
 
 - `test_security_fixes_2026_11_09d.py`: **29 passed, 0 failed**.
-- Existing server suites: `09c` 38/38, `09b` 20/20, access 38/38 primarily;
-  chat updates 10/10, device pairing 17/17, admin boundary 26/26, USB root key
-  11/11.
+- Existing server suites: `09c` 38/38, `09b` 20/20, access 38/38 (re-run
+  after `51c49c0`); chat updates 10/10, device pairing 17/17, admin boundary
+  26/26, USB root key 11/11.
+- Second-round black-box verification on the live stand: registration and
+  room-code/pairing limiters, partial permissions, DM archive/reopen,
+  `delete_messages`, VULN-10 and the F9 non-member access order — all
+  confirmed; no new Critical/High findings.
 - UI suites: all 15 pass individually against a disposable server
   (`ui_test` 24, mobile 28, devices 19, avatar 11, admin 13, voice 17,
   support 16, support SPA 18, chat create 16, gestures 32, groups 34, P1 34,
@@ -94,6 +101,14 @@ the remaining items are explicitly operator or deployment actions.
 
 - Guest-to-user DMs remain an intentional product policy (guests may open a DM
   and write to a regular user). The existing guest DM rate limit stays.
+- The registration failure limiter is intentionally per-IP: ten taken-login
+  attempts block further registrations from that IP for ten minutes. That is
+  strong anti-enumeration protection, but behind a NAT it can also delay a
+  legitimate registration; separate per-login/per-IP thresholds are the next
+  tuning step if that becomes a problem.
+- The `09d` integration suite raises the generic request/auth buckets for its
+  own run (it makes more than 30 `/auth/*` requests); the dedicated failure
+  limiters stay at their defaults. The exact command is in the suite docstring.
 - F-09: `profile=test` exposes docs/OpenAPI; use `prod` or network filtering
   for wider deployments.
 - F-10: old admin password remains in public Git history; a history rewrite

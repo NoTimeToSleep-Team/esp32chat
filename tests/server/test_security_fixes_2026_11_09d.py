@@ -1,6 +1,11 @@
 """Regression suite for the 2026-11-09 deep test round.
 
-Run against a disposable local server:
+Run against a disposable local server. The suite intentionally makes more than
+30 `/auth/*` and 240 total requests in one process, so raise only the generic
+in-memory buckets for the run; the dedicated registration/room-code/pairing
+failure limiters must stay at their defaults:
+    LCS_RATE_LIMIT_MAX_REQUESTS=10000 \
+    LCS_AUTH_RATE_LIMIT_MAX_REQUESTS=10000 \
     LC_BASE=http://127.0.0.1:18082 LC_TEST_DB=<db path> \
         server/.venv/Scripts/python.exe tests/server/test_security_fixes_2026_11_09d.py
 """
