@@ -2002,15 +2002,6 @@ class ChatService:
     def mark_read(self, *, chat_id: int, user_id: int, message_id: int) -> None:
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
-            if int(message_id) > 0:
-                exists = connection.execute(
-                    "SELECT 1 FROM chat_messages WHERE id = ? AND chat_id = ?",
-                    (int(message_id), chat_id),
-                ).fetchone()
-                if exists is None:
-                    # A stale/foreign id must not advance this user's read
-                    # marker. Ignore it (the UI may race a message deletion).
-                    return
             row = connection.execute(
                 "SELECT last_read_message_id FROM chat_members WHERE chat_id = ? AND user_id = ?",
                 (chat_id, user_id),
@@ -2028,6 +2019,16 @@ class ChatService:
                         "Join the chat before updating read state",
                         403,
                     )
+            if int(message_id) > 0:
+                exists = connection.execute(
+                    "SELECT 1 FROM chat_messages WHERE id = ? AND chat_id = ?",
+                    (int(message_id), chat_id),
+                ).fetchone()
+                if exists is None:
+                    # A stale/foreign id must not advance this user's read
+                    # marker. Ignore it (the UI may race a message deletion).
+                    return
+            if row is None:
                 # Common (server-wide) chats have no membership rows, so the
                 # read marker is created lazily. joined_at_ms = 0 keeps history
                 # fully visible, exactly as it was while there was no row.
