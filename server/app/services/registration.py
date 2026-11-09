@@ -42,6 +42,7 @@ class RegistrationService:
         device_id: str,
         client_kind: ClientKind,
         enforce_password_minimum: bool = True,
+        allow_closed_mode: bool = False,
     ) -> AuthResult:
         normalized_login = login.strip()
         normalized_phone = self._normalize_phone(phone)
@@ -62,6 +63,12 @@ class RegistrationService:
 
         with self._connect() as connection:
             access_mode = self._read_access_mode(connection)
+            if access_mode != AccessMode.OPEN and not allow_closed_mode:
+                raise RegistrationError(
+                    "registration_closed",
+                    "Registration is closed; submit an access application",
+                    403,
+                )
             if self._is_device_blacklisted(connection, normalized_device_id):
                 raise RegistrationError(
                     "device_blacklisted",

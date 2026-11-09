@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 import sys
 from time import monotonic
-from urllib.parse import parse_qsl, urlsplit, urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -79,6 +79,20 @@ def create_app() -> FastAPI:
             global_window_ms=settings.rate_limit_window_ms,
             auth_limit=settings.auth_rate_limit_max_requests,
             auth_window_ms=settings.auth_rate_limit_window_ms,
+        )
+        # WebSocket traffic does not pass through the HTTP middleware.  Keep
+        # separate per-user and per-IP buckets for realtime events.
+        app.state.ws_user_limiter = InMemoryRateLimiter(
+            global_limit=30,
+            global_window_ms=60_000,
+            auth_limit=30,
+            auth_window_ms=60_000,
+        )
+        app.state.ws_ip_limiter = InMemoryRateLimiter(
+            global_limit=60,
+            global_window_ms=60_000,
+            auth_limit=60,
+            auth_window_ms=60_000,
         )
         app.state.security_audit = SecurityAuditService(
             db_path=app.state.data_layer.database_path
@@ -210,6 +224,22 @@ def create_app() -> FastAPI:
             )
         ):
             response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    @app.middleware("http")
+    async def relative_redirect_middleware(request: Request, call_next):
+        # Starlette builds trailing-slash redirects from the client-supplied
+        # Host header.  Keep redirects origin-relative so a forged Host cannot
+        # turn them into an open redirect or poison a shared cache.
+        response = await call_next(request)
+        if response.status_code in {307, 308}:
+            location = response.headers.get("location")
+            if location:
+                parsed = urlsplit(location)
+                if parsed.scheme or parsed.netloc:
+                    response.headers["location"] = urlunsplit(
+                        ("", "", parsed.path or "/", parsed.query, parsed.fragment)
+                    )
         return response
 
     @app.middleware("http")

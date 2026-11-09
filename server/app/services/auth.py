@@ -97,6 +97,12 @@ class AuthService:
         normalized_login = login.strip()
         if not normalized_login:
             raise AuthError("invalid_credentials", "Invalid login or password", 401)
+        if client_kind == ClientKind.DEVICE:
+            raise AuthError(
+                "device_session_required",
+                "Device clients must use /auth/device-session with pairing proof",
+                403,
+            )
 
         with self._connect() as connection:
             user_row = self._read_login_row(connection, login=normalized_login)

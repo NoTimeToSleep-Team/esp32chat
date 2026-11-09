@@ -80,6 +80,34 @@ def _error_payload(code: str, message: str) -> dict[str, object]:
     }
 
 
+def _ws_event_rate_limited(
+    websocket: WebSocket,
+    *,
+    user_id: int,
+    client_ip: str,
+) -> bool:
+    now_ms = int(monotonic() * 1000)
+    user_limiter = getattr(websocket.app.state, "ws_user_limiter", None)
+    if user_limiter is not None:
+        decision = user_limiter.check(
+            ip_address=f"user:{user_id}",
+            path="/realtime/chat/event",
+            now_ms=now_ms,
+        )
+        if not decision.allowed:
+            return True
+    ip_limiter = getattr(websocket.app.state, "ws_ip_limiter", None)
+    if ip_limiter is not None:
+        decision = ip_limiter.check(
+            ip_address=f"ip:{client_ip or 'unknown'}",
+            path="/realtime/chat/event",
+            now_ms=now_ms,
+        )
+        if not decision.allowed:
+            return True
+    return False
+
+
 def _to_message_dict(chat_message: object) -> dict[str, object]:
     from app.models import ChatMessage
 
@@ -208,6 +236,19 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
 
             if event_type == "ping":
                 await websocket.send_json({"type": "pong"})
+                continue
+
+            if _ws_event_rate_limited(
+                websocket,
+                user_id=user_id,
+                client_ip=client_ip,
+            ):
+                await websocket.send_json(
+                    _error_payload(
+                        "rate_limited",
+                        "Too many realtime events; slow down",
+                    )
+                )
                 continue
 
             if event_type == "chat.history":

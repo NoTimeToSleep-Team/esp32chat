@@ -95,6 +95,7 @@ def cmd_create_admin(args) -> None:
             device_id="cli-admin-" + secrets.token_hex(4),
             client_kind=ClientKind.WEB,
             enforce_password_minimum=False,
+            allow_closed_mode=True,
         )
     except RegistrationError as exc:
         raise SystemExit(f"cannot create admin: {exc}")

@@ -7,11 +7,29 @@ Wants=local-chat-server.service
 Type=simple
 User=root
 Environment=LC_DB_PATH=/opt/local-chat-server/data/sqlite/local_chat.db
+Environment=LC_PROXY_BIND=192.168.4.1
+Environment=LC_PROXY_ALLOWED_PORTS=80,443
+Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/local-chat-server/.venv/bin/python /opt/local-chat-server/app/services/http_proxy.py
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+MemoryMax=256M
+TasksMax=128
+LimitNOFILE=1024
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

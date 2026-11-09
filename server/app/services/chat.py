@@ -55,6 +55,8 @@ _CHAT_AVATAR_MIME_BY_EXT = {
 }
 
 MAX_CHAT_AVATAR_BYTES = 2_000_000
+MAX_MESSAGE_CHARS = 4_000
+MAX_CLIENT_MESSAGE_ID_CHARS = 128
 
 
 @dataclass(frozen=True)
@@ -246,6 +248,19 @@ class ChatService:
                     "Add at least one member to create a chat",
                     422,
                 )
+
+            creator_id = self._row_int(creator, "id")
+            for member_user_id in resolved_member_ids:
+                if self._is_blocked_between(
+                    connection,
+                    user_a=creator_id,
+                    user_b=member_user_id,
+                ):
+                    raise ChatError(
+                        "blocked",
+                        "One of the selected users has blocked the chat owner",
+                        403,
+                    )
 
             normalized_code = self._normalize_room_code(room_code)
             normalized_avatar = (avatar_url or "").strip() or None
@@ -444,20 +459,6 @@ class ChatService:
                     403,
                 )
 
-            owner_id = self._chat_owner_user_id(connection, chat)
-            if (
-                owner_id is not None
-                and owner_id != target_user_id
-                and self._is_blocked_between(
-                    connection, user_a=owner_id, user_b=target_user_id
-                )
-            ):
-                raise ChatError(
-                    "blocked",
-                    "The chat owner has blocked this account",
-                    403,
-                )
-
             if str(chat["kind"]) != ChatKind.CUSTOM.value:
                 raise ChatError(
                     "invalid_chat_kind",
@@ -482,6 +483,22 @@ class ChatService:
                     "Use the member role endpoint to change roles",
                     422,
                 )
+
+            existing_members = connection.execute(
+                "SELECT user_id FROM chat_members WHERE chat_id = ? AND user_id != ?",
+                (chat_id, target_user_id),
+            ).fetchall()
+            for member_row in existing_members:
+                if self._is_blocked_between(
+                    connection,
+                    user_a=target_user_id,
+                    user_b=int(member_row["user_id"]),
+                ):
+                    raise ChatError(
+                        "blocked",
+                        "A member of this chat has blocked the account",
+                        403,
+                    )
 
             chat_type = self._row_optional_str_lenient(chat, "chat_type") or ChatType.GROUP.value
             default_role = (
@@ -2773,6 +2790,18 @@ class ChatService:
             now_ms = _now_ms()
             text = draft.body_text.strip()
             client_message_id = (draft.client_message_id or "").strip() or None
+            if len(text) > MAX_MESSAGE_CHARS:
+                raise ChatError(
+                    "message_too_long",
+                    f"Message must be at most {MAX_MESSAGE_CHARS} characters",
+                    422,
+                )
+            if client_message_id and len(client_message_id) > MAX_CLIENT_MESSAGE_ID_CHARS:
+                raise ChatError(
+                    "client_message_id_too_long",
+                    f"client_message_id must be at most {MAX_CLIENT_MESSAGE_ID_CHARS} characters",
+                    422,
+                )
             attachment_ids = self._normalize_attachment_ids(draft.attachment_ids)
 
             reply_to_message_id = draft.reply_to_message_id
@@ -3571,16 +3600,33 @@ class ChatService:
 
             # DMs are a separate one-to-one channel and deliberately do not
             # count toward the custom-chat limit.  Guests may open a DM to
-            # write to a regular user.
+            # write to a regular user, but new guest DMs are rate-limited to
+            # keep the open guest entry point from becoming a spam channel.
             now_ms = _now_ms()
+            if self._is_guest(connection, user_id=user_id):
+                recent = connection.execute(
+                    "SELECT COUNT(*) FROM chats WHERE kind = ? AND chat_type = 'dm' "
+                    "AND owner_user_id = ? AND created_at_ms >= ?",
+                    (
+                        ChatKind.CUSTOM.value,
+                        user_id,
+                        now_ms - 10 * 60 * 1000,
+                    ),
+                ).fetchone()[0]
+                if int(recent) >= 5:
+                    raise ChatError(
+                        "guest_dm_rate_limited",
+                        "Too many new direct chats; try again later",
+                        429,
+                    )
             u1 = connection.execute("SELECT login FROM users WHERE id=?", (user_id,)).fetchone()
             u2 = connection.execute("SELECT login FROM users WHERE id=?", (target_user_id,)).fetchone()
             login1 = u1["login"] if u1 else str(user_id)
             login2 = u2["login"] if u2 else str(target_user_id)
             draft_title = f"{login1} & {login2}"
-            # The owner column is retained so DMs count toward the custom-chat
-            # limit, but every DM-specific operation below treats both
-            # participants as equal and refuses unilateral control.
+            # The owner column is retained for compatibility, but every
+            # DM-specific operation treats both participants as equal and
+            # refuses unilateral control.
             cursor = connection.execute(
                 "INSERT INTO chats (kind, title, description, owner_user_id, is_private, created_at_ms, updated_at_ms, chat_type) VALUES (?, ?, ?, ?, 1, ?, ?, 'dm')",
                 (ChatKind.CUSTOM.value, draft_title, "", user_id, now_ms, now_ms),
@@ -3636,10 +3682,26 @@ class ChatService:
             if row is None:
                 raise ChatError("not_found", "Message not found", 404)
             if actor_user_id is not None:
+                self._require_active_user(connection, actor_user_id)
+                chat = self._require_chat(connection, chat_id)
+                is_admin = self._is_platform_moderator(connection, user_id=actor_user_id)
                 is_owner = int(row["author_user_id"]) == actor_user_id
-                is_admin = connection.execute("SELECT 1 FROM users WHERE id=? AND role IN ('admin','moderator')", (actor_user_id,)).fetchone() is not None
                 if not is_owner and not is_admin:
                     raise ChatError("forbidden", "Not authorized to delete this message", 403)
+                if (
+                    not is_admin
+                    and self._member_role_value(
+                        connection,
+                        chat_id=chat_id,
+                        user_id=actor_user_id,
+                    )
+                    is None
+                ):
+                    raise ChatError(
+                        "forbidden",
+                        "You are no longer a member of this chat",
+                        403,
+                    )
             connection.execute("DELETE FROM chat_messages WHERE id=?", (message_id,))
             connection.execute("DELETE FROM chat_message_attachments WHERE message_id=?", (message_id,))
 
@@ -3707,6 +3769,20 @@ class ChatService:
             chat = self._require_chat(connection, chat_id)
             if not self._can_access_chat(connection, chat_row=chat, user_id=actor_user_id):
                 raise ChatError("forbidden", "User has no access to this chat", 403)
+            if (
+                not self._is_platform_moderator(connection, user_id=actor_user_id)
+                and self._member_role_value(
+                    connection,
+                    chat_id=chat_id,
+                    user_id=actor_user_id,
+                )
+                is None
+            ):
+                raise ChatError(
+                    "forbidden",
+                    "You are no longer a member of this chat",
+                    403,
+                )
             self._require_not_blocked(connection, chat_row=chat, user_id=actor_user_id)
             self._enforce_slow_mode(connection, chat_row=chat, user_id=actor_user_id)
             msg = connection.execute("SELECT * FROM chat_messages WHERE id = ? AND chat_id = ?", (message_id, chat_id)).fetchone()
@@ -3714,8 +3790,15 @@ class ChatService:
                 raise ChatError("message_not_found", "Message not found", 404)
             if int(msg["author_user_id"]) != actor_user_id:
                 raise ChatError("forbidden", "Only the author can edit this message", 403)
+            text = body_text.strip()
+            if len(text) > MAX_MESSAGE_CHARS:
+                raise ChatError(
+                    "message_too_long",
+                    f"Message must be at most {MAX_MESSAGE_CHARS} characters",
+                    422,
+                )
             now_ms = _now_ms()
-            connection.execute("UPDATE chat_messages SET body_text = ?, edited_at_ms = ? WHERE id = ?", (body_text, now_ms, message_id))
+            connection.execute("UPDATE chat_messages SET body_text = ?, edited_at_ms = ? WHERE id = ?", (text, now_ms, message_id))
             connection.commit()
             updated_row = self._select_message_row(connection, message_id)
             if updated_row is None:
