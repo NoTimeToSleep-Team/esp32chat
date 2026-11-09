@@ -8,7 +8,9 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
+from app.models import ClientKind
 from app.version import __version__
 from app.api.account import router as account_router
 from app.api.admin.content import router as admin_content_router
@@ -45,6 +47,7 @@ from app.security import InMemoryRateLimiter, SecurityAuditService
 from app.security.body_limit import BodySizeLimitMiddleware
 from app.security.infrastructure import is_infrastructure_path
 from app.security.network import resolve_client_ip
+from app.services.auth import AuthService
 from app.services.chat import ChatService
 from app.services.debug_log import DebugLogService
 from app.services.auto_moderator import AutoModerator  # noqa: F401 (legacy scanner)
@@ -92,6 +95,12 @@ def create_app() -> FastAPI:
             global_limit=60,
             global_window_ms=60_000,
             auth_limit=60,
+            auth_window_ms=60_000,
+        )
+        app.state.debug_trace_limiter = InMemoryRateLimiter(
+            global_limit=120,
+            global_window_ms=60_000,
+            auth_limit=120,
             auth_window_ms=60_000,
         )
         app.state.security_audit = SecurityAuditService(
@@ -312,16 +321,45 @@ def create_app() -> FastAPI:
             return await call_next(request)
         started = monotonic()
         response = await call_next(request)
+        # Do not let unauthenticated 404 probes fill the debug log.
+        if response.status_code == 404:
+            return response
+
+        ip_address = resolve_client_ip(request)
+        limiter: InMemoryRateLimiter = request.app.state.debug_trace_limiter
+        if not limiter.check(ip_address=ip_address, path=path, now_ms=_now_ms()).allowed:
+            return response
+
+        token = (
+            request.headers.get("x-session-token")
+            or request.query_params.get("session_token")
+            or ""
+        ).strip()
+        if not token:
+            return response
         try:
-            DebugLogService(db_path=request.app.state.data_layer.database_path).log(
-                stage="server",
-                trace_id=trace_id[:64],
-                action=request.url.path,
-                method=request.method,
-                status=response.status_code,
-                ok=response.status_code < 400,
-                details="duration_ms=%d" % int((monotonic() - started) * 1000),
-                ip=resolve_client_ip(request),
+            session = await run_in_threadpool(
+                lambda: AuthService(
+                    db_path=request.app.state.data_layer.database_path
+                ).get_session(token, client_kind=ClientKind.WEB)
+            )
+        except Exception:
+            return response
+        try:
+            await run_in_threadpool(
+                lambda: DebugLogService(
+                    db_path=request.app.state.data_layer.database_path
+                ).log(
+                    stage="server",
+                    trace_id=trace_id[:64],
+                    action=path,
+                    method=request.method,
+                    status=response.status_code,
+                    ok=response.status_code < 400,
+                    details="duration_ms=%d" % int((monotonic() - started) * 1000),
+                    user_login=session.user.login,
+                    ip=ip_address,
+                )
             )
         except Exception:
             pass

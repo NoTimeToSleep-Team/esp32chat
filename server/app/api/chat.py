@@ -298,7 +298,7 @@ async def list_chat_messages(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, object]:
     user_id = _resolve_user_id(request, session_token)

@@ -220,7 +220,10 @@ async def get_user_profile(
         or session.user.role in {UserRole.ADMIN, UserRole.MODERATOR}
     )
     if not can_see_private:
+        # Public profiles must not become a role/status enumeration oracle.
         data["phone"] = None
+        data["role"] = "user"
+        data["status"] = "active"
     data["avatar_url"] = (
         f"/account/api/profile/avatar?session_token={session_token}&user_id={profile.user_id}&v={profile.avatar_updated_at_ms or 0}"
         if profile.avatar_path else None

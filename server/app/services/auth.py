@@ -157,12 +157,18 @@ class AuthService:
                     403,
                 )
 
+            session_device = normalized_device or None
+            if client_kind == ClientKind.WEB and registered_device:
+                # The first device id is the account's canonical web identity.
+                # Binding the session to it keeps the device blacklist effective
+                # even when a client changes its local device id later.
+                session_device = registered_device
             session = self._create_session(
                 connection,
                 user_id=int(user_row["id"]),
                 ip_address=ip_address,
                 client_kind=client_kind,
-                device_id=normalized_device or None,
+                device_id=session_device,
             )
             if normalized_device:
                 # Keep the first device as the account's registration identity.
