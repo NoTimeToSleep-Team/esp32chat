@@ -14,13 +14,15 @@ Fixes for the 2026-11-08 pentest report. The report IDs match the sections below
 
 ## Direct chats and guests (H-02, M-03, L-03)
 
-- Guests cannot create DMs or custom chats.
+- Guests may create a DM to a regular user and write to them.
+- Guests still cannot create custom group chats.
 - DMs are immutable two-party rooms: no adding members, invite links, public
   publishing, username, role changes, ownership transfer or unilateral delete.
 - A participant may only leave a DM; the other participant keeps their copy.
 - Legacy published DMs are readable only by their two members; a participant can
   revoke publication, but nobody can publish a DM through the API.
 - DM lookup requires `chat_type='dm'` and exactly two members.
+- DMs do not count toward the five-custom-chat limit.
 
 ## Realtime resource limits (H-03)
 
@@ -61,11 +63,16 @@ Fixes for the 2026-11-08 pentest report. The report IDs match the sections below
 
 ## Guest public-chat access (L-04)
 
-- Guests can read the common chat but not arbitrary public custom chats.
-- Guest public-chat search returns an empty list and message search excludes
-  public custom chats and DMs.
+- Guests can discover, join and write in public custom groups.
+- Guests can read the common chat but cannot post there.
+- Public custom chat search and message search include guest accounts.
+- DMs remain membership-only and are never returned by public search.
 
 ## Verification
 
-Local integration run against a temporary SQLite database and uvicorn:
-`29 passed, 0 failed` (H-01, H-02, H-03, H-04, M-01, M-02, M-03, M-04, L-04).
+Local integration runs against a temporary SQLite database and uvicorn:
+
+- guest DM + public custom chat policy: `14 passed, 0 failed`;
+- existing F8–F12 access regressions: `38 passed, 0 failed`;
+- earlier security suite (before the guest-DM policy change):
+  `29 passed, 0 failed`.

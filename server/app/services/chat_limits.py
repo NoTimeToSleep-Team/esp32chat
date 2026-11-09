@@ -66,7 +66,7 @@ class ChatLimitsService:
         if role in {UserRole.ADMIN.value, UserRole.MODERATOR.value}:
             count = int(
                 connection.execute(
-                    "SELECT COUNT(*) FROM chats WHERE kind = ? AND owner_user_id = ?",
+                    "SELECT COUNT(*) FROM chats WHERE kind = ? AND owner_user_id = ? AND chat_type != 'dm'",
                     (ChatKind.CUSTOM.value, user_id),
                 ).fetchone()[0]
             )
@@ -81,7 +81,7 @@ class ChatLimitsService:
 
         count = int(
             connection.execute(
-                "SELECT COUNT(*) FROM chats WHERE kind = ? AND owner_user_id = ?",
+                "SELECT COUNT(*) FROM chats WHERE kind = ? AND owner_user_id = ? AND chat_type != 'dm'",
                 (ChatKind.CUSTOM.value, user_id),
             ).fetchone()[0]
         )

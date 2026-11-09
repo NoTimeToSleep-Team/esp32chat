@@ -1412,9 +1412,7 @@ class ChatService:
             raise ChatError("chat_not_found", "Chat not found", 404)
 
         with self._connect() as connection:
-            actor = self._require_active_user(connection, user_id)
-            if str(actor["role"]) == UserRole.GUEST.value:
-                raise ChatError("guest_forbidden", "Guest accounts cannot join public chats", 403)
+            self._require_active_user(connection, user_id)
             if chat_id:
                 row = connection.execute(
                     "SELECT * FROM chats WHERE id = ? AND is_public = 1 AND is_private = 0",
@@ -1480,8 +1478,6 @@ class ChatService:
         safe_limit = min(max(int(limit), 1), 50)
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
-            if self._is_guest(connection, user_id=user_id):
-                return []
             rows = connection.execute(
                 """
                 SELECT c.*
@@ -1958,7 +1954,7 @@ class ChatService:
 
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
-            params: list[object] = [user_id, f"%{needle}%", user_id, user_id]
+            params: list[object] = [user_id, f"%{needle}%", user_id]
             chat_filter = ""
             if chat_id is not None:
                 chat_filter = " AND c.id = ? "
@@ -1987,7 +1983,6 @@ class ChatService:
                          c.is_public = 1
                          AND c.history_visible = 1
                          AND c.chat_type != 'dm'
-                         AND (SELECT role FROM users WHERE id = ?) != 'guest'
                      )
                   )
                   AND m.created_at_ms >= COALESCE(cm.cleared_at_ms, 0)
@@ -2418,6 +2413,16 @@ class ChatService:
         row = connection.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
         return row is not None and str(row["role"]) == UserRole.GUEST.value
 
+    def _guest_can_use_chat(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        chat_row: sqlite3.Row,
+    ) -> bool:
+        if str(chat_row["kind"]) != ChatKind.CUSTOM.value:
+            return False
+        return self._is_dm(connection, chat_row) or self._row_bool(chat_row, "is_public")
+
     def _require_chat_member(
         self,
         connection: sqlite3.Connection,
@@ -2427,8 +2432,10 @@ class ChatService:
     ) -> None:
         if self._is_platform_moderator(connection, user_id=user_id):
             return
-        if self._is_guest(connection, user_id=user_id):
-            raise ChatError("guest_forbidden", "Guest accounts cannot interact with chats", 403)
+        if self._is_guest(connection, user_id=user_id) and not self._guest_can_use_chat(
+            connection, chat_row=chat_row
+        ):
+            raise ChatError("guest_forbidden", "Guest accounts cannot interact with this chat", 403)
         if self._member_role_value(
             connection,
             chat_id=self._row_int(chat_row, "id"),
@@ -2463,17 +2470,25 @@ class ChatService:
         chat_row: sqlite3.Row,
         user_id: int,
     ) -> bool:
-        if self._is_guest(connection, user_id=user_id):
-            return False
         if self._is_platform_moderator(connection, user_id=user_id):
             return True
 
         chat_id = self._row_int(chat_row, "id")
         role = self._member_role_value(connection, chat_id=chat_id, user_id=user_id)
+        chat_type = self._row_optional_str_lenient(chat_row, "chat_type") or ChatType.GROUP.value
+
+        if self._is_guest(connection, user_id=user_id):
+            # Guests may write in a DM they belong to and in public custom
+            # groups they have joined.  Common chats and channels stay
+            # read-only for guests.
+            if not self._guest_can_use_chat(connection, chat_row=chat_row):
+                return False
+            if chat_type == ChatType.CHANNEL.value:
+                return False
+            return role is not None
+
         if role is None:
             return False
-
-        chat_type = self._row_optional_str_lenient(chat_row, "chat_type") or ChatType.GROUP.value
         if chat_type == ChatType.CHANNEL.value:
             return role in {ChatMemberRole.OWNER.value, ChatMemberRole.ADMIN.value}
         if role == ChatMemberRole.SUBSCRIBER.value:
@@ -2979,14 +2994,13 @@ class ChatService:
         ).fetchone()
 
         if self._is_dm(connection, chat_row):
-            # A DM is never public, even if a legacy row has is_public=1, and
-            # guest accounts must not retain access to an old DM membership.
-            return member is not None and not self._is_guest(connection, user_id=user_id)
+            # A DM is never public, even if a legacy row has is_public=1.
+            # Guests may participate in a DM they are a member of.
+            return member is not None
 
         if self._row_bool(chat_row, "is_public"):
-            # Guests may read the common room but not arbitrary public custom
-            # chats (and therefore cannot read published legacy DMs).
-            return not self._is_guest(connection, user_id=user_id)
+            # Public custom chats are readable by guests as well.
+            return True
 
         owner_user_id = self._row_optional_int(chat_row, "owner_user_id")
         if owner_user_id == user_id:
@@ -3520,13 +3534,7 @@ class ChatService:
         if user_id == target_user_id:
             raise ChatError("invalid_target", "Cannot DM yourself", 400)
         with self._connect() as connection:
-            actor = self._require_active_user(connection, user_id)
-            if str(actor["role"]) == UserRole.GUEST.value:
-                raise ChatError(
-                    "guest_forbidden",
-                    "Guest accounts cannot create direct chats",
-                    403,
-                )
+            self._require_active_user(connection, user_id)
             self._require_active_user(connection, target_user_id)
             target = connection.execute("SELECT role FROM users WHERE id = ?", (target_user_id,)).fetchone()
             if target is not None and str(target["role"]) == UserRole.GUEST.value:
@@ -3561,19 +3569,9 @@ class ChatService:
                 if row is not None:
                     return self._row_to_chat(row)
 
-            # DM creation is a custom-chat creation and counts toward the same
-            # per-user limit.  It also rejects guests centrally.
-            decision = self._limits.evaluate_custom_chat_creation(
-                connection,
-                user_id=user_id,
-            )
-            if not decision.allowed:
-                raise ChatError(
-                    decision.reason_code or "custom_chat_forbidden",
-                    decision.reason_message or "Cannot create direct chat",
-                    decision.status_code,
-                )
-
+            # DMs are a separate one-to-one channel and deliberately do not
+            # count toward the custom-chat limit.  Guests may open a DM to
+            # write to a regular user.
             now_ms = _now_ms()
             u1 = connection.execute("SELECT login FROM users WHERE id=?", (user_id,)).fetchone()
             u2 = connection.execute("SELECT login FROM users WHERE id=?", (target_user_id,)).fetchone()

@@ -133,7 +133,7 @@ Rules:
 
 - user: up to 5 custom chats;
 - admin: no custom chat limit;
-- guest cannot create chats;
+- guest can create DMs and join public custom chats, but cannot create group chats;
 - private room supports optional 4-digit room code;
 - admin can access all chats.
 

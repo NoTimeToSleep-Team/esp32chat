@@ -43,8 +43,9 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Mentions with @-autocomplete and tap-to-open profiles.
 - Responsive UI: phone-first single column, two-pane layout (chat list + chat)
   on tablets/desktop from 940px, compact chrome for landscape phones.
-- Custom chat limits: up to 5 per user, unlimited for admins; guests cannot
-  create chats; admins can access all chats.
+- Custom chat limits: up to 5 per user, unlimited for admins; DMs do not count
+  toward this limit. Guests can create DMs and join public custom chats, but
+  cannot create group chats; admins can access all chats.
 - Message history, media attachments, chat avatars.
 - Realtime delivery over WebSocket (`/realtime/chat/{chat_id}`); REST endpoints
   for history, sending and moderation.
