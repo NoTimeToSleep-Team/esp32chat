@@ -76,7 +76,12 @@ Fixes for `esp32chat-pentest-report-2026-11-09.md`.
   enforced with `AuthenticationMethods publickey`, and root login is limited to
   keys.
 - A dedicated Ed25519 key is installed for `gamecat`; the deployment helpers
-  `lc-ssh.py` / `lc-scp.py` no longer contain a password.
+  `lc-ssh.py` / `lc-scp.py` no longer contain a password. Privileged commands
+  use `lc-sudo.py`, which reads the rotated sudo password from Windows
+  Credential Manager.
+- The `gamecat` password and the admin web password were rotated. Both are
+  stored as Windows generic credentials (`LC_Board_gamecat`, `LC_Admin_Web`),
+  not in project files.
 - `lc-askpass.cmd`, `lc-close-open.sh`, `lc-usb-cleanup.sh`,
   `TEST_CREDENTIALS.txt` and the password screenshot were removed locally.
 - The cached GitHub credential in Windows Credential Manager was deleted.
@@ -95,9 +100,7 @@ Fixes for `esp32chat-pentest-report-2026-11-09.md`.
 - Revoke the GitHub PAT that was found in `lc-askpass.cmd`; issue a
   fine-grained replacement with the minimum scopes and short TTL, then sign in
   again (the cached credential was removed).
-- Rotate the admin web password and review GitHub audit logs / Actions secrets.
-- Rotate the `gamecat` password from the physical console. Remote password login
-  is already disabled; the password remains relevant to local sudo.
+- Review GitHub audit logs / Actions secrets for changes made with the old PAT.
 - Review SSH auth logs and authorized keys on the board.
 - The `test` profile still exposes `/docs` and `/openapi.json`; keep this only on
   the isolated test stand, not in production.
