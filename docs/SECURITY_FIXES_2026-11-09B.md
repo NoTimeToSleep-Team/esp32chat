@@ -63,20 +63,41 @@ Fixes for `esp32chat-pentest-report-2026-11-09.md`.
 - Request headers are bounded, client/remote reads have timeouts, connections
   are capped globally and per IP, and a bounded thread pool replaces
   thread-per-connection.
-- The systemd unit binds the proxy to `192.168.4.1` (AP interface), sets
-  resource limits and drops capabilities.
+- The systemd unit binds the proxy to `192.168.4.1` (AP interface) and runs as
+  the unprivileged `localchat` user. It also has `MemoryMax`, `TasksMax`,
+  `LimitNOFILE`, an empty capability set and the usual systemd sandboxing.
+- Live check: `192.168.4.1:3128` is the only listener; an internet-off HTTP
+  request returns the captive-portal redirect.
+
+## SSH and local credential exposure (C1/C2)
+
+- Password SSH is disabled by
+  `/etc/ssh/sshd_config.d/00-local-chat-hardening.conf`; key-only auth is
+  enforced with `AuthenticationMethods publickey`, and root login is limited to
+  keys.
+- A dedicated Ed25519 key is installed for `gamecat`; the deployment helpers
+  `lc-ssh.py` / `lc-scp.py` no longer contain a password.
+- `lc-askpass.cmd`, `lc-close-open.sh`, `lc-usb-cleanup.sh`,
+  `TEST_CREDENTIALS.txt` and the password screenshot were removed locally.
+- The cached GitHub credential in Windows Credential Manager was deleted.
 
 ## Verification
 
 - Local integration: `20 passed, 0 failed` for H1, L1, M2, M3, H2, L2, guest DM
   policy and proxy SSRF helpers.
 - Existing access regressions: `38 passed, 0 failed`.
-- Host-level credential actions are tracked separately below.
+- Live board: server/proxy active, `/health` 200, deployed file hashes matched,
+  proxy listening only on `192.168.4.1:3128`, Host-header redirect is relative,
+  and password SSH authentication is rejected.
 
 ## Remaining operator actions
 
 - Revoke the GitHub PAT that was found in `lc-askpass.cmd`; issue a
-  fine-grained replacement with the minimum scopes and short TTL.
+  fine-grained replacement with the minimum scopes and short TTL, then sign in
+  again (the cached credential was removed).
 - Rotate the admin web password and review GitHub audit logs / Actions secrets.
-- Review SSH auth logs and authorized keys on the board after the key-only
-  deployment.
+- Rotate the `gamecat` password from the physical console. Remote password login
+  is already disabled; the password remains relevant to local sudo.
+- Review SSH auth logs and authorized keys on the board.
+- The `test` profile still exposes `/docs` and `/openapi.json`; keep this only on
+  the isolated test stand, not in production.

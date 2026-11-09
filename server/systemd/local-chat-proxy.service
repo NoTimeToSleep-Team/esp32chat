@@ -5,7 +5,8 @@ Wants=local-chat-server.service
 
 [Service]
 Type=simple
-User=root
+User=localchat
+Group=localchat
 Environment=LC_DB_PATH=/opt/local-chat-server/data/sqlite/local_chat.db
 Environment=LC_PROXY_BIND=192.168.4.1
 Environment=LC_PROXY_ALLOWED_PORTS=80,443
