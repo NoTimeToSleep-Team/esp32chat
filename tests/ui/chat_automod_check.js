@@ -28,7 +28,7 @@ async function register(prefix) {
 }
 
 async function tokenFor(login, password) {
-  const res = await api("POST", "/auth/login", { login, password, client_kind: "web" });
+  const res = await api("POST", "/auth/login", { login, password, client_kind: "web", device_id: "uitoken-" + login });
   return res.json && res.json.session ? res.json.session.token : null;
 }
 
@@ -141,25 +141,31 @@ async function setAutomod(adminToken, payload) {
 
   // --- standalone admin UI (reports tab) ---
   await page.goto(BASE + "/admin");
-  await page.waitForTimeout(900);
-  await page.fill("#l", "admin");
-  await page.fill("#p", process.env.LC_ADMIN_PASSWORD || "");
-  await page.evaluate(() => document.querySelector("#login form").dispatchEvent(new Event("submit", { cancelable: true })));
-  await page.waitForTimeout(2500);
-  await page.evaluate(() => switchTab("reports"));
+  await page.waitForTimeout(1500);
+  const adminAlreadyOpen = await page.evaluate(() => {
+    const main = document.getElementById("scr-main");
+    return !!main && !main.classList.contains("hidden");
+  });
+  if (!adminAlreadyOpen) {
+    await page.fill("#l", "admin");
+    await page.fill("#p", process.env.LC_ADMIN_PASSWORD || "");
+    await page.click("#l-btn");
+    await page.waitForTimeout(2500);
+  }
+  await page.click('#tabs .chip[data-t="reports"]');
   await page.waitForTimeout(1500);
   const ui = await page.evaluate(() => {
-    const panel = document.getElementById("panel-reports");
+    const panel = document.getElementById("content");
     const text = panel ? panel.textContent : "";
     return {
-      panelVisible: panel ? panel.classList.contains("active") : null,
-      userSection: text.includes("User Reports"),
-      pendingReports: /([1-9]\d* pending)/.test(text),
-      profanityCard: text.includes("Profanity")
+      panelVisible: !!panel,
+      queue: /User reports|Жалобы пользователей|Automoderation|Автомодерация/i.test(text),
+      pendingReports: /pending|ожидают/i.test(text),
+      automodSection: /Automoderation|Автомодерация/i.test(text)
     };
   });
-  check("reports tab shows the report queue", ui.panelVisible === true && ui.userSection && ui.pendingReports, JSON.stringify(ui).slice(0, 220));
-  check("auto-moderation reports are visible in the user report queue", ui.profanityCard, JSON.stringify(ui).slice(0, 220));
+  check("reports tab shows the report queue", ui.panelVisible && ui.queue && ui.pendingReports, JSON.stringify(ui).slice(0, 220));
+  check("auto-moderation reports are visible in the user report queue", ui.automodSection, JSON.stringify(ui).slice(0, 220));
   await page.screenshot({ path: SHOTS + "automod-admin.png" });
 
   check("no page errors", errs.length === 0, errs.join(" | "));

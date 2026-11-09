@@ -8,6 +8,40 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   m.on("pageerror", e => errs.push(e.message));
   await login(m, "admin");
 
+  // Seed a scrollable chat list and one support ticket. The suite runs on a
+  // disposable database, so without this a fresh install has one chat and no
+  // tickets and the touch/support regression checks cannot be exercised.
+  const adminToken = await m.evaluate(() => STATE.token);
+  await m.evaluate(async (token) => {
+    for (let i = 0; i < 20; i += 1) {
+      const res = await fetch("/chat/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_token: token,
+          title: "Mobile seed " + i,
+          chat_type: "channel",
+          is_public: false,
+          member_ids: [],
+        }),
+      });
+      if (!res.ok) throw new Error("seed chat failed: " + res.status);
+    }
+    const ticket = await fetch("/support/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_token: token,
+        title: "Mobile support seed",
+        body_text: "Seed",
+        kind: "bug",
+      }),
+    });
+    if (!ticket.ok) throw new Error("seed ticket failed: " + ticket.status);
+  }, adminToken);
+  await m.reload({ waitUntil: "load" });
+  await m.waitForTimeout(2500);
+
   const listInfo = await m.evaluate(() => {
     const nav = document.querySelector(".nav");
     const head = document.querySelector(".chat-side-head");
@@ -27,20 +61,20 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   await m.screenshot({ path: SHOTS + "mobile-compact-list.png" });
 
   const icons = await m.evaluate(() => {
-    const dm = document.querySelector("#chat-dm-btn");
+    const menu = document.querySelector("#chat-menu-btn");
     const rf = document.querySelector("#chat-refresh-m");
-    const cs = getComputedStyle(dm), cr = getComputedStyle(rf);
+    const cm = getComputedStyle(menu), cr = getComputedStyle(rf);
     return {
-      dmText: dm.textContent.trim(),
+      menuPresent: !!menu,
       rfW: Math.round(rf.getBoundingClientRect().width),
       rfH: Math.round(rf.getBoundingClientRect().height),
       rfFont: parseFloat(cr.fontSize),
-      dmBg: cs.backgroundColor
+      menuBg: cm.backgroundColor
     };
   });
-  check("DM button has label", /Личка|DM/.test(icons.dmText), JSON.stringify(icons));
+  check("menu button present", icons.menuPresent, JSON.stringify(icons));
   check("icon buttons >=38px, font >=18px", icons.rfW >= 38 && icons.rfH >= 38 && icons.rfFont >= 18, JSON.stringify(icons));
-  check("icon buttons have visible background", icons.dmBg !== "rgba(0, 0, 0, 0)" && icons.dmBg !== "transparent", icons.dmBg);
+  check("icon buttons have visible background", icons.menuBg !== "rgba(0, 0, 0, 0)" && icons.menuBg !== "transparent", icons.menuBg);
 
   const cdp = await ctx.newCDPSession(m);
   const swipe = swipeFactory(cdp);
@@ -192,10 +226,6 @@ const { BASE, SHOTS, check, summary, login, launchMobile, swipeFactory } = requi
   await m.click("#chat-new-btn");
   await m.waitForTimeout(600);
   check("new chat modal opens from list header", await m.isVisible("#create-chat-modal"));
-  await m.evaluate(() => { document.querySelectorAll(".overlay").forEach(o => o.classList.add("hidden")); });
-  await m.click("#chat-dm-btn");
-  await m.waitForTimeout(700);
-  check("DM modal opens from list header", await m.isVisible("#dm-modal"));
   await m.evaluate(() => { document.querySelectorAll(".overlay").forEach(o => o.classList.add("hidden")); });
 
   await m.evaluate(() => { window.location.hash = "#/account"; });

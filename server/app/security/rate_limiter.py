@@ -101,3 +101,61 @@ class InMemoryRateLimiter:
                 limit=limit,
                 window_ms=window_ms,
             )
+
+
+class FailureRateLimiter:
+    """Blocks a key after a number of failures in a sliding window.
+
+    Unlike ``InMemoryRateLimiter`` successful operations do not consume the
+    budget. This keeps normal registration/login traffic unaffected while
+    stopping repeated enumeration or room-code guessing from one source.
+    """
+
+    def __init__(self, *, max_failures: int, window_ms: int, block_ms: int) -> None:
+        self._max_failures = max(1, int(max_failures))
+        self._window_ms = max(1, int(window_ms))
+        self._block_ms = max(1, int(block_ms))
+        self._failures: dict[str, deque[int]] = {}
+        self._blocked: dict[str, int] = {}
+        self._lock = Lock()
+
+    def check(self, *, key: str, now_ms: int) -> tuple[bool, int | None]:
+        with self._lock:
+            blocked_until = self._blocked.get(key)
+            if blocked_until is not None:
+                if blocked_until <= now_ms:
+                    self._blocked.pop(key, None)
+                else:
+                    return False, blocked_until
+
+            queue = self._failures.get(key)
+            if queue is None:
+                return True, None
+            boundary = now_ms - self._window_ms
+            while queue and queue[0] <= boundary:
+                queue.popleft()
+            if not queue:
+                self._failures.pop(key, None)
+            return True, None
+
+    def record_failure(self, *, key: str, now_ms: int) -> int | None:
+        with self._lock:
+            queue = self._failures.get(key)
+            if queue is None:
+                queue = deque()
+                self._failures[key] = queue
+            boundary = now_ms - self._window_ms
+            while queue and queue[0] <= boundary:
+                queue.popleft()
+            queue.append(now_ms)
+            if len(queue) >= self._max_failures:
+                blocked_until = now_ms + self._block_ms
+                self._blocked[key] = blocked_until
+                self._failures.pop(key, None)
+                return blocked_until
+            return None
+
+    def reset(self, *, key: str) -> None:
+        with self._lock:
+            self._failures.pop(key, None)
+            self._blocked.pop(key, None)

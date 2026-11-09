@@ -30,7 +30,7 @@ const { BASE, SHOTS, check, summary, launch } = require("./lib");
     check("messages panel open", await page.isVisible("#msg-input"));
 
     const mobileOnly = await page.evaluate(() => {
-      return ["#chat-menu-btn", "#chat-dm-btn", "#chat-refresh-m", "#chat-new-btn"].map(sel => {
+      return ["#chat-menu-btn", "#chat-refresh-m", "#chat-new-btn"].map(sel => {
         const el = document.querySelector(sel);
         return el ? getComputedStyle(el).display : "missing";
       });

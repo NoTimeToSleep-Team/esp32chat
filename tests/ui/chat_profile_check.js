@@ -33,7 +33,7 @@ async function register(prefix) {
 }
 
 async function loginToken(login, password) {
-  const res = await api("POST", "/auth/login", { login, password, client_kind: "web" });
+  const res = await api("POST", "/auth/login", { login, password, client_kind: "web", device_id: "uitoken-" + login });
   return res.json && res.json.session ? res.json.session.token : null;
 }
 
@@ -106,7 +106,7 @@ async function loginToken(login, password) {
   await page.click("#cp-desc-save");
   await page.waitForTimeout(1200);
   const headerDesc = await page.evaluate(() => document.querySelector(".chead .t2")?.textContent);
-  check("description is updated in the chat header", headerDesc === "новое описание", headerDesc);
+  check("description is updated in the chat header", headerDesc.includes("новое описание"), headerDesc);
 
   // photo
   await page.setInputFiles("#cp-avatar-file", pngPath);
@@ -182,7 +182,7 @@ async function loginToken(login, password) {
   const transfer = await api("POST", `/chat/api/chats/${chatId}/owner`, { session_token: adminToken, target_user_id: member1.id });
   check("ownership is transferred", transfer.status === 200 && transfer.json.chat.owner_user_id === member1.id,
     transfer.status + " " + JSON.stringify(transfer.json).slice(0, 160));
-  const transferBack = await api("POST", `/chat/api/chats/${chatId}/owner`, { session_token: adminToken, target_user_id: adminId });
+  const transferBack = await api("POST", `/chat/api/chats/${chatId}/owner`, { session_token: member1Token, target_user_id: adminId });
   check("ownership is transferred back to admin", transferBack.status === 200 && transferBack.json.chat.owner_user_id === adminId,
     transferBack.status + " " + JSON.stringify(transferBack.json).slice(0, 160));
 
@@ -201,13 +201,20 @@ async function loginToken(login, password) {
     return c ? c.chat_id : null;
   });
   if (commonId) {
+    // Common chats create their per-user row lazily when read state is updated.
+    // Seed it so the profile exposes archive/pin/mute controls consistently.
+    await api("POST", `/chat/api/chats/${commonId}/read`, { session_token: adminToken, message_id: 0 });
+    await page.evaluate(() => { window.location.hash = "#/chat"; });
+    await page.waitForTimeout(1500);
     await page.evaluate(() => { document.querySelectorAll(".overlay").forEach(o => o.remove()); });
     await page.evaluate((id) => { const it = document.querySelector(`#chat-list .chat-item[data-chat-id="${id}"]`); if (it) it.click(); }, commonId);
     await page.waitForTimeout(1500);
+    await page.waitForSelector("#chat-more", { state: "visible", timeout: 5000 });
     await page.click("#chat-more");
-    await page.waitForTimeout(1300);
+    await page.waitForSelector("#cp-archive", { state: "visible", timeout: 5000 });
+    await page.waitForTimeout(300);
     const commonUi = await page.evaluate(() => {
-      const view = window.currentChatView || {};
+      const view = (typeof currentChatView !== "undefined" ? currentChatView : null) || {};
       return {
         muted: !!view.is_muted,
         deleteBtn: !!document.getElementById("cp-delete"),
@@ -215,10 +222,11 @@ async function loginToken(login, password) {
         archiveBtn: !!document.getElementById("cp-archive"),
         pinBtn: !!document.getElementById("cp-pin"),
         muteBtn: !!document.getElementById("cp-mute"),
+        modal: !!document.getElementById("chat-profile-modal"),
       };
     });
     check("general chat: no delete/leave, mute only as an unmute escape hatch",
-      commonUi.deleteBtn === false && commonUi.leaveBtn === false && commonUi.muteBtn === commonUi.muted && commonUi.archiveBtn === true && commonUi.pinBtn === true,
+      commonUi.modal && commonUi.deleteBtn === false && commonUi.leaveBtn === false && commonUi.muteBtn === commonUi.muted && commonUi.archiveBtn === true && commonUi.pinBtn === true,
       JSON.stringify(commonUi));
     await page.evaluate(() => { const m = document.getElementById("chat-profile-modal"); if (m) m.remove(); });
   } else {

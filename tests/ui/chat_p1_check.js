@@ -28,7 +28,7 @@ async function register(prefix) {
 }
 
 async function tokenFor(login, password) {
-  const res = await api("POST", "/auth/login", { login, password, client_kind: "web" });
+  const res = await api("POST", "/auth/login", { login, password, client_kind: "web", device_id: "uitoken-" + login });
   return res.json && res.json.session ? res.json.session.token : null;
 }
 
@@ -189,15 +189,28 @@ async function tokenFor(login, password) {
   await page1.waitForTimeout(300);
 
   // --- unread badge ---
-  await api("POST", `/chat/api/chats/${chatId}/messages`, { session_token: adminToken, body_text: "непрочитанное 1" });
-  await api("POST", `/chat/api/chats/${chatId}/messages`, { session_token: adminToken, body_text: "непрочитанное 2" });
-  // Another chat gets the newest message, so the chat page auto-opens it instead of the group.
+  // Leave the group view and open a different chat first: otherwise the open
+  // chat can mark the new messages read before the badge is rendered.
+  await page1.evaluate(() => { window.location.hash = "#/account"; });
+  await page1.waitForTimeout(600);
   const chat2 = await api("POST", "/chat/api/chats", { session_token: adminToken, title: "P1 второй " + Math.random().toString(36).slice(2, 5), member_ids: [u1.id] });
   await api("POST", `/chat/api/chats/${chat2.json.chat.chat_id}/messages`, { session_token: adminToken, body_text: "свежее сообщение" });
+  await page1.evaluate(() => { window.location.hash = "#/chat"; });
+  await page1.waitForTimeout(1500);
+  await page1.evaluate((id) => {
+    const item = document.querySelector(`#chat-list .chat-item[data-chat-id="${id}"]`);
+    if (item) item.click();
+  }, chat2.json.chat.chat_id);
+  await page1.waitForTimeout(1500);
+
+  await api("POST", `/chat/api/chats/${chatId}/messages`, { session_token: adminToken, body_text: "непрочитанное 1" });
+  await api("POST", `/chat/api/chats/${chatId}/messages`, { session_token: adminToken, body_text: "непрочитанное 2" });
+  await page1.waitForTimeout(1500);
+  // Force a chat-list refresh from the server (the list is the source of the badge).
   await page1.evaluate(() => { window.location.hash = "#/account"; });
   await page1.waitForTimeout(600);
   await page1.evaluate(() => { window.location.hash = "#/chat"; });
-  await page1.waitForTimeout(3500);
+  await page1.waitForTimeout(2000);
   const unreadUi = await page1.evaluate((title) => {
     const items = Array.from(document.querySelectorAll("#chat-list .chat-item"));
     const item = items.find(i => (i.querySelector(".chat-item-title") || {}).textContent.includes(title));

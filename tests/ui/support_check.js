@@ -16,6 +16,22 @@ const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8B
   page.on("pageerror", e => errs.push(e.message));
 
   await login(page, "admin");
+  // This suite checks auto-load; seed one ticket so the page has something
+  // to load even on a completely fresh disposable database.
+  const adminToken = await page.evaluate(() => STATE.token);
+  await page.evaluate(async (token) => {
+    const res = await fetch("/support/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_token: token,
+        title: "Seed ticket for auto-load",
+        body_text: "Seed",
+        kind: "bug",
+      }),
+    });
+    if (!res.ok) throw new Error("seed ticket failed: " + res.status);
+  }, adminToken);
   await page.goto(page.url().split("#")[0].replace(/\/$/, "") + "/support", { waitUntil: "load" });
   await page.waitForTimeout(2500);
 

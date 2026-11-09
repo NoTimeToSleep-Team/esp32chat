@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from time import time
 
 from app.models import ClientKind
-from app.security import BruteForceGuard, SecurityAuditService
+from app.security import BruteForceGuard, FailureRateLimiter, SecurityAuditService
 from app.security.network import resolve_client_ip
 from app.services.activity_log import ActivityLogService
 from app.services.auth import AuthError, AuthResult, AuthService
@@ -249,6 +250,27 @@ async def device_session(request: Request, payload: DeviceSessionRequest) -> dic
 
 @router.post("/register")
 async def register(payload: RegisterRequest, request: Request) -> dict[str, object]:
+    now_ms = int(time() * 1000)
+    ip_address = resolve_client_ip(request)
+    failure_limiter: FailureRateLimiter = request.app.state.registration_failure_limiter
+    allowed, blocked_until_ms = failure_limiter.check(key=ip_address, now_ms=now_ms)
+    if not allowed:
+        _security_audit(request).log_event(
+            "security.registration_rate_limited",
+            actor_kind="ip",
+            actor_id=ip_address,
+            details={"blocked_until_ms": blocked_until_ms, "reason": "repeated_login_taken"},
+        )
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "registration_rate_limited",
+                "message": "Too many registration attempts, try later",
+                "blocked_until_ms": blocked_until_ms,
+                "retry_after_ms": max(int(blocked_until_ms or now_ms) - now_ms, 1),
+            },
+        )
+
     service = _registration_service(request)
     try:
         result = service.register_user(
@@ -259,6 +281,21 @@ async def register(payload: RegisterRequest, request: Request) -> dict[str, obje
             client_kind=payload.client_kind,
         )
     except RegistrationError as exc:
+        if exc.code in {"login_taken", "phone_taken"}:
+            blocked_until_ms = failure_limiter.record_failure(
+                key=ip_address,
+                now_ms=now_ms,
+            )
+            if blocked_until_ms is not None:
+                _security_audit(request).log_event(
+                    "security.registration_rate_limited",
+                    actor_kind="ip",
+                    actor_id=ip_address,
+                    details={
+                        "blocked_until_ms": blocked_until_ms,
+                        "reason": exc.code,
+                    },
+                )
         raise HTTPException(
             status_code=exc.status_code,
             detail={

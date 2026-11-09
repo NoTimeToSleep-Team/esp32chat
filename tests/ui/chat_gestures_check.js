@@ -28,7 +28,7 @@ async function register(prefix) {
 }
 
 async function tokenFor(login, password) {
-  const res = await api("POST", "/auth/login", { login, password, client_kind: "web" });
+  const res = await api("POST", "/auth/login", { login, password, client_kind: "web", device_id: "uitoken-" + login });
   return res.json && res.json.session ? res.json.session.token : null;
 }
 

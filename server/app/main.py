@@ -43,7 +43,7 @@ from app.config import ConfigError, get_settings
 from app.db import initialize_data_layer
 from app.logging import configure_logging, get_logger, install_runtime_log_filters
 from app.realtime import ChatRealtimeBroker
-from app.security import InMemoryRateLimiter, SecurityAuditService
+from app.security import FailureRateLimiter, InMemoryRateLimiter, SecurityAuditService
 from app.security.body_limit import BodySizeLimitMiddleware
 from app.security.infrastructure import is_infrastructure_path
 from app.security.network import resolve_client_ip
@@ -101,6 +101,22 @@ def create_app() -> FastAPI:
             global_limit=120,
             global_window_ms=60_000,
             auth_limit=120,
+            auth_window_ms=60_000,
+        )
+        app.state.registration_failure_limiter = FailureRateLimiter(
+            max_failures=10,
+            window_ms=10 * 60_000,
+            block_ms=10 * 60_000,
+        )
+        app.state.private_join_failure_limiter = FailureRateLimiter(
+            max_failures=10,
+            window_ms=10 * 60_000,
+            block_ms=10 * 60_000,
+        )
+        app.state.pairing_request_limiter = InMemoryRateLimiter(
+            global_limit=10,
+            global_window_ms=60_000,
+            auth_limit=10,
             auth_window_ms=60_000,
         )
         app.state.security_audit = SecurityAuditService(

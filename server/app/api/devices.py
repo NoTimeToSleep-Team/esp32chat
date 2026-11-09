@@ -5,8 +5,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+from time import time
 
 from app.models import ClientKind, DeviceOwnership, DeviceProfileDraft, DeviceProfileView, PairedDevice, UserRole
+from app.security import InMemoryRateLimiter
+from app.security.network import resolve_client_ip
 from app.services.auth import AuthError, AuthService
 from app.services.device_pairing import DevicePairingError, DevicePairingService
 from app.services.devices import DeviceCatalogError, DeviceCatalogService
@@ -424,6 +427,22 @@ async def request_pairing_code(
     request: Request,
     payload: PairRequestDeviceRequest,
 ) -> dict[str, object]:
+    limiter: InMemoryRateLimiter = request.app.state.pairing_request_limiter
+    decision = limiter.check(
+        ip_address=resolve_client_ip(request),
+        path="/devices/api/pair/request",
+        now_ms=int(time() * 1000),
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "pairing_rate_limited",
+                "message": "Too many pairing requests, try later",
+                "retry_after_ms": decision.retry_after_ms,
+            },
+        )
+
     service = _pairing_service(request)
     try:
         item = service.create_request(

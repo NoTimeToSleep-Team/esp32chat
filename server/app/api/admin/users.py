@@ -71,7 +71,7 @@ def _admin_users_service(request: Request) -> AdminUsersService:
     return AdminUsersService(db_path=data_layer.database_path)
 
 
-def _resolve_admin_user_id(request: Request, session_token: str) -> int:
+def _resolve_admin_session(request: Request, session_token: str) -> tuple[int, UserRole]:
     service = _auth_service(request)
     try:
         session = service.get_session(session_token, client_kind=ClientKind.WEB)
@@ -102,11 +102,16 @@ def _resolve_admin_user_id(request: Request, session_token: str) -> int:
             },
         )
 
-    return session.user.user_id
+    return session.user.user_id, session.user.role
 
 
-def _admin_user_payload(record: AdminUserRecord) -> dict[str, object]:
-    return {
+def _resolve_admin_user_id(request: Request, session_token: str) -> int:
+    user_id, _role = _resolve_admin_session(request, session_token)
+    return user_id
+
+
+def _admin_user_payload(record: AdminUserRecord, *, include_private: bool = True) -> dict[str, object]:
+    payload: dict[str, object] = {
         "user_id": record.user_id,
         "login": record.login,
         "role": record.role.value,
@@ -121,6 +126,11 @@ def _admin_user_payload(record: AdminUserRecord) -> dict[str, object]:
         "restriction_updated_at_ms": record.restriction_updated_at_ms,
         "device_blacklisted": record.device_blacklisted,
     }
+    if not include_private:
+        payload.pop("phone", None)
+        payload.pop("registration_device_id", None)
+        payload.pop("block_reason", None)
+    return payload
 
 
 def _blacklist_payload(entry: DeviceBlacklistEntry) -> dict[str, object]:
@@ -157,7 +167,7 @@ async def list_admin_users(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, object]:
-    admin_user_id = _resolve_admin_user_id(request, session_token)
+    admin_user_id, actor_role = _resolve_admin_session(request, session_token)
     service = _admin_users_service(request)
 
     try:
@@ -170,10 +180,14 @@ async def list_admin_users(
     except AdminUsersError as exc:
         _raise_admin_error(exc)
 
+    include_private = actor_role == UserRole.ADMIN
     return {
         "status": "ok",
         "count": len(records),
-        "items": [_admin_user_payload(record) for record in records],
+        "items": [
+            _admin_user_payload(record, include_private=include_private)
+            for record in records
+        ],
     }
 
 
@@ -183,7 +197,7 @@ async def get_admin_user(
     user_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
-    admin_user_id = _resolve_admin_user_id(request, session_token)
+    admin_user_id, actor_role = _resolve_admin_session(request, session_token)
     service = _admin_users_service(request)
 
     try:
@@ -193,7 +207,10 @@ async def get_admin_user(
 
     return {
         "status": "ok",
-        "user": _admin_user_payload(record),
+        "user": _admin_user_payload(
+            record,
+            include_private=actor_role == UserRole.ADMIN,
+        ),
     }
 
 

@@ -1058,8 +1058,12 @@ class ChatService:
                         "A direct chat participant cannot remove the other participant",
                         403,
                     )
+                # A DM is an immutable two-member chat. "Leaving" only hides
+                # the dialog for this participant; deleting the membership
+                # would break the exact-two-member invariant and orphan the
+                # other side of the conversation.
                 connection.execute(
-                    "DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                    "UPDATE chat_members SET is_archived = 1 WHERE chat_id = ? AND user_id = ?",
                     (chat_id, target_user_id),
                 )
                 return
@@ -1340,7 +1344,9 @@ class ChatService:
                 )
 
             cleaned = {
-                name: bool(permissions.get(name, True))
+                # Missing flags must default to False: a partial request must
+                # never silently grant every permission the caller omitted.
+                name: bool(permissions.get(name, False))
                 for name in CHAT_PERMISSIONS
             }
             connection.execute(
@@ -1996,6 +2002,15 @@ class ChatService:
     def mark_read(self, *, chat_id: int, user_id: int, message_id: int) -> None:
         with self._connect() as connection:
             self._require_active_user(connection, user_id)
+            if int(message_id) > 0:
+                exists = connection.execute(
+                    "SELECT 1 FROM chat_messages WHERE id = ? AND chat_id = ?",
+                    (int(message_id), chat_id),
+                ).fetchone()
+                if exists is None:
+                    # A stale/foreign id must not advance this user's read
+                    # marker. Ignore it (the UI may race a message deletion).
+                    return
             row = connection.execute(
                 "SELECT last_read_message_id FROM chat_members WHERE chat_id = ? AND user_id = ?",
                 (chat_id, user_id),
@@ -2596,14 +2611,17 @@ class ChatService:
         ).fetchone()
         raw = self._row_optional_str_lenient(row, "permissions") if row is not None else None
         if not raw:
+            # Legacy rows without a permissions blob keep the historical
+            # full-admin behaviour. New rows always carry an explicit map.
             return True
         try:
             data = json.loads(raw)
         except (TypeError, ValueError):
-            return True
+            # A corrupted permissions value must not fail open.
+            return False
         if not isinstance(data, dict):
-            return True
-        return bool(data.get(permission, True))
+            return False
+        return bool(data.get(permission, False))
 
     @staticmethod
     def _is_guest(connection: sqlite3.Connection, *, user_id: int) -> bool:
@@ -3826,6 +3844,12 @@ class ChatService:
             if rows:
                 row = connection.execute("SELECT * FROM chats WHERE id = ?", (rows[0][0],)).fetchone()
                 if row is not None:
+                    # Re-opening a DM after "leave" must restore it for this
+                    # participant without changing the other side's state.
+                    connection.execute(
+                        "UPDATE chat_members SET is_archived = 0 WHERE chat_id = ? AND user_id = ?",
+                        (self._row_int(row, "id"), user_id),
+                    )
                     return self._row_to_chat(row)
 
             # DMs are a separate one-to-one channel and deliberately do not
@@ -3924,24 +3948,27 @@ class ChatService:
             if actor_user_id is not None:
                 self._require_active_user(connection, actor_user_id)
                 chat = self._require_chat(connection, chat_id)
-                is_admin = self._is_platform_moderator(connection, user_id=actor_user_id)
-                is_owner = int(row["author_user_id"]) == actor_user_id
-                if not is_owner and not is_admin:
-                    raise ChatError("forbidden", "Not authorized to delete this message", 403)
-                if (
-                    not is_admin
-                    and self._member_role_value(
-                        connection,
-                        chat_id=chat_id,
-                        user_id=actor_user_id,
-                    )
-                    is None
+                is_platform = self._is_platform_moderator(connection, user_id=actor_user_id)
+                is_author = int(row["author_user_id"]) == actor_user_id
+                member_role = self._member_role_value(
+                    connection,
+                    chat_id=chat_id,
+                    user_id=actor_user_id,
+                )
+                if is_author:
+                    if not is_platform and member_role is None:
+                        raise ChatError(
+                            "forbidden",
+                            "You are no longer a member of this chat",
+                            403,
+                        )
+                elif not is_platform and not self._has_permission(
+                    connection,
+                    chat_row=chat,
+                    user_id=actor_user_id,
+                    permission="delete_messages",
                 ):
-                    raise ChatError(
-                        "forbidden",
-                        "You are no longer a member of this chat",
-                        403,
-                    )
+                    raise ChatError("forbidden", "Not authorized to delete this message", 403)
             connection.execute("DELETE FROM chat_messages WHERE id=?", (message_id,))
             connection.execute("DELETE FROM chat_message_attachments WHERE message_id=?", (message_id,))
 

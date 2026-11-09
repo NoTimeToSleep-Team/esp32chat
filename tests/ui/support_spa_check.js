@@ -15,6 +15,21 @@ const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8B
   const errs = [];
   page.on("pageerror", e => errs.push(e.message));
   await login(page, "admin");
+  // Seed one ticket so the auto-load/first-selection checks are self-contained.
+  const adminToken = await page.evaluate(() => STATE.token);
+  await page.evaluate(async (token) => {
+    const res = await fetch("/support/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_token: token,
+        title: "Seed SPA ticket",
+        body_text: "Seed",
+        kind: "bug",
+      }),
+    });
+    if (!res.ok) throw new Error("seed ticket failed: " + res.status);
+  }, adminToken);
   await page.evaluate(() => { window.location.hash = "#/support"; });
   await page.waitForTimeout(3000);
 

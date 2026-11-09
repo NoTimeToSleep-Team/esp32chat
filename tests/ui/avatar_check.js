@@ -57,7 +57,12 @@ const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8B
   check("chat list has items", items.length > 0, "n=" + items.length);
   if (items.length) {
     await items[0].click();
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1500);
+    // A fresh database has no messages in the common chat; send one so the
+    // message avatar has something to render.
+    await page.fill("#msg-input", "avatar check " + Date.now());
+    await page.click("#send-btn");
+    await page.waitForTimeout(2500);
     const chatAva = await page.evaluate(() => {
       const imgs = document.querySelectorAll("#msg-list .msg-avatar img");
       return { n: imgs.length, src: imgs.length ? imgs[0].getAttribute("src") : "" };

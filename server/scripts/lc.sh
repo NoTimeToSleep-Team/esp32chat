@@ -329,14 +329,38 @@ cmd_uninstall() {
     if systemd_ok; then
         systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
         systemctl disable "${SERVICE_NAME}" 2>/dev/null || true
+        systemctl stop 'lc-usb-key@*' 2>/dev/null || true
     fi
     rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
-    systemctl daemon-reload 2>/dev/null || true
     rm -f /usr/local/bin/lc
+    # The USB root-key gate is code-owned: leaving its unit/rule/symlink behind
+    # after the application is removed creates a dangling management surface.
+    rm -f /usr/local/sbin/lc-operator /usr/local/sbin/lc-usb-key
+    rm -f /etc/udev/rules.d/70-lc-usb-key.rules
+    rm -f /etc/systemd/system/lc-usb-key@.service
+    systemctl daemon-reload 2>/dev/null || true
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules 2>/dev/null || true
+    fi
 
     if [[ "${purge}" == "1" ]]; then
+        # Earlier non-purge uninstalls leave full copies of data + app.env in
+        # /opt/local-chat-server.removed-*. A later --purge must remove them too.
+        local old
+        for old in "${APP_ROOT}".removed-*; do
+            [[ -e "${old}" ]] || continue
+            rm -rf "${old}"
+        done
         rm -rf "${APP_ROOT}"
-        echo "Removed completely (data included)."
+        rm -rf /etc/lc-root-key
+        rm -f "${INSTALL_LOG}"
+        if id -u "${APP_USER}" >/dev/null 2>&1; then
+            userdel "${APP_USER}" 2>/dev/null || true
+        fi
+        if getent group "${APP_GROUP}" >/dev/null 2>&1; then
+            groupdel "${APP_GROUP}" 2>/dev/null || true
+        fi
+        echo "Removed completely (data, settings, service account and USB gate state included)."
     else
         mv "${APP_ROOT}" "${APP_ROOT}.removed-$(date +%Y%m%d-%H%M%S)"
         echo "Code removed; data kept in ${APP_ROOT}.removed-*"

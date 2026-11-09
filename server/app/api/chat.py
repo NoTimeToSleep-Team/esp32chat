@@ -429,13 +429,6 @@ async def delete_chat_message(request: Request, chat_id: int, message_id: int, p
     if session.user.user_id is None:
         raise HTTPException(status_code=500, detail={"code": "invalid_user", "message": "Missing user id"})
     chat_service = _chat_service(request)
-    is_privileged = session.user.role in {UserRole.ADMIN, UserRole.MODERATOR}
-    if not is_privileged:
-        author_id = chat_service.get_message_author(message_id)
-        if author_id is None:
-            raise HTTPException(status_code=404, detail={"code": "message_not_found", "message": "Message not found"})
-        if author_id != session.user.user_id:
-            raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "You can delete only your own messages"})
     try:
         chat_service.delete_message(chat_id=chat_id, message_id=message_id, actor_user_id=session.user.user_id)
     except ChatError as exc:

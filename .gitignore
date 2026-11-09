@@ -18,6 +18,9 @@ dist/
 # Logs
 *.log
 
+# UI test screenshots / local test artifacts
+experiments/
+
 # PlatformIO build artifacts
 .pio/
 

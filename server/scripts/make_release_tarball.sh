@@ -34,6 +34,13 @@ tar -C "${SERVER_ROOT}" -cf - \
 # «вечная» команда установки в корне пакета (та же, что публикуется в GitHub Release)
 install -m 0755 "${SERVER_ROOT}/setup/install.sh" "${STAGE}/${PKG}/install.sh"
 
+# Deterministic modes even when the checkout lives on a drvfs/WSL mount.
+find "${STAGE}/${PKG}" -type d -exec chmod 0755 {} +
+find "${STAGE}/${PKG}" -type f -exec chmod 0644 {} +
+chmod 0755 "${STAGE}/${PKG}/install.sh" \
+    "${STAGE}/${PKG}/server/scripts/"*.sh \
+    "${STAGE}/${PKG}/server/setup/"*.sh
+
 mkdir -p "${OUT_DIR}"
 tar -czf "${OUT_DIR}/${PKG}.tar.gz" -C "${STAGE}" "${PKG}"
 ( cd "${OUT_DIR}" && sha256sum "${PKG}.tar.gz" > "${PKG}.tar.gz.sha256" )

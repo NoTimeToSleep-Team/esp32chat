@@ -2,8 +2,11 @@
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from time import time
 
 from app.models import ChatDraft, ChatMember, ChatRoom, ClientKind
+from app.security import FailureRateLimiter
+from app.security.network import resolve_client_ip
 from app.services.auth import AuthError, AuthService
 from app.services.chat import ChatError, ChatService
 
@@ -155,6 +158,22 @@ async def join_private_chat(
     user_id = _resolve_user_id(request, payload.session_token)
     service = _chat_service(request)
 
+    now_ms = int(time() * 1000)
+    ip_address = resolve_client_ip(request)
+    limiter_key = f"{ip_address}:{chat_id}"
+    limiter: FailureRateLimiter = request.app.state.private_join_failure_limiter
+    allowed, blocked_until_ms = limiter.check(key=limiter_key, now_ms=now_ms)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "room_code_rate_limited",
+                "message": "Too many room-code attempts, try later",
+                "blocked_until_ms": blocked_until_ms,
+                "retry_after_ms": max(int(blocked_until_ms or now_ms) - now_ms, 1),
+            },
+        )
+
     try:
         member = service.join_private_chat(
             chat_id=chat_id,
@@ -162,8 +181,11 @@ async def join_private_chat(
             room_code=payload.room_code,
         )
     except ChatError as exc:
+        if exc.code == "invalid_room_code":
+            limiter.record_failure(key=limiter_key, now_ms=now_ms)
         _raise_chat_error(exc)
 
+    limiter.reset(key=limiter_key)
     return {
         "status": "ok",
         "member": _member_payload(member),

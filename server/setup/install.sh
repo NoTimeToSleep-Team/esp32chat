@@ -61,10 +61,12 @@ fi
 # 1) Unpacked release or repo checkout (engine is right next to us).
 if [[ -f "${SELF_DIR}/server/scripts/install_pi.sh" ]]; then
     export SOURCE_ROOT="${SELF_DIR}/server"
+    log "installing from the local tree (${SOURCE_ROOT}); LC_TARBALL_URL/LC_VERSION are ignored in this mode"
     exec bash "${SOURCE_ROOT}/scripts/install_pi.sh" "$@"
 fi
 if [[ -f "${SELF_DIR}/../scripts/install_pi.sh" ]]; then
     export SOURCE_ROOT="${SELF_DIR}/.."
+    log "installing from the local tree (${SOURCE_ROOT}); LC_TARBALL_URL/LC_VERSION are ignored in this mode"
     exec bash "${SOURCE_ROOT}/scripts/install_pi.sh" "$@"
 fi
 
