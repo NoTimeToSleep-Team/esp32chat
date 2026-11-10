@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Chat — package repository</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 16px/1.55 system-ui, -apple-system, sans-serif; background:#121216; color:#e8e8ee; }
+  main { max-width: 780px; margin: 0 auto; padding: 40px 20px 64px; }
+  h1 { font-size: 30px; margin: 0 0 6px; }
+  p.lead { color:#a9a9b8; margin: 0 0 28px; }
+  h2 { font-size: 19px; margin: 30px 0 10px; }
+  pre { background:#1b1b22; border:1px solid #2a2a35; border-radius:10px; padding:14px 16px; overflow-x:auto; }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13.5px; }
+  a { color:#7aa2ff; }
+  .muted { color:#8c8c9c; font-size:13.5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Local Chat — package repository</h1>
+  <p class="lead">Self-hosted chat server for a private network. Signed apt, dnf and pacman repositories.</p>
+
+  <h2>Debian / Ubuntu / Raspberry Pi OS</h2>
+  <pre><code>curl -fsSL https://notimetosleep-team.github.io/esp32chat/setup-apt.sh | sudo sh</code></pre>
+  <p class="muted">Afterwards: <code>sudo apt install local-chat</code>, updates with <code>sudo apt upgrade</code>.</p>
+
+  <h2>Fedora / RHEL-compatible</h2>
+  <pre><code>sudo dnf install https://notimetosleep-team.github.io/esp32chat/rpm/local-chat-release-1-1.noarch.rpm
+sudo dnf install local-chat</code></pre>
+
+  <h2>Arch Linux</h2>
+  <pre><code>curl -fsSL https://notimetosleep-team.github.io/esp32chat/setup-arch.sh | sudo sh</code></pre>
+  <p class="muted">Afterwards: <code>sudo pacman -S local-chat</code>, updates with <code>sudo pacman -Syu</code>.</p>
+
+  <h2>After installation</h2>
+  <pre><code>sudo lc setup     # create the administrator and configure the server
+lc status         # check the service
+sudo lc logs      # logs</code></pre>
+
+  <p class="muted">Source, documentation and issues:
+    <a href="https://github.com/NoTimeToSleep-Team/esp32chat">github.com/NoTimeToSleep-Team/esp32chat</a>.
+    Signing key: <a href="local-chat.gpg">local-chat.gpg</a>.</p>
+</main>
+</body>
+</html>

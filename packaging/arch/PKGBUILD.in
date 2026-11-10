@@ -1,0 +1,16 @@
+# Maintainer: Local Chat Team <280044855+NoTimeToSleep-Team@users.noreply.github.com>
+pkgname=local-chat
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Self-hosted local chat server with a web portal"
+arch=('x86_64')
+url="https://github.com/NoTimeToSleep-Team/esp32chat"
+license=('MIT')
+depends=('python' 'ca-certificates' 'curl' 'libnewt')
+optdepends=('hostapd: Wi-Fi access point' 'dnsmasq: Wi-Fi access point')
+install=local-chat.install
+options=('!strip' '!debug')
+
+package() {
+    cp -a "${startdir}/payload/." "${pkgdir}/"
+}

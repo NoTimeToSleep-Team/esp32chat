@@ -1,0 +1,21 @@
+post_install() {
+    /usr/share/local-chat-server/postinst.sh pacman install
+}
+
+post_upgrade() {
+    /usr/share/local-chat-server/postinst.sh pacman upgrade
+}
+
+pre_remove() {
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        systemctl stop local-chat-server >/dev/null 2>&1 || true
+        systemctl disable local-chat-server >/dev/null 2>&1 || true
+    fi
+}
+
+post_remove() {
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    rm -rf /opt/local-chat-server/.venv
+}

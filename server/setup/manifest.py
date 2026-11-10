@@ -76,10 +76,16 @@ def cmd_defaults(schema: dict) -> int:
     return 0
 
 
-def cmd_fields(schema: dict, lang: str = "en") -> int:
+def cmd_fields(schema: dict, lang: str = "en", platform: str | None = None) -> int:
     # \x1f (unit separator) is used instead of TAB: bash `read` collapses runs
     # of IFS whitespace (tab included) and the rows contain empty columns.
+    #
+    # Fields tagged with "platform" are only offered on that platform: the
+    # Wi-Fi access point setup is Debian/Raspberry Pi OS specific, while the
+    # rest of the server runs everywhere.
     for field in schema.get("fields", []):
+        if platform and field.get("platform") and field["platform"] != platform:
+            continue
         columns = [
             field["key"],
             field.get("type", "text"),
@@ -195,7 +201,11 @@ def main(argv: list[str]) -> int:
     if command == "defaults":
         return cmd_defaults(schema)
     if command == "fields":
-        return cmd_fields(schema, argv[1] if len(argv) > 1 else "en")
+        return cmd_fields(
+            schema,
+            argv[1] if len(argv) > 1 else "en",
+            argv[2] if len(argv) > 2 else None,
+        )
     if command == "choices":
         if len(argv) < 2:
             print("usage: manifest.py choices KEY", file=sys.stderr)

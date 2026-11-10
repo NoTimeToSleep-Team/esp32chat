@@ -1,0 +1,228 @@
+name: packages
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BASE_URL: https://notimetosleep-team.github.io/esp32chat
+  PYVERS: "3.10 3.11 3.12 3.13 3.14"
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Read the release version
+        run: |
+          version="$(sed -n 's/^__version__ = "\([^"]*\)"/\1/p' server/app/version.py | head -1)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release version: $version"
+
+  wheels:
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: manylinux2014_x86_64
+            artifact: wheels-amd64
+          - platform: manylinux2014_aarch64
+            artifact: wheels-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch wheels (CPython 3.10-3.13)
+        run: |
+          bash packaging/common/wheels.sh wheels "$PYVERS" "${{ matrix.platform }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheels/*.whl
+          if-no-files-found: error
+
+  deb:
+    needs: [meta, wheels]
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - { name: debian12, image: "debian:12" }
+          - { name: debian13, image: "debian:13" }
+          - { name: ubuntu2204, image: "ubuntu:22.04" }
+          - { name: ubuntu2404, image: "ubuntu:24.04" }
+        arch:
+          - { name: amd64, runner: ubuntu-latest }
+          - { name: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.arch.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-${{ matrix.arch.name }}
+          path: wheels
+      - name: Build + install test (${{ matrix.distro.name }}, ${{ matrix.arch.name }})
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work "${{ matrix.distro.image }}" bash -ec '
+            export DEBIAN_FRONTEND=noninteractive LC_NO_WIZARD=1
+            apt-get update -qq
+            apt-get install -y -qq ca-certificates curl >/dev/null
+            ARCH=${{ matrix.arch.name }} WHEELS_DIR=/work/wheels OUT_DIR=/work/dist \
+              VERSION=${{ needs.meta.outputs.version }} bash packaging/deb/build.sh
+            apt-get install -y -qq /work/dist/local-chat_${{ needs.meta.outputs.version }}-1_${{ matrix.arch.name }}.deb
+            dpkg -s local-chat >/dev/null
+            /opt/local-chat-server/.venv/bin/python -c "import fastapi, uvicorn, pydantic; print(\"deps ok\")"
+            cd /opt/local-chat-server && .venv/bin/python -c "from app.main import app; print(\"app imports ok\")"
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.distro.name }}-${{ matrix.arch.name }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+  rpm:
+    needs: [meta, wheels]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - { name: x86_64, dpkg: amd64, runner: ubuntu-latest }
+          - { name: aarch64, dpkg: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.arch.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-${{ matrix.arch.dpkg }}
+          path: wheels
+      - name: Build + install test (fedora:42, ${{ matrix.arch.name }})
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work fedora:42 bash -ec '
+            dnf install -y -q rpm-build python3 tar >/dev/null
+            WHEELS_DIR=/work/wheels OUT_DIR=/work/dist \
+              VERSION=${{ needs.meta.outputs.version }} bash packaging/rpm/build.sh
+            LC_NO_WIZARD=1 dnf install -y ./dist/local-chat-${{ needs.meta.outputs.version }}-1.*.rpm
+            /opt/local-chat-server/.venv/bin/python -c "import fastapi, uvicorn, pydantic; print(\"deps ok\")"
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ matrix.arch.name }}
+          path: |
+            dist/local-chat-*.rpm
+          if-no-files-found: error
+
+  rpm-test:
+    needs: [meta, rpm]
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["fedora:41", "fedora:42"]
+        arch:
+          - { name: x86_64, runner: ubuntu-latest }
+          - { name: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.arch.runner }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: rpm-${{ matrix.arch.name }}
+          path: dist
+      - name: Install test (${{ matrix.image }}, ${{ matrix.arch.name }})
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" "${{ matrix.image }}" bash -ec '
+            LC_NO_WIZARD=1 dnf install -y /dist/local-chat-${{ needs.meta.outputs.version }}-1.*.rpm
+            /opt/local-chat-server/.venv/bin/python -c "import fastapi; print(\"deps ok\")"
+          '
+
+  arch:
+    needs: [meta, wheels]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-amd64
+          path: wheels
+      - name: Build + install test (archlinux, x86_64)
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work archlinux:latest bash -ec '
+            pacman -Sy --noconfirm --quiet base-devel python >/dev/null
+            WHEELS_DIR=/work/wheels OUT_DIR=/work/dist \
+              VERSION=${{ needs.meta.outputs.version }} bash packaging/arch/build.sh
+            pacman -U --noconfirm /work/dist/local-chat-*.pkg.tar.zst
+            /opt/local-chat-server/.venv/bin/python -c "import fastapi; print(\"deps ok\")"
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-x86_64
+          path: dist/*.pkg.tar.zst
+          if-no-files-found: error
+
+  publish:
+    needs: [meta, deb, rpm, arch]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils createrepo-c gnupg git python3-zstandard rpm
+
+      - name: Import the signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          fpr="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          test -n "$fpr"
+          echo "GPG_KEY=$fpr" >> "$GITHUB_ENV"
+
+      - name: Download the built packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          merge-multiple: true
+          path: dist
+
+      - name: Check out the repository branch
+        run: |
+          git clone --depth 1 --branch repo \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" repo
+
+      - name: Regenerate the repository tree
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          DIST_DIR="$PWD/dist" REPO_DIR="$PWD/repo" \
+            VERSION="${{ needs.meta.outputs.version }}" KEEP=3 \
+            GPG_KEY="$GPG_KEY" GPG_PASSPHRASE="${GPG_PASSPHRASE:-}" \
+            BASE_URL="${{ env.BASE_URL }}" \
+            bash packaging/repo/publish.sh
+
+      - name: Publish the repository branch
+        working-directory: repo
+        run: |
+          git checkout --orphan fresh
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="github-actions[bot]@users.noreply.github.com" \
+              commit -m "repo: v${{ needs.meta.outputs.version }}"
+          git push --force origin fresh:repo
+
+      - name: Attach the packages to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
+          fail_on_unmatched_files: false

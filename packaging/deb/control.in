@@ -1,0 +1,18 @@
+Package: local-chat
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: Local Chat Team <280044855+NoTimeToSleep-Team@users.noreply.github.com>
+Section: net
+Priority: optional
+Homepage: https://github.com/NoTimeToSleep-Team/esp32chat
+Depends: python3 (>= 3.10), python3-venv, curl, ca-certificates, whiptail
+Suggests: hostapd, dnsmasq, iptables-persistent, rsync
+Description: self-hosted local chat server with a web portal
+ Local Chat is an offline-first chat server for a private network:
+ a FastAPI backend, a mobile-first web portal, moderation tools and
+ an admin panel. It runs on a Raspberry Pi or any Debian/Ubuntu host.
+ .
+ The package installs into /opt/local-chat-server, creates an offline
+ Python environment from bundled wheels and runs the local-chat-server
+ systemd service. Configuration lives in config/app.env; user data in
+ data/ (kept on removal).

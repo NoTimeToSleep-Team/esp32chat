@@ -55,6 +55,7 @@
     {
       "key": "AP_ENABLED",
       "section": "wifi",
+      "platform": "debian",
       "label": "Enable the Wi-Fi access point",
       "type": "bool",
       "default": true,
@@ -63,6 +64,7 @@
     {
       "key": "AP_SSID",
       "section": "wifi",
+      "platform": "debian",
       "label": "Wi-Fi network name (SSID)",
       "type": "text",
       "default": "LC-Hub",
@@ -73,6 +75,7 @@
     {
       "key": "AP_PASSPHRASE",
       "section": "wifi",
+      "platform": "debian",
       "label": "Wi-Fi password (8-63 characters)",
       "type": "password",
       "minlen": 8,
@@ -84,6 +87,7 @@
     {
       "key": "AP_CHANNEL",
       "section": "wifi",
+      "platform": "debian",
       "label": "Wi-Fi channel",
       "type": "choice",
       "choices": ["auto", "1", "6", "11"],
@@ -93,6 +97,7 @@
     {
       "key": "AP_COUNTRY",
       "section": "wifi",
+      "platform": "debian",
       "label": "Country code (Wi-Fi regulatory)",
       "type": "text",
       "default": "RU",

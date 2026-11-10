@@ -1,5 +1,10 @@
 # Installing Local Chat Server (v0.1)
 
+> **Packages**: the server is also available as native packages for
+> Debian/Ubuntu/Raspberry Pi OS, Fedora and Arch Linux, with signed
+> repositories — see [PACKAGES.md](PACKAGES.md). The curl installer below
+> remains the reference for the full install flow.
+
 The chat server + web portal for Raspberry Pi 4/5. One command installs
 everything: the installer downloads the release archive, asks the setup
 questions (download → setup → install), and then lays out the server with the

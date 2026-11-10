@@ -36,6 +36,15 @@ port() {
     echo "${p:-18080}"
 }
 
+# How this server was installed: curl tarball (default) or a system package.
+# Package installs are updated/removed by the system package manager; the
+# tarball updater must not fight dpkg/rpm/pacman over the same files.
+install_channel() {
+    local ch
+    ch="$(sed -n 's/^LC_INSTALL_CHANNEL=//p' "${ENV_FILE}" 2>/dev/null | tail -1 || true)"
+    echo "${ch:-curl}"
+}
+
 systemd_ok() {
     command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]
 }
@@ -43,6 +52,12 @@ systemd_ok() {
 cmd_status() {
     echo "Local Chat Server"
     echo "  version: $(cmd_version)"
+    case "$(install_channel)" in
+        deb)    echo "  install: deb package (apt)" ;;
+        rpm)    echo "  install: rpm package (dnf)" ;;
+        pacman) echo "  install: pacman package" ;;
+        *)      echo "  install: curl installer" ;;
+    esac
     if systemd_ok; then
         echo "  service: $(systemctl is-active ${SERVICE_NAME})"
     else
@@ -98,6 +113,23 @@ cmd_version() {
 
 cmd_update() {
     require_root update
+    case "$(install_channel)" in
+        deb)
+            echo "This installation is managed by apt — update it with the system package manager:" >&2
+            echo "  sudo apt update && sudo apt install --only-upgrade local-chat" >&2
+            exit 1
+            ;;
+        rpm)
+            echo "This installation is managed by dnf — update it with the system package manager:" >&2
+            echo "  sudo dnf upgrade local-chat" >&2
+            exit 1
+            ;;
+        pacman)
+            echo "This installation is managed by pacman — update it with the system package manager:" >&2
+            echo "  sudo pacman -Syu local-chat" >&2
+            exit 1
+            ;;
+    esac
     # shellcheck disable=SC1091
     . "${APP_ROOT}/setup/lib.sh"
 
@@ -334,6 +366,25 @@ cmd_uninstall() {
     local purge=0
     [[ "${1:-}" == "--purge" ]] && purge=1
 
+    case "$(install_channel)" in
+        deb)
+            echo "This installation is managed by apt — remove it with the system package manager:" >&2
+            echo "  sudo apt remove local-chat    # keeps data and configuration" >&2
+            echo "  sudo apt purge local-chat     # also removes the configuration; data stays" >&2
+            exit 1
+            ;;
+        rpm)
+            echo "This installation is managed by dnf — remove it with the system package manager:" >&2
+            echo "  sudo dnf remove local-chat" >&2
+            exit 1
+            ;;
+        pacman)
+            echo "This installation is managed by pacman — remove it with the system package manager:" >&2
+            echo "  sudo pacman -R local-chat" >&2
+            exit 1
+            ;;
+    esac
+
     echo "Removing Local Chat Server from ${APP_ROOT}"
     if [[ "${purge}" != "1" ]]; then
         echo "Data (${APP_ROOT}/data) will be kept."
@@ -400,6 +451,8 @@ Commands:
                                             file instead of asking questions
   update                  Download and install the newest release from GitHub;
                           data/ and config/app.env are kept. (sudo)
+                          Package installs (deb/rpm/pacman) are updated with
+                          apt/dnf/pacman instead — the command explains how.
   backup                  Archive data/ and config/app.env into
                           data/backups/lc-backup-<timestamp>.tar.gz. (sudo)
   export [FILE]           Bundle data/ + config/app.env for moving to another
@@ -412,6 +465,7 @@ Commands:
   keys                    Open the root SSH key manager (USB physical-key gate). (sudo)
   uninstall               Stop and remove the server code; data is kept. (sudo)
   uninstall --purge       Also delete data and settings — irreversible. (sudo)
+                          Package installs are removed with apt/dnf/pacman.
   help                    Show this help (same as -h / --help).
 
 Examples:

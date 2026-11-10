@@ -170,6 +170,29 @@ LC_TARBALL_URL=file:///tmp/lc-server-v0.1.0.tar.gz bash install.sh
 
 After install the portal is available at `http://<pi-address>:18080`.
 
+### Packages (apt / dnf / pacman)
+
+Native packages with signed repositories are an alternative to the curl
+installer — same wizard, same `lc`, same `/opt/local-chat-server`, and an
+existing curl install can switch in place.
+
+```bash
+# Debian 12/13, Ubuntu 22.04/24.04, Raspberry Pi OS (arm64 + amd64)
+curl -fsSL https://notimetosleep-team.github.io/esp32chat/setup-apt.sh | sudo sh
+
+# Fedora 41/42 (x86_64 + aarch64)
+sudo dnf install https://notimetosleep-team.github.io/esp32chat/rpm/local-chat-release-1-1.noarch.rpm
+
+# Arch Linux (x86_64)
+curl -fsSL https://notimetosleep-team.github.io/esp32chat/setup-arch.sh | sudo sh
+```
+
+After the one-time repository setup the standard commands work everywhere:
+`sudo apt install local-chat`, `sudo dnf install local-chat`,
+`sudo pacman -S local-chat`. Updates come from the system package manager;
+data and configuration survive upgrades and removal. Details, signing key and
+troubleshooting: [docs/PACKAGES.md](docs/PACKAGES.md).
+
 ## Management
 
 `lc` manages the installation (installed as `/usr/local/bin/lc`):

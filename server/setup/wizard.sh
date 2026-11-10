@@ -27,6 +27,17 @@ PRESEED_FILE=""
 PHASE="all"
 TITLE="Local Chat Server — Setup"
 
+# The Wi-Fi access point is configured by Debian-specific tooling
+# (hostapd/dnsmasq/dhcpcd); on Fedora/Arch the wizard hides those steps and
+# the server runs over the existing network.
+PLATFORM="other"
+# shellcheck disable=SC1091
+if . /etc/os-release 2>/dev/null; then
+    case "${ID:-}" in
+        debian|raspbian|ubuntu) PLATFORM="debian" ;;
+    esac
+fi
+
 log() { echo "[lc-wizard] $*"; }
 fail() { log "ERROR: $*"; exit 1; }
 
@@ -103,7 +114,7 @@ else
         [[ -n "${cur}" ]] || cur="$(current_env_value "${key}")"
         [[ -n "${cur}" ]] || cur="${default}"
         set_val "${key}" "${cur}"
-    done < <(python3 "${MANIFEST_PY}" fields en)
+    done < <(python3 "${MANIFEST_PY}" fields en "${PLATFORM}")
 fi
 
 if [[ "${INTERACTIVE}" == "1" && "${PHASE}" != "apply" ]]; then
@@ -193,7 +204,7 @@ while IFS=$'\x1f' read -r key type section label default choices required_if con
             set_val "${key}" "${out}"
             ;;
     esac
-done < <(python3 "${MANIFEST_PY}" fields en)
+done < <(python3 "${MANIFEST_PY}" fields en "${PLATFORM}")
 
 # ---- cross-check: AP enabled -> a valid Wi-Fi password is required ----
 if bool_yes "$(val AP_ENABLED)"; then
@@ -221,7 +232,7 @@ summary() {
         else
             lines+=("${label}: $(val "${key}")")
         fi
-    done < <(python3 "${MANIFEST_PY}" fields en)
+    done < <(python3 "${MANIFEST_PY}" fields en "${PLATFORM}")
     printf '%s\n' "${lines[@]}"
 }
 
@@ -247,7 +258,7 @@ while IFS=$'\x1f' read -r key type section label default choices required_if con
     value="$(val "${key}")"
     [[ -n "${value}" ]] || continue
     python3 "${MANIFEST_PY}" set-env "${ENV_FILE}" "${key}" "${value}"
-done < <(python3 "${MANIFEST_PY}" fields en)
+done < <(python3 "${MANIFEST_PY}" fields en "${PLATFORM}")
 chmod 600 "${ENV_FILE}"
 
 # The install runs between the collect and apply phases — keep every answer
@@ -258,7 +269,7 @@ mkdir -p "$(dirname "${ANSWERS_FILE}")"
 chmod 600 "${ANSWERS_FILE}"
 while IFS=$'\x1f' read -r key type section label default choices required_if confirm persist; do
     printf '%s=%s\n' "${key}" "$(val "${key}")" >> "${ANSWERS_FILE}"
-done < <(python3 "${MANIFEST_PY}" fields en)
+done < <(python3 "${MANIFEST_PY}" fields en "${PLATFORM}")
 if [[ "${PHASE}" == "all" ]]; then
     trap 'rm -f "${VALUES_FILE}" "${ANSWERS_FILE}"' EXIT
 fi

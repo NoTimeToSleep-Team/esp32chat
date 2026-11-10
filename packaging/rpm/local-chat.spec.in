@@ -1,0 +1,70 @@
+%global debug_package %{nil}
+%global _build_id_links none
+
+Name:           local-chat
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Self-hosted local chat server with a web portal
+License:        MIT
+URL:            https://github.com/NoTimeToSleep-Team/esp32chat
+
+Requires:       python3 >= 3.10
+Requires:       python3-libs
+Requires:       ca-certificates
+Requires:       curl
+Requires:       newt
+Requires:       shadow-utils
+Requires:       systemd
+
+%description
+Local Chat is an offline-first chat server for a private network: a FastAPI
+backend, a mobile-first web portal, moderation tools and an admin panel.
+
+The package installs into /opt/local-chat-server, creates an offline Python
+environment from bundled wheels and runs the local-chat-server systemd
+service. Configuration lives in config/app.env; user data in data/ (kept on
+removal).
+
+%prep
+
+%build
+
+%install
+rm -rf %{buildroot}
+mkdir -p %{buildroot}
+cp -a %{_sourcedir}/root/. %{buildroot}/
+
+%post
+if [ "$1" -eq 1 ]; then
+    /usr/share/local-chat-server/postinst.sh rpm install
+else
+    /usr/share/local-chat-server/postinst.sh rpm upgrade
+fi
+
+%preun
+if [ "$1" -eq 0 ]; then
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        systemctl stop local-chat-server >/dev/null 2>&1 || true
+        systemctl disable local-chat-server >/dev/null 2>&1 || true
+    fi
+fi
+
+%postun
+if [ "$1" -eq 0 ]; then
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    rm -rf /opt/local-chat-server/.venv
+fi
+
+%files
+%defattr(-,root,root,-)
+/opt/local-chat-server
+/usr/share/local-chat-server
+/usr/share/doc/local-chat
+/usr/lib/systemd/system/local-chat-server.service
+/usr/bin/lc
+
+%changelog
+* Tue Nov 10 2026 Local Chat Team <280044855+NoTimeToSleep-Team@users.noreply.github.com> - @VERSION@-1
+- Automated package build from the esp32chat release.
