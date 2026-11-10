@@ -422,11 +422,12 @@ var EN = {
 "Очистить поддержку": "Clear support",
 "Удалить все обращения?": "Delete all tickets?",
 "Удалить все чаты": "Delete all chats",
-"Удалить ВСЕ чаты вместе с сообщениями?": "Delete ALL chats including their messages?",
+"Удалить все чаты, кроме общего, вместе с сообщениями?": "Delete all chats except the global one, including their messages?",
 "Удалить всех пользователей": "Delete all users",
 "Удалить всех пользователей, кроме админов?": "Delete all users except admins?",
 "ПОЛНЫЙ СБРОС": "FULL RESET",
-"Полный сброс: чаты, блог, поддержка, пользователи. Продолжить?": "Full reset: chats, blog, support, users. Continue?",
+"Полный сброс: чаты (кроме общего), блог, поддержка, пользователи (кроме админов). Текущая сессия админа сохранится. Продолжить?": "Full reset: chats (except global), blog, support, users (except admins). The current admin session will be kept. Continue?",
+"Введите RESET для подтверждения полного сброса": "Type RESET to confirm the full reset",
 "Очистка данных": "Data cleanup",
 "Готово": "Done",
 ": удалено ": ": deleted ",
@@ -1197,9 +1198,9 @@ function renderCleanup(){
     ["clear-global", tr("Очистить общий чат"), tr("Удалить все сообщения в общем чате?")],
     ["clear-blog", tr("Очистить блог"), tr("Удалить все посты блога?")],
     ["clear-support", tr("Очистить поддержку"), tr("Удалить все обращения?")],
-    ["delete-chats", tr("Удалить все чаты"), tr("Удалить ВСЕ чаты вместе с сообщениями?")],
-    ["delete-users", tr("Удалить всех пользователей"), tr("Удалить всех пользователей, кроме админов?")],
-    ["full-reset", tr("ПОЛНЫЙ СБРОС"), tr("Полный сброс: чаты, блог, поддержка, пользователи. Продолжить?")]
+    ["delete-all-chats", tr("Удалить все чаты"), tr("Удалить все чаты, кроме общего, вместе с сообщениями?")],
+    ["delete-all-users", tr("Удалить всех пользователей"), tr("Удалить всех пользователей, кроме админов?")],
+    ["full-reset", tr("ПОЛНЫЙ СБРОС"), tr("Полный сброс: чаты (кроме общего), блог, поддержка, пользователи (кроме админов). Текущая сессия админа сохранится. Продолжить?")]
   ];
   var html = '<div class="card"><div class="card-head"><span>' + tr("Очистка данных") + '</span></div>';
   acts.forEach(function(a, i){
@@ -1210,9 +1211,13 @@ function renderCleanup(){
   $("content").querySelectorAll("[data-i]").forEach(function(b){
     var a = acts[Number(b.getAttribute("data-i"))];
     b.onclick = function(){
+      if (a[0] === "full-reset") {
+        var phrase = prompt(tr("Введите RESET для подтверждения полного сброса"));
+        if (phrase !== "RESET") return;
+      }
       askConfirm(a[1], a[2], async function(){
         try {
-          var body = a[0] === "full-reset" ? { session_token: ST, confirm: true } : { session_token: ST };
+          var body = a[0] === "full-reset" ? { session_token: ST, confirm: true, confirm_phrase: "RESET" } : { session_token: ST };
           var r = await api("/chat/api/admin/" + a[0], "POST", body);
           toast(tr("Готово") + (r && r.deleted_count != null ? tr(": удалено ") + r.deleted_count : ""));
         } catch(e) { toast(e.message); }

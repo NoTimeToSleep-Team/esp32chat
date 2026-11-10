@@ -30,6 +30,7 @@ const state = {
   sessionToken: localStorage.getItem('lc_session_token') || "",
   role: null,
   devices: [],
+  activeDeviceId: null,
 };
 
 (function init() {
@@ -38,8 +39,6 @@ const state = {
     ui.sessionTokenInput.parentElement && (ui.sessionTokenInput.parentElement.style.display = 'none');
   }
 })();
-  activeDeviceId: null,
-};
 
 function setStatus(message, mode = "") {
   ui.statusNote.textContent = message;

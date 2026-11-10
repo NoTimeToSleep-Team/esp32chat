@@ -1261,6 +1261,7 @@ class AdminCleanupRequest(BaseModel):
 class AdminFullResetRequest(BaseModel):
     session_token: str = Field(min_length=8, max_length=512)
     confirm: bool = Field(default=False)
+    confirm_phrase: str = Field(default="", max_length=32)
 
 
 class AdminDateRangeRequest(BaseModel):
@@ -1310,12 +1311,21 @@ async def clear_chat_messages_range(request: Request, chat_id: int, payload: Adm
 
 @router.post("/chat/api/admin/full-reset")
 async def full_reset(request: Request, payload: AdminFullResetRequest) -> dict[str, object]:
-    if not payload.confirm:
-        raise HTTPException(status_code=400, detail={"code": "confirm_required", "message": "Set confirm=true"})
+    if not payload.confirm or payload.confirm_phrase.strip().upper() != "RESET":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "confirm_required",
+                "message": "Set confirm=true and confirm_phrase=RESET",
+            },
+        )
     session = _require_admin(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
-        stats = chat_service.full_reset(admin_user_id=session.user.user_id)
+        stats = chat_service.full_reset(
+            admin_user_id=session.user.user_id,
+            keep_session_token=payload.session_token,
+        )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     return {"status": "ok", **stats}

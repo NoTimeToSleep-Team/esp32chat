@@ -33,7 +33,6 @@ const state = {
     ui.sessionTokenInput.parentElement && (ui.sessionTokenInput.parentElement.style.display = 'none');
   }
 })();
-};
 
 function setStatus(message, mode = "") {
   ui.statusNote.textContent = message;

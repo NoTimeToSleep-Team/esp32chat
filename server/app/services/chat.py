@@ -3989,17 +3989,63 @@ class ChatService:
             cur = connection.execute("DELETE FROM chat_messages WHERE chat_id=? AND created_at_ms >= ? AND created_at_ms <= ?", (chat_id, from_ms, to_ms))
             return cur.rowcount
 
-    def full_reset(self, admin_user_id: int) -> dict:
+    def full_reset(self, admin_user_id: int, keep_session_token: str | None = None) -> dict:
         with self._connect() as connection:
+            # Blog posts restrict user deletion, so clear them before users.
+            deleted_blog = connection.execute("DELETE FROM blog_posts").rowcount
+            deleted_support = connection.execute("DELETE FROM support_messages").rowcount
+            deleted_support += connection.execute("DELETE FROM support_tickets").rowcount
             connection.execute("DELETE FROM chat_message_attachments")
             connection.execute("DELETE FROM chat_messages")
             connection.execute("DELETE FROM chat_members")
-            connection.execute("DELETE FROM chats WHERE is_private = 0 OR kind = 'custom'")
-            deleted_users = connection.execute("DELETE FROM users WHERE role != 'admin'").rowcount
-            connection.execute("DELETE FROM sessions")
-            connection.execute("DELETE FROM device_pairings")
-            connection.execute("DELETE FROM applications")
-            return {"users_deleted": deleted_users, "chats_cleared": True}
+            # Keep the common chat row so the app still has General after a
+            # reset; its messages and memberships were cleared above.
+            deleted_chats = connection.execute(
+                "DELETE FROM chats WHERE kind != 'common'"
+            ).rowcount
+            deleted_pairings = connection.execute("DELETE FROM device_pairings").rowcount
+            deleted_applications = connection.execute("DELETE FROM applications").rowcount
+            # These admin-owned rows use ON DELETE RESTRICT too. Keep them
+            # under the acting admin instead of aborting the whole reset.
+            non_admins = "SELECT id FROM users WHERE role != 'admin'"
+            for table, column in (
+                ("device_blacklist", "blocked_by_user_id"),
+                ("edge_node_deployments", "deployed_by_admin_user_id"),
+            ):
+                connection.execute(
+                    f"UPDATE {table} SET {column} = ? WHERE {column} IN ({non_admins})",
+                    (admin_user_id,),
+                )
+            deleted_users = connection.execute(
+                "DELETE FROM users WHERE role != 'admin'"
+            ).rowcount
+            if keep_session_token:
+                deleted_sessions = connection.execute(
+                    "DELETE FROM sessions WHERE id != ?",
+                    (keep_session_token.strip(),),
+                ).rowcount
+            else:
+                deleted_sessions = connection.execute("DELETE FROM sessions").rowcount
+            deleted_count = (
+                deleted_blog
+                + deleted_support
+                + deleted_chats
+                + deleted_pairings
+                + deleted_applications
+                + deleted_users
+                + deleted_sessions
+            )
+            return {
+                "users_deleted": deleted_users,
+                "chats_deleted": deleted_chats,
+                "blog_deleted": deleted_blog,
+                "support_deleted": deleted_support,
+                "sessions_deleted": deleted_sessions,
+                "device_pairings_deleted": deleted_pairings,
+                "applications_deleted": deleted_applications,
+                "chats_cleared": True,
+                "deleted_count": deleted_count,
+            }
 
     def clear_global_chat(self) -> int:
         with self._connect() as connection:
@@ -4021,9 +4067,25 @@ class ChatService:
 
     def delete_all_users(self, admin_user_id: int) -> int:
         with self._connect() as connection:
-            count = connection.execute("DELETE FROM users WHERE id != ?", (admin_user_id,)).rowcount
-            connection.execute("DELETE FROM sessions WHERE user_id != ?", (admin_user_id,))
-            connection.execute("DELETE FROM device_pairings WHERE user_id != ?", (admin_user_id,))
+            non_admins = "SELECT id FROM users WHERE role != 'admin'"
+            # Content tables use ON DELETE RESTRICT. Keep the content available
+            # under the acting admin instead of failing halfway through cleanup.
+            for table, column in (
+                ("blog_posts", "author_user_id"),
+                ("device_catalog", "created_by_user_id"),
+                ("rfid_cards", "created_by_user_id"),
+                ("device_blacklist", "blocked_by_user_id"),
+                ("edge_node_deployments", "deployed_by_admin_user_id"),
+            ):
+                connection.execute(
+                    f"UPDATE {table} SET {column} = ? WHERE {column} IN ({non_admins})",
+                    (admin_user_id,),
+                )
+            connection.execute(f"DELETE FROM sessions WHERE user_id IN ({non_admins})")
+            connection.execute(f"DELETE FROM device_pairings WHERE user_id IN ({non_admins})")
+            count = connection.execute(
+                "DELETE FROM users WHERE role != 'admin'"
+            ).rowcount
             return count
 
     def get_message_author(self, message_id: int):
