@@ -1180,6 +1180,8 @@ async def create_chat_poll(
             is_multiple=payload.is_multiple,
             is_anonymous=payload.is_anonymous,
         )
+        # Polls are user content too: scan the question and every option.
+        moderate_message(request, message, extra_text="\n".join(payload.options))
     except (ChatError, ValueError) as exc:
         if isinstance(exc, ChatError):
             raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc

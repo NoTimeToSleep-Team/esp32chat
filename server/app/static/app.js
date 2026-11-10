@@ -2433,6 +2433,8 @@ async function showChatProfile() {
   const isOwner = !!view.is_owner || myRole === 'owner';
   const isPlatform = ['admin', 'moderator'].includes(STATE.user?.role);
   const canManage = isOwner || isPlatform || myRole === 'admin';
+  const canManageRequests = isOwner || isPlatform || !!(me && me.permissions && me.permissions.manage_invites);
+  const canPublish = !chat.is_private && !chat.has_room_code;
   const isMember = view.is_member !== false;
   const isCommon = chat.kind === 'common';
   const canDelete = !isCommon && (isOwner || isPlatform || chatTypeOf(chat) === 'dm');
@@ -2478,8 +2480,8 @@ async function showChatProfile() {
     ${canManage ? `<div class="form-group">
       <label>${t('chat_settings')}</label>
       <div class="cp-settings">
-        <label class="check-row"><input type="checkbox" id="cp-public"${chat.is_public ? ' checked' : ''}> ${t('chat_public')}</label>
-        <input class="form-input" id="cp-username" maxlength="32" placeholder="${t('chat_username_ph')}" value="${esc(chat.username || '')}">
+        ${canPublish ? `<label class="check-row"><input type="checkbox" id="cp-public"${chat.is_public ? ' checked' : ''}> ${t('chat_public')}</label>
+        <input class="form-input" id="cp-username" maxlength="32" placeholder="${t('chat_username_ph')}" value="${esc(chat.username || '')}">` : ''}
         <label class="check-row"><input type="checkbox" id="cp-history"${chat.history_visible !== false ? ' checked' : ''}> ${t('chat_history')}</label>
         <div class="cp-row"><span>${t('slow_mode')}</span><select class="form-input" id="cp-slow">${slowOptions}</select></div>
         <button class="btn btn-sm btn-primary" id="cp-settings-save">${t('save')}</button>
@@ -2522,7 +2524,7 @@ async function showChatProfile() {
         </div>
       </div>
     </div>` : ''}
-    ${canManage ? `<div class="form-group">
+    ${canManageRequests ? `<div class="form-group">
       <label>${t('join_requests')} · <span id="cp-requests-count">${view.pending_requests || 0}</span></label>
       <div id="cp-requests" class="cp-members"></div>
     </div>` : ''}
@@ -2688,8 +2690,10 @@ async function showChatProfile() {
   if (settingsSave) {
     settingsSave.onclick = async () => {
       settingsSave.disabled = true;
-      const isPublic = ov.querySelector('#cp-public').checked;
-      const username = (ov.querySelector('#cp-username').value || '').trim();
+      const publicEl = ov.querySelector('#cp-public');
+      const usernameEl = ov.querySelector('#cp-username');
+      const isPublic = publicEl ? publicEl.checked : false;
+      const username = (usernameEl ? usernameEl.value : '').trim();
       const historyVisible = ov.querySelector('#cp-history').checked;
       const slow = Number(ov.querySelector('#cp-slow').value || 0);
       try {

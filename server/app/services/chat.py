@@ -302,6 +302,12 @@ class ChatService:
                 self._require_username_free(connection, username=resolved_username)
 
             resolved_public = bool(is_public if is_public is not None else draft.is_public)
+            if resolved_public and private_flag:
+                raise ChatError(
+                    "private_room_cannot_be_public",
+                    "A private room cannot be published; remove the room code first",
+                    409,
+                )
             resolved_history = bool(
                 history_visible if history_visible is not None else draft.history_visible
             )
@@ -764,10 +770,18 @@ class ChatService:
                 "SELECT COUNT(*) AS n FROM chat_members WHERE chat_id = ?",
                 (chat_id,),
             ).fetchone()
-            pending_row = connection.execute(
-                "SELECT COUNT(*) AS n FROM chat_join_requests WHERE chat_id = ? AND status = 'pending'",
-                (chat_id,),
-            ).fetchone()
+            pending_count = 0
+            if self._has_permission(
+                connection,
+                chat_row=chat,
+                user_id=requester_user_id,
+                permission="manage_invites",
+            ):
+                pending_row = connection.execute(
+                    "SELECT COUNT(*) AS n FROM chat_join_requests WHERE chat_id = ? AND status = 'pending'",
+                    (chat_id,),
+                ).fetchone()
+                pending_count = int(pending_row["n"]) if pending_row is not None else 0
 
             pinned_message: dict[str, object] | None = None
             pinned_id = self._row_optional_int_lenient(chat, "pinned_message_id")
@@ -805,7 +819,7 @@ class ChatService:
                 "is_owner": self._is_chat_owner(connection, chat_row=chat, user_id=requester_user_id),
                 "can_post": self._can_post(connection, chat_row=chat, user_id=requester_user_id),
                 "member_count": int(count_row["n"]) if count_row is not None else 0,
-                "pending_requests": int(pending_row["n"]) if pending_row is not None else 0,
+                "pending_requests": pending_count,
                 "pinned_message": pinned_message,
                 "draft_text": self._row_optional_str_lenient(member_row, "draft_text") if member_row is not None else None,
                 "last_read_message_id": self._row_optional_int_lenient(member_row, "last_read_message_id") if member_row is not None else None,
@@ -864,6 +878,15 @@ class ChatService:
             current_public = self._row_bool(chat, "is_public")
             current_history = self._row_bool_default(chat, "history_visible", True)
             current_username = self._row_optional_str_lenient(chat, "username")
+            if is_public is True and (
+                self._row_bool(chat, "is_private")
+                or self._row_optional_str_lenient(chat, "room_code_hash")
+            ):
+                raise ChatError(
+                    "private_room_cannot_be_public",
+                    "A private room cannot be published; remove the room code first",
+                    409,
+                )
             owner_or_platform = self._is_chat_owner(
                 connection, chat_row=chat, user_id=actor_user_id
             ) or self._is_admin(connection, user_id=actor_user_id)
@@ -1044,6 +1067,12 @@ class ChatService:
         with self._connect() as connection:
             actor = self._require_active_user(connection, actor_user_id)
             chat = self._require_chat(connection, chat_id)
+            if str(chat["kind"]) == ChatKind.COMMON.value:
+                raise ChatError(
+                    "common_chat_protected",
+                    "The general chat cannot be left or moderated by removing members",
+                    409,
+                )
             target = connection.execute(
                 "SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?",
                 (chat_id, target_user_id),
@@ -2285,6 +2314,12 @@ class ChatService:
                 f"Each poll option must be at most {MAX_POLL_OPTION_CHARS} characters",
                 422,
             )
+        if len({option.casefold() for option in cleaned_options}) != len(cleaned_options):
+            raise ChatError(
+                "duplicate_poll_option",
+                "Poll options must be unique",
+                422,
+            )
         options_json = json.dumps(cleaned_options, ensure_ascii=False)
         if len(options_json.encode("utf-8")) > MAX_POLL_JSON_BYTES:
             raise ChatError(
@@ -2977,6 +3012,14 @@ class ChatService:
                 if not private_flag:
                     code_hash = None
 
+            # A private room must not keep a public link: code/invite access
+            # is the only entry point. This also repairs legacy inconsistent
+            # rows when the owner configures the room.
+            next_public = 0 if private_flag else self._row_bool(chat, "is_public")
+            next_username = (
+                None if private_flag else self._row_optional_str_lenient(chat, "username")
+            )
+
             now_ms = _now_ms()
             connection.execute(
                 """
@@ -2985,6 +3028,8 @@ class ChatService:
                     description = ?,
                     is_private = ?,
                     room_code_hash = ?,
+                    is_public = ?,
+                    username = ?,
                     avatar_url = ?,
                     updated_at_ms = ?
                 WHERE id = ?
@@ -2994,6 +3039,8 @@ class ChatService:
                     next_description,
                     1 if private_flag else 0,
                     code_hash,
+                    1 if next_public else 0,
+                    next_username,
                     next_avatar,
                     now_ms,
                     chat_id,
@@ -3276,8 +3323,14 @@ class ChatService:
             # Guests may participate in a DM they are a member of.
             return member is not None
 
-        if self._row_bool(chat_row, "is_public"):
-            # Public custom chats are readable by guests as well.
+        if (
+            self._row_bool(chat_row, "is_public")
+            and not self._row_bool(chat_row, "is_private")
+            and not self._row_optional_str_lenient(chat_row, "room_code_hash")
+        ):
+            # Public custom chats are readable by guests as well. A private
+            # room with a code stays protected even if a legacy row was
+            # accidentally published.
             return True
 
         owner_user_id = self._row_optional_int(chat_row, "owner_user_id")
@@ -3331,7 +3384,11 @@ class ChatService:
             avatar_path=ChatService._row_optional_str_lenient(row, "avatar_path"),
             chat_type=chat_type,
             username=ChatService._row_optional_str_lenient(row, "username"),
-            is_public=ChatService._row_bool(row, "is_public"),
+            is_public=(
+                ChatService._row_bool(row, "is_public")
+                and not ChatService._row_bool(row, "is_private")
+                and not bool(ChatService._row_optional_str(row, "room_code_hash"))
+            ),
             slow_mode_seconds=int(ChatService._row_optional_int_lenient(row, "slow_mode_seconds") or 0),
             pinned_message_id=ChatService._row_optional_int_lenient(row, "pinned_message_id"),
             history_visible=ChatService._row_bool_default(row, "history_visible", True),
@@ -3972,6 +4029,10 @@ class ChatService:
                     raise ChatError("forbidden", "Not authorized to delete this message", 403)
             connection.execute("DELETE FROM chat_messages WHERE id=?", (message_id,))
             connection.execute("DELETE FROM chat_message_attachments WHERE message_id=?", (message_id,))
+            connection.execute(
+                "UPDATE chats SET pinned_message_id = NULL WHERE id = ? AND pinned_message_id = ?",
+                (chat_id, message_id),
+            )
 
     def delete_chat(self, chat_id: int) -> None:
         with self._connect() as connection:

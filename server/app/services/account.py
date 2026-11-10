@@ -223,13 +223,13 @@ class AccountService:
                 """
                 SELECT COUNT(*) AS total
                 FROM chats
-                WHERE kind = ? AND owner_user_id = ?
+                WHERE kind = ? AND owner_user_id = ? AND chat_type != 'dm'
                 """,
                 (ChatKind.CUSTOM.value, user_id),
             ).fetchone()
             current = int(row["total"]) if row is not None else 0
 
-            if role == UserRole.ADMIN:
+            if role in {UserRole.ADMIN, UserRole.MODERATOR}:
                 return AccountLimits(
                     role=role,
                     max_custom_chats=None,

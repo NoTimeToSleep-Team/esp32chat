@@ -6,7 +6,7 @@ import logging
 LOGGER = logging.getLogger("lc.auto_moderation")
 
 
-def moderate_message(request_or_app, message) -> None:
+def moderate_message(request_or_app, message, extra_text: str = "") -> None:
     """Scan a message and file a report if needed. Never raises."""
     if message is None:
         return
@@ -15,6 +15,6 @@ def moderate_message(request_or_app, message) -> None:
     if service is None:
         return
     try:
-        service.check_message(message)
+        service.check_message(message, extra_text=extra_text)
     except Exception:  # noqa: BLE001 - moderation must never break messaging
         LOGGER.exception("auto-moderation failed for message %s", getattr(message, "message_id", "?"))

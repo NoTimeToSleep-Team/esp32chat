@@ -449,14 +449,17 @@ class AutoModerationService:
             comment = comment[: MAX_COMMENT_CHARS - 1].rstrip() + "…"
         return comment
 
-    def check_message(self, message) -> dict | None:
+    def check_message(self, message, extra_text: str = "") -> dict | None:
         """Scan one message and file a report when something is found."""
         settings = self.settings()
         if not settings.get("enabled"):
             return None
         extra = _split_words(settings.get("extra_words"))
         whitelist = _split_words(settings.get("whitelist")) or list(DEFAULT_WHITELIST)
-        matches = self.scan(message.body_text or "", extra_words=extra, whitelist=whitelist)
+        text = message.body_text or ""
+        if extra_text:
+            text = text + "\n" + extra_text
+        matches = self.scan(text, extra_words=extra, whitelist=whitelist)
         if not matches:
             return None
         if self._has_pending_auto_report(message.message_id):
