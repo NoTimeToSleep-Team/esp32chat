@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Local Chat backup every night
+Documentation=file:///opt/local-chat-server/README.md
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=1800
+Persistent=true
+Unit=local-chat-backup.service
+
+[Install]
+WantedBy=timers.target

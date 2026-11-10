@@ -23,7 +23,8 @@ lives on your own hardware — no cloud services, no external accounts.
 
 ## Features
 
-v0.1.0 is the first public release and ships the server side of the product.
+The server is the first public component of the product. The current version is
+defined in `server/app/version.py` and shown by `lc version`.
 
 **Accounts and access**
 
@@ -35,7 +36,7 @@ v0.1.0 is the first public release and ships the server side of the product.
 
 **Chat**
 
-- Direct chats and private rooms (optional 4-digit room code to join).
+- Direct chats and private rooms (optional 6-digit room code to join).
 - Public and private groups/channels: private ones are invite-only (invite links
   or approved join requests), public ones are discoverable by `@username`.
 - Chat settings for owners: title, description, avatar, visibility, slow mode,
@@ -46,9 +47,10 @@ v0.1.0 is the first public release and ships the server side of the product.
 - Custom chat limits: up to 5 per user, unlimited for admins; DMs do not count
   toward this limit. Guests can create DMs and join public custom chats, but
   cannot create group chats; admins can access all chats.
-- Message history, media attachments, chat avatars.
-- Realtime delivery over WebSocket (`/realtime/chat/{chat_id}`); REST endpoints
-  for history, sending and moderation.
+- Message history, media attachments, chat avatars. The account page lists the
+  user's files, storage quota and lets the owner delete an unused attachment.
+- Realtime delivery over WebSocket (`/realtime/chat/{chat_id}`); the web app
+  uses it for the active chat and keeps HTTP polling as a fallback.
 
 **Admin panel** (`/admin`)
 
@@ -83,6 +85,8 @@ v0.1.0 is the first public release and ships the server side of the product.
 - The web admin panel has no system, network, hardware or reboot endpoints.
 - Application backup/incident records are not a browser-operated host control
   plane.
+- Nightly local backups are installed as a systemd timer with seven-day
+  rotation and archive verification; `lc status` shows the latest backup.
 
 **Install & management**
 
@@ -282,11 +286,10 @@ on the releases page.
 
 ## Status
 
-v0.1.0 is the first public release. The server and web portal are the primary
-deliverable; hardware firmware is in early development. Known limitations of
-this release (access-point setup on NetworkManager, the admin password briefly
-visible in the process list, fresh installs only) are listed at the end of
-`docs/INSTALL.md`.
+The server and web portal are the primary deliverable; the current version is
+shown by `lc version`. Hardware firmware is in early development. Known
+limitations of this release (access-point setup on NetworkManager, fresh installs
+only) are listed at the end of `docs/INSTALL.md`.
 
 ## License
 

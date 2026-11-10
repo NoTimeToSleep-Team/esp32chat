@@ -379,6 +379,10 @@ SYSTEMD_OK=0
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
     install -m 0644 "${SOURCE_ROOT}/systemd/${SERVICE_NAME}.service" \
         "/etc/systemd/system/${SERVICE_NAME}.service"
+    install -m 0644 "${SOURCE_ROOT}/systemd/local-chat-backup.service" \
+        "/etc/systemd/system/local-chat-backup.service"
+    install -m 0644 "${SOURCE_ROOT}/systemd/local-chat-backup.timer" \
+        "/etc/systemd/system/local-chat-backup.timer"
     systemctl daemon-reload
     # A runtime mask (/run/systemd/system) would still block the start.
     systemctl unmask "${SERVICE_NAME}" >/dev/null 2>&1 || true
@@ -438,6 +442,13 @@ else
         die "the server did not answer on /health"
     fi
     kill "$(cat "${APP_ROOT}/data/logs/smoke-server.pid")" 2>/dev/null || true
+fi
+
+# Nightly backups are already installed as units; enable the timer separately
+# so an update does not silently leave it disabled.
+if [[ "${SYSTEMD_OK}" == "1" ]]; then
+    systemctl enable --now local-chat-backup.timer >/dev/null 2>&1 || \
+        log "WARNING: could not enable local-chat-backup.timer"
 fi
 
 # ---- lc command ----

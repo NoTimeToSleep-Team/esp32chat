@@ -123,8 +123,6 @@ bash server/scripts/make_release_tarball.sh
 - Fresh installs only; migrating the legacy layout (`/home/gamecat/lc-server`)
   is not supported.
 - The wizard is English-only in v0.1.
-- The administrator password is briefly visible in the process list (passed as
-  a CLI argument).
 - The optional USB root-key gate needs a local console/HDMI for recovery if the
   physical key is lost. Its one-time code rotates on each insertion, but a plain
   USB mass-storage device cannot be made mathematically clone-proof; the first

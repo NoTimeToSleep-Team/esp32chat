@@ -17,13 +17,14 @@ Raspberry Pi 5 (192.168.4.1, порт 18080) раздаёт Wi-Fi `LC-Hub` (бе
 - `POST /auth/login` с `{"login": "...", "password": "...", "client_kind": "web"}`
 - Успех → сохранить `session.token` в `localStorage`, редирект на `/chat`
 - Ошибка — показать сообщение
-- Тестовые креды: `device` / `devicepass`, `esp32-admin` / `admin`
+- Тестовые учётные данные задаются администратором при установке
+  (`LC_ADMIN_LOGIN` / `LC_ADMIN_PASSWORD`); в документации они не публикуются.
 
 ### 2. Чат (`/chat`)
 - Список чатов: `GET /chat/api/chats?session_token=...`
 - Просмотр сообщений: `GET /chat/api/chats/{id}/messages?session_token=...&limit=50`
 - Отправка: `POST /chat/api/chats/{id}/messages` с `{"session_token": "...", "body_text": "..."}`
-- Авто-скролл вниз, периодический опрос (polling, без WebSocket)
+- Авто-скролл вниз, WebSocket для активного чата с fallback на периодический polling
 
 ### 3. Устройства (`/devices`)
 - Список: `GET /devices/api/catalog?session_token=...`
@@ -145,8 +146,8 @@ async def root() -> HTMLResponse:
 **Запрос:**
 ```json
 {
-  "login": "device",
-  "password": "devicepass",
+  "login": "<login>",
+  "password": "<password>",
   "client_kind": "web"
 }
 ```
@@ -158,7 +159,7 @@ async def root() -> HTMLResponse:
   "access_mode": "open",
   "user": {
     "id": 2,
-    "login": "device",
+    "login": "<login>",
     "role": "user",
     "status": "active"
   },

@@ -1,0 +1,11 @@
+[Unit]
+Description=Local Chat nightly data backup
+Documentation=file:///opt/local-chat-server/README.md
+After=local-chat-server.service
+Wants=local-chat-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/local-chat-server/scripts/lc.sh backup
+Nice=10
+IOSchedulingClass=idle

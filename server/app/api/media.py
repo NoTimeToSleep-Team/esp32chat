@@ -108,12 +108,64 @@ async def media_storage_stats(
             status_code=exc.status_code,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
+    if session.user.user_id is None:
+        raise HTTPException(status_code=500, detail={"code": "invalid_user", "message": "Authenticated user id is missing"})
+    media = _media_service(request)
+    mine = media.user_storage_stats(owner_user_id=session.user.user_id)
+    if session.user.role in {UserRole.ADMIN, UserRole.MODERATOR}:
+        global_stats = media.storage_stats()
+        return {
+            "status": "ok",
+            "scope": "global",
+            **global_stats,
+            "my": mine,
+        }
+    return {"status": "ok", "scope": "me", **mine}
+
+
+@router.delete("/attachments/{attachment_id}")
+async def delete_attachment(
+    request: Request,
+    attachment_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, object]:
+    user_id = _resolve_user_id(request, session_token)
+    service = _media_service(request)
+    try:
+        attachment = service.delete_owned_attachment(
+            owner_user_id=user_id,
+            attachment_id=attachment_id,
+        )
+    except MediaError as exc:
+        _raise_media_error(exc)
+    return {
+        "status": "ok",
+        "attachment_id": attachment.attachment_id,
+        "deleted": True,
+    }
+
+
+@router.post("/cleanup-orphans")
+async def cleanup_orphan_attachments(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    limit: int = Query(default=500, ge=1, le=5000),
+) -> dict[str, object]:
+    service = _auth_service(request)
+    try:
+        session = service.get_session(session_token, client_kind=ClientKind.WEB)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
     if session.user.role not in {UserRole.ADMIN, UserRole.MODERATOR}:
         raise HTTPException(
             status_code=403,
             detail={"code": "forbidden", "message": "Admin or moderator required"},
         )
-    return {"status": "ok", **_media_service(request).storage_stats()}
+    result = _media_service(request).cleanup_orphan_attachments(limit=limit)
+    return {"status": "ok", **result}
 
 
 @router.get("/attachments/{attachment_id}/download")

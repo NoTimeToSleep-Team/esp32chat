@@ -235,6 +235,102 @@ class MediaService:
             ).fetchall()
             return [self._row_to_attachment(row) for row in rows]
 
+    def user_storage_stats(self, *, owner_user_id: int) -> dict[str, object]:
+        with self._connect() as connection:
+            self._require_active_user(connection, owner_user_id)
+            totals = connection.execute(
+                """
+                SELECT COUNT(*) AS files, COALESCE(SUM(size_bytes), 0) AS total
+                FROM media_attachments
+                WHERE owner_user_id = ?
+                """,
+                (owner_user_id,),
+            ).fetchone()
+        return {
+            "count": int(totals["files"]) if totals else 0,
+            "total_bytes": int(totals["total"]) if totals else 0,
+            "max_attachments_per_user": MAX_ATTACHMENTS_PER_USER,
+            "max_user_storage_bytes": MAX_USER_STORAGE_BYTES,
+            "max_upload_bytes": MAX_UPLOAD_BYTES,
+        }
+
+    def delete_owned_attachment(self, *, owner_user_id: int, attachment_id: int) -> MediaAttachment:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._require_active_user(connection, owner_user_id)
+            attachment = self._get_attachment(connection, attachment_id)
+            if attachment.owner_user_id != owner_user_id:
+                raise MediaError("forbidden", "Attachment belongs to another user", 403)
+            if self._attachment_is_in_use(connection, attachment_id):
+                raise MediaError(
+                    "attachment_in_use",
+                    "Attachment is used by a message, report or blog post",
+                    409,
+                )
+            connection.execute(
+                "DELETE FROM media_attachments WHERE id = ? AND owner_user_id = ?",
+                (attachment_id, owner_user_id),
+            )
+
+        absolute_path = (self._storage_root / attachment.storage_path).resolve()
+        storage_root = self._storage_root.resolve()
+        try:
+            absolute_path.relative_to(storage_root)
+        except ValueError as exc:
+            raise MediaError("invalid_storage_path", "Attachment path is outside storage", 500) from exc
+        try:
+            absolute_path.unlink(missing_ok=True)
+        except OSError:
+            # The database row is already gone; a leftover file is safer than
+            # reporting a failed delete and losing the ability to retry it.
+            pass
+        return attachment
+
+    def cleanup_orphan_attachments(self, *, limit: int = 500) -> dict[str, int]:
+        """Remove attachments that are no longer referenced by any entity."""
+        safe_limit = min(max(int(limit), 1), 5000)
+        deleted = 0
+        freed = 0
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                """
+                SELECT ma.*
+                FROM media_attachments ma
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM chat_message_attachments cma WHERE cma.attachment_id = ma.id
+                )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM support_message_attachments sma WHERE sma.attachment_id = ma.id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM report_attachments ra WHERE ra.attachment_id = ma.id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM blog_post_attachments bpa WHERE bpa.attachment_id = ma.id
+                  )
+                ORDER BY ma.id ASC
+                LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+            for row in rows:
+                attachment = self._row_to_attachment(row)
+                cursor = connection.execute(
+                    "DELETE FROM media_attachments WHERE id = ?",
+                    (attachment.attachment_id,),
+                )
+                if cursor.rowcount:
+                    deleted += 1
+                    freed += attachment.size_bytes
+                    absolute_path = (self._storage_root / attachment.storage_path).resolve()
+                    try:
+                        absolute_path.relative_to(self._storage_root.resolve())
+                        absolute_path.unlink(missing_ok=True)
+                    except (OSError, ValueError):
+                        pass
+        return {"deleted": deleted, "freed_bytes": freed}
+
     def resolve_download(self, *, attachment_id: int, requester_user_id: int) -> MediaDownload:
         with self._connect() as connection:
             self._require_active_user(connection, requester_user_id)
@@ -522,6 +618,26 @@ class MediaService:
                 return True
         if self._attachment_referenced_by(connection, "blog_post_attachments", attachment_id):
             return True
+        return False
+
+    @staticmethod
+    def _attachment_is_in_use(connection: sqlite3.Connection, attachment_id: int) -> bool:
+        tables = (
+            "chat_message_attachments",
+            "support_message_attachments",
+            "report_attachments",
+            "blog_post_attachments",
+        )
+        for table in tables:
+            try:
+                row = connection.execute(
+                    f"SELECT 1 FROM {table} WHERE attachment_id = ? LIMIT 1",
+                    (attachment_id,),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                continue
+            if row is not None:
+                return True
         return False
 
     @staticmethod

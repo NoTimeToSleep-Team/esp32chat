@@ -17,7 +17,7 @@ This directory contains the Raspberry Pi server side of the system.
 - Open-mode registration and mode-switch are implemented in `app/services/registration.py`, `app/services/mode.py`, `app/api/mode.py`.
 - Chat core domain is implemented in `app/models/chat.py` and `app/services/chat.py`.
 - Realtime chat transport is implemented in `app/realtime/*` and `app/api/realtime.py`.
-- Chat web UI is implemented in `app/templates/chat/*`, `app/static/chat/*`, `app/api/chat.py`.
+- Chat web UI is implemented in `app/templates/index.html` and `app/static/app.js`; `app/api/chat.py` exposes the REST API.
 - Private rooms and chat limits are implemented in `app/services/chat_limits.py`, `app/api/chat_private.py`.
 - Blog domain and API are implemented in `app/models/blog.py`, `app/services/blog.py`, `app/api/blog.py`, `app/templates/blog/*`, `app/static/blog/*`.
 - Support domain and API are implemented in `app/models/support.py`, `app/services/support.py`, `app/api/support.py`, `app/templates/support/*`, `app/static/support/*`.

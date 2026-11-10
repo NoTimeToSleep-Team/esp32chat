@@ -391,6 +391,12 @@ audio::-webkit-media-controls-panel{background:var(--bg3)}
 
 /* Account */
 .account-avatar{width:56px;height:56px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0}
+.my-file-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.my-file-row:last-child{border-bottom:none}
+.my-file-main{min-width:0;flex:1}
+.my-file-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);text-decoration:none;font-size:14px}
+.my-file-name:hover{text-decoration:underline}
+.my-file-meta{font-size:12px;color:var(--text2);margin-top:2px}
 .account-avatar img{width:100%;height:100%;object-fit:cover}
 .about-card p{color:var(--text2);margin-top:10px}
 
@@ -814,3 +820,6 @@ audio::-webkit-media-controls-panel{background:var(--bg3)}
 @media (prefers-reduced-motion: reduce){
   *,*:before,*:after{animation-duration:.001s!important;animation-delay:0s!important;transition-duration:.001s!important}
 }
+
+/* Keyboard focus visibility */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

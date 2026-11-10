@@ -283,8 +283,8 @@ fi
 if [[ "${IMPORT_OK}" != "1" ]]; then
     log "creating the administrator"
     ( cd "${APP_ROOT}" \
-      && "${PY_CMD}" -m app.cli --app-root "${APP_ROOT}" --env-file "${ENV_FILE}" \
-          create-admin --username "$(val ADMIN_USERNAME)" --password "$(val ADMIN_PASSWORD)" ) \
+      && printf '%s\n' "$(val ADMIN_PASSWORD)" | "${PY_CMD}" -m app.cli --app-root "${APP_ROOT}" --env-file "${ENV_FILE}" \
+          create-admin --username "$(val ADMIN_USERNAME)" --password-stdin ) \
         || fail "failed to create the administrator"
 
     if [[ -n "$(val LC_REGISTRATION_MODE)" ]]; then

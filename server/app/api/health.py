@@ -56,6 +56,7 @@ async def health(request: Request) -> dict[str, object]:
         "service": "local-chat-server",
         "version": __version__,
         "profile": settings.profile,
+        "features": list(settings.features),
         "timestamp_ms": int(datetime.now(tz=timezone.utc).timestamp() * 1000),
         "uptime_ms": _uptime_ms(request),
         "runtime": runtime_state,

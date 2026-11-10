@@ -54,6 +54,13 @@ cmd_status() {
     else
         echo "  health:  NOT RESPONDING"
     fi
+    local last_backup
+    last_backup="$(ls -1t "${APP_ROOT}/data/backups"/lc-backup-*.tar.gz 2>/dev/null | head -1 || true)"
+    if [[ -n "${last_backup}" ]]; then
+        echo "  backup:  $(basename "${last_backup}") ($(du -h "${last_backup}" | cut -f1), $(date -d "@$(stat -c %Y "${last_backup}")" '+%Y-%m-%d %H:%M'))"
+    else
+        echo "  backup:  none yet"
+    fi
 }
 
 cmd_setup() {
@@ -113,7 +120,15 @@ cmd_backup() {
     out="${APP_ROOT}/data/backups/lc-backup-${stamp}.tar.gz"
     tar -czf "${out}" -C "${APP_ROOT}" data config/app.env 2>/dev/null \
         || tar -czf "${out}" -C "${APP_ROOT}" data
+    if ! tar -tzf "${out}" >/dev/null 2>&1; then
+        rm -f "${out}"
+        echo "Backup verification failed; archive removed" >&2
+        exit 1
+    fi
     chmod 600 "${out}"
+    # Keep the seven newest nightly archives; older ones are rotated out.
+    ls -1t "${APP_ROOT}/data/backups"/lc-backup-*.tar.gz 2>/dev/null \
+        | tail -n +8 | xargs -r rm -f --
     echo "Backup created: ${out}"
 }
 

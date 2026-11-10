@@ -34,6 +34,7 @@ class Settings:
     bruteforce_ip_attempt_limit: int
     bruteforce_block_ms: int
     debug_trace_enabled: bool
+    features: tuple[str, ...] = ("chat", "account", "admin", "devices", "blog", "support")
 
 
 def _read_str(
@@ -188,6 +189,16 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         max_value=86400000,
     )
     debug_trace_enabled = _read_bool(source, "LCS_DEBUG_TRACE_ENABLED", False)
+    features_raw = _read_str(
+        source,
+        "LCS_FEATURES",
+        "chat,account,admin,devices,blog,support",
+    )
+    features = tuple(
+        part.strip().lower()
+        for part in features_raw.split(",")
+        if part.strip()
+    )
 
     if profile == "prod":
         if reload_enabled:
@@ -217,6 +228,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         bruteforce_ip_attempt_limit=bruteforce_ip_attempt_limit,
         bruteforce_block_ms=bruteforce_block_ms,
         debug_trace_enabled=debug_trace_enabled,
+        features=features,
     )
 
 

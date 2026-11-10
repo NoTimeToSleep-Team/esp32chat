@@ -55,9 +55,12 @@ def cmd_create_admin(args) -> None:
     username = args.username.strip()
     if len(username) < 3 or len(username) > 32:
         raise SystemExit("username must be 3..32 characters")
+    password = args.password
+    if args.password_stdin:
+        password = sys.stdin.readline().rstrip("\r\n")
     # Deliberate exception: admins are NOT bound by the 8-character minimum
     # (the web registration flow still enforces it for regular users).
-    if not args.password:
+    if not password:
         raise SystemExit("password must not be empty")
 
     from app.services.auth import hash_password
@@ -71,7 +74,7 @@ def cmd_create_admin(args) -> None:
             connection.execute(
                 "UPDATE users SET password_hash = ?, role = 'admin', status = 'active', "
                 "updated_at_ms = ? WHERE id = ?",
-                (hash_password(args.password), _now_ms(), row[0]),
+                (hash_password(password), _now_ms(), row[0]),
             )
             connection.execute(
                 "UPDATE sessions SET revoked_at_ms = ? WHERE user_id = ? AND revoked_at_ms IS NULL",
@@ -90,7 +93,7 @@ def cmd_create_admin(args) -> None:
     try:
         service.register_user(
             login=username,
-            password=args.password,
+            password=password,
             phone="",
             device_id="cli-admin-" + secrets.token_hex(4),
             client_kind=ClientKind.WEB,
@@ -150,7 +153,13 @@ def main(argv: list[str] | None = None) -> None:
         "create-admin", help="create the administrator or reset its password"
     )
     p_admin.add_argument("--username", required=True)
-    p_admin.add_argument("--password", required=True)
+    password_group = p_admin.add_mutually_exclusive_group(required=True)
+    password_group.add_argument("--password")
+    password_group.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="read the administrator password from stdin (preferred in scripts)",
+    )
 
     p_mode = sub.add_parser(
         "set-mode", help="set the portal registration mode (open|closed)"
