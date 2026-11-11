@@ -60,7 +60,7 @@ def _require_admin_user_id(request: Request, session_token: str) -> int:
 
 
 @router.get("")
-async def get_mode(request: Request) -> dict[str, object]:
+def get_mode(request: Request) -> dict[str, object]:
     service = _mode_service(request)
     access_mode = service.get_mode()
     return {
@@ -70,7 +70,7 @@ async def get_mode(request: Request) -> dict[str, object]:
 
 
 @router.post("")
-async def set_mode(
+def set_mode(
     payload: UpdateModeRequest,
     request: Request,
     x_session_token: str = Header(..., alias="X-Session-Token"),

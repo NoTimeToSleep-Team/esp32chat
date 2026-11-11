@@ -128,14 +128,14 @@ def _ownership_payload(ownership: DeviceOwnership) -> dict[str, object]:
 
 
 @router.get("/devices", response_class=HTMLResponse)
-async def devices_page() -> HTMLResponse:
+def devices_page() -> HTMLResponse:
     template = _template_path()
     html = template.read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
 @router.get("/devices/api/catalog")
-async def list_devices_catalog(
+def list_devices_catalog(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=50, ge=1, le=500),
@@ -167,7 +167,7 @@ async def list_devices_catalog(
 
 
 @router.get("/devices/api/catalog/{device_id}")
-async def get_device_profile(
+def get_device_profile(
     request: Request,
     device_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -196,7 +196,7 @@ async def get_device_profile(
 
 
 @router.post("/devices/api/catalog")
-async def publish_device_profile(
+def publish_device_profile(
     request: Request,
     payload: PublishDeviceProfileRequest,
 ) -> dict[str, object]:
@@ -248,7 +248,7 @@ class PairDeviceRequest(BaseModel):
 
 
 @router.get("/devices/api/pair/list")
-async def list_pairings(
+def list_pairings(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -343,7 +343,7 @@ async def unpair_device(request: Request, payload: UnpairDeviceRequest) -> dict[
 
 
 @router.get("/devices/api/pair/status")
-async def pair_status(
+def pair_status(
     request: Request,
     device_id: str | None = Query(default=None, min_length=1, max_length=256),
     pairing_id: str | None = Query(default=None, min_length=1, max_length=128),
@@ -423,7 +423,7 @@ def _paired_device_payload(device: PairedDevice) -> dict[str, object]:
 
 
 @router.post("/devices/api/pair/request")
-async def request_pairing_code(
+def request_pairing_code(
     request: Request,
     payload: PairRequestDeviceRequest,
 ) -> dict[str, object]:
@@ -516,7 +516,7 @@ async def reset_device_identity(
 
 
 @router.post("/devices/api/catalog/{device_id}/ownership")
-async def set_device_ownership(
+def set_device_ownership(
     request: Request,
     device_id: int,
     payload: SetDeviceOwnershipRequest,

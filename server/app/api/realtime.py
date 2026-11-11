@@ -4,6 +4,7 @@ import json
 from time import monotonic
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from starlette.concurrency import run_in_threadpool
 
 from app.models import ClientKind, MessageDraft
 from app.realtime import ChatRealtimeBroker, chat_message_event, chat_message_payload
@@ -25,10 +26,14 @@ class OnlineCheckRequest(BaseModel):
 @router.post("/realtime/online")
 async def get_online_users(payload: OnlineCheckRequest, request: Request):
     """Return list of user IDs with active WebSocket connections."""
-    # Verify admin
+    # Verify admin.  The broker itself is only touched on the event loop.
     auth = _auth_service(request)
     try:
-        session = auth.get_session(payload.session_token, client_kind=ClientKind.WEB)
+        session = await run_in_threadpool(
+            auth.get_session,
+            payload.session_token,
+            client_kind=ClientKind.WEB,
+        )
     except AuthError as exc:
         raise HTTPException(status_code=401, detail={"code": exc.code, "message": exc.message})
     if session.user.role not in {"admin", "moderator"}:
@@ -147,7 +152,11 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
     broker = _broker(websocket)
 
     try:
-        session = auth_service.get_session(session_token, client_kind=ClientKind.WEB)
+        session = await run_in_threadpool(
+            auth_service.get_session,
+            session_token,
+            client_kind=ClientKind.WEB,
+        )
     except AuthError as exc:
         await websocket.send_json(_error_payload(exc.code, exc.message))
         await websocket.close(code=4401)
@@ -161,7 +170,8 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
     user_id = session.user.user_id
 
     try:
-        _ = chat_service.list_messages(
+        _ = await run_in_threadpool(
+            chat_service.list_messages,
             chat_id=chat_id,
             requester_user_id=user_id,
             limit=1,
@@ -208,7 +218,7 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
                     _error_payload("invalid_frame", "Only text WebSocket frames are supported")
                 )
                 continue
-            if not refresh_session():
+            if not await run_in_threadpool(refresh_session):
                 await websocket.send_json(
                     _error_payload("invalid_session", "Session is no longer valid")
                 )
@@ -262,7 +272,8 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
                     continue
 
                 try:
-                    messages = chat_service.list_messages(
+                    messages = await run_in_threadpool(
+                        chat_service.list_messages,
                         chat_id=chat_id,
                         requester_user_id=user_id,
                         limit=limit,
@@ -293,7 +304,8 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
                         body_text=body_text,
                         client_message_id=client_message_id,
                     )
-                    message = chat_service.send_message(
+                    message = await run_in_threadpool(
+                        chat_service.send_message,
                         chat_id=chat_id,
                         author_user_id=user_id,
                         draft=draft,
@@ -316,7 +328,7 @@ async def realtime_chat(websocket: WebSocket, chat_id: int) -> None:
                         "delivered_to": delivered,
                     }
                 )
-                moderate_message(websocket.app, message)
+                await run_in_threadpool(moderate_message, websocket.app, message)
                 continue
 
             await websocket.send_json(

@@ -157,14 +157,14 @@ def _decode_avatar_payload(
 
 
 @router.get("/account", response_class=HTMLResponse)
-async def account_page() -> HTMLResponse:
+def account_page() -> HTMLResponse:
     template = _template_path()
     html = template.read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
 @router.get("/account/api/profile")
-async def get_account_profile(
+def get_account_profile(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -196,7 +196,7 @@ async def get_account_profile(
 
 
 @router.get("/account/api/profile/{user_id:int}")
-async def get_user_profile(
+def get_user_profile(
     request: Request,
     user_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -232,7 +232,7 @@ async def get_user_profile(
 
 
 @router.post("/account/api/profile")
-async def update_account_profile(
+def update_account_profile(
     request: Request,
     payload: UpdateAccountProfileRequest,
 ) -> dict[str, object]:
@@ -278,7 +278,7 @@ async def update_account_profile(
 
 
 @router.post("/account/api/avatar")
-async def update_account_avatar(
+def update_account_avatar(
     request: Request,
     payload: UpdateAccountAvatarRequest,
 ) -> dict[str, object]:
@@ -314,7 +314,7 @@ async def update_account_avatar(
 
 
 @router.post("/account/api/avatar/remove")
-async def remove_account_avatar(
+def remove_account_avatar(
     request: Request,
     payload: ClearAccountAvatarRequest,
 ) -> dict[str, object]:
@@ -342,7 +342,7 @@ async def remove_account_avatar(
 
 
 @router.get("/account/api/profile/avatar")
-async def get_account_avatar(
+def get_account_avatar(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     user_id: int | None = Query(default=None),
@@ -366,7 +366,7 @@ async def get_account_avatar(
 
 
 @router.get("/account/api/me/internet")
-async def get_my_internet_status(
+def get_my_internet_status(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -382,7 +382,7 @@ async def get_my_internet_status(
 
 
 @router.get("/account/api/limits")
-async def get_account_limits(
+def get_account_limits(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:

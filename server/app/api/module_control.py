@@ -60,7 +60,7 @@ def _module_payload(module: ModuleInfo) -> dict[str, object]:
 
 
 @router.get("/admin/api/modules")
-async def list_modules(
+def list_modules(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -75,7 +75,7 @@ async def list_modules(
 
 
 @router.post("/admin/api/modules/enable")
-async def enable_module(request: Request, payload: ModuleControlRequest) -> dict[str, object]:
+def enable_module(request: Request, payload: ModuleControlRequest) -> dict[str, object]:
     _require_admin(request, payload.session_token)
     service = _registry_service(request)
     try:
@@ -98,7 +98,7 @@ async def enable_module(request: Request, payload: ModuleControlRequest) -> dict
 
 
 @router.post("/admin/api/modules/disable")
-async def disable_module(request: Request, payload: ModuleControlRequest) -> dict[str, object]:
+def disable_module(request: Request, payload: ModuleControlRequest) -> dict[str, object]:
     _require_admin(request, payload.session_token)
     service = _registry_service(request)
     try:

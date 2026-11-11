@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from time import time
 
+from app.db.connection import connect_sqlite
 from app.models import (
     CHAT_PERMISSIONS,
     REACTION_EMOJIS,
@@ -3271,11 +3272,7 @@ class ChatService:
             ]
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA busy_timeout = 5000")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _require_active_user(connection: sqlite3.Connection, user_id: int) -> sqlite3.Row:

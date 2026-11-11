@@ -32,7 +32,7 @@ def _edge_module_payload(module: ModuleInfo) -> dict[str, object]:
 
 
 @router.get("/devices/api/edge/capabilities")
-async def edge_capabilities(
+def edge_capabilities(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:

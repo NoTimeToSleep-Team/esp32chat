@@ -92,14 +92,14 @@ def _raise_blog_error(exc: BlogError) -> None:
 
 
 @router.get("/blog", response_class=HTMLResponse)
-async def blog_page() -> HTMLResponse:
+def blog_page() -> HTMLResponse:
     template = _template_path()
     html = template.read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
 @router.get("/blog/api/posts")
-async def list_blog_posts(
+def list_blog_posts(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=20, ge=1, le=200),
@@ -121,7 +121,7 @@ async def list_blog_posts(
 
 
 @router.get("/blog/api/posts/{post_id}")
-async def get_blog_post(
+def get_blog_post(
     request: Request,
     post_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -141,7 +141,7 @@ async def get_blog_post(
 
 
 @router.post("/blog/api/posts")
-async def publish_blog_post(request: Request, payload: PublishPostRequest) -> dict[str, object]:
+def publish_blog_post(request: Request, payload: PublishPostRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     service = _blog_service(request)
 

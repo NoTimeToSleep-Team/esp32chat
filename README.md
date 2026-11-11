@@ -304,6 +304,7 @@ on the releases page.
 - `docs/USB_ROOT_KEY.md` — physical USB gate for root SSH, key manager and
   recovery.
 - `docs/architecture.md` — server architecture and data flows.
+- `docs/PERFORMANCE.md` — execution model, thread-pool and SQLite tuning.
 - `docs/device-matrix.md` — device roles and constraints.
 - `docs/glossary.md` — project terms.
 

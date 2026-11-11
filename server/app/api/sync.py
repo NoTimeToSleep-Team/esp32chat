@@ -65,7 +65,7 @@ def _raise_sync_error(exc: Exception) -> None:
 
 
 @router.post("")
-async def push_sync_event(
+def push_sync_event(
     payload: SyncEventRequest,
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -84,7 +84,7 @@ async def push_sync_event(
 
 
 @router.get("/pending")
-async def pull_pending_sync_events(
+def pull_pending_sync_events(
     request: Request,
     target_node_id: str = Query(..., min_length=1, max_length=128),
     limit: int = Query(50, ge=1, le=500),
@@ -103,7 +103,7 @@ async def pull_pending_sync_events(
 
 
 @router.post("/{event_id}/ack")
-async def acknowledge_sync_event(
+def acknowledge_sync_event(
     event_id: int,
     request: Request,
     payload: SyncAckRequest | None = None,

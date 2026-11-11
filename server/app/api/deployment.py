@@ -106,7 +106,7 @@ def _module_payload(module: ModuleInfo) -> dict[str, object]:
 
 
 @router.post("/admin/api/deployment/start")
-async def start_deployment(request: Request, payload: StartDeploymentRequest) -> dict[str, object]:
+def start_deployment(request: Request, payload: StartDeploymentRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _edge_service(request)
     try:
@@ -125,7 +125,7 @@ async def start_deployment(request: Request, payload: StartDeploymentRequest) ->
 
 
 @router.post("/admin/api/deployment/stop")
-async def stop_deployment(request: Request, payload: StopDeploymentRequest) -> dict[str, object]:
+def stop_deployment(request: Request, payload: StopDeploymentRequest) -> dict[str, object]:
     _resolve_admin_user_id(request, payload.session_token)
     try:
         deployment = _edge_service(request).stop_node(payload.deployment_id)
@@ -135,7 +135,7 @@ async def stop_deployment(request: Request, payload: StopDeploymentRequest) -> d
 
 
 @router.get("/admin/api/deployment/status")
-async def deployment_status(
+def deployment_status(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -149,7 +149,7 @@ async def deployment_status(
 
 
 @router.get("/api/m5tab/info")
-async def m5tab_info(
+def m5tab_info(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -169,7 +169,7 @@ async def m5tab_info(
 
 
 @router.get("/api/m5tab/admin")
-async def m5tab_admin(
+def m5tab_admin(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -184,7 +184,7 @@ async def m5tab_admin(
 
 
 @router.get("/api/m5tab/deployment")
-async def m5tab_deployment(
+def m5tab_deployment(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:

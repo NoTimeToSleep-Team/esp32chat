@@ -88,7 +88,7 @@ def _node_payload(record: DeviceNodeRecord) -> dict[str, object]:
 
 
 @router.post("/ops/api/devices/register")
-async def register_device_node(request: Request, payload: DeviceRegisterRequest) -> dict[str, object]:
+def register_device_node(request: Request, payload: DeviceRegisterRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _device_runtime_service(request)
 
@@ -108,7 +108,7 @@ async def register_device_node(request: Request, payload: DeviceRegisterRequest)
 
 
 @router.post("/ops/api/devices/heartbeat")
-async def submit_device_heartbeat(request: Request, payload: DeviceHeartbeatRequest) -> dict[str, object]:
+def submit_device_heartbeat(request: Request, payload: DeviceHeartbeatRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _device_runtime_service(request)
 
@@ -129,7 +129,7 @@ async def submit_device_heartbeat(request: Request, payload: DeviceHeartbeatRequ
 
 
 @router.post("/ops/api/devices/telemetry")
-async def submit_device_telemetry(request: Request, payload: DeviceTelemetryRequest) -> dict[str, object]:
+def submit_device_telemetry(request: Request, payload: DeviceTelemetryRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _device_runtime_service(request)
 
@@ -148,7 +148,7 @@ async def submit_device_telemetry(request: Request, payload: DeviceTelemetryRequ
 
 
 @router.get("/ops/api/devices/{device_id}/status")
-async def get_device_node_status(
+def get_device_node_status(
     request: Request,
     device_id: str,
     session_token: str = Query(..., min_length=8, max_length=512),

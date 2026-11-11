@@ -71,13 +71,13 @@ def _safe_sequence() -> list[str]:
 
 
 @router.get("/panel", include_in_schema=False)
-async def admin_mode_panel() -> RedirectResponse:
+def admin_mode_panel() -> RedirectResponse:
     # Старая token-панель заменена единой админкой /admin.
     return RedirectResponse("/admin", status_code=302)
 
 
 @router.get("/state")
-async def get_admin_mode_state(
+def get_admin_mode_state(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -93,7 +93,7 @@ async def get_admin_mode_state(
 
 
 @router.post("/set")
-async def set_admin_mode(
+def set_admin_mode(
     request: Request,
     payload: AdminSetModeRequest,
 ) -> dict[str, object]:

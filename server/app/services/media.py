@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import time
 
+from app.db.connection import connect_sqlite
 from app.models import MediaAttachment, MediaDownload, MediaKind, UserRole
 from app.security.visibility import message_is_readable
 
@@ -505,11 +506,7 @@ class MediaService:
                 return None
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA busy_timeout = 5000")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _normalize_attachment_ids(attachment_ids: tuple[int, ...]) -> tuple[int, ...]:

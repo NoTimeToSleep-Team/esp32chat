@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import time
 
+from app.db.connection import connect_sqlite
 from app.models import (
     AccountLimits,
     AccountProfile,
@@ -259,10 +260,7 @@ class AccountService:
             )
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _require_active_user(connection: sqlite3.Connection, user_id: int) -> sqlite3.Row:

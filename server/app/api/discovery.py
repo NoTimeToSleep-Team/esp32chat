@@ -16,7 +16,7 @@ def _registry_service(request: Request) -> ModuleRegistryService:
 
 
 @router.get("/api/capabilities")
-async def capabilities(
+def capabilities(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:

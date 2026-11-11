@@ -4,6 +4,8 @@ import sqlite3
 import time
 from pathlib import Path
 
+from app.db.connection import connect_sqlite
+
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
@@ -64,8 +66,6 @@ class ActivityLogService:
             return {"messages_30d": msgs, "users_30d": users, "total_events": total_logs, "active_sessions": total_ws}
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode = WAL")
+        conn = connect_sqlite(self._db_path)
         self._init_table(conn)
         return conn

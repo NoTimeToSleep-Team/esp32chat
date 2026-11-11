@@ -5,6 +5,7 @@ import sys
 from time import monotonic
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from anyio import to_thread
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -74,6 +75,9 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         install_runtime_log_filters()
+        # FastAPI executes sync route handlers and run_in_threadpool() work here.
+        # Keep the SQLite/file concurrency bounded on a small ARM board.
+        to_thread.current_default_thread_limiter().total_tokens = settings.threadpool_size
         app.state.started_at_monotonic = monotonic()
         app.state.data_layer = initialize_data_layer(settings, logger=logger)
         app.state.realtime_broker = ChatRealtimeBroker()
@@ -138,10 +142,11 @@ def create_app() -> FastAPI:
         )
 
         logger.info(
-            "Application startup profile=%s host=%s port=%s default_common_chat_id=%s common_members_added=%s",
+            "Application startup profile=%s host=%s port=%s threadpool_size=%s default_common_chat_id=%s common_members_added=%s",
             settings.profile,
             settings.host,
             settings.port,
+            settings.threadpool_size,
             default_chat.chat_id,
             common_members_added,
         )

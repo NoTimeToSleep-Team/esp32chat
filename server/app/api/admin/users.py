@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.models import AdminUserRecord, ClientKind, DeviceBlacklistEntry, UserRole, UserStatus
 from app.services.admin_users import AdminUsersError, AdminUsersService
@@ -154,13 +155,13 @@ def _raise_admin_error(exc: AdminUsersError) -> None:
 
 
 @router.get("/panel", include_in_schema=False)
-async def admin_users_panel() -> RedirectResponse:
+def admin_users_panel() -> RedirectResponse:
     # Старая token-панель заменена единой админкой /admin.
     return RedirectResponse("/admin", status_code=302)
 
 
 @router.get("")
-async def list_admin_users(
+def list_admin_users(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     status: UserStatus | None = Query(default=None),
@@ -192,7 +193,7 @@ async def list_admin_users(
 
 
 @router.get("/{user_id}")
-async def get_admin_user(
+def get_admin_user(
     request: Request,
     user_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -224,7 +225,8 @@ async def ban_user(
     service = _admin_users_service(request)
 
     try:
-        record = service.ban_user(
+        record = await run_in_threadpool(
+            service.ban_user,
             actor_user_id=admin_user_id,
             target_user_id=user_id,
             reason=payload.reason,
@@ -240,7 +242,7 @@ async def ban_user(
 
 
 @router.post("/{user_id}/unban")
-async def unban_user(
+def unban_user(
     request: Request,
     user_id: int,
     payload: AdminUnbanRequest,
@@ -272,7 +274,8 @@ async def temporary_block_user(
     service = _admin_users_service(request)
 
     try:
-        record = service.temporary_block_user(
+        record = await run_in_threadpool(
+            service.temporary_block_user,
             actor_user_id=admin_user_id,
             target_user_id=user_id,
             duration_minutes=payload.duration_minutes,
@@ -298,7 +301,8 @@ async def blacklist_device(
     service = _admin_users_service(request)
 
     try:
-        record, entry = service.blacklist_device(
+        record, entry = await run_in_threadpool(
+            service.blacklist_device,
             actor_user_id=admin_user_id,
             target_user_id=user_id,
             reason=payload.reason,
@@ -316,7 +320,7 @@ async def blacklist_device(
 
 
 @router.post("/{user_id}/unblacklist-device")
-async def unblacklist_device(
+def unblacklist_device(
     request: Request,
     user_id: int,
     payload: AdminUnblacklistDeviceRequest,
@@ -340,7 +344,7 @@ async def unblacklist_device(
 
 
 @router.post("/{user_id}/set-role")
-async def set_user_role(
+def set_user_role(
     request: Request,
     user_id: int,
     payload: AdminSetRoleRequest,
@@ -369,35 +373,41 @@ async def reset_user_password(
     if len(payload.new_password) < 8:
         raise HTTPException(status_code=422, detail={"code": "weak_password", "message": "Password must be at least 8 characters"})
     service = _admin_users_service(request)
-    try:
-        actor = service.get_user(actor_user_id=admin_user_id, target_user_id=admin_user_id)
-        service.get_user(actor_user_id=admin_user_id, target_user_id=user_id)
-    except AdminUsersError as exc:
-        _raise_admin_error(exc)
-    if actor.role.value != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail={"code": "admin_only", "message": "Only a full admin can reset passwords"},
-        )
-    import sqlite3
-    from app.services.auth import hash_password
-    conn = sqlite3.connect(request.app.state.data_layer.database_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 5000")
-    user = conn.execute("SELECT id, login FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not user:
+
+    def reset_password() -> str:
+        try:
+            actor = service.get_user(
+                actor_user_id=admin_user_id,
+                target_user_id=admin_user_id,
+            )
+            service.get_user(actor_user_id=admin_user_id, target_user_id=user_id)
+        except AdminUsersError as exc:
+            _raise_admin_error(exc)
+        if actor.role.value != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "admin_only", "message": "Only a full admin can reset passwords"},
+            )
+        import sqlite3
+        from app.services.auth import hash_password
+        conn = sqlite3.connect(request.app.state.data_layer.database_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 5000")
+        user = conn.execute("SELECT id, login FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            conn.close()
+            raise HTTPException(status_code=404, detail={"code": "user_not_found", "message": "User not found"})
+        new_hash = hash_password(payload.new_password)
+        conn.execute("UPDATE users SET password_hash = ?, updated_at_ms = ? WHERE id = ?", (new_hash, int(__import__("time").time() * 1000), user_id))
+        conn.commit()
         conn.close()
-        raise HTTPException(status_code=404, detail={"code": "user_not_found", "message": "User not found"})
-    new_hash = hash_password(payload.new_password)
-    conn.execute("UPDATE users SET password_hash = ?, updated_at_ms = ? WHERE id = ?", (new_hash, int(__import__("time").time() * 1000), user_id))
-    conn.commit()
-    conn.close()
-    # Revoke all sessions for this user
-    from app.services.auth import AuthService
-    auth = AuthService(db_path=request.app.state.data_layer.database_path)
-    auth.revoke_user_sessions(user_id)
+        from app.services.auth import AuthService
+        AuthService(db_path=request.app.state.data_layer.database_path).revoke_user_sessions(user_id)
+        return str(user["login"])
+
+    login = await run_in_threadpool(reset_password)
     await _disconnect_user(request, user_id)
-    return {"status": "ok", "login": user["login"], "message": "Password reset. All sessions revoked."}
+    return {"status": "ok", "login": login, "message": "Password reset. All sessions revoked."}
 
 
 @router.delete("/{user_id}")
@@ -410,7 +420,8 @@ async def delete_user(
     service = _admin_users_service(request)
 
     try:
-        deleted_user_id, deleted_login = service.delete_user(
+        deleted_user_id, deleted_login = await run_in_threadpool(
+            service.delete_user,
             actor_user_id=admin_user_id,
             target_user_id=user_id,
         )

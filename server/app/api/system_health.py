@@ -20,7 +20,7 @@ def _require_admin(request: Request, session_token: str) -> None:
 
 
 @router.get("/ops/system-health", summary="Get RPi system health snapshot")
-async def get_system_health(
+def get_system_health(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ):

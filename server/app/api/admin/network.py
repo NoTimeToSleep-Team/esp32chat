@@ -16,7 +16,7 @@ router = APIRouter(prefix="/admin/network", tags=["admin-network"])
 
 
 @router.get("/panel", include_in_schema=False)
-async def admin_network_panel() -> RedirectResponse:
+def admin_network_panel() -> RedirectResponse:
     # Старая token-панель заменена единой админкой /admin.
     return RedirectResponse("/admin", status_code=302)
 
@@ -70,7 +70,7 @@ def _resolve_admin(request: Request, session_token: str) -> int:
 
 
 @router.get("", include_in_schema=False)
-async def network_admin_page() -> RedirectResponse:
+def network_admin_page() -> RedirectResponse:
     # Старая token-панель заменена разделом «Сеть» в единой админке /admin.
     return RedirectResponse("/admin", status_code=302)
 
@@ -78,7 +78,7 @@ async def network_admin_page() -> RedirectResponse:
 # --- Interface management ---
 
 @router.get("/interfaces")
-async def list_interfaces(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
+def list_interfaces(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
     _resolve_admin(request, session_token)
     svc = _network_service(request)
     interfaces = svc.detect_interfaces()
@@ -94,7 +94,7 @@ async def list_interfaces(request: Request, session_token: str = Query(..., min_
 
 
 @router.post("/interfaces/assign")
-async def assign_interface_role(request: Request, payload: InterfaceRoleRequest) -> dict[str, object]:
+def assign_interface_role(request: Request, payload: InterfaceRoleRequest) -> dict[str, object]:
     _resolve_admin(request, payload.session_token)
     svc = _network_service(request)
     svc.set_interface_role(payload.ifname, payload.role)
@@ -115,7 +115,7 @@ class TxPowerRequest(BaseModel):
 
 
 @router.post("/interfaces/txpower")
-async def set_tx_power(request: Request, payload: TxPowerRequest) -> dict[str, object]:
+def set_tx_power(request: Request, payload: TxPowerRequest) -> dict[str, object]:
     _resolve_admin(request, payload.session_token)
     svc = _network_service(request)
     ok = svc.set_tx_power(payload.ifname, payload.power_dbm)
@@ -123,7 +123,7 @@ async def set_tx_power(request: Request, payload: TxPowerRequest) -> dict[str, o
 
 
 @router.post("/services/restart")
-async def restart_services(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
+def restart_services(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
     _resolve_admin(request, session_token)
     svc = _network_service(request)
     result = svc.restart_services()
@@ -145,7 +145,7 @@ _ROLE_ALIASES: dict[str, WiFiInterfaceRole] = {
 
 
 @router.post("/config/save")
-async def save_network_config(request: Request, payload: NetworkConfigSaveRequest) -> dict[str, object]:
+def save_network_config(request: Request, payload: NetworkConfigSaveRequest) -> dict[str, object]:
     """Apply AP/Client/Off role changes for one or more interfaces (used by the admin UI)."""
     _resolve_admin(request, payload.session_token)
     if not payload.config:
@@ -170,7 +170,7 @@ async def save_network_config(request: Request, payload: NetworkConfigSaveReques
 # --- WiFi management ---
 
 @router.get("/wifi/scan")
-async def scan_wifi(
+def scan_wifi(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     interface: str | None = Query(default=None, max_length=16),
@@ -183,7 +183,7 @@ async def scan_wifi(
 
 
 @router.post("/wifi/connect")
-async def connect_wifi(request: Request, payload: WiFiConnectRequest) -> dict[str, object]:
+def connect_wifi(request: Request, payload: WiFiConnectRequest) -> dict[str, object]:
     _resolve_admin(request, payload.session_token)
     svc = _network_service(request)
     ok = svc.connect_wifi(payload.ssid, payload.password, interface=payload.interface)
@@ -193,7 +193,7 @@ async def connect_wifi(request: Request, payload: WiFiConnectRequest) -> dict[st
 
 
 @router.post("/wifi/disconnect")
-async def disconnect_wifi(request: Request, payload: WiFiDisconnectRequest) -> dict[str, object]:
+def disconnect_wifi(request: Request, payload: WiFiDisconnectRequest) -> dict[str, object]:
     _resolve_admin(request, payload.session_token)
     svc = _network_service(request)
     svc.disconnect_wifi()
@@ -201,7 +201,7 @@ async def disconnect_wifi(request: Request, payload: WiFiDisconnectRequest) -> d
 
 
 @router.get("/wifi/status")
-async def wifi_status(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
+def wifi_status(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
     _resolve_admin(request, session_token)
     svc = _network_service(request)
     status = svc.get_uplink_status()
@@ -212,7 +212,7 @@ async def wifi_status(request: Request, session_token: str = Query(..., min_leng
 # --- Per-user internet access ---
 
 @router.get("/users")
-async def list_users_internet(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
+def list_users_internet(request: Request, session_token: str = Query(..., min_length=8, max_length=512)) -> dict[str, object]:
     _resolve_admin(request, session_token)
     svc = _network_service(request)
     records = svc.get_all_internet_access()
@@ -230,7 +230,7 @@ async def list_users_internet(request: Request, session_token: str = Query(..., 
 
 
 @router.post("/users/internet")
-async def toggle_user_internet(request: Request, payload: InternetAccessRequest) -> dict[str, object]:
+def toggle_user_internet(request: Request, payload: InternetAccessRequest) -> dict[str, object]:
     admin_id = _resolve_admin(request, payload.session_token)
     svc = _network_service(request)
     svc.set_user_internet(payload.user_id, payload.enabled, admin_id)

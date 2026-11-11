@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 from time import time
 
 from app.models import ClientKind
@@ -90,7 +91,7 @@ def _auth_result_payload(result: AuthResult) -> dict[str, object]:
 
 
 @router.post("/login")
-async def login(payload: LoginRequest, request: Request) -> dict[str, object]:
+def login(payload: LoginRequest, request: Request) -> dict[str, object]:
     service = _auth_service(request)
     guard = _bruteforce_guard(request)
     audit = _security_audit(request)
@@ -186,7 +187,7 @@ def _device_pairing_service(request: Request) -> DevicePairingService:
 
 
 @router.post("/device-challenge")
-async def device_challenge(request: Request, payload: DeviceChallengeRequest) -> dict[str, object]:
+def device_challenge(request: Request, payload: DeviceChallengeRequest) -> dict[str, object]:
     service = _device_pairing_service(request)
     try:
         challenge, expires_in_ms = service.issue_challenge(payload.device_id)
@@ -203,7 +204,7 @@ async def device_challenge(request: Request, payload: DeviceChallengeRequest) ->
 
 
 @router.post("/device-session")
-async def device_session(request: Request, payload: DeviceSessionRequest) -> dict[str, object]:
+def device_session(request: Request, payload: DeviceSessionRequest) -> dict[str, object]:
     if not payload.challenge or not payload.proof:
         raise HTTPException(
             status_code=401,
@@ -249,7 +250,7 @@ async def device_session(request: Request, payload: DeviceSessionRequest) -> dic
 
 
 @router.post("/register")
-async def register(payload: RegisterRequest, request: Request) -> dict[str, object]:
+def register(payload: RegisterRequest, request: Request) -> dict[str, object]:
     now_ms = int(time() * 1000)
     ip_address = resolve_client_ip(request)
     failure_limiter: FailureRateLimiter = request.app.state.registration_failure_limiter
@@ -317,7 +318,7 @@ async def register(payload: RegisterRequest, request: Request) -> dict[str, obje
 
 
 @router.post("/guest")
-async def guest_login(payload: GuestRequest, request: Request) -> dict[str, object]:
+def guest_login(payload: GuestRequest, request: Request) -> dict[str, object]:
     service = _registration_service(request)
     try:
         result = service.create_guest_session(client_kind=payload.client_kind)
@@ -337,13 +338,17 @@ async def guest_login(payload: GuestRequest, request: Request) -> dict[str, obje
 async def logout(payload: LogoutRequest, request: Request) -> dict[str, object]:
     service = _auth_service(request)
     try:
-        session = service.get_session(payload.session_token, client_kind=ClientKind.WEB)
+        session = await run_in_threadpool(
+            service.get_session,
+            payload.session_token,
+            client_kind=ClientKind.WEB,
+        )
     except AuthError as exc:
         raise HTTPException(
             status_code=401,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
-    revoked = service.logout(payload.session_token)
+    revoked = await run_in_threadpool(service.logout, payload.session_token)
     broker = getattr(request.app.state, "realtime_broker", None)
     if broker is not None:
         await broker.disconnect_session(session.session.token)
@@ -354,7 +359,7 @@ async def logout(payload: LogoutRequest, request: Request) -> dict[str, object]:
 
 
 @router.get("/session")
-async def get_session(
+def get_session(
     request: Request,
     x_session_token: str = Header(..., alias="X-Session-Token"),
     client_kind: ClientKind = ClientKind.WEB,

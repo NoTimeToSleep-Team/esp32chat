@@ -134,14 +134,14 @@ def _raise_rfid_error(exc: RfidError) -> None:
 
 
 @router.get("/rfid", response_class=HTMLResponse)
-async def rfid_page() -> HTMLResponse:
+def rfid_page() -> HTMLResponse:
     template = _template_path()
     html = template.read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
 @router.get("/rfid/api/cards")
-async def list_rfid_cards(
+def list_rfid_cards(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     include_inactive: bool = Query(default=True),
@@ -169,7 +169,7 @@ async def list_rfid_cards(
 
 
 @router.post("/rfid/api/cards")
-async def enroll_rfid_card(
+def enroll_rfid_card(
     request: Request,
     payload: EnrollRfidCardRequest,
 ) -> dict[str, object]:
@@ -198,7 +198,7 @@ async def enroll_rfid_card(
 
 
 @router.post("/rfid/api/cards/{card_id}/active")
-async def set_rfid_card_active(
+def set_rfid_card_active(
     request: Request,
     card_id: int,
     payload: ToggleRfidCardActiveRequest,
@@ -219,7 +219,7 @@ async def set_rfid_card_active(
 
 
 @router.delete("/rfid/api/cards/{card_id}")
-async def delete_rfid_card(
+def delete_rfid_card(
     request: Request,
     card_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -243,7 +243,7 @@ async def delete_rfid_card(
 
 
 @router.get("/rfid/api/events")
-async def list_rfid_events(
+def list_rfid_events(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=200, ge=1, le=500),
@@ -269,7 +269,7 @@ async def list_rfid_events(
 
 
 @router.post("/rfid/api/verify")
-async def verify_rfid_card(
+def verify_rfid_card(
     request: Request,
     payload: VerifyRfidCardRequest,
 ) -> dict[str, object]:
@@ -288,7 +288,7 @@ async def verify_rfid_card(
 
 
 @router.post("/rfid/api/mode/switch-by-card")
-async def switch_mode_by_rfid_card(
+def switch_mode_by_rfid_card(
     request: Request,
     payload: SwitchModeByRfidCardRequest,
 ) -> dict[str, object]:

@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.models import (
     ChatDraft,
@@ -174,14 +175,14 @@ def _message_payload(message: ChatMessage) -> dict[str, object]:
 
 
 @router.get("/chat", response_class=HTMLResponse)
-async def chat_page() -> HTMLResponse:
+def chat_page() -> HTMLResponse:
     template = _template_path()
     html = template.read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
 @router.get("/chat/api/chats")
-async def list_chats(
+def list_chats(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -207,7 +208,7 @@ async def list_chats(
 
 
 @router.get("/chat/api/chats/search")
-async def search_public_chats(
+def search_public_chats(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     q: str = Query(default="", max_length=128),
@@ -232,7 +233,7 @@ async def search_public_chats(
 
 
 @router.get("/chat/api/updates")
-async def list_chat_updates(
+def list_chat_updates(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     since_ms: int = Query(default=0, ge=0),
@@ -260,7 +261,7 @@ async def list_chat_updates(
 
 
 @router.post("/chat/api/chats")
-async def create_chat(
+def create_chat(
     request: Request,
     payload: CreateChatRequest,
 ) -> dict[str, object]:
@@ -294,7 +295,7 @@ async def create_chat(
 
 
 @router.get("/chat/api/chats/{chat_id}/messages")
-async def list_chat_messages(
+def list_chat_messages(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -333,11 +334,12 @@ async def post_chat_message(
     chat_id: int,
     payload: SendMessageRequest,
 ) -> dict[str, object]:
-    user_id = _resolve_user_id(request, payload.session_token)
+    user_id = await run_in_threadpool(_resolve_user_id, request, payload.session_token)
     service = _chat_service(request)
 
     try:
-        message = service.send_message(
+        message = await run_in_threadpool(
+            service.send_message,
             chat_id=chat_id,
             author_user_id=user_id,
             draft=MessageDraft(
@@ -364,7 +366,7 @@ async def post_chat_message(
             },
         )
 
-    moderate_message(request, message)
+    await run_in_threadpool(moderate_message, request, message)
 
     broker = getattr(request.app.state, "realtime_broker", None)
     delivered_to = 0
@@ -374,9 +376,13 @@ async def post_chat_message(
             event=chat_message_event(message),
         )
 
-    ActivityLogService(db_path=request.app.state.data_layer.database_path).log(
-        "message_sent", user_id=user_id,
-        details=f"chat_id={chat_id} len={len(payload.body_text)}"
+    await run_in_threadpool(
+        ActivityLogService(
+            db_path=request.app.state.data_layer.database_path
+        ).log,
+        "message_sent",
+        user_id=user_id,
+        details=f"chat_id={chat_id} len={len(payload.body_text)}",
     )
 
     return {
@@ -390,7 +396,7 @@ async def post_chat_message(
 
 
 @router.get("/chat/api/users/search")
-async def search_chat_users(request: Request, session_token: str = Query(..., min_length=8, max_length=512), q: str = Query(default="", max_length=128)) -> dict[str, object]:
+def search_chat_users(request: Request, session_token: str = Query(..., min_length=8, max_length=512), q: str = Query(default="", max_length=128)) -> dict[str, object]:
     user_id = _resolve_user_id(request, session_token)
     chat_service = _chat_service(request)
     results = chat_service.search_users(q, viewer_user_id=user_id)
@@ -403,7 +409,7 @@ class StartDMRequest(BaseModel):
 
 
 @router.post("/chat/api/dm")
-async def start_dm(request: Request, payload: StartDMRequest) -> dict[str, object]:
+def start_dm(request: Request, payload: StartDMRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -420,7 +426,7 @@ class DeleteMessageRequest(BaseModel):
 
 
 @router.delete("/chat/api/chats/{chat_id}/messages/{message_id}")
-async def delete_chat_message(request: Request, chat_id: int, message_id: int, payload: DeleteMessageRequest) -> dict[str, object]:
+def delete_chat_message(request: Request, chat_id: int, message_id: int, payload: DeleteMessageRequest) -> dict[str, object]:
     auth_service = _auth_service(request)
     try:
         session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)
@@ -446,7 +452,7 @@ class AddMemberRequest(BaseModel):
 
 
 @router.post("/chat/api/chats/{chat_id}/members")
-async def add_chat_member(request: Request, chat_id: int, payload: AddMemberRequest) -> dict[str, object]:
+def add_chat_member(request: Request, chat_id: int, payload: AddMemberRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -467,7 +473,7 @@ class BulkAddMembersRequest(BaseModel):
 
 
 @router.post("/chat/api/chats/{chat_id}/members/bulk")
-async def bulk_add_members(request: Request, chat_id: int, payload: BulkAddMembersRequest) -> dict[str, object]:
+def bulk_add_members(request: Request, chat_id: int, payload: BulkAddMembersRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     from app.models import UserRole
     import sqlite3
@@ -534,7 +540,7 @@ def _member_profile_payload(item: dict[str, object], session_token: str) -> dict
 
 
 @router.get("/chat/api/chats/{chat_id}")
-async def get_chat(
+def get_chat(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -553,7 +559,7 @@ async def get_chat(
 
 
 @router.patch("/chat/api/chats/{chat_id}")
-async def update_chat(request: Request, chat_id: int, payload: UpdateChatRequest) -> dict[str, object]:
+def update_chat(request: Request, chat_id: int, payload: UpdateChatRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     service = _chat_service(request)
     try:
@@ -573,7 +579,7 @@ async def update_chat(request: Request, chat_id: int, payload: UpdateChatRequest
 
 
 @router.post("/chat/api/chats/{chat_id}/avatar")
-async def set_chat_avatar(request: Request, chat_id: int, payload: ChatAvatarRequest) -> dict[str, object]:
+def set_chat_avatar(request: Request, chat_id: int, payload: ChatAvatarRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     service = _chat_service(request)
     try:
@@ -592,7 +598,7 @@ async def set_chat_avatar(request: Request, chat_id: int, payload: ChatAvatarReq
 
 
 @router.post("/chat/api/chats/{chat_id}/avatar/remove")
-async def clear_chat_avatar(
+def clear_chat_avatar(
     request: Request,
     chat_id: int,
     payload: ChatMemberActionRequest,
@@ -607,7 +613,7 @@ async def clear_chat_avatar(
 
 
 @router.get("/chat/api/chats/{chat_id}/avatar")
-async def get_chat_avatar(
+def get_chat_avatar(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -625,7 +631,7 @@ async def get_chat_avatar(
 
 
 @router.get("/chat/api/chats/{chat_id}/members")
-async def list_chat_members(
+def list_chat_members(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -644,7 +650,7 @@ async def list_chat_members(
 
 
 @router.get("/chat/api/chats/{chat_id}/online")
-async def chat_online_members(
+def chat_online_members(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -665,7 +671,7 @@ class PresencePingRequest(BaseModel):
 
 
 @router.post("/chat/api/presence/ping")
-async def presence_ping(request: Request, payload: PresencePingRequest) -> dict[str, object]:
+def presence_ping(request: Request, payload: PresencePingRequest) -> dict[str, object]:
     """Lightweight heartbeat so idle-but-open clients stay 'online'."""
     user_id = _resolve_user_id(request, payload.session_token)
     presence.touch(user_id)
@@ -691,10 +697,15 @@ async def remove_chat_member(
     user_id: int,
     payload: ChatMemberActionRequest,
 ) -> dict[str, object]:
-    actor_id = _resolve_user_id(request, payload.session_token)
+    actor_id = await run_in_threadpool(_resolve_user_id, request, payload.session_token)
     service = _chat_service(request)
     try:
-        service.remove_member(chat_id=chat_id, target_user_id=user_id, actor_user_id=actor_id)
+        await run_in_threadpool(
+            service.remove_member,
+            chat_id=chat_id,
+            target_user_id=user_id,
+            actor_user_id=actor_id,
+        )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     await _disconnect_chat_user(request, chat_id, user_id)
@@ -707,10 +718,10 @@ async def leave_chat(
     chat_id: int,
     payload: ChatMemberActionRequest,
 ) -> dict[str, object]:
-    user_id = _resolve_user_id(request, payload.session_token)
+    user_id = await run_in_threadpool(_resolve_user_id, request, payload.session_token)
     service = _chat_service(request)
     try:
-        service.leave_chat(chat_id=chat_id, user_id=user_id)
+        await run_in_threadpool(service.leave_chat, chat_id=chat_id, user_id=user_id)
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     await _disconnect_chat_user(request, chat_id, user_id)
@@ -723,10 +734,14 @@ async def delete_chat_room(
     chat_id: int,
     payload: ChatMemberActionRequest,
 ) -> dict[str, object]:
-    user_id = _resolve_user_id(request, payload.session_token)
+    user_id = await run_in_threadpool(_resolve_user_id, request, payload.session_token)
     service = _chat_service(request)
     try:
-        service.delete_chat_room(chat_id=chat_id, actor_user_id=user_id)
+        await run_in_threadpool(
+            service.delete_chat_room,
+            chat_id=chat_id,
+            actor_user_id=user_id,
+        )
     except ChatError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     await _close_chat_room(request, chat_id)
@@ -734,7 +749,7 @@ async def delete_chat_room(
 
 
 @router.post("/chat/api/chats/{chat_id}/owner")
-async def transfer_chat_owner(
+def transfer_chat_owner(
     request: Request,
     chat_id: int,
     payload: TransferChatOwnerRequest,
@@ -805,7 +820,7 @@ def _invite_payload(invite) -> dict[str, object]:
 
 
 @router.post("/chat/api/chats/{chat_id}/members/{user_id}/role")
-async def set_chat_member_role(
+def set_chat_member_role(
     request: Request,
     chat_id: int,
     user_id: int,
@@ -827,7 +842,7 @@ async def set_chat_member_role(
 
 
 @router.post("/chat/api/chats/{chat_id}/members/{user_id}/permissions")
-async def set_chat_member_permissions(
+def set_chat_member_permissions(
     request: Request,
     chat_id: int,
     user_id: int,
@@ -848,7 +863,7 @@ async def set_chat_member_permissions(
 
 
 @router.post("/chat/api/chats/{chat_id}/invites")
-async def create_chat_invite(
+def create_chat_invite(
     request: Request,
     chat_id: int,
     payload: InviteCreateRequest,
@@ -869,7 +884,7 @@ async def create_chat_invite(
 
 
 @router.get("/chat/api/chats/{chat_id}/invites")
-async def list_chat_invites(
+def list_chat_invites(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -884,7 +899,7 @@ async def list_chat_invites(
 
 
 @router.delete("/chat/api/chats/{chat_id}/invites/{invite_id}")
-async def revoke_chat_invite(
+def revoke_chat_invite(
     request: Request,
     chat_id: int,
     invite_id: int,
@@ -900,7 +915,7 @@ async def revoke_chat_invite(
 
 
 @router.post("/chat/api/join")
-async def join_chat(request: Request, payload: JoinByCodeRequest) -> dict[str, object]:
+def join_chat(request: Request, payload: JoinByCodeRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     service = _chat_service(request)
     try:
@@ -925,7 +940,7 @@ async def join_chat(request: Request, payload: JoinByCodeRequest) -> dict[str, o
 
 
 @router.get("/chat/api/chats/{chat_id}/requests")
-async def list_chat_join_requests(
+def list_chat_join_requests(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -952,7 +967,7 @@ async def list_chat_join_requests(
 
 
 @router.post("/chat/api/chats/{chat_id}/requests/{user_id}")
-async def decide_chat_join_request(
+def decide_chat_join_request(
     request: Request,
     chat_id: int,
     user_id: int,
@@ -973,7 +988,7 @@ async def decide_chat_join_request(
 
 
 @router.post("/chat/api/chats/{chat_id}/pin")
-async def pin_chat_message(
+def pin_chat_message(
     request: Request,
     chat_id: int,
     payload: PinMessageRequest,
@@ -1022,7 +1037,7 @@ class ChatUserStateRequest(BaseModel):
 
 
 @router.post("/chat/api/chats/{chat_id}/messages/{message_id}/reactions")
-async def toggle_message_reaction(
+def toggle_message_reaction(
     request: Request,
     chat_id: int,
     message_id: int,
@@ -1043,7 +1058,7 @@ async def toggle_message_reaction(
 
 
 @router.post("/chat/api/chats/{chat_id}/messages/{message_id}/forward")
-async def forward_chat_message(
+def forward_chat_message(
     request: Request,
     chat_id: int,
     message_id: int,
@@ -1065,7 +1080,7 @@ async def forward_chat_message(
 
 
 @router.post("/chat/api/chats/{chat_id}/read")
-async def mark_chat_read(
+def mark_chat_read(
     request: Request,
     chat_id: int,
     payload: MarkReadRequest,
@@ -1080,7 +1095,7 @@ async def mark_chat_read(
 
 
 @router.post("/chat/api/chats/{chat_id}/draft")
-async def save_chat_draft(
+def save_chat_draft(
     request: Request,
     chat_id: int,
     payload: DraftRequest,
@@ -1095,7 +1110,7 @@ async def save_chat_draft(
 
 
 @router.post("/chat/api/chats/{chat_id}/state")
-async def set_chat_user_state(
+def set_chat_user_state(
     request: Request,
     chat_id: int,
     payload: ChatUserStateRequest,
@@ -1116,7 +1131,7 @@ async def set_chat_user_state(
 
 
 @router.post("/chat/api/chats/{chat_id}/clear")
-async def clear_chat_history_for_me(
+def clear_chat_history_for_me(
     request: Request,
     chat_id: int,
     payload: ChatMemberActionRequest,
@@ -1131,7 +1146,7 @@ async def clear_chat_history_for_me(
 
 
 @router.get("/chat/api/messages/search")
-async def search_chat_messages(
+def search_chat_messages(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     q: str = Query(default="", max_length=256),
@@ -1164,7 +1179,7 @@ class PollVoteRequest(BaseModel):
 
 
 @router.post("/chat/api/chats/{chat_id}/polls")
-async def create_chat_poll(
+def create_chat_poll(
     request: Request,
     chat_id: int,
     payload: PollCreateRequest,
@@ -1190,7 +1205,7 @@ async def create_chat_poll(
 
 
 @router.post("/chat/api/chats/{chat_id}/polls/{poll_id}/vote")
-async def vote_chat_poll(
+def vote_chat_poll(
     request: Request,
     chat_id: int,
     poll_id: int,
@@ -1211,7 +1226,7 @@ async def vote_chat_poll(
 
 
 @router.get("/chat/api/blocks")
-async def list_user_blocks(
+def list_user_blocks(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -1225,7 +1240,7 @@ async def list_user_blocks(
 
 
 @router.post("/chat/api/blocks/{user_id}")
-async def block_user(
+def block_user(
     request: Request,
     user_id: int,
     payload: ChatMemberActionRequest,
@@ -1240,7 +1255,7 @@ async def block_user(
 
 
 @router.delete("/chat/api/blocks/{user_id}")
-async def unblock_user(
+def unblock_user(
     request: Request,
     user_id: int,
     payload: ChatMemberActionRequest,
@@ -1273,7 +1288,7 @@ class AdminDateRangeRequest(BaseModel):
 
 
 @router.delete("/chat/api/admin/chats/{chat_id}")
-async def delete_chat(request: Request, chat_id: int, payload: AdminCleanupRequest) -> dict[str, object]:
+def delete_chat(request: Request, chat_id: int, payload: AdminCleanupRequest) -> dict[str, object]:
     session = _require_admin(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -1284,7 +1299,7 @@ async def delete_chat(request: Request, chat_id: int, payload: AdminCleanupReque
 
 
 @router.delete("/chat/api/admin/chats/{chat_id}/messages")
-async def clear_chat_messages(request: Request, chat_id: int, payload: AdminCleanupRequest) -> dict[str, object]:
+def clear_chat_messages(request: Request, chat_id: int, payload: AdminCleanupRequest) -> dict[str, object]:
     session = _require_admin(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -1295,7 +1310,7 @@ async def clear_chat_messages(request: Request, chat_id: int, payload: AdminClea
 
 
 @router.post("/chat/api/admin/chats/{chat_id}/messages/range")
-async def clear_chat_messages_range(request: Request, chat_id: int, payload: AdminDateRangeRequest) -> dict[str, object]:
+def clear_chat_messages_range(request: Request, chat_id: int, payload: AdminDateRangeRequest) -> dict[str, object]:
     session = _require_admin(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -1312,7 +1327,7 @@ async def clear_chat_messages_range(request: Request, chat_id: int, payload: Adm
 
 
 @router.post("/chat/api/admin/full-reset")
-async def full_reset(request: Request, payload: AdminFullResetRequest) -> dict[str, object]:
+def full_reset(request: Request, payload: AdminFullResetRequest) -> dict[str, object]:
     if not payload.confirm or payload.confirm_phrase.strip().upper() != "RESET":
         raise HTTPException(
             status_code=400,
@@ -1334,7 +1349,7 @@ async def full_reset(request: Request, payload: AdminFullResetRequest) -> dict[s
 
 
 @router.get("/chat/api/admin/activity")
-async def get_activity_log(request: Request, session_token: str = Query(..., min_length=8, max_length=512), limit: int = Query(default=100, ge=1, le=500)) -> dict[str, object]:
+def get_activity_log(request: Request, session_token: str = Query(..., min_length=8, max_length=512), limit: int = Query(default=100, ge=1, le=500)) -> dict[str, object]:
     _require_admin(request, session_token)
     log_service = ActivityLogService(db_path=request.app.state.data_layer.database_path)
     logs = log_service.get_logs(limit=limit)
@@ -1343,7 +1358,7 @@ async def get_activity_log(request: Request, session_token: str = Query(..., min
 
 
 @router.post("/chat/api/admin/clear-blog")
-async def clear_blog(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
+def clear_blog(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
     _require_admin(request, payload.session_token)
     import sqlite3
     conn = sqlite3.connect(request.app.state.data_layer.database_path)
@@ -1354,7 +1369,7 @@ async def clear_blog(request: Request, payload: AdminCleanupRequest) -> dict[str
 
 
 @router.post("/chat/api/admin/clear-support")
-async def clear_support(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
+def clear_support(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
     _require_admin(request, payload.session_token)
     import sqlite3
     conn = sqlite3.connect(request.app.state.data_layer.database_path)
@@ -1385,7 +1400,7 @@ class ActivateInternetRequest(BaseModel):
 
 
 @router.post("/chat/api/internet/activate")
-async def activate_internet(request: Request, payload: ActivateInternetRequest) -> dict[str, object]:
+def activate_internet(request: Request, payload: ActivateInternetRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
 
     import sqlite3
@@ -1411,7 +1426,7 @@ async def activate_internet(request: Request, payload: ActivateInternetRequest) 
 # --- Bulk operations ---
 
 @router.post("/chat/api/admin/clear-global")
-async def clear_global_chat(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
+def clear_global_chat(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
     session = _require_admin(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -1422,7 +1437,7 @@ async def clear_global_chat(request: Request, payload: AdminCleanupRequest) -> d
 
 
 @router.post("/chat/api/admin/delete-all-chats")
-async def delete_all_chats(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
+def delete_all_chats(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
     session = _require_admin(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -1433,7 +1448,7 @@ async def delete_all_chats(request: Request, payload: AdminCleanupRequest) -> di
 
 
 @router.post("/chat/api/admin/delete-all-users")
-async def delete_all_users(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
+def delete_all_users(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
     session = _require_admin(request, payload.session_token)
     chat_service = _chat_service(request)
     try:
@@ -1447,7 +1462,7 @@ class EditMessageRequest(BaseModel):
     body_text: str = Field(min_length=1, max_length=4000)
 
 @router.put("/chat/api/chats/{chat_id}/messages/{message_id}")
-async def edit_message(request: Request, chat_id: int, message_id: int, payload: EditMessageRequest):
+def edit_message(request: Request, chat_id: int, message_id: int, payload: EditMessageRequest):
     auth_service = _auth_service(request)
     try:
         session = auth_service.get_session(payload.session_token, client_kind=ClientKind.WEB)

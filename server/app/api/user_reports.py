@@ -87,7 +87,7 @@ def _session(request: Request, session_token: str, *, staff: bool):
 
 
 @router.post("/reports/api/create")
-async def create_report(request: Request, payload: CreateReportRequest) -> dict[str, object]:
+def create_report(request: Request, payload: CreateReportRequest) -> dict[str, object]:
     session = _session(request, payload.session_token, staff=False)
     try:
         report = _reports_service(request).create(
@@ -107,7 +107,7 @@ async def create_report(request: Request, payload: CreateReportRequest) -> dict[
 
 
 @router.get("/reports/api/list")
-async def list_reports(
+def list_reports(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     status: str | None = Query(default=None, max_length=32),
@@ -139,7 +139,7 @@ async def list_reports(
 
 
 @router.get("/reports/api/my-status")
-async def my_status(
+def my_status(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -148,7 +148,7 @@ async def my_status(
 
 
 @router.get("/reports/api/target-messages")
-async def target_messages(
+def target_messages(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     target_user_id: int = Query(..., ge=1),
@@ -160,7 +160,7 @@ async def target_messages(
 
 
 @router.post("/reports/api/resolve")
-async def resolve_reports(
+def resolve_reports(
     request: Request,
     payload: ResolveUserReportRequest,
 ) -> dict[str, object]:
@@ -272,7 +272,7 @@ def _automod_service(request: Request):
 
 
 @router.get("/reports/api/auto-moderation")
-async def get_auto_moderation_settings(request: Request, session_token: str = Query(..., min_length=8, max_length=512)):
+def get_auto_moderation_settings(request: Request, session_token: str = Query(..., min_length=8, max_length=512)):
     _session(request, session_token, staff=True)
     service = _automod_service(request)
     settings = service.settings(fresh=True)
@@ -286,7 +286,7 @@ async def get_auto_moderation_settings(request: Request, session_token: str = Qu
 
 
 @router.post("/reports/api/auto-moderation")
-async def update_auto_moderation_settings(request: Request, payload: AutoModerationSettingsRequest):
+def update_auto_moderation_settings(request: Request, payload: AutoModerationSettingsRequest):
     _session(request, payload.session_token, staff=True)
     service = _automod_service(request)
     settings = service.update_settings(

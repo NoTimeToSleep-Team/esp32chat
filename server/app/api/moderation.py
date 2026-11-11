@@ -40,7 +40,7 @@ def _resolve_moderator(request: Request, session_token: str):
 
 
 @router.get("/moderation/api/admin/reports")
-async def get_reports(
+def get_reports(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     status: str | None = Query(default=None, max_length=32),
@@ -66,7 +66,7 @@ async def get_reports(
 
 
 @router.post("/moderation/api/admin/reports/resolve")
-async def resolve_report(
+def resolve_report(
     request: Request,
     payload: ResolveReportRequest,
 ) -> dict[str, object]:

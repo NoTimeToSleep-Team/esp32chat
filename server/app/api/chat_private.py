@@ -117,7 +117,7 @@ def _raise_chat_error(exc: ChatError) -> None:
 
 
 @router.post("/chat/api/private")
-async def create_private_chat(
+def create_private_chat(
     request: Request,
     payload: CreatePrivateChatRequest,
 ) -> dict[str, object]:
@@ -150,7 +150,7 @@ async def create_private_chat(
 
 
 @router.post("/chat/api/private/{chat_id}/join")
-async def join_private_chat(
+def join_private_chat(
     request: Request,
     chat_id: int,
     payload: JoinPrivateChatRequest,
@@ -193,7 +193,7 @@ async def join_private_chat(
 
 
 @router.get("/chat/api/private/{chat_id}/members")
-async def list_private_members(
+def list_private_members(
     request: Request,
     chat_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -214,7 +214,7 @@ async def list_private_members(
 
 
 @router.post("/chat/api/private/{chat_id}/config")
-async def update_private_config(
+def update_private_config(
     request: Request,
     chat_id: int,
     payload: UpdatePrivateConfigRequest,

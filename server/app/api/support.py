@@ -126,14 +126,14 @@ def _raise_support_error(exc: SupportError) -> None:
 
 
 @router.get("/support", response_class=HTMLResponse)
-async def support_page() -> HTMLResponse:
+def support_page() -> HTMLResponse:
     template = _template_path()
     html = template.read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
 @router.post("/support/api/tickets")
-async def create_support_ticket(
+def create_support_ticket(
     request: Request,
     payload: CreateSupportTicketRequest,
 ) -> dict[str, object]:
@@ -177,7 +177,7 @@ async def create_support_ticket(
 
 
 @router.get("/support/api/tickets")
-async def list_support_tickets(
+def list_support_tickets(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     status: SupportTicketStatus | None = Query(default=None),
@@ -205,7 +205,7 @@ async def list_support_tickets(
 
 
 @router.get("/support/api/tickets/{ticket_id}/messages")
-async def list_support_messages(
+def list_support_messages(
     request: Request,
     ticket_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -233,7 +233,7 @@ async def list_support_messages(
 
 
 @router.post("/support/api/tickets/{ticket_id}/messages")
-async def send_support_message(
+def send_support_message(
     request: Request,
     ticket_id: int,
     payload: SendSupportMessageRequest,
@@ -268,7 +268,7 @@ async def send_support_message(
 
 
 @router.post("/support/api/tickets/{ticket_id}/status")
-async def update_support_ticket_status(
+def update_support_ticket_status(
     request: Request,
     ticket_id: int,
     payload: UpdateSupportTicketStatusRequest,

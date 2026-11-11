@@ -93,7 +93,7 @@ def _record_to_payload(record: ApplicationRecord) -> dict[str, object]:
 
 
 @router.post("")
-async def create_application(
+def create_application(
     payload: CreateApplicationRequest,
     request: Request,
 ) -> dict[str, object]:
@@ -133,7 +133,7 @@ async def create_application(
 
 
 @router.get("")
-async def list_applications(
+def list_applications(
     request: Request,
     x_session_token: str = Header(..., alias="X-Session-Token"),
     status: ApplicationStatus | None = Query(default=None),
@@ -152,7 +152,7 @@ async def list_applications(
 
 
 @router.post("/{application_id}/status")
-async def update_application_status(
+def update_application_status(
     application_id: int,
     payload: UpdateApplicationStatusRequest,
     request: Request,

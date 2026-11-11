@@ -6,6 +6,7 @@ from time import monotonic
 
 from fastapi import APIRouter, Request
 
+from app.db.connection import connect_sqlite
 from app.version import __version__
 
 
@@ -24,8 +25,7 @@ def _read_runtime_state(request: Request) -> dict[str, object]:
     if data_layer is None:
         return {"degraded_mode": False, "reason": None, "updated_at_ms": 0}
 
-    connection = sqlite3.connect(str(data_layer.database_path))
-    connection.row_factory = sqlite3.Row
+    connection = connect_sqlite(data_layer.database_path, read_only=True)
     try:
         row = connection.execute(
             """
@@ -48,7 +48,7 @@ def _read_runtime_state(request: Request) -> dict[str, object]:
 
 
 @router.get("/health")
-async def health(request: Request) -> dict[str, object]:
+def health(request: Request) -> dict[str, object]:
     settings = request.app.state.settings
     runtime_state = _read_runtime_state(request)
     return {
@@ -64,7 +64,7 @@ async def health(request: Request) -> dict[str, object]:
 
 
 @router.get("/health/ready")
-async def readiness(request: Request) -> dict[str, object]:
+def readiness(request: Request) -> dict[str, object]:
     settings = request.app.state.settings
     data_layer = getattr(request.app.state, "data_layer", None)
     runtime_state = _read_runtime_state(request)

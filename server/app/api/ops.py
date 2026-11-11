@@ -192,7 +192,7 @@ def _shutdown_run_payload(record: ShutdownRunRecord) -> dict[str, object]:
 
 
 @router.get("/ops/api/state")
-async def get_ops_state(
+def get_ops_state(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -208,7 +208,7 @@ async def get_ops_state(
 
 
 @router.post("/ops/api/degraded-mode")
-async def set_degraded_mode(request: Request, payload: SetDegradedModeRequest) -> dict[str, object]:
+def set_degraded_mode(request: Request, payload: SetDegradedModeRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _shutdown_service(request)
 
@@ -225,7 +225,7 @@ async def set_degraded_mode(request: Request, payload: SetDegradedModeRequest) -
 
 
 @router.get("/ops/api/backups")
-async def list_backups(
+def list_backups(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=100, ge=1, le=500),
@@ -247,7 +247,7 @@ async def list_backups(
 
 
 @router.post("/ops/api/backups")
-async def create_backup(request: Request, payload: BackupRequest) -> dict[str, object]:
+def create_backup(request: Request, payload: BackupRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _backup_service(request)
 
@@ -260,7 +260,7 @@ async def create_backup(request: Request, payload: BackupRequest) -> dict[str, o
 
 
 @router.post("/ops/api/backups/dry-run")
-async def backup_dry_run(request: Request, payload: BackupRequest) -> dict[str, object]:
+def backup_dry_run(request: Request, payload: BackupRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _backup_service(request)
 
@@ -273,7 +273,7 @@ async def backup_dry_run(request: Request, payload: BackupRequest) -> dict[str, 
 
 
 @router.post("/ops/api/backups/restore/dry-run")
-async def restore_dry_run(request: Request, payload: RestoreDryRunRequest) -> dict[str, object]:
+def restore_dry_run(request: Request, payload: RestoreDryRunRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _backup_service(request)
 
@@ -286,7 +286,7 @@ async def restore_dry_run(request: Request, payload: RestoreDryRunRequest) -> di
 
 
 @router.get("/ops/api/incidents")
-async def list_incidents(
+def list_incidents(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     status: IncidentStatus | None = Query(default=None),
@@ -314,7 +314,7 @@ async def list_incidents(
 
 
 @router.post("/ops/api/incidents")
-async def create_incident(request: Request, payload: CreateIncidentRequest) -> dict[str, object]:
+def create_incident(request: Request, payload: CreateIncidentRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _incident_service(request)
 
@@ -333,7 +333,7 @@ async def create_incident(request: Request, payload: CreateIncidentRequest) -> d
 
 
 @router.post("/ops/api/incidents/{incident_id}/resolve")
-async def resolve_incident(
+def resolve_incident(
     request: Request,
     incident_id: int,
     payload: ResolveIncidentRequest,
@@ -354,7 +354,7 @@ async def resolve_incident(
 
 
 @router.get("/ops/api/shutdown/runs")
-async def list_shutdown_runs(
+def list_shutdown_runs(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=100, ge=1, le=500),
@@ -376,7 +376,7 @@ async def list_shutdown_runs(
 
 
 @router.post("/ops/api/shutdown/dry-run")
-async def shutdown_dry_run(request: Request, payload: ShutdownDryRunRequest) -> dict[str, object]:
+def shutdown_dry_run(request: Request, payload: ShutdownDryRunRequest) -> dict[str, object]:
     admin_user_id = _resolve_admin_user_id(request, payload.session_token)
     service = _shutdown_service(request)
 

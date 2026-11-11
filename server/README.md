@@ -264,6 +264,8 @@ Tuning env vars:
 - `LCS_BRUTEFORCE_IP_ATTEMPT_LIMIT`, `LCS_BRUTEFORCE_BLOCK_MS`
 - `LCS_DEBUG_TRACE_ENABLED` (default `false`; enables the `X-Debug-Trace`
   request-to-SQLite middleware only for development)
+- `LCS_THREADPOOL_SIZE` (default: four threads per CPU core, clamped to 8..32;
+  controls FastAPI's thread pool for sync routes and SQLite/file work)
 
 ## Ops Safety
 

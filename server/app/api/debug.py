@@ -33,7 +33,7 @@ class ClientEventRequest(BaseModel):
 
 
 @router.post("/api/client-event")
-async def client_event(request: Request, payload: ClientEventRequest) -> dict[str, object]:
+def client_event(request: Request, payload: ClientEventRequest) -> dict[str, object]:
     token = (payload.session_token or request.headers.get("x-session-token") or "").strip()
     if not token:
         raise HTTPException(status_code=401, detail={"code": "invalid_session", "message": "Authentication required"})
@@ -78,7 +78,7 @@ def _require_admin(request: Request, session_token: str) -> None:
 
 
 @router.get("/api/events")
-async def list_events(
+def list_events(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=200, ge=1, le=1000),

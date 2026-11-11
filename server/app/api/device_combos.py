@@ -96,7 +96,7 @@ def _raise_combo_error(exc: DeviceComboError) -> None:
 
 
 @router.post("/set")
-async def set_device_combo(payload: DeviceComboRequest, request: Request) -> dict[str, object]:
+def set_device_combo(payload: DeviceComboRequest, request: Request) -> dict[str, object]:
     user_id = _resolve_device_user_id(
         request,
         payload.session_token,
@@ -115,7 +115,7 @@ async def set_device_combo(payload: DeviceComboRequest, request: Request) -> dic
 
 
 @router.post("/verify")
-async def verify_device_combo(payload: DeviceComboVerifyRequest, request: Request) -> dict[str, object]:
+def verify_device_combo(payload: DeviceComboVerifyRequest, request: Request) -> dict[str, object]:
     user_id = _resolve_device_user_id(
         request,
         payload.session_token,
@@ -138,7 +138,7 @@ async def verify_device_combo(payload: DeviceComboVerifyRequest, request: Reques
 
 
 @router.post("/reset")
-async def reset_device_combo(
+def reset_device_combo(
     payload: DeviceComboResetRequest,
     request: Request,
 ) -> dict[str, object]:

@@ -178,13 +178,13 @@ def _raise_service_error(status_code: int, code: str, message: str) -> None:
 
 
 @router.get("/panel", include_in_schema=False)
-async def admin_content_panel() -> RedirectResponse:
+def admin_content_panel() -> RedirectResponse:
     # Старая token-панель заменена единой админкой /admin.
     return RedirectResponse("/admin", status_code=302)
 
 
 @router.get("/applications")
-async def list_admin_applications(
+def list_admin_applications(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     status: ApplicationStatus | None = Query(default=None),
@@ -203,7 +203,7 @@ async def list_admin_applications(
 
 
 @router.post("/applications/{application_id}/status")
-async def update_admin_application_status(
+def update_admin_application_status(
     request: Request,
     application_id: int,
     payload: UpdateApplicationStatusRequest,
@@ -225,7 +225,7 @@ async def update_admin_application_status(
 
 
 @router.get("/support/tickets")
-async def list_admin_support_tickets(
+def list_admin_support_tickets(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     status: SupportTicketStatus | None = Query(default=None),
@@ -253,7 +253,7 @@ async def list_admin_support_tickets(
 
 
 @router.get("/support/tickets/{ticket_id}/messages")
-async def list_admin_support_messages(
+def list_admin_support_messages(
     request: Request,
     ticket_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -281,7 +281,7 @@ async def list_admin_support_messages(
 
 
 @router.post("/support/tickets/{ticket_id}/reply")
-async def reply_admin_support_ticket(
+def reply_admin_support_ticket(
     request: Request,
     ticket_id: int,
     payload: SendSupportReplyRequest,
@@ -307,7 +307,7 @@ async def reply_admin_support_ticket(
 
 
 @router.post("/support/tickets/{ticket_id}/status")
-async def update_admin_support_ticket_status(
+def update_admin_support_ticket_status(
     request: Request,
     ticket_id: int,
     payload: UpdateSupportStatusRequest,
@@ -328,7 +328,7 @@ async def update_admin_support_ticket_status(
 
 
 @router.get("/blog/posts")
-async def list_admin_blog_posts(
+def list_admin_blog_posts(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=50, ge=1, le=200),
@@ -350,7 +350,7 @@ async def list_admin_blog_posts(
 
 
 @router.post("/blog/posts")
-async def publish_admin_blog_post(
+def publish_admin_blog_post(
     request: Request,
     payload: PublishAdminBlogPostRequest,
 ) -> dict[str, object]:

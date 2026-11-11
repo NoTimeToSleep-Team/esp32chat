@@ -34,6 +34,7 @@ class Settings:
     bruteforce_ip_attempt_limit: int
     bruteforce_block_ms: int
     debug_trace_enabled: bool
+    threadpool_size: int
     features: tuple[str, ...] = ("chat", "account", "admin", "devices", "blog", "support")
 
 
@@ -86,6 +87,18 @@ def _read_bool(env: Mapping[str, str], name: str, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     raise ConfigError(f"Setting {name} must be boolean-like")
+
+
+def _default_threadpool_size() -> int:
+    """Return a thread budget that is useful on a small ARM board.
+
+    FastAPI runs synchronous route handlers in AnyIO's thread pool.  The
+    default of 40 worker threads is too high for SQLite on a 2-core Pi, while
+    a tiny value starves slow file and PBKDF2 work.  Four threads per core,
+    clamped to 8..32, keeps both paths reasonable.
+    """
+    cores = os.cpu_count() or 2
+    return max(8, min(32, cores * 4))
 
 
 def _read_origins(env: Mapping[str, str], name: str) -> tuple[str, ...]:
@@ -189,6 +202,13 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         max_value=86400000,
     )
     debug_trace_enabled = _read_bool(source, "LCS_DEBUG_TRACE_ENABLED", False)
+    threadpool_size = _read_int(
+        source,
+        "LCS_THREADPOOL_SIZE",
+        _default_threadpool_size(),
+        min_value=2,
+        max_value=64,
+    )
     features_raw = _read_str(
         source,
         "LCS_FEATURES",
@@ -228,6 +248,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         bruteforce_ip_attempt_limit=bruteforce_ip_attempt_limit,
         bruteforce_block_ms=bruteforce_block_ms,
         debug_trace_enabled=debug_trace_enabled,
+        threadpool_size=threadpool_size,
         features=features,
     )
 

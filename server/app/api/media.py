@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.models import ClientKind, MediaAttachment, UserRole
 from app.services.auth import AuthError, AuthService
@@ -65,11 +66,12 @@ async def upload_attachment(
     session_token: str = Query(..., min_length=8, max_length=512),
     file: UploadFile = File(...),
 ) -> dict[str, object]:
-    user_id = _resolve_user_id(request, session_token)
+    user_id = await run_in_threadpool(_resolve_user_id, request, session_token)
     content = await file.read(MAX_UPLOAD_BYTES + 1)
     service = _media_service(request)
     try:
-        attachment = service.create_attachment(
+        attachment = await run_in_threadpool(
+            service.create_attachment,
             owner_user_id=user_id,
             original_filename=file.filename,
             mime_type=file.content_type,
@@ -81,7 +83,7 @@ async def upload_attachment(
 
 
 @router.get("/attachments")
-async def list_my_attachments(
+def list_my_attachments(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=100, ge=1, le=300),
@@ -96,7 +98,7 @@ async def list_my_attachments(
 
 
 @router.get("/stats")
-async def media_storage_stats(
+def media_storage_stats(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
@@ -124,7 +126,7 @@ async def media_storage_stats(
 
 
 @router.delete("/attachments/{attachment_id}")
-async def delete_attachment(
+def delete_attachment(
     request: Request,
     attachment_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
@@ -146,7 +148,7 @@ async def delete_attachment(
 
 
 @router.post("/cleanup-orphans")
-async def cleanup_orphan_attachments(
+def cleanup_orphan_attachments(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
     limit: int = Query(default=500, ge=1, le=5000),
@@ -169,7 +171,7 @@ async def cleanup_orphan_attachments(
 
 
 @router.get("/attachments/{attachment_id}/download")
-async def download_attachment(
+def download_attachment(
     request: Request,
     attachment_id: int,
     session_token: str = Query(..., min_length=8, max_length=512),
