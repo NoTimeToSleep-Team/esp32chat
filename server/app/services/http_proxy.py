@@ -26,6 +26,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlsplit
 
+from app.db.connection import connect_sqlite
+
 
 def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     try:
@@ -128,7 +130,7 @@ cache_lock = threading.Lock()
 
 
 def get_db() -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    return connect_sqlite(DB_PATH, read_only=True)
 
 
 def user_ip_to_id(ip: str) -> int | None:

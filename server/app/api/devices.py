@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from time import time
 
+from app.db.connection import connect_sqlite
 from app.models import ClientKind, DeviceOwnership, DeviceProfileDraft, DeviceProfileView, PairedDevice, UserRole
 from app.security import InMemoryRateLimiter
 from app.security.network import resolve_client_ip
@@ -252,16 +253,13 @@ def list_pairings(
     request: Request,
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
-    import sqlite3
     user_id = _resolve_user_id(request, session_token)
     db = request.app.state.data_layer.database_path
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT device_id, device_type, paired_at_ms, status FROM device_pairings WHERE user_id = ? AND status = 'active'",
-        (user_id,)
-    ).fetchall()
-    conn.close()
+    with connect_sqlite(db) as conn:
+        rows = conn.execute(
+            "SELECT device_id, device_type, paired_at_ms, status FROM device_pairings WHERE user_id = ? AND status = 'active'",
+            (user_id,)
+        ).fetchall()
     return {
         "status": "ok",
         "count": len(rows),
@@ -282,33 +280,27 @@ async def pair_device(request: Request, payload: PairDeviceRequest) -> dict[str,
             detail={"code": "invalid_user", "message": "Authenticated user id is missing"},
         )
 
-    import sqlite3, time
     db = request.app.state.data_layer.database_path
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    existing = conn.execute(
-        "SELECT user_id, status FROM device_pairings WHERE device_id = ?",
-        (payload.device_id,),
-    ).fetchone()
-    if (
-        existing is not None
-        and str(existing["status"]) == "active"
-        and int(existing["user_id"]) != user_id
-    ):
-        conn.close()
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "already_paired", "message": "Device is already paired to another account"},
+    with connect_sqlite(db) as conn:
+        existing = conn.execute(
+            "SELECT user_id, status FROM device_pairings WHERE device_id = ?",
+            (payload.device_id,),
+        ).fetchone()
+        if (
+            existing is not None
+            and str(existing["status"]) == "active"
+            and int(existing["user_id"]) != user_id
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "already_paired", "message": "Device is already paired to another account"},
+            )
+        if existing is not None and str(existing["status"]) != "active":
+            conn.execute("DELETE FROM device_pairings WHERE device_id = ?", (payload.device_id,))
+        conn.execute(
+            "INSERT OR REPLACE INTO device_pairings (device_id, user_id, paired_at_ms, status) VALUES (?, ?, ?, 'active')",
+            (payload.device_id, user_id, int(time() * 1000))
         )
-    if existing is not None and str(existing["status"]) != "active":
-        conn.execute("DELETE FROM device_pairings WHERE device_id = ?", (payload.device_id,))
-    conn.execute(
-        "INSERT OR REPLACE INTO device_pairings (device_id, user_id, paired_at_ms, status) VALUES (?, ?, ?, 'active')",
-        (payload.device_id, user_id, int(time.time() * 1000))
-    )
-    conn.commit()
-    conn.close()
     _auth_service(request).revoke_device_sessions(payload.device_id)
     await _disconnect_device(request, payload.device_id)
     return {"status": "ok", "device_id": payload.device_id, "user_id": user_id}
@@ -322,16 +314,12 @@ class UnpairDeviceRequest(BaseModel):
 @router.post("/devices/api/unpair")
 async def unpair_device(request: Request, payload: UnpairDeviceRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
-    import sqlite3
     db = request.app.state.data_layer.database_path
-    conn = sqlite3.connect(db)
-    conn.execute("PRAGMA journal_mode=WAL")
-    updated = conn.execute(
-        "UPDATE device_pairings SET status = 'revoked' WHERE device_id = ? AND user_id = ? AND status = 'active'",
-        (payload.device_id, user_id),
-    ).rowcount
-    conn.commit()
-    conn.close()
+    with connect_sqlite(db) as conn:
+        updated = conn.execute(
+            "UPDATE device_pairings SET status = 'revoked' WHERE device_id = ? AND user_id = ? AND status = 'active'",
+            (payload.device_id, user_id),
+        ).rowcount
     if updated == 0:
         raise HTTPException(
             status_code=404,
@@ -373,15 +361,12 @@ def pair_status(
         )
 
     user_id = _resolve_user_id(request, session_token or "")
-    import sqlite3
     db = request.app.state.data_layer.database_path
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT device_type FROM device_pairings WHERE device_id = ? AND user_id = ? AND status = 'active'",
-        (device_id, user_id),
-    ).fetchone()
-    conn.close()
+    with connect_sqlite(db) as conn:
+        row = conn.execute(
+            "SELECT device_type FROM device_pairings WHERE device_id = ? AND user_id = ? AND status = 'active'",
+            (device_id, user_id),
+        ).fetchone()
     if row:
         # Never expose the owner id: this endpoint is only a boolean/device
         # type check for the authenticated owner.

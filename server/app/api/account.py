@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
+from app.db.connection import connect_sqlite
 from app.models import AccountLimits, AccountProfile, AccountProfileUpdate, AvatarImage, ClientKind, UserRole
 from app.services.account import AccountError, AccountService
 from app.services.auth import AuthError, AuthService
@@ -371,11 +372,11 @@ def get_my_internet_status(
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, object]:
     user_id = _resolve_user_id(request, session_token)
-    import sqlite3
-    conn = sqlite3.connect(request.app.state.data_layer.database_path)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute("SELECT enabled, granted_at_ms FROM internet_access WHERE user_id = ?", (user_id,)).fetchone()
-    conn.close()
+    with connect_sqlite(request.app.state.data_layer.database_path) as conn:
+        row = conn.execute(
+            "SELECT enabled, granted_at_ms FROM internet_access WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
     enabled = bool(row["enabled"]) if row else False
     granted_at_ms = row["granted_at_ms"] if row else 0
     return {"status": "ok", "internet_enabled": enabled, "granted_at_ms": granted_at_ms}

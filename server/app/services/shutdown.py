@@ -14,6 +14,7 @@ from app.models import (
     UserRole,
     UserStatus,
 )
+from app.db.connection import connect_sqlite
 
 
 def _now_ms() -> int:
@@ -223,7 +224,4 @@ class ShutdownService:
             raise ShutdownError("actor_inactive", "Admin account is not active", 403)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)

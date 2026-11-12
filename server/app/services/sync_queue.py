@@ -20,6 +20,7 @@ from typing import Any
 
 from app.config import get_settings
 from app.db.migrate import _extract_sqlite_path
+from app.db.connection import connect_sqlite
 
 
 PENDING_STATUS = "pending"
@@ -254,10 +255,7 @@ class SyncQueueService:
             return self._get_event(connection, int(winner["id"]))
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _ensure_schema(connection: sqlite3.Connection) -> None:

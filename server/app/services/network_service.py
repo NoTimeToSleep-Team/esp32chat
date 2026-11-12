@@ -12,6 +12,7 @@ from app.models.internet_access import (
     WiFiNetwork,
     WiFiUplinkStatus,
 )
+from app.db.connection import connect_sqlite
 
 
 class NetworkService:
@@ -19,11 +20,7 @@ class NetworkService:
         self.db_path = db_path
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        return conn
+        return connect_sqlite(self.db_path)
 
     def _iptables_rule_exists(self, table: str | None, rule: list[str]) -> bool:
         cmd = ["sudo", "iptables"]

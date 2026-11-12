@@ -13,6 +13,7 @@ from typing import Any
 
 from app.models import ModuleInfo, ModuleKind, ModuleStatus, UserRole, UserStatus
 from app.services.module_registry import ModuleRegistryService
+from app.db.connection import connect_sqlite
 
 
 ACTIVE_EDGE_STATUSES = {"requested", "provisioning", "active", "degraded"}
@@ -178,10 +179,7 @@ class EdgeNodeService:
             return self._active_deployment_count(connection)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _ensure_schema(connection: sqlite3.Connection) -> None:

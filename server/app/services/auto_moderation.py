@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from app.services.user_reports import UserReportsError, UserReportsService
+from app.db.connection import connect_sqlite
 
 LOGGER = logging.getLogger("lc.auto_moderation")
 
@@ -246,11 +247,7 @@ class AutoModerationService:
     # ----- persistence -----
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path, timeout=10)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA busy_timeout=5000")
-        return connection
+        return connect_sqlite(self._db_path, timeout_ms=10_000)
 
     def settings(self, *, fresh: bool = False) -> dict:
         if not fresh and self._cache is not None and time.time() - self._cache[0] < 5:

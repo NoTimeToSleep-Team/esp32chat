@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import gc
 import inspect
+import os
 import sqlite3
 from pathlib import Path
+
+import pytest
 
 from app.api import auth, chat, health, media, realtime
 from app.config import _default_threadpool_size, load_settings
@@ -42,6 +46,35 @@ def test_sqlite_connections_are_configured_for_concurrency(tmp_path: Path) -> No
         assert read_only.execute("PRAGMA query_only").fetchone()[0] == 1
     finally:
         read_only.close()
+
+
+def test_context_manager_closes_the_connection(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.sqlite3"
+    connection: sqlite3.Connection | None = None
+
+    with connect_sqlite(db_path) as connection:
+        assert connection.execute("SELECT 1").fetchone()[0] == 1
+
+    assert connection is not None
+    with pytest.raises(sqlite3.ProgrammingError):
+        connection.execute("SELECT 1")
+
+
+@pytest.mark.skipif(
+    not Path("/proc/self/fd").is_dir(),
+    reason="file-descriptor accounting is Linux-only",
+)
+def test_context_manager_does_not_leak_descriptors(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.sqlite3"
+    before = len(os.listdir("/proc/self/fd"))
+
+    for _ in range(1_000):
+        with connect_sqlite(db_path) as connection:
+            connection.execute("SELECT 1").fetchone()
+
+    gc.collect()
+    after = len(os.listdir("/proc/self/fd"))
+    assert after <= before + 3, f"fd count grew from {before} to {after}"
 
 
 def test_performance_indexes_are_created(tmp_path: Path) -> None:

@@ -5,6 +5,7 @@ from pathlib import Path
 from time import time
 
 from app.services.media import MAX_ATTACHMENTS_PER_MESSAGE
+from app.db.connection import connect_sqlite
 
 ALLOWED_REASONS = ("spam", "abuse", "profanity", "ads", "scam", "other")
 MAX_COMMENT_LENGTH = 1000
@@ -34,11 +35,7 @@ class UserReportsService:
         self.db_path = str(db_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.db_path, timeout=10)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA busy_timeout=5000")
-        return connection
+        return connect_sqlite(self.db_path, timeout_ms=10_000)
 
     def create(
         self,

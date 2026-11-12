@@ -14,6 +14,7 @@ from app.models.module_registry import (
     ModuleStatus,
     ModuleTransport,
 )
+from app.db.connection import connect_sqlite
 
 
 def _now_ms() -> int:
@@ -257,10 +258,7 @@ class ModuleRegistryService:
         return max(0, min(4, count))
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _ensure_default_modules(connection: sqlite3.Connection) -> None:

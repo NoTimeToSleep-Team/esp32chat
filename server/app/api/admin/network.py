@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from app.db.connection import connect_sqlite
 from app.models import ClientKind, UserRole
 from app.models.internet_access import WiFiInterfaceRole
 from app.services.auth import AuthError, AuthService
@@ -216,11 +217,8 @@ def list_users_internet(request: Request, session_token: str = Query(..., min_le
     _resolve_admin(request, session_token)
     svc = _network_service(request)
     records = svc.get_all_internet_access()
-    import sqlite3
-    conn = sqlite3.connect(request.app.state.data_layer.database_path)
-    conn.row_factory = sqlite3.Row
-    users = conn.execute("SELECT id, login, role, status FROM users ORDER BY id").fetchall()
-    conn.close()
+    with connect_sqlite(request.app.state.data_layer.database_path) as conn:
+        users = conn.execute("SELECT id, login, role, status FROM users ORDER BY id").fetchall()
     access_map = {r.user_id: r for r in records}
     items = [{"user_id": u["id"], "login": u["login"], "role": u["role"],
               "internet_enabled": access_map[u["id"]].enabled if u["id"] in access_map else False,

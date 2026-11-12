@@ -2,6 +2,8 @@
 import re, sqlite3, time, threading
 from pathlib import Path
 
+from app.db.connection import connect_sqlite
+
 BAD_WORDS = [
     r'\b(fuck|shit|bitch|asshole|damn|dick|bastard|crap|piss|stupid|idiot|moron|dumb)\b',
     r'\b(дурак|идиот|дебил|урод|тварь|сука|бл[яѣ]|нах[уй]|пош[ёе]л|лох|мудак|коз[ёе]л|ублюдок|сволочь|г[ао]ндон)\b',
@@ -25,11 +27,7 @@ class AutoModerator:
         self._last_id = self._load_last_id()
 
     def _conn(self):
-        c = sqlite3.connect(self.db_path, timeout=10)
-        c.row_factory = sqlite3.Row
-        c.execute("PRAGMA journal_mode=WAL")
-        c.execute("PRAGMA busy_timeout=5000")
-        return c
+        return connect_sqlite(self.db_path, timeout_ms=10_000)
 
     def _ensure_table(self):
         c = self._conn()

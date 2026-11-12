@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
+from app.db.connection import connect_sqlite
 from app.models import (
     ChatDraft,
     ChatMemberRole,
@@ -476,18 +477,13 @@ class BulkAddMembersRequest(BaseModel):
 def bulk_add_members(request: Request, chat_id: int, payload: BulkAddMembersRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
     from app.models import UserRole
-    import sqlite3
-    conn = sqlite3.connect(request.app.state.data_layer.database_path)
-    conn.row_factory = sqlite3.Row
-    actor = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not actor or actor["role"] != "admin":
-        conn.close()
-        raise HTTPException(status_code=403, detail={"code": "admin_only", "message": "Only admin can add all users"})
-    if not payload.add_all:
-        conn.close()
-        raise HTTPException(status_code=422, detail={"code": "add_all_required", "message": "Set add_all=true"})
-    users = conn.execute("SELECT id FROM users WHERE status = 'active' AND role != 'guest' AND id != ?", (user_id,)).fetchall()
-    conn.close()
+    with connect_sqlite(request.app.state.data_layer.database_path) as conn:
+        actor = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not actor or actor["role"] != "admin":
+            raise HTTPException(status_code=403, detail={"code": "admin_only", "message": "Only admin can add all users"})
+        if not payload.add_all:
+            raise HTTPException(status_code=422, detail={"code": "add_all_required", "message": "Set add_all=true"})
+        users = conn.execute("SELECT id FROM users WHERE status = 'active' AND role != 'guest' AND id != ?", (user_id,)).fetchall()
     chat_service = _chat_service(request)
     added = 0
     for u in users:
@@ -1360,24 +1356,18 @@ def get_activity_log(request: Request, session_token: str = Query(..., min_lengt
 @router.post("/chat/api/admin/clear-blog")
 def clear_blog(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
     _require_admin(request, payload.session_token)
-    import sqlite3
-    conn = sqlite3.connect(request.app.state.data_layer.database_path)
-    count = conn.execute("DELETE FROM blog_posts").rowcount
-    conn.commit()
-    conn.close()
+    with connect_sqlite(request.app.state.data_layer.database_path) as conn:
+        count = conn.execute("DELETE FROM blog_posts").rowcount
     return {"status": "ok", "deleted_count": count}
 
 
 @router.post("/chat/api/admin/clear-support")
 def clear_support(request: Request, payload: AdminCleanupRequest) -> dict[str, object]:
     _require_admin(request, payload.session_token)
-    import sqlite3
-    conn = sqlite3.connect(request.app.state.data_layer.database_path)
-    conn.execute("DELETE FROM support_messages")
-    conn.execute("DELETE FROM support_tickets")
-    count = conn.execute("SELECT total_changes()").fetchone()[0]
-    conn.commit()
-    conn.close()
+    with connect_sqlite(request.app.state.data_layer.database_path) as conn:
+        conn.execute("DELETE FROM support_messages")
+        conn.execute("DELETE FROM support_tickets")
+        count = conn.execute("SELECT total_changes()").fetchone()[0]
     return {"status": "ok", "deleted_count": count}
 
 
@@ -1403,11 +1393,11 @@ class ActivateInternetRequest(BaseModel):
 def activate_internet(request: Request, payload: ActivateInternetRequest) -> dict[str, object]:
     user_id = _resolve_user_id(request, payload.session_token)
 
-    import sqlite3
-    conn = sqlite3.connect(request.app.state.data_layer.database_path)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute("SELECT enabled FROM internet_access WHERE user_id = ?", (user_id,)).fetchone()
-    conn.close()
+    with connect_sqlite(request.app.state.data_layer.database_path) as conn:
+        row = conn.execute(
+            "SELECT enabled FROM internet_access WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
     if not row or not row["enabled"]:
         raise HTTPException(status_code=403, detail={"code": "internet_disabled", "message": "Internet access not granted by admin"})
 

@@ -35,6 +35,11 @@ SQLite.  The goal is stable latency under small bursts, not horizontal scaling.
   `server/app/db/connection.py`).  `synchronous=NORMAL` is the WAL
   recommendation: a power loss can lose the last transaction, but the
   database does not become corrupt.
+- `connect_sqlite()` returns a `ClosingConnection`.  Unlike the standard
+  `sqlite3.Connection`, its context manager commits/rolls back **and closes**
+  the file handle.  All service `_connect()` methods return it, so the
+  `with self._connect() as connection:` request scopes cannot leak one
+  descriptor per request.
 - Migration `0036_performance_indexes.sql` adds indexes for per-chat message
   order (`chat_id, id`), the cross-chat update feed (`created_at_ms`) and
   "My Files" (`owner_user_id, created_at_ms`).

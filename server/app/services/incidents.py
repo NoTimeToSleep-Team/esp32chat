@@ -9,6 +9,7 @@ from time import time
 from typing import Mapping
 
 from app.models import IncidentLevel, IncidentRecord, IncidentStatus, UserRole, UserStatus
+from app.db.connection import connect_sqlite
 
 
 def _now_ms() -> int:
@@ -211,7 +212,4 @@ class IncidentService:
             raise IncidentError("actor_inactive", "Admin account is not active", 403)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)

@@ -18,6 +18,7 @@ from app.models import (
     UserRole,
     UserStatus,
 )
+from app.db.connection import connect_sqlite
 
 
 def _now_ms() -> int:
@@ -396,10 +397,7 @@ class RfidService:
             return [self._row_to_event(row) for row in rows]
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _require_active_admin(connection: sqlite3.Connection, user_id: int) -> sqlite3.Row:

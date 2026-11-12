@@ -10,6 +10,7 @@ from pathlib import Path
 from time import time
 
 from app.models import DevicePairRequest, PairedDevice
+from app.db.connection import connect_sqlite
 
 PAIRING_CODE_TTL_MS = 5 * 60 * 1000
 CHALLENGE_TTL_MS = 2 * 60 * 1000
@@ -61,10 +62,7 @@ class DevicePairingService:
         self._db_path = Path(db_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        return connection
+        return connect_sqlite(self._db_path)
 
     def create_request(
         self,

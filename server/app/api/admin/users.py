@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from app.db.connection import connect_sqlite
 from app.models import AdminUserRecord, ClientKind, DeviceBlacklistEntry, UserRole, UserStatus
 from app.services.admin_users import AdminUsersError, AdminUsersService
 from app.services.auth import AuthError, AuthService
@@ -388,19 +389,16 @@ async def reset_user_password(
                 status_code=403,
                 detail={"code": "admin_only", "message": "Only a full admin can reset passwords"},
             )
-        import sqlite3
         from app.services.auth import hash_password
-        conn = sqlite3.connect(request.app.state.data_layer.database_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout = 5000")
-        user = conn.execute("SELECT id, login FROM users WHERE id = ?", (user_id,)).fetchone()
-        if not user:
-            conn.close()
-            raise HTTPException(status_code=404, detail={"code": "user_not_found", "message": "User not found"})
-        new_hash = hash_password(payload.new_password)
-        conn.execute("UPDATE users SET password_hash = ?, updated_at_ms = ? WHERE id = ?", (new_hash, int(__import__("time").time() * 1000), user_id))
-        conn.commit()
-        conn.close()
+        with connect_sqlite(request.app.state.data_layer.database_path) as conn:
+            user = conn.execute("SELECT id, login FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not user:
+                raise HTTPException(status_code=404, detail={"code": "user_not_found", "message": "User not found"})
+            new_hash = hash_password(payload.new_password)
+            conn.execute(
+                "UPDATE users SET password_hash = ?, updated_at_ms = ? WHERE id = ?",
+                (new_hash, int(__import__("time").time() * 1000), user_id),
+            )
         from app.services.auth import AuthService
         AuthService(db_path=request.app.state.data_layer.database_path).revoke_user_sessions(user_id)
         return str(user["login"])

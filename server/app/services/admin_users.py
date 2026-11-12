@@ -6,6 +6,7 @@ from pathlib import Path
 from time import time
 
 from app.models import AdminUserRecord, DeviceBlacklistEntry, UserRole, UserStatus
+from app.db.connection import connect_sqlite
 
 
 def _now_ms() -> int:
@@ -421,10 +422,7 @@ class AdminUsersService:
             return target_user_id, target_login
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _require_active_admin(connection: sqlite3.Connection, user_id: int) -> sqlite3.Row:

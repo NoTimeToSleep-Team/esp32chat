@@ -7,6 +7,7 @@ from time import time
 
 from app.models import BlogPost, BlogPostDraft, UserRole, UserStatus
 from app.services.media import MAX_ATTACHMENTS_PER_MESSAGE, MediaService
+from app.db.connection import connect_sqlite
 
 
 def _now_ms() -> int:
@@ -152,10 +153,7 @@ class BlogService:
         return row
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_sqlite(self._db_path)
 
     @staticmethod
     def _row_to_post(row: sqlite3.Row) -> BlogPost:

@@ -13,6 +13,7 @@ from app.models import ClientKind, ModuleInfo, ModuleKind, UserRole
 from app.services.auth import AuthError, AuthService
 from app.services.edge_nodes import EdgeNodeDeployment, EdgeNodeError, EdgeNodeService
 from app.services.module_registry import ModuleRegistryService
+from app.db.connection import connect_sqlite
 
 
 router = APIRouter(tags=["deployment", "m5tab"])
@@ -204,10 +205,7 @@ def m5tab_deployment(
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
-    connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+    return connect_sqlite(db_path)
 
 
 def _count_users(db_path: str) -> int:

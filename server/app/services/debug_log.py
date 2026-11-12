@@ -5,6 +5,8 @@ import sqlite3
 from pathlib import Path
 from time import time
 
+from app.db.connection import connect_sqlite
+
 
 _KEY_VALUE_SECRET = re.compile(
     r"(?i)(session_token|access_token|token|password|secret|authorization)=([^&\s,;]+)"
@@ -52,37 +54,34 @@ class DebugLogService:
         t3_ms: int | None = None,
     ) -> int | None:
         try:
-            connection = sqlite3.connect(self._db_path, timeout=5)
-            connection.execute("PRAGMA busy_timeout = 3000")
-            cursor = connection.execute(
-                """
-                INSERT INTO debug_events(
-                    created_at_ms, stage, trace_id, action, method, status, ok,
-                    stages_done, error, details, user_login, ip, t1_ms, t2_ms, t3_ms
+            with connect_sqlite(self._db_path) as connection:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO debug_events(
+                        created_at_ms, stage, trace_id, action, method, status, ok,
+                        stages_done, error, details, user_login, ip, t1_ms, t2_ms, t3_ms
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        int(time() * 1000),
+                        stage,
+                        trace_id,
+                        _redact(action)[:512] if action else None,
+                        method,
+                        status,
+                        None if ok is None else (1 if ok else 0),
+                        stages_done,
+                        _redact(error)[:1000] if error else None,
+                        _redact(details)[:2000] if details else None,
+                        user_login,
+                        ip,
+                        t1_ms,
+                        t2_ms,
+                        t3_ms,
+                    ),
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    int(time() * 1000),
-                    stage,
-                    trace_id,
-                    _redact(action)[:512] if action else None,
-                    method,
-                    status,
-                    None if ok is None else (1 if ok else 0),
-                    stages_done,
-                    _redact(error)[:1000] if error else None,
-                    _redact(details)[:2000] if details else None,
-                    user_login,
-                    ip,
-                    t1_ms,
-                    t2_ms,
-                    t3_ms,
-                ),
-            )
-            connection.commit()
-            row_id = cursor.lastrowid
-            connection.close()
+                row_id = cursor.lastrowid
             return int(row_id) if row_id is not None else None
         except sqlite3.Error:
             return None
@@ -90,44 +89,38 @@ class DebugLogService:
     def prune(self, *, max_age_ms: int = 7 * 24 * 60 * 60 * 1000, max_rows: int = 50_000) -> int:
         """Bound on-disk debug logs even when the client-event endpoint is used."""
         try:
-            connection = sqlite3.connect(self._db_path, timeout=5)
-            connection.execute("PRAGMA busy_timeout = 3000")
-            cutoff_ms = int(time() * 1000) - max(int(max_age_ms), 0)
-            removed = connection.execute(
-                "DELETE FROM debug_events WHERE created_at_ms < ?",
-                (cutoff_ms,),
-            ).rowcount
-            removed += connection.execute(
-                """
-                DELETE FROM debug_events
-                WHERE id NOT IN (
-                    SELECT id FROM debug_events ORDER BY id DESC LIMIT ?
-                )
-                """,
-                (max(int(max_rows), 1),),
-            ).rowcount
-            connection.commit()
-            connection.close()
+            with connect_sqlite(self._db_path) as connection:
+                cutoff_ms = int(time() * 1000) - max(int(max_age_ms), 0)
+                removed = connection.execute(
+                    "DELETE FROM debug_events WHERE created_at_ms < ?",
+                    (cutoff_ms,),
+                ).rowcount
+                removed += connection.execute(
+                    """
+                    DELETE FROM debug_events
+                    WHERE id NOT IN (
+                        SELECT id FROM debug_events ORDER BY id DESC LIMIT ?
+                    )
+                    """,
+                    (max(int(max_rows), 1),),
+                ).rowcount
             return int(removed)
         except sqlite3.Error:
             return 0
 
     def list_events(self, *, limit: int = 200, trace_id: str | None = None) -> list[dict]:
         try:
-            connection = sqlite3.connect(self._db_path, timeout=5)
-            connection.row_factory = sqlite3.Row
-            connection.execute("PRAGMA busy_timeout = 3000")
-            if trace_id:
-                rows = connection.execute(
-                    "SELECT * FROM debug_events WHERE trace_id = ? ORDER BY id DESC LIMIT ?",
-                    (trace_id, limit),
-                ).fetchall()
-            else:
-                rows = connection.execute(
-                    "SELECT * FROM debug_events ORDER BY id DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
-            connection.close()
+            with connect_sqlite(self._db_path) as connection:
+                if trace_id:
+                    rows = connection.execute(
+                        "SELECT * FROM debug_events WHERE trace_id = ? ORDER BY id DESC LIMIT ?",
+                        (trace_id, limit),
+                    ).fetchall()
+                else:
+                    rows = connection.execute(
+                        "SELECT * FROM debug_events ORDER BY id DESC LIMIT ?",
+                        (limit,),
+                    ).fetchall()
             return [dict(row) for row in rows]
         except sqlite3.Error:
             return []
