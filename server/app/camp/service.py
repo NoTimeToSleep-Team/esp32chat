@@ -318,10 +318,16 @@ class CampService:
     def list_units(self, actor: Mapping[str, Any], *, session_id: int | None = None) -> list[dict[str, Any]]:
         with self._connect() as connection:
             resolved_session = self._resolve_session_id(connection, actor, session_id)
-            rows = connection.execute(
-                "SELECT * FROM camp_units WHERE session_id = ? ORDER BY kind, name",
-                (resolved_session,),
-            ).fetchall()
+            if str(actor.get("role") or "") == "counselor" and actor.get("unit_id") is not None:
+                rows = connection.execute(
+                    "SELECT * FROM camp_units WHERE session_id = ? AND id = ? ORDER BY kind, name",
+                    (resolved_session, int(actor["unit_id"])),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM camp_units WHERE session_id = ? ORDER BY kind, name",
+                    (resolved_session,),
+                ).fetchall()
             return [dict(row) for row in rows]
 
     def get_settings(self, actor: Mapping[str, Any], *, session_id: int | None = None) -> dict[str, Any]:
@@ -546,6 +552,9 @@ class CampService:
                 params.extend([needle, needle, needle])
             actor_role = str(actor.get("role") or "")
             if actor_role == "child":
+                clauses.append("p.unit_id = ?")
+                params.append(actor.get("unit_id"))
+            elif actor_role == "counselor":
                 clauses.append("p.unit_id = ?")
                 params.append(actor.get("unit_id"))
             elif actor_role == "parent":
@@ -1254,6 +1263,9 @@ class CampService:
             if role == "child":
                 clauses.append("e.unit_id = ?")
                 params.append(actor.get("unit_id"))
+            elif role == "counselor":
+                clauses.append("e.unit_id = ?")
+                params.append(actor.get("unit_id"))
             params.append(max(1, min(int(limit), 300)))
             rows = connection.execute(
                 f"""
@@ -1504,7 +1516,15 @@ class CampService:
         zone_id: int | None = None,
         note: str | None = None,
     ) -> dict[str, Any]:
-        self._require_role(actor, STAFF_ROLES)
+        actor_role = str(actor.get("role") or "")
+        if actor_role not in {"director", "security"} and not (
+            actor_role == "medic" and kind == "medical"
+        ):
+            raise CampError(
+                "alert_forbidden",
+                "Only director/security can start this alert",
+                status_code=403,
+            )
         with self._connect() as connection:
             resolved_session = self._resolve_session_id(connection, actor, session_id)
             playbook = connection.execute(

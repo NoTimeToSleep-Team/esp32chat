@@ -3,26 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Camp Edition</title>
+  <title>Смена · Лагерь</title>
   <link rel="stylesheet" href="/static/camp/camp.css">
 </head>
 <body>
   <div class="camp-shell">
     <header class="camp-header">
       <div>
-        <div class="eyebrow">Local Chat Server</div>
-        <h1>Camp Edition</h1>
+        <div class="eyebrow">Лагерь · рабочее место</div>
+        <h1>Смена</h1>
         <p id="sessionLine" class="muted">Смена не выбрана</p>
       </div>
       <div class="header-actions">
-        <span id="roleChip" class="chip">offline</span>
+        <span id="roleChip" class="chip">—</span>
         <button id="logoutBtn" class="button ghost hidden" type="button">Выйти</button>
       </div>
     </header>
 
     <section id="loginPanel" class="card login-card">
-      <h2>Вход в Camp Edition</h2>
-      <p class="muted">Логин и пароль Camp Edition. Токен сессии хранится только в этом браузере.</p>
+      <h2>Вход</h2>
+      <p class="muted">Логин и пароль, которые выдал директор смены.</p>
       <form id="passwordForm" class="row">
         <label class="grow">Логин
           <input id="loginName" type="text" autocomplete="username" required maxlength="128">
@@ -33,15 +33,6 @@
         <button class="button primary" type="submit">Войти</button>
       </form>
       <p id="loginError" class="error"></p>
-      <details>
-        <summary>У меня уже есть web-токен</summary>
-        <form id="loginForm" class="row">
-          <label class="grow">Токен сессии
-            <input id="tokenInput" type="password" autocomplete="off" minlength="8" required placeholder="session token">
-          </label>
-          <button class="button" type="submit">Подключиться</button>
-        </form>
-      </details>
     </section>
 
     <div id="workspace" class="workspace hidden">
