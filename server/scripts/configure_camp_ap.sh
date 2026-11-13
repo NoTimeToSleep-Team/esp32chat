@@ -75,6 +75,23 @@ if [[ -z "${CAMP_AP_DNS_WILDCARD+x}" ]]; then
     fi
 fi
 
+for value in \
+    "${CAMP_AP_SSID}" "${CAMP_AP_PASSPHRASE}" "${CAMP_AP_COUNTRY}" \
+    "${CAMP_AP_CHANNEL}" "${CAMP_AP_ADDRESS}" "${CAMP_PORTAL_URL}" \
+    "${CAMP_AP_DNS_SERVERS}" "${CAMP_AP_DNS_WILDCARD}"; do
+    if [[ "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+        echo "Camp AP settings must not contain newlines." >&2
+        exit 1
+    fi
+done
+if [[ "${CAMP_PORTAL_URL}" != http://* && "${CAMP_PORTAL_URL}" != https://* ]]; then
+    echo "CAMP_PORTAL_URL must start with http:// or https://." >&2
+    exit 1
+fi
+if [[ "${CAMP_PORTAL_URL}" == *'"'* || "${CAMP_PORTAL_URL}" == *" "* ]]; then
+    echo "CAMP_PORTAL_URL must not contain spaces or quotes." >&2
+    exit 1
+fi
 if [[ "${CAMP_AP_OPEN}" != "0" && "${CAMP_AP_OPEN}" != "1" ]]; then
     echo "CAMP_AP_OPEN must be 0 or 1." >&2
     exit 1

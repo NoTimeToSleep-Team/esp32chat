@@ -318,7 +318,9 @@ class CampService:
     def list_units(self, actor: Mapping[str, Any], *, session_id: int | None = None) -> list[dict[str, Any]]:
         with self._connect() as connection:
             resolved_session = self._resolve_session_id(connection, actor, session_id)
-            if str(actor.get("role") or "") == "counselor" and actor.get("unit_id") is not None:
+            if str(actor.get("role") or "") == "counselor":
+                if actor.get("unit_id") is None:
+                    return []
                 rows = connection.execute(
                     "SELECT * FROM camp_units WHERE session_id = ? AND id = ? ORDER BY kind, name",
                     (resolved_session, int(actor["unit_id"])),
@@ -746,7 +748,7 @@ class CampService:
         session_id: int | None,
         rows: Iterable[Mapping[str, Any]],
     ) -> dict[str, Any]:
-        self._require_role(actor, COUNSELOR_ROLES)
+        self._require_role(actor, MANAGE_ROLES)
         with self._connect() as connection:
             resolved_session = self._resolve_session_id(connection, actor, session_id)
         preview = self.import_preview(rows, session_id=resolved_session)
@@ -845,7 +847,7 @@ class CampService:
         batch_id: int,
         max_age_ms: int = 10 * 60_000,
     ) -> dict[str, Any]:
-        self._require_role(actor, COUNSELOR_ROLES)
+        self._require_role(actor, MANAGE_ROLES)
         with self._connect() as connection:
             batch = connection.execute(
                 "SELECT * FROM camp_import_batches WHERE id = ?",
@@ -2213,6 +2215,11 @@ class CampService:
             if actor.get("session_id") is not None:
                 clauses.append("p.session_id = ?")
                 params.append(int(actor["session_id"]))
+            if actor.get("role") == "counselor":
+                if actor.get("unit_id") is None:
+                    return []
+                clauses.append("p.unit_id = ?")
+                params.append(int(actor["unit_id"]))
             if person_id is not None:
                 clauses.append("a.person_id = ?")
                 params.append(person_id)
@@ -2228,7 +2235,12 @@ class CampService:
                 """,
                 params,
             ).fetchall()
-            return [dict(row) for row in rows]
+            items: list[dict[str, Any]] = []
+            for row in rows:
+                payload = dict(row)
+                payload.pop("adult_document", None)
+                items.append(payload)
+            return items
 
     def verify_pickup(self, actor: Mapping[str, Any], *, qr_code: str) -> dict[str, Any]:
         self._require_role(actor, {"counselor", "director", "security"})
@@ -2236,7 +2248,7 @@ class CampService:
             row = connection.execute(
                 """
                 SELECT a.*, p.display_name, p.badge_code, p.role, p.status AS person_status,
-                       p.session_id, u.name AS unit_name
+                       p.session_id, p.unit_id, u.name AS unit_name
                 FROM camp_pickup_auth a
                 JOIN camp_people p ON p.id = a.person_id
                 LEFT JOIN camp_units u ON u.id = p.unit_id
@@ -2247,7 +2259,10 @@ class CampService:
             if row is None:
                 raise CampError("pickup_not_found", "Pickup authorisation not found", status_code=404)
             self._guard_session(actor, int(row["session_id"]))
+            if actor.get("role") == "counselor" and row["unit_id"] != actor.get("unit_id"):
+                raise CampError("pickup_forbidden", "This child belongs to another unit", status_code=403)
             payload = dict(row)
+            payload.pop("adult_document", None)
             last = connection.execute(
                 """
                 SELECT direction, at_ms FROM camp_movements

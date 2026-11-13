@@ -339,3 +339,15 @@ def test_pickup_verify_reports_movement_state(service: CampService) -> None:
     payload = service.verify_pickup(ADMIN, qr_code=auth["qr_code"])
     assert payload["currently_out"] is True
     assert payload["restrictions"] == "Только мама"
+
+def test_counselor_cannot_import_people(service: CampService) -> None:
+    session, unit, _ = _session(service)
+    service.create_person(
+        ADMIN, session_id=session["id"], unit_id=unit["id"], user_id=2,
+        role="counselor", display_name="Вожатый",
+    )
+    actor = service.get_actor_for_user(2)
+    assert actor is not None
+    with pytest.raises(CampError) as exc:
+        service.import_commit(actor, session_id=session["id"], rows=[{"display_name": "Ребёнок"}])
+    assert exc.value.code == "role_forbidden"

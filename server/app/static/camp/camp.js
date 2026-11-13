@@ -5,6 +5,8 @@ const state = {
   verified: null,
   importPreview: null,
   importBatch: null,
+  importCommittedAt: null,
+  sessionId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -60,11 +62,31 @@ const ERROR_TEXT = {
   guardian_forbidden: "Это чужой ребёнок.",
   attendance_closed: "Перекличка уже закрыта.",
   pickup_restricted: "У этого ребёнка есть ограничение на выдачу. Проверьте взрослого и документ.",
+  pickup_forbidden: "Этот ребёнок из чужого отряда.",
   movement_conflict: "Ребёнок уже в этом состоянии. Проверьте журнал ворот.",
   alert_forbidden: "Тревогу может запустить директор или охрана. Медик — только медицинскую.",
   unit_forbidden: "Этот отряд не ваш.",
   invalid_kind: "Неподходящий тип действия.",
+  undo_window_expired: "Отменить импорт можно только в течение 10 минут.",
+  import_has_errors: "В файле есть ошибки. Исправьте их и проверьте снова.",
 };
+
+const IMPORT_ERROR_TEXT = {
+  required: "обязательное поле",
+  must_be_object: "строка повреждена",
+  invalid: "неверное значение",
+  invalid_role: "неизвестная роль",
+  invalid_age_band: "неверный возраст",
+  invalid_birth_date: "неверная дата рождения",
+  duplicate: "повтор в файле",
+  duplicate_in_file: "повтор в файле",
+  badge_exists: "бейдж уже занят",
+  person_exists: "такой ребёнок уже есть в лагере",
+};
+
+function importError(code) {
+  return IMPORT_ERROR_TEXT[code] || "проверьте значение";
+}
 
 function tr(group, value) {
   return LABELS[group]?.[value] ?? (!value ? "—" : String(value));
@@ -176,6 +198,9 @@ async function api(path, options = {}) {
   if (!state.token) throw new Error("Нужно войти заново");
   const url = new URL(path, window.location.origin);
   url.searchParams.set("session_token", state.token);
+  if (state.sessionId && path.startsWith("/camp/api/")) {
+    url.searchParams.set("session_id", state.sessionId);
+  }
   const response = await fetch(url, {
     method: options.method || "GET",
     headers: options.body ? { "Content-Type": "application/json" } : undefined,
@@ -281,6 +306,7 @@ function showLogin(message = "") {
 async function connect(token) {
   state.token = token.trim();
   state.me = await api("/camp/api/me");
+  state.sessionId = state.me.current_session?.id || null;
   localStorage.setItem("lc_session_token", state.token);
   $("#loginPanel").classList.add("hidden");
   $("#workspace").classList.remove("hidden");
@@ -346,12 +372,20 @@ async function people(roleNameFilter = "") {
   return data.items || [];
 }
 
-﻿async function renderPrepare(panel) {
+async function renderPrepare(panel) {
   const sessions = (await api("/camp/api/sessions")).items || [];
-  const current = state.me.current_session
+  const selectedId = Number(state.sessionId || state.me.current_session?.id || 0);
+  const current = sessions.find((item) => Number(item.id) === selectedId)
+    || state.me.current_session
     || sessions.find((item) => item.status === "active")
     || sessions.find((item) => item.status === "planned")
     || sessions[0];
+  if (current) state.sessionId = current.id;
+  const undoAvailable = Boolean(
+    state.importBatch
+    && state.importCommittedAt
+    && Date.now() - state.importCommittedAt < 10 * 60_000
+  );
   const [units, children, parents, settings] = current
     ? await Promise.all([
       api("/camp/api/units").then((data) => data.items || []),
@@ -361,6 +395,7 @@ async function people(roleNameFilter = "") {
     ])
     : [[], [], [], null];
   panel.innerHTML = `${header("Подготовка смены", "Смена, отряды, дети и родители.")}
+    ${sessions.length ? `<section class="card" style="margin-bottom:12px"><label>Какая смена<select id="prepareSession">${options(sessions, "id", "name", current?.id)}</select></label></section>` : ""}
     <div class="split">
       <section class="card"><h3>Смена</h3>
         <p class="muted">${current ? `Текущая: ${esc(current.name)} · ${tr("session_status", current.status)}` : "Смена ещё не создана."}</p>
@@ -380,7 +415,8 @@ async function people(roleNameFilter = "") {
       <p class="muted">CSV: display_name, role, birth_date, unit_name, badge_code, room. Сначала проверьте, потом импортируйте.</p>
       <textarea id="importText" style="min-height:110px">display_name,role,birth_date,unit_name,badge_code,room
 Аня,ребёнок,2014-05-12,Отряд 1,CAMP-001,101</textarea>
-      <div class="actions" style="margin-top:8px"><button class="button primary" id="previewImport" type="button">Проверить</button><button class="button" id="commitImport" type="button" disabled>Импортировать</button><button class="button" id="undoImport" type="button" disabled>Отменить импорт</button></div>
+      <div class="actions" style="margin-top:8px"><button class="button primary" id="previewImport" type="button">Проверить</button><button class="button" id="commitImport" type="button" disabled>Импортировать</button><button class="button" id="undoImport" type="button" ${undoAvailable ? "" : "disabled"}>Отменить импорт</button></div>
+      <p class="muted">Отменить импорт можно в течение 10 минут.</p>
       <div id="importResult" style="margin-top:10px"></div>
     </section>
     <section class="card" style="margin-top:12px"><h3>Родители</h3>
@@ -394,9 +430,14 @@ async function people(roleNameFilter = "") {
     const start = fromInput($("#sessionStart").value) || Date.now();
     const end = (fromInput($("#sessionEnd").value) || start + 14 * 86400000) + 86400000 - 1;
     try {
-      await api("/camp/api/sessions", { method: "POST", body: { name: $("#sessionName").value, starts_at_ms: start, ends_at_ms: end, status: "active" } });
+      const created = await api("/camp/api/sessions", { method: "POST", body: { name: $("#sessionName").value, starts_at_ms: start, ends_at_ms: end, status: "active" } });
+      state.sessionId = created.item.id;
       toast("Смена создана"); await openPanel("prepare");
     } catch (error) { toast(humanError(error), true); }
+  });
+  if ($("#prepareSession")) $("#prepareSession").addEventListener("change", async () => {
+    state.sessionId = Number($("#prepareSession").value);
+    await openPanel("prepare");
   });
   if ($("#unitForm")) $("#unitForm").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -410,7 +451,7 @@ async function people(roleNameFilter = "") {
       const preview = await api("/camp/api/import/preview", { method: "POST", body: { session_id: current.id, rows } });
       state.importPreview = preview;
       const errors = preview.errors || [];
-      $("#importResult").innerHTML = `<div class="notice">Строк: ${preview.summary?.rows ?? rows.length}; ошибок: ${preview.summary?.errors ?? errors.length}; дублей: ${preview.summary?.duplicates ?? 0}</div>${errors.length ? `<ul>${errors.slice(0, 8).map((error) => `<li>Строка ${error.row}: ${esc(error.code)}</li>`).join("")}</ul>` : ""}`;
+      $("#importResult").innerHTML = `<div class="notice">Строк: ${preview.summary?.rows ?? rows.length}; ошибок: ${preview.summary?.errors ?? errors.length}; дублей: ${preview.summary?.duplicates ?? 0}</div>${errors.length ? `<ul>${errors.slice(0, 8).map((error) => `<li>Строка ${error.row}: ${esc(importError(error.code))}</li>`).join("")}</ul>` : ""}`;
       $("#commitImport").disabled = Boolean(errors.length);
     } catch (error) { toast(humanError(error), true); }
   });
@@ -419,6 +460,7 @@ async function people(roleNameFilter = "") {
     try {
       const result = await api("/camp/api/import/commit", { method: "POST", body: { session_id: current.id, rows: state.importPreview.rows || [] } });
       state.importBatch = result.batch_id;
+      state.importCommittedAt = Date.now();
       $("#undoImport").disabled = false;
       toast(`Импортировано: ${result.count}`);
       await openPanel("prepare");
@@ -426,8 +468,12 @@ async function people(roleNameFilter = "") {
   });
   if ($("#undoImport")) $("#undoImport").addEventListener("click", async () => {
     if (!state.importBatch) return;
+    if (!state.importCommittedAt || Date.now() - state.importCommittedAt >= 10 * 60_000) {
+      toast(ERROR_TEXT.undo_window_expired, true);
+      return;
+    }
     if (!window.confirm("Отменить последний импорт?")) return;
-    try { await api(`/camp/api/import/${state.importBatch}/undo`, { method: "POST" }); toast("Импорт отменён"); state.importBatch = null; await openPanel("prepare"); }
+    try { await api(`/camp/api/import/${state.importBatch}/undo`, { method: "POST" }); toast("Импорт отменён"); state.importBatch = null; state.importCommittedAt = null; await openPanel("prepare"); }
     catch (error) { toast(humanError(error), true); }
   });
   if ($("#guardianForm")) $("#guardianForm").addEventListener("submit", async (event) => {
@@ -450,8 +496,8 @@ async function renderOverview(panel) {
     <section class="card">
       <div class="hero-actions">
         ${["director", "counselor"].includes(role()) ? `<button class="button primary big" type="button" data-open="rollcall">Начать перекличку</button>` : ""}
-        <a class="button" href="/camp/api/report.csv?session_token=${encodeURIComponent(token)}" target="_blank" rel="noopener">Скачать таблицу</a>
-        <a class="button" href="/camp/api/report.html?session_token=${encodeURIComponent(token)}" target="_blank" rel="noopener">Печать</a>
+        <a class="button" href="/camp/api/report.csv?session_token=${encodeURIComponent(token)}${state.sessionId ? `&session_id=${encodeURIComponent(state.sessionId)}` : ""}" target="_blank" rel="noopener">Скачать таблицу</a>
+        <a class="button" href="/camp/api/report.html?session_token=${encodeURIComponent(token)}${state.sessionId ? `&session_id=${encodeURIComponent(state.sessionId)}` : ""}" target="_blank" rel="noopener">Печать</a>
       </div>
     </section>
     ${metrics([
@@ -604,7 +650,10 @@ async function renderRollcall(panel) {
         counter.dataset.marked = String(marked);
         counter.textContent = `${marked}/${counter.dataset.total}`;
       }
-    } catch (error) { toast(humanError(error), true); }
+    } catch (error) {
+      select.value = previous;
+      toast(humanError(error), true);
+    }
   }));
   panel.querySelectorAll("[data-all]").forEach((button) => button.addEventListener("click", async () => {
     try { await api(`/camp/api/attendance/events/${button.dataset.all}/all-present`, { method: "POST" }); toast("Отмечены все"); await openPanel("rollcall"); }
@@ -659,7 +708,7 @@ async function renderAlerts(panel) {
       const mine = new Set((alert.acks || []).filter((ack) => Number(ack.user_id) === actorId()).map((ack) => Number(ack.step_index)));
       let nextStep = (alert.steps || []).findIndex((_, index) => !mine.has(index));
       if (nextStep < 0) nextStep = 0;
-      const canClose = ["director", "security"].includes(role()) || alert.created_by === actorId();
+      const canClose = ["director", "security"].includes(role()) || Number(alert.created_by) === actorId();
       return `<details ${alert.status !== "closed" ? "open" : ""}><summary>${esc(alert.display_title)} · ${stateBadge("alert_status", alert.status)} ${alert.drill ? badge("Учение") : ""}</summary>
         <p class="muted">Запустил: ${esc(alert.created_by_login || "—")} · ${fmtTime(alert.created_at_ms)}</p>
         <ol>${(alert.steps || []).map((step) => `<li>${esc(step.step || step)}</li>`).join("")}</ol>
@@ -869,8 +918,8 @@ async function renderReport(panel) {
   const token = state.token;
   panel.innerHTML = `${header("Отчёт смены", "Для печати и передачи директору.")}
     <div class="actions" style="margin-bottom:12px">
-      <a class="button" href="/camp/api/report.csv?session_token=${encodeURIComponent(token)}" target="_blank" rel="noopener">Скачать таблицу</a>
-      <a class="button" href="/camp/api/report.html?session_token=${encodeURIComponent(token)}" target="_blank" rel="noopener">Печать</a>
+      <a class="button" href="/camp/api/report.csv?session_token=${encodeURIComponent(token)}${state.sessionId ? `&session_id=${encodeURIComponent(state.sessionId)}` : ""}" target="_blank" rel="noopener">Скачать таблицу</a>
+      <a class="button" href="/camp/api/report.html?session_token=${encodeURIComponent(token)}${state.sessionId ? `&session_id=${encodeURIComponent(state.sessionId)}` : ""}" target="_blank" rel="noopener">Печать</a>
     </div>
     ${metrics([["Дети", report.people.children], ["Сотрудники", report.people.staff], ["Отметки", report.scans.total], ["Тревоги", report.alerts.total], ["Питание", report.dietary.records], ["Дневник", report.digests.total]])}
     <section class="card" style="margin-top:12px"><h3>Отряды</h3>${table(["Отряд", "Тип", "Детей"], report.units.map((unit) => [esc(unit.name), esc(tr("unit_kind", unit.kind)), esc(unit.child_count)]))}</section>`;

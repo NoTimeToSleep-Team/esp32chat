@@ -450,6 +450,11 @@ def import_preview(
     session_token: str = Query(..., min_length=8, max_length=512),
 ) -> dict[str, Any]:
     actor = _auth(request, session_token)
+    if actor.get("role") != "director":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "role_forbidden", "message": "Only director can preview imports"},
+        )
     try:
         session_id = payload.session_id or actor.get("session_id")
         if session_id is None:
