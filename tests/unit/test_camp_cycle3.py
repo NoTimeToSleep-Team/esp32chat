@@ -325,10 +325,15 @@ def test_pickup_verify_reports_movement_state(service: CampService) -> None:
         ADMIN,
         person_id=child["id"],
         adult_name="Мама",
+        adult_document="PASSPORT-123",
         relationship="mother",
         restrictions="Только мама",
     )
-    assert service.verify_pickup(ADMIN, qr_code=auth["qr_code"])["currently_out"] is False
+    listed = service.list_pickup_auth(ADMIN)
+    assert listed and "adult_document" not in listed[0]
+    verified = service.verify_pickup(ADMIN, qr_code=auth["qr_code"])
+    assert "adult_document" not in verified
+    assert verified["currently_out"] is False
     service.record_movement(
         ADMIN,
         person_id=child["id"],

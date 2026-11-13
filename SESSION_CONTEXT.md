@@ -65,7 +65,7 @@ All three cycles are complete.
 ```powershell
 cd D:\opencode\LC_CAMP_EDITION
 .\.venv\Scripts\python.exe -m pytest -q tests\unit
-# 36 passed, 1 skipped
+# 50 passed, 1 skipped
 .\.venv\Scripts\python.exe -m compileall -q server\app
 node --check server/app/static/camp/camp.js
 .\.venv\Scripts\python.exe C:\Windows\Temp\opencode\camp_smoke.py
@@ -77,6 +77,24 @@ request queue, policy, attendance, alerts, zones/scans, duty/handover,
 pickup/gate, dietary print, parent digest, consent matrix, kiosk create/scan/
 revoke, offline sync replay, report JSON/CSV/HTML, `/camp/status`, and static
 UI files.
+
+## UX/logic refinement (3 rounds)
+
+- Round 1 `ab07cc5`: removed the token form, simplified role menus, Russian
+  labels, light flat theme, role-scoped counselor lists, alert start/close
+  permissions, faster rollcall, gate verify, digest sent state.
+- Round 2 `01df325`: prep screen (session/units/import preview/commit/undo,
+  guardian links, quiet hours), `/camp/api/staff`, incremental rollcall
+  updates, session selection, import error text and 10-minute undo hint,
+  pickup document sanitization.
+- Round 3 `c96c04e`: fixed counselor import authorization, pickup unit scope,
+  rollcall rollback on error, BOM removal, wrapper input validation.
+- Logic agent verdict after round 3: PASS WITH FIXES; critical items fixed in
+  `c96c04e`. Remaining noncritical: `roles_json` playbooks is data-only.
+- Verification: `50 passed, 1 skipped`; `compileall`; `node --check`;
+  disposable smoke `SMOKE_OK`; `bash -n` + `DRY_RUN=1` for AP scripts.
+- GitHub: pushed local `main` to `github/camp-edition`
+  (https://github.com/NoTimeToSleep-Team/esp32chat/tree/camp-edition).
 
 ## Addendum: local Wi-Fi AP + captive portal
 

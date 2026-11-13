@@ -37,6 +37,18 @@ Isolation: this directory only; `LC_RELEASE` and live board untouched.
 - [x] 36 unit tests pass, compileall, node syntax check, extended disposable smoke
 - [x] final commit; compact + notify room
 
+### UX/logic refinement — 3 rounds
+
+- [x] role menus, Russian labels, flat theme
+- [x] prep screen: session, units, CSV import preview/commit/undo, guardians,
+  quiet hours
+- [x] staff endpoint for counselor handover
+- [x] incremental rollcall marks, gate verify/state, digest sent flow
+- [x] logic agent: round 1, round 2, round 3 verdict PASS WITH FIXES
+- [x] security/syntax passes: role import 403, pickup document/PII scope,
+  rollcall rollback, BOM removal, wrapper input validation
+- [x] GitHub branch `camp-edition`
+
 ### Addendum: local Wi-Fi AP + captive portal
 
 - [x] `server/scripts/configure_camp_ap.sh`: `CAMP-CHAT`, **open network**,

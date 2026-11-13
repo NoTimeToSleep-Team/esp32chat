@@ -23,7 +23,8 @@ Errors use:
 | GET | `/api/me` | Actor, sessions, current session, settings, units |
 | GET/POST | `/api/sessions` | Create/list camp sessions |
 | GET/POST | `/api/units` | Create/list units |
-| GET | `/api/people` | Session/unit/role/search filter; parent scope enforced |
+| GET | `/api/people` | Session/unit/role/search filter; parent/counselor scope enforced |
+| GET | `/api/staff` | Staff list for handover; staff roles only |
 | GET | `/api/people/{id}` | Person detail |
 | POST | `/api/people` | Create person |
 | POST | `/api/import/preview` | Preview import rows |
