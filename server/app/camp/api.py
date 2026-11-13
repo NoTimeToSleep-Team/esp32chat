@@ -264,7 +264,7 @@ def _fail(exc: CampError) -> HTTPException:
 @router.get("", response_class=HTMLResponse, include_in_schema=False)
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 def camp_page() -> HTMLResponse:
-    path = Path(__file__).resolve().parents[1] / "static" / "camp" / "camp.html"
+    path = Path(__file__).resolve().parents[1] / "static" / "camp" / "camp-chat.html"
     if not path.exists():
         return HTMLResponse("<h1>Camp Edition</h1><p>UI is being installed.</p>")
     return HTMLResponse(content=path.read_text(encoding="utf-8"))
@@ -303,6 +303,34 @@ def me(request: Request, session_token: str = Query(..., min_length=8, max_lengt
         "settings": settings,
         "units": units,
     }
+
+
+@router.get("/api/chats")
+def list_camp_chats(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        items = _service(request).list_camp_chats(actor, session_id=session_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "count": len(items), "items": items}
+
+
+@router.post("/api/chats/bootstrap")
+def bootstrap_camp_chats(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        items = _service(request).ensure_camp_chats(actor, session_id=session_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "count": len(items), "items": items}
 
 
 @router.get("/api/sessions")

@@ -356,3 +356,54 @@ def test_counselor_cannot_import_people(service: CampService) -> None:
     with pytest.raises(CampError) as exc:
         service.import_commit(actor, session_id=session["id"], rows=[{"display_name": "Ребёнок"}])
     assert exc.value.code == "role_forbidden"
+
+def test_camp_chats_are_created_once_and_scoped(service: CampService) -> None:
+    session, unit, _ = _session(service)
+    service.create_person(
+        ADMIN,
+        session_id=session["id"],
+        unit_id=unit["id"],
+        user_id=2,
+        role="counselor",
+        display_name="Вожатый",
+    )
+    first = service.ensure_camp_chats(ADMIN)
+    assert {item["scope"] for item in first} == {"staff", "unit"}
+    assert len(first) == 2
+
+    second = service.ensure_camp_chats(ADMIN)
+    assert sorted(item["chat_id"] for item in first) == sorted(item["chat_id"] for item in second)
+
+    counselor = service.get_actor_for_user(2)
+    assert counselor is not None
+    visible = service.list_camp_chats(counselor)
+    assert {item["scope"] for item in visible} == {"staff", "unit"}
+
+    child = service.create_person(
+        ADMIN,
+        session_id=session["id"],
+        unit_id=unit["id"],
+        user_id=3,
+        role="child",
+        age_band="10_13",
+        display_name="Ребёнок в чате",
+    )
+    child_actor = service.get_actor_for_user(3)
+    assert child_actor is not None
+    child_chats = service.list_camp_chats(child_actor)
+    assert len(child_chats) == 1
+    assert child_chats[0]["scope"] == "unit"
+    assert child_chats[0]["unit_id"] == unit["id"]
+    assert child["id"] > 0
+
+def test_only_director_can_bootstrap_camp_chats(service: CampService) -> None:
+    session, unit, _ = _session(service)
+    service.create_person(
+        ADMIN, session_id=session["id"], unit_id=unit["id"], user_id=2,
+        role="counselor", display_name="Вожатый",
+    )
+    actor = service.get_actor_for_user(2)
+    assert actor is not None
+    with pytest.raises(CampError) as exc:
+        service.ensure_camp_chats(actor)
+    assert exc.value.code == "role_forbidden"

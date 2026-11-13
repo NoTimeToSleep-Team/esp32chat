@@ -78,7 +78,7 @@ pickup/gate, dietary print, parent digest, consent matrix, kiosk create/scan/
 revoke, offline sync replay, report JSON/CSV/HTML, `/camp/status`, and static
 UI files.
 
-## UX/logic refinement (3 rounds)
+## Chat-first redesign (started 2026-11-13)\n\n- Decision after business-logic + improvement: **variant B**, chat as the shell,\n  not another dashboard.\n- `/camp` now serves `camp-chat.html` (dark chat UI, same tokens as `app.css`).\n  Legacy `camp.html/camp.js/camp.css` kept but not routed.\n- New `camp_chat_links` migration `1002_camp_chat.sql`; channel bootstrap:\n  `Персонал` + one `Отряд N` channel per unit, membership from `camp_people`.\n- New APIs: `GET /camp/api/chats`, `POST /camp/api/chats/bootstrap`.\n- First slice: chat list, messages, WebSocket, unit roll-call card in the feed,\n  request/alert/digest/import/gate/dietary sheets, CSV import with preview.\n- Paperwork P0: operator model, separate consents, medical/allergy access,\n  pickup + gate log + offline check, incident log, retention/audit,\n  contract/payment status. Key differentiator: child timeline + consent/pickup.\n- Research memo from general@opencode is still pending; preliminary comparison\n  is in `docs/camp/chat-first.md`.\n\n## UX/logic refinement (3 rounds)
 
 - Round 1 `ab07cc5`: removed the token form, simplified role menus, Russian
   labels, light flat theme, role-scoped counselor lists, alert start/close

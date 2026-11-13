@@ -19,6 +19,8 @@ from typing import Any, Iterable, Mapping
 
 from app.camp import policy
 from app.db.connection import connect_sqlite
+from app.models import ChatDraft
+from app.services.chat import ChatError, ChatService
 
 
 CAMP_ROLES = set(policy.CAMP_ROLES)
@@ -330,6 +332,175 @@ class CampService:
                     "SELECT * FROM camp_units WHERE session_id = ? ORDER BY kind, name",
                     (resolved_session,),
                 ).fetchall()
+            return [dict(row) for row in rows]
+
+    def ensure_camp_chats(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Create the staff channel and one channel per unit.
+
+        Chat membership is derived from camp_people.  The operation is
+        idempotent: existing links are reused and missing members are added.
+        """
+        self._require_role(actor, MANAGE_ROLES)
+        director_user_id = actor.get("user_id")
+        if director_user_id is None:
+            raise CampError("user_required", "Director has no user account", status_code=409)
+
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            units = [
+                dict(row)
+                for row in connection.execute(
+                    "SELECT * FROM camp_units WHERE session_id = ? ORDER BY kind, name",
+                    (resolved_session,),
+                ).fetchall()
+            ]
+            people = [
+                dict(row)
+                for row in connection.execute(
+                    "SELECT * FROM camp_people WHERE session_id = ? AND status = 'active'",
+                    (resolved_session,),
+                ).fetchall()
+            ]
+            existing = {
+                (str(row["scope"]), int(row["unit_id"])): dict(row)
+                for row in connection.execute(
+                    "SELECT * FROM camp_chat_links WHERE session_id = ?",
+                    (resolved_session,),
+                ).fetchall()
+            }
+
+        director_user_id = int(director_user_id)
+        staff_ids = sorted(
+            {
+                int(person["user_id"])
+                for person in people
+                if person.get("user_id") and str(person.get("role")) in STAFF_ROLES
+            }
+            | {director_user_id}
+        )
+        targets: list[tuple[str, int, str, list[int]]] = [
+            ("staff", 0, "Персонал", staff_ids)
+        ]
+        for unit in units:
+            unit_id = int(unit["id"])
+            member_ids = sorted(
+                {
+                    int(person["user_id"])
+                    for person in people
+                    if person.get("user_id")
+                    and int(person.get("unit_id") or 0) == unit_id
+                    and str(person.get("role")) in {"child", "counselor"}
+                }
+                | {director_user_id}
+            )
+            title = str(unit["name"]).strip()
+            if not title.lower().startswith("отряд"):
+                title = f"Отряд {title}"
+            targets.append(("unit", unit_id, title, member_ids))
+
+        chat_service = ChatService(self._db_path)
+        items: list[dict[str, Any]] = []
+        for scope, unit_id, title, member_ids in targets:
+            link = existing.get((scope, unit_id))
+            if link is None:
+                try:
+                    chat = chat_service.create_custom_chat(
+                        creator_user_id=director_user_id,
+                        draft=ChatDraft(
+                            title=title,
+                            description=f"camp:{resolved_session}:{scope}:{unit_id}",
+                        ),
+                        member_ids=member_ids,
+                        require_members=False,
+                    )
+                except ChatError as exc:
+                    raise CampError(
+                        "chat_create_failed",
+                        f"Could not create {title}: {exc.message}",
+                        status_code=exc.status_code,
+                    ) from exc
+                chat_id = int(chat.chat_id)
+                now_ms = _now_ms()
+                with self._connect() as connection:
+                    cursor = connection.execute(
+                        """
+                        INSERT OR IGNORE INTO camp_chat_links(
+                            session_id, unit_id, scope, chat_id, title, created_at_ms
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (resolved_session, unit_id, scope, chat_id, title, now_ms),
+                    )
+                    if cursor.rowcount == 0:
+                        row = connection.execute(
+                            "SELECT chat_id FROM camp_chat_links WHERE session_id = ? AND scope = ? AND unit_id = ?",
+                            (resolved_session, scope, unit_id),
+                        ).fetchone()
+                        chat_id = int(row["chat_id"]) if row else chat_id
+                link = {
+                    "id": 0,
+                    "session_id": resolved_session,
+                    "unit_id": unit_id,
+                    "scope": scope,
+                    "chat_id": chat_id,
+                    "title": title,
+                    "created_at_ms": now_ms,
+                }
+            else:
+                chat_id = int(link["chat_id"])
+
+            for member_id in member_ids:
+                try:
+                    chat_service.add_member(
+                        chat_id=chat_id,
+                        target_user_id=int(member_id),
+                        actor_user_id=director_user_id,
+                    )
+                except ChatError:
+                    # Already a member, blocked, or inactive user.  Existing
+                    # membership is not an error for this idempotent sync.
+                    pass
+            items.append(dict(link))
+
+        return items
+
+    def list_camp_chats(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        role = str(actor.get("role") or "")
+        if role not in STAFF_ROLES and role not in {"child", "parent"}:
+            raise CampError("role_forbidden", "No access to camp chats", status_code=403)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            clauses = ["l.session_id = ?"]
+            params: list[Any] = [resolved_session]
+            if role == "director" or role == "it":
+                pass
+            elif role == "child":
+                clauses.append("l.scope = 'unit' AND l.unit_id = ?")
+                params.append(int(actor.get("unit_id") or 0))
+            elif role == "parent":
+                return []
+            else:
+                clauses.append("(l.scope = 'staff' OR (l.scope = 'unit' AND l.unit_id = ?))")
+                params.append(int(actor.get("unit_id") or 0))
+            rows = connection.execute(
+                f"""
+                SELECT l.*, c.title AS chat_title
+                FROM camp_chat_links l
+                JOIN chats c ON c.id = l.chat_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY CASE WHEN l.scope = 'staff' THEN 0 ELSE 1 END, l.title
+                """,
+                params,
+            ).fetchall()
             return [dict(row) for row in rows]
 
     def get_settings(self, actor: Mapping[str, Any], *, session_id: int | None = None) -> dict[str, Any]:

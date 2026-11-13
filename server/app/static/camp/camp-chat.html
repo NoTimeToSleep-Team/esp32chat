@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e1621">
+  <title>Лагерь · чат</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/camp/camp-chat.css">
+</head>
+<body class="camp-body">
+  <section id="campLogin" class="camp-login">
+    <div class="camp-login-card">
+      <div class="camp-brand-mark">LC</div>
+      <div>
+        <div class="camp-eyebrow">Лагерь</div>
+        <h1>Смена</h1>
+        <p>Войдите, чтобы открыть чат отряда и рабочую панель.</p>
+      </div>
+      <form id="campLoginForm" class="stack">
+        <label>Логин<input id="campLoginName" autocomplete="username" required maxlength="128"></label>
+        <label>Пароль<input id="campLoginPassword" type="password" autocomplete="current-password" required maxlength="512"></label>
+        <button class="btn btn-primary" type="submit">Войти</button>
+      </form>
+      <p id="campLoginError" class="camp-error"></p>
+    </div>
+  </section>
+
+  <div id="campApp" class="camp-shell hidden">
+    <aside id="campSide" class="chat-side camp-side">
+      <div class="camp-side-head">
+        <div class="camp-brand"><span class="camp-brand-mark small">LC</span><div><strong>Лагерь</strong><span id="campSessionName">Смена</span></div></div>
+        <button id="campSideClose" class="mini camp-mobile-only" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="camp-side-actions">
+        <button class="camp-action-pill" type="button" data-action="today">Сегодня</button>
+        <button class="camp-action-pill" type="button" data-action="requests">Заявки <span id="campRequestBadge" class="camp-badge hidden"></span></button>
+        <button class="camp-action-pill danger" type="button" data-action="alerts">Тревоги <span id="campAlertBadge" class="camp-badge danger hidden"></span></button>
+      </div>
+      <div class="camp-chat-label"><span>Чаты</span><button id="campRefreshChats" class="mini" type="button" title="Обновить">↻</button></div>
+      <div id="campChatList" class="chat-list camp-chat-list"></div>
+      <div class="camp-side-foot">
+        <div id="campUserLine" class="camp-user"></div>
+        <button id="campLogout" class="mini" type="button" title="Выйти">Выйти</button>
+      </div>
+    </aside>
+
+    <main class="chat-pane camp-main">
+      <header class="chead camp-chead">
+        <button id="campMenuBtn" class="chat-back camp-mobile-only" type="button" aria-label="Чаты">☰</button>
+        <div class="camp-chat-avatar" id="campChatAvatar">#</div>
+        <div class="chead-info">
+          <div class="t1" id="campChatTitle">Выберите чат</div>
+          <div class="t2" id="campChatSubtitle">Каналы отряда и персонала</div>
+        </div>
+        <div class="spacer"></div>
+        <button id="campContextBtn" class="icon-btn camp-mobile-only" type="button" aria-label="Панель">⋯</button>
+        <button id="campChatAction" class="btn btn-sm btn-outline hidden" type="button">Действие</button>
+      </header>
+      <div id="campMessages" class="msg-list camp-messages"></div>
+      <form id="campComposer" class="comp">
+        <div class="comp-field">
+          <button id="campQuickBtn" class="comp-btn" type="button" title="Действия">＋</button>
+          <textarea id="campInput" rows="1" placeholder="Сообщение в чат…" maxlength="4000"></textarea>
+          <button class="comp-btn send" id="campSend" type="submit" title="Отправить">➤</button>
+        </div>
+        <div id="campComposerHint" class="camp-composer-hint">Enter — отправить, Shift+Enter — новая строка</div>
+      </form>
+    </main>
+
+    <aside id="campContext" class="camp-context">
+      <div class="camp-context-head"><div><div class="camp-eyebrow">Сейчас</div><h2 id="campContextTitle">Сегодня</h2></div><button id="campContextClose" class="mini camp-mobile-only" type="button">×</button></div>
+      <div id="campContextBody" class="camp-context-body"></div>
+      <div class="camp-context-actions" id="campContextActions"></div>
+    </aside>
+  </div>
+
+  <div id="campSheet" class="camp-sheet hidden" role="dialog" aria-modal="true">
+    <div class="camp-sheet-backdrop" data-sheet-close="1"></div>
+    <section class="camp-sheet-panel">
+      <header class="camp-sheet-head"><h2 id="campSheetTitle">Действие</h2><button id="campSheetClose" class="mini" type="button">×</button></header>
+      <div id="campSheetBody" class="camp-sheet-body"></div>
+    </section>
+  </div>
+
+  <div id="campToast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="/static/camp/camp-chat-core.js"></script>
+  <script src="/static/camp/camp-chat-actions.js"></script>
+</body>
+</html>
