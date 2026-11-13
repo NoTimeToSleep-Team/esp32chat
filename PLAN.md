@@ -4,16 +4,16 @@ Source: `D:\opencode\LC_BACKUPS\camp-edition-deep-report-2026-11-13.md`
 Base: `LC_RELEASE` @ `c2a7c53`
 Isolation: this directory only; `LC_RELEASE` and live board untouched.
 
-## Cycle 1 — foundation and safe communication
+## Cycle 1 — foundation and safe communication — DONE
 
-- [ ] `LCS_EDITION=camp` + `/health` edition field
+- [x] `LCS_EDITION=camp` + `/health` edition field
 - [x] migration `1001_camp_core.sql` (all camp tables + five alert playbooks)
-- [ ] `CampService`: sessions, units, people, import preview/commit/merge/transfer/undo
-- [ ] age bands, quiet hours, DM/media/forward policy
-- [ ] counselor request queue (child cannot free-DM staff)
-- [ ] tests: policy + import + request queue
-- [ ] local disposable server smoke
-- [ ] compact + notify room
+- [x] `CampService`: sessions, units, people, import preview/commit/merge/transfer/undo
+- [x] age bands, quiet hours, DM/media/forward policy
+- [x] counselor request queue (child cannot free-DM staff)
+- [x] tests: policy + import + request queue (13 camp tests; 23 unit total pass)
+- [x] local disposable server smoke (`SMOKE_OK`)
+- [x] commit `5a374f5`; compact + notify room
 
 ## Cycle 2 — shift operations
 
