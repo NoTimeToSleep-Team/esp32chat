@@ -93,7 +93,7 @@ UI files.
   `c96c04e`. Remaining noncritical: `roles_json` playbooks is data-only.
 - Verification: `50 passed, 1 skipped`; `compileall`; `node --check`;
   disposable smoke `SMOKE_OK`; `bash -n` + `DRY_RUN=1` for AP scripts.
-- GitHub: pushed local `main` to `github/camp-edition`
+- GitHub: pushed local `main` to `github/camp-edition` at `5dd2e38`
   (https://github.com/NoTimeToSleep-Team/esp32chat/tree/camp-edition).
 
 ## Addendum: local Wi-Fi AP + captive portal
