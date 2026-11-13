@@ -40,6 +40,7 @@ from app.api.moderation import router as moderation_router
 from app.api.realtime import router as realtime_router
 from app.api.support import router as support_router
 from app.api.user_reports import router as user_reports_router
+from app.camp.api import router as camp_router
 from app.config import ConfigError, get_settings
 from app.db import initialize_data_layer
 from app.logging import configure_logging, get_logger, install_runtime_log_filters
@@ -251,6 +252,7 @@ def create_app() -> FastAPI:
                 "/reports/",
                 "/applications/",
                 "/rfid/",
+                "/camp/",
             )
         ):
             response.headers.setdefault("Cache-Control", "no-store")
@@ -418,6 +420,8 @@ def create_app() -> FastAPI:
         app.include_router(sync_router)
     app.include_router(realtime_router)
     app.include_router(health_router)
+    if settings.edition == "camp":
+        app.include_router(camp_router)
 
     @app.get("/", tags=["meta"], response_class=HTMLResponse)
     async def root() -> HTMLResponse:
@@ -436,6 +440,7 @@ def create_app() -> FastAPI:
             "stage": "deploy",
             "status": "bootstrap",
             "profile": settings.profile,
+            "edition": settings.edition,
         }
 
     @app.exception_handler(Exception)

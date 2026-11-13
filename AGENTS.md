@@ -1,39 +1,17 @@
-# Local Chat (esp32chat) — правила работы над проектом
+# Camp Edition — isolated product branch
 
-Этот файл — ближайший контекст для агентов, работающих в папке `D:\opencode\LC_RELEASE`.
-Читается вместе с корневым `D:\opencode\AGENTS.md`.
+This directory is an experimental **Camp Edition** derived from
+`D:\opencode\LC_RELEASE` at `c2a7c53`.
 
-## Железное правило трёх мест
+Rules:
 
-Любая правка кода продукта должна существовать в ТРЁХ местах:
+- Do not modify `D:\opencode\LC_RELEASE` or its live board service.
+- Work only inside `D:\opencode\LC_CAMP_EDITION`.
+- The edition is additive: `server/app/camp/`, `1xxx_camp_*.sql`,
+  `server/app/static/camp/`, camp tests and docs.
+- Keep the core API/chat behavior intact; camp rules live in the camp module.
+- No cloud dependency, no GPS, no face recognition, no AI child companion.
+- Test with a disposable local DB/server only.
 
-1. **Плата** — живой сервер на Raspberry Pi (`/opt/local-chat-server`):
-   после правки задеплоить на плату и проверить (`/health` отвечает, сервис активен).
-2. **Этот компьютер** — локальный репозиторий `D:\opencode\LC_RELEASE`:
-   каждая правка коммитится в `main`.
-3. **GitHub** — `NoTimeToSleep-Team/esp32chat`, ветка `main`:
-   бэкап кода и источник релизов; каждая правка пушится.
-
-Не считай работу сделанной, пока правка не во всех трёх местах.
-
-## Релизы и ветки
-
-- В репозитории только релизы: ветка `main` + теги. Новые ветки не создавать.
-- Порядок релиза: бамп `server/app/version.py` → коммит `release: vX.Y.Z` → тег `vX.Y.Z`
-  → `bash server/scripts/make_release_tarball.sh`
-  → GitHub Release с ассетами `install.sh`, `lc-server-vX.Y.Z.tar.gz`, `.sha256`.
-- Обновление на плате: `sudo lc update` (нужен интернет) либо установка из релизного
-  тарбола вручную.
-- Бэкапы (архивы, выгрузки блога и т.п.) складывать в `D:\opencode\LC_BACKUPS`,
-  а не в отдельные ветки GitHub.
-
-## Доступ к плате
-
-- SSH и заливка файлов — инструменты `C:\Windows\Temp\opencode\lc-ssh.py`
-  и `lc-scp.py` (через линк от этого ПК).
-- Портал — `http://<IP платы>:18080/`; health — `/health`.
-
-## Проверка результата
-
-- После деплоя: `/health` отвечает, версия совпадает, сервис `local-chat-server` активен.
-- UI-проверки — headless Chrome (`lc-shot.mjs`), API-проверки — curl.
+Source report:
+`D:\opencode\LC_BACKUPS\camp-edition-deep-report-2026-11-13.md`

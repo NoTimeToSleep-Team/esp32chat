@@ -16,6 +16,7 @@ _LOG_LEVELS = {"debug", "info", "warning", "error", "critical"}
 @dataclass(frozen=True)
 class Settings:
     profile: str
+    edition: str
     host: str
     port: int
     reload: bool
@@ -115,6 +116,10 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     profile = _read_str(source, "LCS_PROFILE", "dev").lower()
     if profile not in _PROFILES:
         raise ConfigError("LCS_PROFILE must be one of: dev, test, prod")
+
+    edition = _read_str(source, "LCS_EDITION", "camp").lower()
+    if edition not in {"core", "camp"}:
+        raise ConfigError("LCS_EDITION must be one of: core, camp")
 
     host = _read_str(source, "LCS_HOST", "127.0.0.1")
     port = _read_int(source, "LCS_PORT", 8000, min_value=1, max_value=65535)
@@ -230,6 +235,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
 
     return Settings(
         profile=profile,
+        edition=edition,
         host=host,
         port=port,
         reload=reload_enabled,

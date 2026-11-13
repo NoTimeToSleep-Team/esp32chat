@@ -56,6 +56,7 @@ def health(request: Request) -> dict[str, object]:
         "service": "local-chat-server",
         "version": __version__,
         "profile": settings.profile,
+        "edition": settings.edition,
         "features": list(settings.features),
         "timestamp_ms": int(datetime.now(tz=timezone.utc).timestamp() * 1000),
         "uptime_ms": _uptime_ms(request),
@@ -72,6 +73,7 @@ def readiness(request: Request) -> dict[str, object]:
         "status": "ready",
         "service": "local-chat-server",
         "profile": settings.profile,
+        "edition": settings.edition,
         "checks": {
             "config_loaded": True,
             "data_layer_initialized": data_layer is not None,
