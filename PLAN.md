@@ -49,7 +49,19 @@ Isolation: this directory only; `LC_RELEASE` and live board untouched.
   rollcall rollback, BOM removal, wrapper input validation
 - [x] GitHub branch `camp-edition`
 
-### Chat-first redesign (first slice)\n\n- [x] business-logic + improvement chose variant B\n- [x] paperwork P0 memo; key feature: child timeline + consent/pickup\n- [x] research memo pending from general@opencode; preliminary market comparison in\n  `docs/camp/chat-first.md`\n- [x] `/camp` dark chat shell, channels, WS, unit roll-call card\n- [x] staff/unit channel bootstrap and role-scoped chat list\n- [x] request/alert/digest/import/gate/dietary sheets\n- [ ] chat card migration (`kind/payload_json`) for requests/alerts/gate\n- [ ] enforce camp policy in core chat; identity creation from import\n- [ ] legal/medical/consent/pickup audit tables\n\n### Addendum: local Wi-Fi AP + captive portal
+### Chat-first redesign (first slice)
+
+- [x] business-logic + improvement chose variant B
+- [x] paperwork P0 memo; key feature: child timeline + consent/pickup
+- [x] research memo complete: `docs/camp/research-market.md`
+- [x] `/camp` dark chat shell, channels, WS, unit roll-call card
+- [x] staff/unit channel bootstrap and role-scoped chat list
+- [x] request/alert/digest/import/gate/dietary sheets
+- [ ] chat card migration (`kind/payload_json`) for requests/alerts/gate
+- [ ] enforce camp policy in core chat; identity creation from import
+- [ ] legal/medical/consent/pickup audit tables
+
+### Addendum: local Wi-Fi AP + captive portal
 
 - [x] `server/scripts/configure_camp_ap.sh`: `CAMP-CHAT`, **open network**,
   offline, `192.168.50.1`, DHCP, local DNS, optional NAT

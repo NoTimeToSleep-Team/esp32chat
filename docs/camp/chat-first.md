@@ -71,9 +71,9 @@
 
 Не строить: налоги, кассу, эквайринг, зарплату, замену 1С. Нужен обезличенный пример файла и ответ, кто владелец данных.
 
-## Похожие системы: предварительный обзор
+## Похожие системы: обзор research-агента
 
-Полный отчёт research-агента ещё собирается; это краткая рабочая выжимка.
+Полный отчёт: [research-market.md](research-market.md). Ниже — рабочая выжимка.
 
 | Класс | Примеры | Что берём | Чего избегаем |
 |---|---|---|---|
@@ -87,8 +87,8 @@
 Источники для этой выжимки: campminder.com, campbrain.com,
 guideflow.com/blog/camp-management-software, campium.com/blog/top-5-camp-management-software-2025,
 support.campmanagement.com (attendance/authorized pickups), mybrightwheel.com
-(attendance/check-in). Полный отчёт research-агента должен добавить сюда
-Bunk1, CampDoc, Front/Missive и ссылки на конкретные страницы.
+(attendance/check-in). Полный отчёт с Bunk1, CampDoc, Front/Missive и
+конкретными ссылками — в `research-market.md`.
 
 Анти-паттерны:
 
