@@ -80,8 +80,9 @@ UI files.
 
 ## Chat-first redesign (started 2026-11-13)
 
-- Decision after business-logic + improvement: **variant B**, chat as the shell,
-  not another dashboard.
+- Decision: **variant B**, chat as the foundation, not another dashboard.
+- **Do not merge** `/camp` with the main chat. `/camp` is a separate product;
+  reuse the chat base (tokens, layout, feed, composer, WS, auth), not its shell.
 - `/camp` now serves `camp-chat.html` (dark chat UI, same tokens as `app.css`).
   Legacy `camp.html/camp.js/camp.css` kept but not routed.
 - New `camp_chat_links` migration `1002_camp_chat.sql`; channel bootstrap:

@@ -52,6 +52,8 @@ Isolation: this directory only; `LC_RELEASE` and live board untouched.
 ### Chat-first redesign (first slice)
 
 - [x] business-logic + improvement chose variant B
+- [x] **do not merge** `/camp` with the main chat; reuse chat base only
+- [ ] universal config: cards, roles, import mapping, policies
 - [x] paperwork P0 memo; key feature: child timeline + consent/pickup
 - [x] research memo complete: `docs/camp/research-market.md`
 - [x] `/camp` dark chat shell, channels, WS, unit roll-call card
