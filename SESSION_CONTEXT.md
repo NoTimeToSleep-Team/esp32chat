@@ -1,4 +1,4 @@
-# SESSION_CONTEXT — Camp Edition
+﻿# SESSION_CONTEXT — Camp Edition
 
 ## Task
 
@@ -65,7 +65,7 @@ All three cycles are complete.
 ```powershell
 cd D:\opencode\LC_CAMP_EDITION
 .\.venv\Scripts\python.exe -m pytest -q tests\unit
-# 50 passed, 1 skipped
+# 52 passed, 1 skipped
 .\.venv\Scripts\python.exe -m compileall -q server\app
 node --check server/app/static/camp/camp.js
 .\.venv\Scripts\python.exe C:\Windows\Temp\opencode\camp_smoke.py
