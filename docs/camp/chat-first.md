@@ -84,6 +84,12 @@
 
 Общий паттерн рынка: **учёт и формы — в вебе, общение — в отдельном parent app/портале**. Camp Edition может выиграть, если соединит их: канал = место работы, карточка = объект, действие = кнопка в карточке, журнал = аудит.
 
+Источники для этой выжимки: campminder.com, campbrain.com,
+guideflow.com/blog/camp-management-software, campium.com/blog/top-5-camp-management-software-2025,
+support.campmanagement.com (attendance/authorized pickups), mybrightwheel.com
+(attendance/check-in). Полный отчёт research-агента должен добавить сюда
+Bunk1, CampDoc, Front/Missive и ссылки на конкретные страницы.
+
 Анти-паттерны:
 
 - 20 модулей на верхнем уровне;
