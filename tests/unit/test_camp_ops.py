@@ -263,9 +263,10 @@ def test_parent_digest_only_for_linked_child(service: CampService) -> None:
     )
     parent_actor = service.get_actor_for_user(4)
     assert parent_actor is not None
-    items = service.list_digests(parent_actor)
-    assert len(items) == 1
-    assert items[0]["person_id"] == child["id"]
+    assert service.list_digests(parent_actor) == []
 
     sent = service.mark_digest_sent(ADMIN, person_id=child["id"], date="2026-11-13")
     assert sent["sent_at_ms"] is not None
+    items = service.list_digests(parent_actor)
+    assert len(items) == 1
+    assert items[0]["person_id"] == child["id"]

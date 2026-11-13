@@ -3,6 +3,8 @@ const state = {
   me: null,
   panel: null,
   verified: null,
+  importPreview: null,
+  importBatch: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -57,6 +59,11 @@ const ERROR_TEXT = {
   role_forbidden: "У вас нет доступа к этому действию.",
   guardian_forbidden: "Это чужой ребёнок.",
   attendance_closed: "Перекличка уже закрыта.",
+  pickup_restricted: "У этого ребёнка есть ограничение на выдачу. Проверьте взрослого и документ.",
+  movement_conflict: "Ребёнок уже в этом состоянии. Проверьте журнал ворот.",
+  alert_forbidden: "Тревогу может запустить директор или охрана. Медик — только медицинскую.",
+  unit_forbidden: "Этот отряд не ваш.",
+  invalid_kind: "Неподходящий тип действия.",
 };
 
 function tr(group, value) {
@@ -65,6 +72,15 @@ function tr(group, value) {
 
 function roleName(value) {
   return tr("role", value);
+}
+
+function alertTitle(kind, title = "") {
+  const names = {
+    missing_child: "Пропал ребёнок", evacuation: "Эвакуация",
+    medical: "Медицинская тревога", intruder: "Посторонний",
+    lockdown: "Полная изоляция",
+  };
+  return names[kind] || title || kind;
 }
 
 function tone(group, value) {
@@ -109,6 +125,33 @@ function fromInput(value) {
   if (!value) return null;
   const parsed = new Date(value).getTime();
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parsePeopleCsv(text) {
+  const lines = String(text || "").trim().split(/\r?\n/).filter((line) => line.trim());
+  if (!lines.length) return [];
+  const headers = lines.shift().split(",").map((value) => value.trim());
+  return lines.map((line) => {
+    const values = line.split(",").map((value) => value.trim());
+    const row = Object.fromEntries(headers.map((header, index) => [header, values[index] || ""]));
+    const roleAliases = {
+      "ребёнок": "child", "ребенок": "child", "вожатый": "counselor",
+      "директор": "director", "охрана": "security", "медик": "medic",
+      "родитель": "parent", "кухня": "kitchen", "техник": "it",
+    };
+    if (row.role) row.role = roleAliases[row.role.toLowerCase()] || row.role;
+    return row;
+  }).filter((row) => row.display_name);
+}
+
+function timeToMinutes(value) {
+  const [hours, minutes] = String(value || "0:0").split(":").map(Number);
+  return Math.max(0, Math.min(1439, (hours || 0) * 60 + (minutes || 0)));
+}
+
+function minutesToTime(value) {
+  const total = Math.max(0, Math.min(1439, Number(value || 0)));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 function toast(message, isError = false) {
@@ -195,7 +238,7 @@ function navItems() {
     return [["rollcall", "Перекличка"], ["requests", "Заявки"], ["duty", "Передача"], ["digest", "Дневник"], ["scan", "Отметки"]];
   }
   if (r === "director") {
-    return [["overview", "Сегодня"], ["rollcall", "Перекличка"], ["alerts", "Тревоги"], ["gate", "Ворота"], ["dietary", "Питание"], ["digest", "Дневник"], ["report", "Отчёт"], ["settings", "Настройки"]];
+    return [["prepare", "Подготовка"], ["overview", "Сегодня"], ["rollcall", "Перекличка"], ["alerts", "Тревоги"], ["gate", "Ворота"], ["dietary", "Питание"], ["digest", "Дневник"], ["report", "Отчёт"], ["settings", "Настройки"]];
   }
   if (r === "security") {
     return [["gate", "Ворота"], ["scan", "Отметки"], ["alerts", "Тревоги"], ["zones", "Зоны"]];
@@ -262,6 +305,7 @@ async function openPanel(id) {
   panel.innerHTML = `<div class="notice">Загрузка…</div>`;
   try {
     const renderers = {
+      prepare: renderPrepare,
       overview: renderOverview,
       day: renderDay,
       rollcall: renderRollcall,
@@ -302,6 +346,103 @@ async function people(roleNameFilter = "") {
   return data.items || [];
 }
 
+﻿async function renderPrepare(panel) {
+  const sessions = (await api("/camp/api/sessions")).items || [];
+  const current = state.me.current_session
+    || sessions.find((item) => item.status === "active")
+    || sessions.find((item) => item.status === "planned")
+    || sessions[0];
+  const [units, children, parents, settings] = current
+    ? await Promise.all([
+      api("/camp/api/units").then((data) => data.items || []),
+      people("child"),
+      people("parent"),
+      api("/camp/api/settings").then((data) => data.item).catch(() => null),
+    ])
+    : [[], [], [], null];
+  panel.innerHTML = `${header("Подготовка смены", "Смена, отряды, дети и родители.")}
+    <div class="split">
+      <section class="card"><h3>Смена</h3>
+        <p class="muted">${current ? `Текущая: ${esc(current.name)} · ${tr("session_status", current.status)}` : "Смена ещё не создана."}</p>
+        <form id="sessionForm" class="stack">
+          <label>Название<input id="sessionName" required maxlength="200" value="${current ? esc(current.name) : ""}" placeholder="Летняя смена 2026"></label>
+          <div class="row"><label class="grow">Начало<input id="sessionStart" type="date" value="${current ? new Date(current.starts_at_ms).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)}"></label><label class="grow">Конец<input id="sessionEnd" type="date" value="${current ? new Date(current.ends_at_ms).toISOString().slice(0, 10) : new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}"></label></div>
+          <button class="button primary" type="submit">${current ? "Создать ещё одну смену" : "Создать смену"}</button>
+        </form>
+        ${table(["Смена", "Статус", "Начало", "Конец"], sessions.map((item) => [esc(item.name), stateBadge("session_status", item.status), fmtDate(item.starts_at_ms), fmtDate(item.ends_at_ms)]))}
+      </section>
+      <section class="card"><h3>Отряды</h3>
+        ${current ? `<form id="unitForm" class="row"><label class="grow">Название<input id="unitName" required maxlength="120" placeholder="Отряд 1"></label><label>Тип<select id="unitKind">${Object.entries(LABELS.unit_kind).map(([value, label]) => `<option value="${value}">${esc(label)}</option>`).join("")}</select></label><button class="button primary" type="submit">Добавить</button></form>` : `<div class="notice">Сначала создайте смену.</div>`}
+        ${table(["Отряд", "Тип"], units.map((unit) => [esc(unit.name), esc(tr("unit_kind", unit.kind))]))}
+      </section>
+    </div>
+    ${current ? `<section class="card" style="margin-top:12px"><h3>Импорт детей</h3>
+      <p class="muted">CSV: display_name, role, birth_date, unit_name, badge_code, room. Сначала проверьте, потом импортируйте.</p>
+      <textarea id="importText" style="min-height:110px">display_name,role,birth_date,unit_name,badge_code,room
+Аня,ребёнок,2014-05-12,Отряд 1,CAMP-001,101</textarea>
+      <div class="actions" style="margin-top:8px"><button class="button primary" id="previewImport" type="button">Проверить</button><button class="button" id="commitImport" type="button" disabled>Импортировать</button><button class="button" id="undoImport" type="button" disabled>Отменить импорт</button></div>
+      <div id="importResult" style="margin-top:10px"></div>
+    </section>
+    <section class="card" style="margin-top:12px"><h3>Родители</h3>
+      ${parents.length && children.length ? `<form id="guardianForm" class="row"><label class="grow">Ребёнок<select id="guardianChild">${options(children, "id", "display_name")}</select></label><label class="grow">Родитель<select id="guardianParent">${options(parents, "id", "display_name")}</select></label><label class="grow">Кем является<input id="guardianRelation" maxlength="120" placeholder="мама"></label><button class="button primary" type="submit">Привязать</button></form>` : `<div class="notice">Добавьте детей и родителей, чтобы привязать их друг к другу.</div>`}
+    </section>
+    <section class="card" style="margin-top:12px"><h3>Тихие часы</h3>
+      ${settings ? `<form id="quietForm" class="row"><label class="grow">Начало<input id="quietStart" type="time" value="${minutesToTime(settings.quiet_start_minutes)}"></label><label class="grow">Конец<input id="quietEnd" type="time" value="${minutesToTime(settings.quiet_end_minutes)}"></label><button class="button primary" type="submit">Сохранить</button></form>` : `<div class="notice">Настройки появятся после создания смены.</div>`}
+    </section>` : ""}`;
+  $("#sessionForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const start = fromInput($("#sessionStart").value) || Date.now();
+    const end = (fromInput($("#sessionEnd").value) || start + 14 * 86400000) + 86400000 - 1;
+    try {
+      await api("/camp/api/sessions", { method: "POST", body: { name: $("#sessionName").value, starts_at_ms: start, ends_at_ms: end, status: "active" } });
+      toast("Смена создана"); await openPanel("prepare");
+    } catch (error) { toast(humanError(error), true); }
+  });
+  if ($("#unitForm")) $("#unitForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try { await api("/camp/api/units", { method: "POST", body: { session_id: current.id, name: $("#unitName").value, kind: $("#unitKind").value } }); toast("Отряд добавлен"); await openPanel("prepare"); }
+    catch (error) { toast(humanError(error), true); }
+  });
+  if ($("#previewImport")) $("#previewImport").addEventListener("click", async () => {
+    try {
+      const rows = parsePeopleCsv($("#importText").value);
+      if (!rows.length) { toast("Добавьте хотя бы одного ребёнка", true); return; }
+      const preview = await api("/camp/api/import/preview", { method: "POST", body: { session_id: current.id, rows } });
+      state.importPreview = preview;
+      const errors = preview.errors || [];
+      $("#importResult").innerHTML = `<div class="notice">Строк: ${preview.summary?.rows ?? rows.length}; ошибок: ${preview.summary?.errors ?? errors.length}; дублей: ${preview.summary?.duplicates ?? 0}</div>${errors.length ? `<ul>${errors.slice(0, 8).map((error) => `<li>Строка ${error.row}: ${esc(error.code)}</li>`).join("")}</ul>` : ""}`;
+      $("#commitImport").disabled = Boolean(errors.length);
+    } catch (error) { toast(humanError(error), true); }
+  });
+  if ($("#commitImport")) $("#commitImport").addEventListener("click", async () => {
+    if (!state.importPreview) return;
+    try {
+      const result = await api("/camp/api/import/commit", { method: "POST", body: { session_id: current.id, rows: state.importPreview.rows || [] } });
+      state.importBatch = result.batch_id;
+      $("#undoImport").disabled = false;
+      toast(`Импортировано: ${result.count}`);
+      await openPanel("prepare");
+    } catch (error) { toast(humanError(error), true); }
+  });
+  if ($("#undoImport")) $("#undoImport").addEventListener("click", async () => {
+    if (!state.importBatch) return;
+    if (!window.confirm("Отменить последний импорт?")) return;
+    try { await api(`/camp/api/import/${state.importBatch}/undo`, { method: "POST" }); toast("Импорт отменён"); state.importBatch = null; await openPanel("prepare"); }
+    catch (error) { toast(humanError(error), true); }
+  });
+  if ($("#guardianForm")) $("#guardianForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try { await api("/camp/api/guardians", { method: "POST", body: { person_id: Number($("#guardianChild").value), parent_person_id: Number($("#guardianParent").value), relationship: $("#guardianRelation").value } }); toast("Родитель привязан"); await openPanel("prepare"); }
+    catch (error) { toast(humanError(error), true); }
+  });
+  if ($("#quietForm")) $("#quietForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try { await api("/camp/api/settings", { method: "PATCH", body: { quiet_start_minutes: timeToMinutes($("#quietStart").value), quiet_end_minutes: timeToMinutes($("#quietEnd").value) } }); toast("Тихие часы сохранены"); }
+    catch (error) { toast(humanError(error), true); }
+  });
+}
+
+
 async function renderOverview(panel) {
   const report = (await api("/camp/api/report")).item;
   const token = state.token;
@@ -315,10 +456,8 @@ async function renderOverview(panel) {
     </section>
     ${metrics([
       ["Дети", report.people.children],
-      ["Сотрудники", report.people.staff],
       ["Новые заявки", report.requests.open || 0],
       ["Открытые тревоги", report.alerts.open || 0],
-      ["Отметки", report.scans.total],
       ["Сейчас вне лагеря", report.movements.currently_out],
     ])}
     <section class="card" style="margin-top:12px">
@@ -376,16 +515,19 @@ async function renderRequests(panel) {
       ${item.status === "open" ? `<button class="button small" data-claim="${item.id}">Взять</button>` : ""}
       ${canClose ? `<button class="button small" data-close="${item.id}">Закрыть</button>` : ""}
     </div>`;
+    if (child) {
+      return [esc(tr("request_kind", item.kind)), stateBadge("request_status", item.status), esc(item.note || ""), fmtTime(item.created_at_ms)];
+    }
     return [
-      child ? esc(tr("request_kind", item.kind)) : `<strong>${esc(item.child_name || item.child_id)}</strong>`,
-      child ? "" : esc(item.unit_name || "—"),
+      `<strong>${esc(item.child_name || item.child_id)}</strong>`,
+      esc(item.unit_name || "—"),
       stateBadge("request_status", item.status),
       esc(item.note || ""),
       fmtTime(item.created_at_ms),
       actions,
     ];
   });
-  const headers = child ? ["Тема", "", "Статус", "Комментарий", "Создана", ""] : ["Ребёнок", "Отряд", "Статус", "Комментарий", "Создана", ""];
+  const headers = child ? ["Тема", "Статус", "Комментарий", "Создана"] : ["Ребёнок", "Отряд", "Статус", "Комментарий", "Создана", ""];
   panel.innerHTML = `${header(child ? "Мои заявки" : "Заявки", child ? "Здесь видно, что происходит с вашей заявкой." : "Сначала возьмите заявку, потом закрывайте.")}
     ${table(headers, rows, child ? "Заявок пока нет." : "Очередь пуста.")}`;
   panel.querySelectorAll("[data-claim]").forEach((button) => button.addEventListener("click", async () => {
@@ -427,12 +569,12 @@ async function renderRollcall(panel) {
       const rows = items.map((item) => [
         `<strong>${esc(item.display_name)}</strong>`,
         esc(item.badge_code || "—"),
-        `<select data-event="${event.id}" data-person="${item.id}" class="mark-select">
+        `<select data-event="${event.id}" data-person="${item.id}" data-current="${esc(item.mark_status || "")}" class="mark-select">
           <option value="">Не отмечен</option>
           ${["present", "absent", "sick", "medic", "parent", "left"].map((value) => `<option value="${value}" ${item.mark_status === value ? "selected" : ""}>${esc(tr("attendance_status", value))}</option>`).join("")}
         </select>`,
       ]);
-      return `<details ${event.status === "open" ? "open" : ""}><summary>${esc(event.unit_name)} · ${esc(event.kind === "lights_out" ? "Отбой" : "Перекличка")} · ${stateBadge("attendance_event_status", event.status)} · ${event.summary.marked}/${event.summary.total}${event.overdue ? ` · ${badge("Просрочено", "danger")}` : ""}</summary>
+      return `<details ${event.status === "open" ? "open" : ""}><summary>${esc(event.unit_name)} · ${esc(event.kind === "lights_out" ? "Отбой" : "Перекличка")} · ${stateBadge("attendance_event_status", event.status)} · <span id="att-count-${event.id}" data-marked="${event.summary.marked}" data-total="${event.summary.total}">${event.summary.marked}/${event.summary.total}</span>${event.overdue ? ` · ${badge("Просрочено", "danger")}` : ""}</summary>
         <div class="actions" style="margin:8px 0">
           ${event.status === "open" ? `<button class="button primary" data-all="${event.id}">Все на месте</button><button class="button" data-close-attendance="${event.id}">Закрыть</button><button class="button" data-force-close="${event.id}">Закрыть с причиной</button>` : ""}
         </div>
@@ -451,9 +593,17 @@ async function renderRollcall(panel) {
   });
   panel.querySelectorAll(".mark-select").forEach((select) => select.addEventListener("change", async () => {
     if (!select.value) return;
+    const previous = select.dataset.current || "";
     try {
       await api(`/camp/api/attendance/events/${select.dataset.event}/marks`, { method: "POST", body: { person_id: Number(select.dataset.person), status: select.value } });
-      await openPanel("rollcall");
+      select.dataset.current = select.value;
+      const counter = document.getElementById(`att-count-${select.dataset.event}`);
+      if (counter) {
+        const delta = (select.value ? 1 : 0) - (previous ? 1 : 0);
+        const marked = Math.max(0, Number(counter.dataset.marked || 0) + delta);
+        counter.dataset.marked = String(marked);
+        counter.textContent = `${marked}/${counter.dataset.total}`;
+      }
     } catch (error) { toast(humanError(error), true); }
   }));
   panel.querySelectorAll("[data-all]").forEach((button) => button.addEventListener("click", async () => {
@@ -481,9 +631,9 @@ async function renderRollcall(panel) {
   }));
 }
 
-async function startAlert(kind, drill) {
+async function startAlert(kind, drill, title = "") {
   if (!kind) return;
-  if (!window.confirm(`Запустить «${kind}»?`)) return;
+  if (!window.confirm(`Запустить «${title || kind}»?`)) return;
   if (!drill && !window.confirm("Это реальная тревога, а не учение. Запустить?")) return;
   await api("/camp/api/alerts", { method: "POST", body: { kind, drill } });
   toast(drill ? "Учение запущено" : "Тревога запущена");
@@ -494,13 +644,13 @@ async function renderAlerts(panel) {
   const [alertsData, playbooksData] = await Promise.all([
     api("/camp/api/alerts?limit=50"), api("/camp/api/alert-playbooks"),
   ]);
-  const alerts = alertsData.items || [];
-  const playbooks = playbooksData.items || [];
+  const alerts = (alertsData.items || []).map((alert) => ({ ...alert, display_title: alertTitle(alert.kind, alert.title) }));
+  const playbooks = (playbooksData.items || []).map((playbook) => ({ ...playbook, display_title: alertTitle(playbook.kind, playbook.title) }));
   const canStart = ["director", "security"].includes(role());
   const medicalOnly = role() === "medic";
   panel.innerHTML = `${header("Тревоги", "Сначала подтвердите, что видите тревогу. Закрывает директор или охрана.")}
     ${canStart ? `<section class="card" style="margin-bottom:12px"><form id="alertForm" class="row">
-      <label class="grow">Что случилось<select id="alertKind">${options(playbooks, "kind", "title")}</select></label>
+      <label class="grow">Что случилось<select id="alertKind">${options(playbooks, "kind", "display_title")}</select></label>
       <label class="check"><input id="alertDrill" type="checkbox"> Учение</label>
       <button class="button danger" type="submit">Запустить</button>
     </form></section>` : ""}
@@ -510,7 +660,7 @@ async function renderAlerts(panel) {
       let nextStep = (alert.steps || []).findIndex((_, index) => !mine.has(index));
       if (nextStep < 0) nextStep = 0;
       const canClose = ["director", "security"].includes(role()) || alert.created_by === actorId();
-      return `<details ${alert.status !== "closed" ? "open" : ""}><summary>${esc(alert.title)} · ${stateBadge("alert_status", alert.status)} ${alert.drill ? badge("Учение") : ""}</summary>
+      return `<details ${alert.status !== "closed" ? "open" : ""}><summary>${esc(alert.display_title)} · ${stateBadge("alert_status", alert.status)} ${alert.drill ? badge("Учение") : ""}</summary>
         <p class="muted">Запустил: ${esc(alert.created_by_login || "—")} · ${fmtTime(alert.created_at_ms)}</p>
         <ol>${(alert.steps || []).map((step) => `<li>${esc(step.step || step)}</li>`).join("")}</ol>
         <p class="muted">Подтвердили: ${alert.ack_count || 0} · ${(alert.acks || []).map((ack) => esc(ack.display_name)).join(", ") || "никто"}</p>
@@ -522,11 +672,13 @@ async function renderAlerts(panel) {
     }).join("") || `<div class="notice">Тревог нет.</div>`}</div>`;
   if ($("#alertForm")) $("#alertForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    try { await startAlert($("#alertKind").value, $("#alertDrill").checked); }
+    const select = $("#alertKind");
+    const title = select.selectedOptions[0]?.textContent || select.value;
+    try { await startAlert(select.value, $("#alertDrill").checked, title); }
     catch (error) { toast(humanError(error), true); }
   });
   if ($("#medicalAlert")) $("#medicalAlert").addEventListener("click", async () => {
-    try { await startAlert("medical", false); } catch (error) { toast(humanError(error), true); }
+    try { await startAlert("medical", false, "Медицинская тревога"); } catch (error) { toast(humanError(error), true); }
   });
   panel.querySelectorAll("[data-ack]").forEach((button) => button.addEventListener("click", async () => {
     try { await api(`/camp/api/alerts/${button.dataset.ack}/ack`, { method: "POST", body: { step_index: Number(button.dataset.step) } }); toast("Шаг подтверждён"); await openPanel("alerts"); }
@@ -541,13 +693,13 @@ async function renderAlerts(panel) {
 }
 
 async function renderDuty(panel) {
-  const [shiftsData, handoversData, staff] = await Promise.all([
-    api("/camp/api/duty"), api("/camp/api/handovers?limit=50"), people(),
+  const [shiftsData, handoversData, staffData] = await Promise.all([
+    api("/camp/api/duty"), api("/camp/api/handovers?limit=50"), api("/camp/api/staff"),
   ]);
   const shifts = shiftsData.items || [];
   const handovers = handoversData.items || [];
   const canManageShifts = role() === "director";
-  const staffWithUser = staff.filter((item) => item.user_id && ["counselor", "director", "security", "medic", "it", "kitchen"].includes(item.role));
+  const staffWithUser = (staffData.items || []).filter((item) => item.user_id);
   const staffById = Object.fromEntries(staffWithUser.map((item) => [String(item.user_id), item]));
   const now = Date.now();
   const current = shifts.filter((shift) => Number(shift.starts_at_ms) <= now && Number(shift.ends_at_ms) >= now);
@@ -642,9 +794,10 @@ async function renderGate(panel) {
     try {
       const result = await api(`/camp/api/pickup/verify?qr_code=${encodeURIComponent($("#verifyCode").value)}`);
       state.verified = result.item;
-      $("#verifyResult").innerHTML = `<div class="notice" style="margin-top:10px"><strong>${esc(result.item.display_name)}</strong> · ${esc(result.item.unit_name || "—")}<br>Взрослый: ${esc(result.item.adult_name)}<br>Ограничения: ${esc(result.item.restrictions || "нет")}<div class="actions" style="margin-top:8px"><button class="button primary" id="releaseOut">Выпустить</button><button class="button" id="releaseIn">Вернуть</button></div></div>`;
-      $("#releaseOut").addEventListener("click", () => recordVerifiedMovement("out"));
-      $("#releaseIn").addEventListener("click", () => recordVerifiedMovement("in"));
+      const outside = Boolean(result.item.currently_out);
+      const nextDirection = outside ? "in" : "out";
+      $("#verifyResult").innerHTML = `<div class="notice" style="margin-top:10px"><strong>${esc(result.item.display_name)}</strong> · ${esc(result.item.unit_name || "—")}<br>Взрослый: ${esc(result.item.adult_name)}<br>Ограничения: ${esc(result.item.restrictions || "нет")}<br>Сейчас: <strong>${outside ? "вне лагеря" : "в лагере"}</strong><div class="actions" style="margin-top:8px"><button class="button primary" id="releaseBtn">${outside ? "Вернуть" : "Выпустить"}</button></div></div>`;
+      $("#releaseBtn").addEventListener("click", () => recordVerifiedMovement(nextDirection));
     } catch (error) { toast(humanError(error), true); }
   });
   $("#pickupForm").addEventListener("submit", async (event) => {
@@ -856,8 +1009,8 @@ async function renderNetwork(panel) {
 async function renderStatus(panel) {
   const status = await fetch("/camp/status", { headers: { Accept: "application/json" } }).then((response) => response.json());
   panel.innerHTML = `${header("Состояние", "Проверка базы и диска.")}
-    ${metrics([["Состояние", status.status === "ok" ? "В норме" : "Есть проблемы"], ["База", status.checks.db_read ? "Читается" : "Ошибка"], ["Запись", status.checks.db_write ? "Работает" : "Ошибка"], ["Диск, МБ", status.checks.disk_free_mb], ["Часы, мс", status.checks.clock_skew_ms], ["Терминалы", status.kiosks.stale]])}
-    <section class="card" style="margin-top:12px"><h3>Резервная копия</h3><p class="muted">Сделайте копию базы перед сменой и храните её отдельно от планшета.</p><p class="muted">Проверка базы: ${esc(status.checks.db_quick_check)} · Смен: ${esc(status.sessions.active)}</p></section>`;
+    ${metrics([["Состояние", status.status === "ok" ? "В норме" : "Есть проблемы"], ["База", status.checks.db_read ? "Читается" : "Ошибка"], ["Запись", status.checks.db_write ? "Работает" : "Ошибка"], ["Диск, МБ", status.checks.disk_free_mb], ["Расхождение часов, мс", status.checks.clock_skew_ms], ["Терминалы без связи", status.kiosks.stale]])}
+    <section class="card" style="margin-top:12px"><h3>Резервная копия</h3><p class="muted">Сделайте копию базы перед сменой и храните её отдельно от планшета.</p><p class="muted">Проверка базы: ${status.checks.db_quick_check === "ok" ? "в норме" : esc(status.checks.db_quick_check)} · Активных смен: ${esc(status.sessions.active)}</p></section>`;
 }
 
 async function renderChildren(panel) {

@@ -578,6 +578,31 @@ class CampService:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def list_staff(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        role = str(actor.get("role") or "")
+        if role not in STAFF_ROLES:
+            raise CampError("role_forbidden", "No access to staff", status_code=403)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            rows = connection.execute(
+                """
+                SELECT p.id, p.user_id, p.display_name, p.role, p.unit_id,
+                       u.name AS unit_name
+                FROM camp_people p
+                LEFT JOIN camp_units u ON u.id = p.unit_id
+                WHERE p.session_id = ? AND p.status = 'active'
+                  AND p.role IN ('counselor', 'director', 'security', 'medic', 'it', 'kitchen')
+                ORDER BY p.role, p.display_name COLLATE NOCASE
+                """,
+                (resolved_session,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     def get_person(self, actor: Mapping[str, Any], person_id: int) -> dict[str, Any]:
         with self._connect() as connection:
             row = connection.execute(
@@ -2222,7 +2247,19 @@ class CampService:
             if row is None:
                 raise CampError("pickup_not_found", "Pickup authorisation not found", status_code=404)
             self._guard_session(actor, int(row["session_id"]))
-            return dict(row)
+            payload = dict(row)
+            last = connection.execute(
+                """
+                SELECT direction, at_ms FROM camp_movements
+                WHERE person_id = ?
+                ORDER BY at_ms DESC, id DESC
+                LIMIT 1
+                """,
+                (int(row["person_id"]),),
+            ).fetchone()
+            payload["currently_out"] = bool(last and last["direction"] == "out")
+            payload["last_movement_at_ms"] = int(last["at_ms"]) if last else None
+            return payload
 
     def record_movement(
         self,
@@ -2630,9 +2667,14 @@ class CampService:
                     "d.person_id IN (SELECT person_id FROM camp_guardians WHERE parent_person_id = ?)"
                 )
                 params.append(actor.get("camp_person_id"))
+                clauses.append("d.sent_at_ms IS NOT NULL")
             elif role == "child":
                 clauses.append("d.person_id = ?")
                 params.append(actor.get("camp_person_id"))
+                clauses.append("d.sent_at_ms IS NOT NULL")
+            elif role == "counselor":
+                clauses.append("p.unit_id = ?")
+                params.append(actor.get("unit_id"))
             rows = connection.execute(
                 f"""
                 SELECT d.*, p.display_name, p.badge_code, u.name AS unit_name

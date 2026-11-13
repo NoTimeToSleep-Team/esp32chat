@@ -218,3 +218,124 @@ def test_status_reports_network_settings(service: CampService, monkeypatch) -> N
     assert status["network"]["internet"] is True
     assert status["network"]["open"] is False
     assert status["network"]["security"] == "WPA2-PSK"
+
+def test_counselor_scope_and_staff_handover(service: CampService) -> None:
+    session, unit_a, child_a = _session(service)
+    unit_b = service.create_unit(ADMIN, session_id=session["id"], name="Squad B")
+    child_b = service.create_person(
+        ADMIN,
+        session_id=session["id"],
+        unit_id=unit_b["id"],
+        role="child",
+        age_band="10_13",
+        display_name="Боря",
+    )
+    service.create_person(
+        ADMIN,
+        session_id=session["id"],
+        unit_id=unit_a["id"],
+        user_id=2,
+        role="counselor",
+        display_name="Вожатый A",
+    )
+    service.create_person(
+        ADMIN,
+        session_id=session["id"],
+        unit_id=unit_b["id"],
+        user_id=3,
+        role="counselor",
+        display_name="Вожатый B",
+    )
+    service.create_person(
+        ADMIN,
+        session_id=session["id"],
+        user_id=1,
+        role="director",
+        display_name="Директор",
+    )
+    actor_a = service.get_actor_for_user(2)
+    actor_b = service.get_actor_for_user(3)
+    assert actor_a is not None and actor_b is not None
+
+    assert [unit["id"] for unit in service.list_units(actor_a)] == [unit_a["id"]]
+    visible_people = service.list_people(actor_a)
+    assert child_a["id"] in {person["id"] for person in visible_people}
+    assert child_b["id"] not in {person["id"] for person in visible_people}
+    assert all(person["unit_id"] == unit_a["id"] for person in visible_people)
+    staff = service.list_staff(actor_a)
+    assert {person["role"] for person in staff} >= {"director", "counselor"}
+
+    event_a = service.create_attendance_event(ADMIN, session_id=session["id"], unit_id=unit_a["id"])
+    event_b = service.create_attendance_event(ADMIN, session_id=session["id"], unit_id=unit_b["id"])
+    assert [event["id"] for event in service.list_attendance_events(actor_a)] == [event_a["id"]]
+
+
+def test_alert_permissions_are_role_based(service: CampService) -> None:
+    session, unit, _ = _session(service)
+    service.create_person(
+        ADMIN, session_id=session["id"], user_id=4, role="kitchen", display_name="Повар"
+    )
+    service.create_person(
+        ADMIN, session_id=session["id"], user_id=5, role="medic", display_name="Медик"
+    )
+    kitchen = service.get_actor_for_user(4)
+    medic = service.get_actor_for_user(5)
+    assert kitchen is not None and medic is not None
+
+    with pytest.raises(CampError) as kitchen_exc:
+        service.start_alert(kitchen, kind="missing_child")
+    assert kitchen_exc.value.code == "alert_forbidden"
+
+    with pytest.raises(CampError) as medic_exc:
+        service.start_alert(medic, kind="lockdown")
+    assert medic_exc.value.code == "alert_forbidden"
+
+    assert service.start_alert(medic, kind="medical")["kind"] == "medical"
+    assert service.start_alert(ADMIN, kind="missing_child")["kind"] == "missing_child"
+
+
+def test_digest_scope_and_sent_filter(service: CampService) -> None:
+    session, unit_a, child_a = _session(service)
+    unit_b = service.create_unit(ADMIN, session_id=session["id"], name="Squad B")
+    child_b = service.create_person(
+        ADMIN,
+        session_id=session["id"],
+        unit_id=unit_b["id"],
+        role="child",
+        age_band="10_13",
+        display_name="Боря",
+    )
+    service.create_person(
+        ADMIN, session_id=session["id"], unit_id=unit_a["id"], user_id=2,
+        role="counselor", display_name="Вожатый A",
+    )
+    actor_a = service.get_actor_for_user(2)
+    assert actor_a is not None
+    service.upsert_digest(ADMIN, person_id=child_a["id"], date="2026-11-13", text="A")
+    service.upsert_digest(ADMIN, person_id=child_b["id"], date="2026-11-13", text="B")
+    service.mark_digest_sent(ADMIN, person_id=child_a["id"], date="2026-11-13")
+    service.mark_digest_sent(ADMIN, person_id=child_b["id"], date="2026-11-13")
+    items = service.list_digests(actor_a)
+    assert [item["person_id"] for item in items] == [child_a["id"]]
+
+
+def test_pickup_verify_reports_movement_state(service: CampService) -> None:
+    session, _, child = _session(service)
+    auth = service.create_pickup_auth(
+        ADMIN,
+        person_id=child["id"],
+        adult_name="Мама",
+        relationship="mother",
+        restrictions="Только мама",
+    )
+    assert service.verify_pickup(ADMIN, qr_code=auth["qr_code"])["currently_out"] is False
+    service.record_movement(
+        ADMIN,
+        person_id=child["id"],
+        direction="out",
+        qr_code=auth["qr_code"],
+        override_reason="Проверен документ",
+    )
+    payload = service.verify_pickup(ADMIN, qr_code=auth["qr_code"])
+    assert payload["currently_out"] is True
+    assert payload["restrictions"] == "Только мама"

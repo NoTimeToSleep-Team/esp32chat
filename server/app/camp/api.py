@@ -389,6 +389,20 @@ def list_people(
     return {"status": "ok", "count": len(items), "items": items}
 
 
+@router.get("/api/staff")
+def list_staff(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        items = _service(request).list_staff(actor, session_id=session_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "count": len(items), "items": items}
+
+
 @router.get("/api/people/{person_id}")
 def get_person(
     request: Request,
