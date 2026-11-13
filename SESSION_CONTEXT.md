@@ -78,23 +78,46 @@ pickup/gate, dietary print, parent digest, consent matrix, kiosk create/scan/
 revoke, offline sync replay, report JSON/CSV/HTML, `/camp/status`, and static
 UI files.
 
-## Addendum: local Wi-Fi AP
+## Addendum: local Wi-Fi AP + captive portal
 
 The app itself cannot broadcast Wi-Fi; added a host-side AP setup for the Pi:
 
-- `server/scripts/configure_camp_ap.sh` — camp defaults (`CAMP-CHAT`, WPA2,
-  `192.168.50.1`, DHCP `.50–.150`, offline, local DNS/captive portal).
-- `server/scripts/configure_pi_ap_nat.sh` — new `AP_NAT_ENABLED=0`,
+- `server/scripts/configure_camp_ap.sh` — camp defaults (`CAMP-CHAT`, **open
+  network, no password**, `192.168.50.1`, DHCP `.50–.150`, offline, local DNS).
+- `server/scripts/camp_captive_portal.py` — port 80 responder; every HTTP
+  request returns `302` to `http://192.168.50.1:18080/camp`; `/healthz` = 204.
+- `configure_camp_ap.sh` installs/enables `camp-captive-portal.service`; no
+  manual IP URL is needed on a phone (standard captive-portal sheet).
+- `configure_pi_ap_nat.sh` — new `AP_OPEN` (open/WPA2), `AP_NAT_ENABLED=0`,
   `AP_DNS_SERVERS`, `AP_DNS_WILDCARD` offline mode; defaults unchanged.
-- `/camp/status` returns `network` (SSID, portal URL, mode, internet,
-  security); `/camp` has a “Сеть” panel for director/security/IT.
+- `/camp/status` returns `network` (SSID, portal URL, mode, internet, open,
+  security, captive_portal, captive_url); `/camp` has a “Сеть” panel.
 - `docs/camp/network.md` — install, verify, security, rollback, Bookworm
   NetworkManager caveat.
 
-Verified locally: `bash -n` for both scripts; `DRY_RUN=1` for offline and NAT
-modes completed with expected commands. Actual AP was not hardware-tested here
-(no Raspberry Pi/AP interface on the Windows dev host); deployment verification
-must be done on the target Pi.
+Verified locally: `bash -n` for scripts; `DRY_RUN=1` offline/NAT; captive portal
+unit tests start a real loopback server and assert 302/204. Actual AP was not
+hardware-tested from the Windows dev host.
+
+## Temporary deployment on EvilPi5 (2026-11-13)
+
+- Board `169.254.93.1` (SSH key `lc_board_ed25519`, user `gamecat`).
+- Fixed `/home/gamecat/lc-network-boot.sh` fallback because the legacy DB was
+  empty and hostapd got `interface=`. Backup:
+  `/home/gamecat/lc-network-boot.sh.bak-camp-20261113192952`.
+- AP is open `local-chat`, `wlan0=192.168.4.1/24`; `hostapd` + `dnsmasq`
+  active.
+- Camp Edition copied to `/home/gamecat/camp-edition`, runs on `18081` using
+  `/opt/local-chat-server/.venv`; DB `data/sqlite/camp.db`; admin `camp`
+  (temporary password kept out of the repo; change after demo).
+  `camp.pid` / `camp.log`.
+- Captive proxy: `lc-proxy` and `local-chat-proxy` services stopped; user proxy
+  on `3128` started with `LC_SERVER_URL=http://192.168.4.1:18081/camp`;
+  PID `proxy.pid`. It redirects to Camp Edition `/camp`; direct check:
+  `curl -x http://127.0.0.1:3128 http://example.com/` → 302.
+- Revert to main chat:
+  `kill $(cat /home/gamecat/camp-edition/proxy.pid); sudo systemctl start lc-proxy`.
+- Work laptop must NOT join `local-chat`: no internet on that AP.
 
 ## Commands / env
 

@@ -13,6 +13,7 @@ AP_DHCP_START="${AP_DHCP_START:-10.42.0.50}"
 AP_DHCP_END="${AP_DHCP_END:-10.42.0.150}"
 AP_DHCP_LEASE="${AP_DHCP_LEASE:-24h}"
 AP_NAT_ENABLED="${AP_NAT_ENABLED:-1}"
+AP_OPEN="${AP_OPEN:-0}"
 AP_DNS_SERVERS="${AP_DNS_SERVERS:-1.1.1.1 8.8.8.8}"
 AP_DNS_WILDCARD="${AP_DNS_WILDCARD:-}"
 DRY_RUN="${DRY_RUN:-0}"
@@ -43,15 +44,21 @@ require_root() {
 }
 
 validate_inputs() {
-    if [[ -z "${AP_PASSPHRASE}" ]]; then
-        echo "AP_PASSPHRASE is required (8..63 chars)."
+    if [[ "${AP_OPEN}" != "0" && "${AP_OPEN}" != "1" ]]; then
+        echo "AP_OPEN must be 0 or 1."
         exit 1
     fi
-    local pass_len
-    pass_len="${#AP_PASSPHRASE}"
-    if (( pass_len < 8 || pass_len > 63 )); then
-        echo "AP_PASSPHRASE must be 8..63 chars."
-        exit 1
+    if [[ "${AP_OPEN}" != "1" ]]; then
+        if [[ -z "${AP_PASSPHRASE}" ]]; then
+            echo "AP_PASSPHRASE is required when AP_OPEN=0 (8..63 chars)."
+            exit 1
+        fi
+        local pass_len
+        pass_len="${#AP_PASSPHRASE}"
+        if (( pass_len < 8 || pass_len > 63 )); then
+            echo "AP_PASSPHRASE must be 8..63 chars."
+            exit 1
+        fi
     fi
     if [[ "${AP_NAT_ENABLED}" != "0" && "${AP_NAT_ENABLED}" != "1" ]]; then
         echo "AP_NAT_ENABLED must be 0 or 1."
@@ -126,12 +133,17 @@ channel=${AP_CHANNEL}
 macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
+wmm_enabled=0
+EOF
+    if [[ "${AP_OPEN}" != "1" ]]; then
+        cat >> "${hostapd_tmp}" <<EOF
 wpa=2
 wpa_passphrase=${AP_PASSPHRASE}
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 rsn_pairwise=CCMP
 EOF
+    fi
     run install -m 0644 "${hostapd_tmp}" "${HOSTAPD_CONF}"
     rm -f "${hostapd_tmp}"
 
@@ -261,6 +273,11 @@ print_summary() {
     echo ""
     echo "Client network: ${AP_ADDRESS}/24"
     echo "DHCP range: ${AP_DHCP_START} - ${AP_DHCP_END}"
+    if [[ "${AP_OPEN}" == "1" ]]; then
+        echo "Security: open network (no Wi-Fi password)"
+    else
+        echo "Security: WPA2-PSK"
+    fi
     if [[ -n "${AP_DNS_WILDCARD}" ]]; then
         echo "Portal DNS: camp.local, chat.local, all names -> ${AP_DNS_WILDCARD}"
     fi

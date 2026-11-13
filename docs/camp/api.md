@@ -149,7 +149,10 @@ original status with `replayed: true`. Scans are append-only.
     "portal_url": "http://192.168.50.1:18080/camp",
     "mode": "offline",
     "internet": false,
-    "security": "WPA2-PSK"
+    "open": true,
+    "security": "open",
+    "captive_portal": true,
+    "captive_url": "http://192.168.50.1:80/"
   }
 }
 ```

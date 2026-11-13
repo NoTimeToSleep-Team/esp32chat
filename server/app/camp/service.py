@@ -3502,13 +3502,21 @@ th{{background:#eee}} @media print{{body{{margin:0}}}}
         if not portal_port.isdigit():
             portal_port = "18080"
         network_mode = "nat" if os.environ.get("CAMP_AP_NAT_ENABLED") == "1" else "offline"
+        network_open = os.environ.get("CAMP_AP_OPEN", "1") == "1"
+        captive_enabled = os.environ.get("CAMP_CAPTIVE_PORTAL", "1") == "1"
+        captive_port = os.environ.get("CAMP_CAPTIVE_PORTAL_PORT", "80")
+        if not captive_port.isdigit():
+            captive_port = "80"
         network = {
             "ssid": network_ssid,
             "address": network_address,
             "portal_url": f"http://{network_address}:{portal_port}/camp",
             "mode": network_mode,
             "internet": network_mode == "nat",
-            "security": "WPA2-PSK",
+            "open": network_open,
+            "security": "open" if network_open else "WPA2-PSK",
+            "captive_portal": captive_enabled,
+            "captive_url": f"http://{network_address}:{captive_port}/" if captive_enabled else None,
             "note": "Configured on the host by server/scripts/configure_camp_ap.sh; this block reflects CAMP_AP_* environment values.",
         }
         return {

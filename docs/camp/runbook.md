@@ -2,9 +2,9 @@
 
 ## 0. Before the session
 
-- Set up the local Wi-Fi access point (`CAMP-CHAT`) on the Raspberry Pi by
-  `server/scripts/configure_camp_ap.sh`; see `network.md`. Do this before
-  staff arrive and keep a keyboard/console path to the Pi.
+- Set up the open Wi-Fi access point (`CAMP-CHAT`) and its captive portal on
+  the Raspberry Pi by `server/scripts/configure_camp_ap.sh`; see `network.md`.
+  Do this before staff arrive and keep a keyboard/console path to the Pi.
 - Create the camp session and units.
 - Import children/staff from the approved list; preview first, then commit.
 - Confirm badges and print/attach them.
@@ -111,6 +111,6 @@ curl http://127.0.0.1:18081/camp/status
 On the Pi:
 
 ```bash
-sudo CAMP_AP_PASSPHRASE='...' bash server/scripts/configure_camp_ap.sh
-systemctl status hostapd dnsmasq --no-pager
+sudo bash server/scripts/configure_camp_ap.sh
+systemctl status hostapd dnsmasq camp-captive-portal --no-pager
 ```

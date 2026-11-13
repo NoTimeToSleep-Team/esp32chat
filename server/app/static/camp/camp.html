@@ -21,15 +21,27 @@
     </header>
 
     <section id="loginPanel" class="card login-card">
-      <h2>Подключение</h2>
-      <p class="muted">Вставьте web-токен сессии Local Chat. Токен хранится только в этом браузере.</p>
-      <form id="loginForm" class="row">
-        <label class="grow">Токен сессии
-          <input id="tokenInput" type="password" autocomplete="off" minlength="8" required placeholder="session token">
+      <h2>Вход в Camp Edition</h2>
+      <p class="muted">Логин и пароль Camp Edition. Токен сессии хранится только в этом браузере.</p>
+      <form id="passwordForm" class="row">
+        <label class="grow">Логин
+          <input id="loginName" type="text" autocomplete="username" required maxlength="128">
         </label>
-        <button class="button primary" type="submit">Подключиться</button>
+        <label class="grow">Пароль
+          <input id="loginPassword" type="password" autocomplete="current-password" required maxlength="512">
+        </label>
+        <button class="button primary" type="submit">Войти</button>
       </form>
       <p id="loginError" class="error"></p>
+      <details>
+        <summary>У меня уже есть web-токен</summary>
+        <form id="loginForm" class="row">
+          <label class="grow">Токен сессии
+            <input id="tokenInput" type="password" autocomplete="off" minlength="8" required placeholder="session token">
+          </label>
+          <button class="button" type="submit">Подключиться</button>
+        </form>
+      </details>
     </section>
 
     <div id="workspace" class="workspace hidden">

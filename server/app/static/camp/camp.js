@@ -9,6 +9,15 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[ch]));
 
+function deviceId() {
+  let value = localStorage.getItem("camp_device_id");
+  if (!value) {
+    value = `camp-web-${(crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)}`;
+    localStorage.setItem("camp_device_id", value);
+  }
+  return value;
+}
+
 function fmtTime(ms) {
   if (!ms) return "—";
   return new Date(Number(ms)).toLocaleString("ru-RU", {
@@ -625,19 +634,19 @@ async function renderNetwork(panel) {
   const status = await response.json();
   const net = status.network || {};
   const portal = net.portal_url || `${window.location.origin}/camp`;
-  const current = `${window.location.origin}/camp`;
-  panel.innerHTML = `${header("Сеть и Wi-Fi", "Точка доступа для чата без интернета.")}
+  panel.innerHTML = `${header("Сеть и Wi-Fi", "Открытая точка доступа с captive portal.")}
     ${metrics([
       ["SSID", net.ssid || "CAMP-CHAT"],
-      ["Режим", net.mode || "offline"],
+      ["Доступ", net.open === false ? "WPA2" : "открытая"],
+      ["Captive portal", net.captive_portal === false ? "выключен" : "включён"],
       ["Портал", portal],
-      ["Безопасность", net.security || "WPA2-PSK"],
     ])}
     <section class="card" style="margin-top:12px">
       <h3>Подключение</h3>
       <ol>
         <li>Подключите телефон или планшет к Wi-Fi <strong>${esc(net.ssid || "CAMP-CHAT")}</strong>.</li>
-        <li>Откройте <code>${esc(portal)}</code> или <code>${esc(current)}</code>.</li>
+        <li>Система сама покажет «Войти в сеть» / captive portal; нажмите вход — откроется Camp Edition.</li>
+        <li>Если окно не появилось, откройте <code>${esc(net.captive_url || portal)}</code>.</li>
         <li>Введите web-токен сессии и работайте внутри лагеря.</li>
       </ol>
       <div class="actions">
@@ -675,6 +684,33 @@ async function renderChildren(panel) {
   const children = await people("child");
   panel.innerHTML = `${header("Мои дети")}${table(["Ребёнок", "Отряд", "Комната", "Бейдж"], children.map((child) => [esc(child.display_name), esc(child.unit_name || "—"), esc(child.room || "—"), esc(child.badge_code || "—")]))}`;
 }
+
+$("#passwordForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#loginError").textContent = "";
+  try {
+    const response = await fetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        login: $("#loginName").value.trim(),
+        password: $("#loginPassword").value,
+        client_kind: "web",
+        device_id: deviceId(),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const detail = data.detail || data;
+      throw new Error(detail.message || detail.code || `HTTP ${response.status}`);
+    }
+    const token = data.session?.token;
+    if (!token) throw new Error("Сервер не вернул токен сессии");
+    await connect(token);
+  } catch (error) {
+    showLogin(error.message);
+  }
+});
 
 $("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();

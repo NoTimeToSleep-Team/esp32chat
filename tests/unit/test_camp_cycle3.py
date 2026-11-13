@@ -190,6 +190,13 @@ def test_report_csv_html_and_status(service: CampService) -> None:
 
 
 def test_status_reports_network_settings(service: CampService, monkeypatch) -> None:
+    for key in (
+        "CAMP_AP_NAT_ENABLED",
+        "CAMP_AP_OPEN",
+        "CAMP_CAPTIVE_PORTAL",
+        "CAMP_CAPTIVE_PORTAL_PORT",
+    ):
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("CAMP_AP_SSID", "CAMP-TEST")
     monkeypatch.setenv("CAMP_AP_ADDRESS", "10.10.0.1")
     monkeypatch.setenv("CAMP_PORTAL_PORT", "18080")
@@ -199,8 +206,15 @@ def test_status_reports_network_settings(service: CampService, monkeypatch) -> N
     assert status["network"]["portal_url"] == "http://10.10.0.1:18080/camp"
     assert status["network"]["mode"] == "offline"
     assert status["network"]["internet"] is False
+    assert status["network"]["open"] is True
+    assert status["network"]["security"] == "open"
+    assert status["network"]["captive_portal"] is True
+    assert status["network"]["captive_url"] == "http://10.10.0.1:80/"
 
     monkeypatch.setenv("CAMP_AP_NAT_ENABLED", "1")
+    monkeypatch.setenv("CAMP_AP_OPEN", "0")
     status = service.system_status()
     assert status["network"]["mode"] == "nat"
     assert status["network"]["internet"] is True
+    assert status["network"]["open"] is False
+    assert status["network"]["security"] == "WPA2-PSK"

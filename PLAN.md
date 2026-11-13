@@ -37,12 +37,14 @@ Isolation: this directory only; `LC_RELEASE` and live board untouched.
 - [x] 36 unit tests pass, compileall, node syntax check, extended disposable smoke
 - [x] final commit; compact + notify room
 
-### Addendum: local Wi-Fi AP
+### Addendum: local Wi-Fi AP + captive portal
 
-- [x] `server/scripts/configure_camp_ap.sh`: `CAMP-CHAT`, WPA2, offline,
-  `192.168.50.1`, DHCP, local DNS, optional NAT
-- [x] `configure_pi_ap_nat.sh`: `AP_NAT_ENABLED`, `AP_DNS_SERVERS`,
-  `AP_DNS_WILDCARD` offline mode
+- [x] `server/scripts/configure_camp_ap.sh`: `CAMP-CHAT`, **open network**,
+  offline, `192.168.50.1`, DHCP, local DNS, optional NAT
+- [x] `configure_pi_ap_nat.sh`: `AP_OPEN`, `AP_NAT_ENABLED`,
+  `AP_DNS_SERVERS`, `AP_DNS_WILDCARD`
+- [x] `camp_captive_portal.py` + `camp-captive-portal.service`: port 80 →
+  `302 /camp`, no manual URL
 - [x] `/camp/status` network block + `/camp` “Сеть” panel
 - [x] `docs/camp/network.md` and runbook/API/README updates
 
