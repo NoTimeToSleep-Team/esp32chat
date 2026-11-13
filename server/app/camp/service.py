@@ -6,8 +6,10 @@ chat/account domain remains untouched and available for normal use.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
+import shutil
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2722,3 +2724,789 @@ class CampService:
                 }
                 for row in rows
             ]
+
+    # -- media consent --------------------------------------------------
+
+    def set_consent(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        kind: str,
+        granted: bool,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "parent"})
+        if kind not in {"internal_chat", "parent_digest", "promo", "none"}:
+            raise CampError("invalid_consent", "Invalid consent kind")
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            if person["role"] != "child":
+                raise CampError("consent_child_only", "Photo consent applies to children only")
+            if actor.get("role") == "parent":
+                link = connection.execute(
+                    "SELECT 1 FROM camp_guardians WHERE person_id = ? AND parent_person_id = ?",
+                    (person_id, actor.get("camp_person_id")),
+                ).fetchone()
+                if link is None:
+                    raise CampError("guardian_forbidden", "Parent is not linked to this child", status_code=403)
+            connection.execute(
+                """
+                INSERT INTO camp_consents(person_id, kind, granted, note, updated_at_ms)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(person_id, kind) DO UPDATE SET
+                    granted = excluded.granted,
+                    note = excluded.note,
+                    updated_at_ms = excluded.updated_at_ms
+                """,
+                (
+                    person_id,
+                    kind,
+                    1 if granted else 0,
+                    (note or "").strip()[:1000] or None,
+                    _now_ms(),
+                ),
+            )
+            self._audit(
+                connection,
+                actor,
+                "consent.updated",
+                person_id=person_id,
+                details={"kind": kind, "granted": bool(granted)},
+            )
+            return dict(
+                connection.execute(
+                    "SELECT * FROM camp_consents WHERE person_id = ? AND kind = ?",
+                    (person_id, kind),
+                ).fetchone()
+            )
+
+    def get_consents(self, actor: Mapping[str, Any], *, person_id: int) -> dict[str, Any]:
+        role = str(actor.get("role") or "")
+        if role not in STAFF_ROLES and role not in {"parent", "child"}:
+            raise CampError("role_forbidden", "No access to consents", status_code=403)
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            if not self._can_view_person(connection, actor, dict(person)):
+                raise CampError("person_forbidden", "No access to this child", status_code=403)
+            rows = connection.execute(
+                "SELECT * FROM camp_consents WHERE person_id = ? ORDER BY kind",
+                (person_id,),
+            ).fetchall()
+            values = {str(row["kind"]): dict(row) for row in rows}
+            return {
+                "person": dict(person),
+                "consents": values,
+                "internal_chat": bool(values.get("internal_chat", {}).get("granted")),
+                "parent_digest": bool(values.get("parent_digest", {}).get("granted")),
+                "promo": bool(values.get("promo", {}).get("granted")),
+            }
+
+    def consent_matrix(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            rows = connection.execute(
+                """
+                SELECT p.id, p.display_name, p.badge_code, u.name AS unit_name,
+                       c.kind, c.granted
+                FROM camp_people p
+                LEFT JOIN camp_units u ON u.id = p.unit_id
+                LEFT JOIN camp_consents c ON c.person_id = p.id
+                WHERE p.session_id = ? AND p.role = 'child' AND p.status = 'active'
+                ORDER BY u.name, p.display_name, c.kind
+                """,
+                (resolved_session,),
+            ).fetchall()
+            children: dict[int, dict[str, Any]] = {}
+            for row in rows:
+                child = children.setdefault(
+                    int(row["id"]),
+                    {
+                        "person_id": int(row["id"]),
+                        "display_name": row["display_name"],
+                        "badge_code": row["badge_code"],
+                        "unit_name": row["unit_name"],
+                        "consents": {
+                            "internal_chat": False,
+                            "parent_digest": False,
+                            "promo": False,
+                            "none": False,
+                        },
+                    },
+                )
+                if row["kind"]:
+                    child["consents"][str(row["kind"])] = bool(row["granted"])
+            return list(children.values())
+
+    def consent_allows(self, person_id: int, *, kind: str = "internal_chat") -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT granted FROM camp_consents WHERE person_id = ? AND kind = ?",
+                (person_id, kind),
+            ).fetchone()
+            return bool(row and int(row["granted"]))
+
+    # -- kiosks and offline sync ----------------------------------------
+
+    @staticmethod
+    def _public_kiosk(row: sqlite3.Row) -> dict[str, Any]:
+        payload = dict(row)
+        payload.pop("token_hash", None)
+        payload["active"] = payload.get("revoked_at_ms") is None
+        return payload
+
+    def create_kiosk(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        device_id: str,
+        zone_id: int,
+        scopes: str = "scan",
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"director", "security"})
+        clean_device = device_id.strip()
+        if not clean_device:
+            raise CampError("invalid_device", "Device id must not be empty")
+        scope_set = {part.strip() for part in scopes.split(",") if part.strip()}
+        if not scope_set or not scope_set.issubset({"scan"}):
+            raise CampError("invalid_scopes", "Supported kiosk scope: scan")
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            zone = connection.execute(
+                "SELECT * FROM camp_zones WHERE id = ? AND session_id = ?",
+                (zone_id, resolved_session),
+            ).fetchone()
+            if zone is None:
+                raise CampError("zone_not_found", "Zone not found", status_code=404)
+            token = "KIOSK-" + secrets.token_urlsafe(24)
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            try:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO camp_kiosks(device_id, zone_id, token_hash, scopes, created_at_ms)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (clean_device[:128], zone_id, token_hash, ",".join(sorted(scope_set)), _now_ms()),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise CampError("kiosk_exists", "Device id is already registered", status_code=409) from exc
+            kiosk_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "kiosk.created",
+                details={"kiosk_id": kiosk_id, "device_id": clean_device[:128], "zone_id": zone_id},
+            )
+            row = connection.execute(
+                "SELECT * FROM camp_kiosks WHERE id = ?", (kiosk_id,)
+            ).fetchone()
+            return {"item": self._public_kiosk(row), "token": token}
+
+    def list_kiosks(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, {"director", "security"})
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            rows = connection.execute(
+                """
+                SELECT k.*, z.name AS zone_name, z.session_id AS session_id
+                FROM camp_kiosks k
+                JOIN camp_zones z ON z.id = k.zone_id
+                WHERE z.session_id = ?
+                ORDER BY k.created_at_ms DESC
+                """,
+                (resolved_session,),
+            ).fetchall()
+            now = _now_ms()
+            items = []
+            for row in rows:
+                item = self._public_kiosk(row)
+                item["stale"] = item["active"] and (
+                    item.get("last_seen_ms") is None
+                    or now - int(item["last_seen_ms"]) > 10 * 60_000
+                )
+                items.append(item)
+            return items
+
+    def revoke_kiosk(self, actor: Mapping[str, Any], *, kiosk_id: int) -> dict[str, Any]:
+        self._require_role(actor, {"director", "security"})
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT k.*, z.session_id AS session_id
+                FROM camp_kiosks k
+                JOIN camp_zones z ON z.id = k.zone_id
+                WHERE k.id = ?
+                """,
+                (kiosk_id,),
+            ).fetchone()
+            if row is None:
+                raise CampError("kiosk_not_found", "Kiosk not found", status_code=404)
+            self._guard_session(actor, int(row["session_id"]))
+            connection.execute(
+                "UPDATE camp_kiosks SET revoked_at_ms = ? WHERE id = ?",
+                (_now_ms(), kiosk_id),
+            )
+            self._audit(
+                connection,
+                actor,
+                "kiosk.revoked",
+                details={"kiosk_id": kiosk_id, "device_id": row["device_id"]},
+            )
+            return self._public_kiosk(
+                connection.execute("SELECT * FROM camp_kiosks WHERE id = ?", (kiosk_id,)).fetchone()
+            )
+
+    def kiosk_scan(
+        self,
+        *,
+        kiosk_token: str,
+        person_id: int | None = None,
+        badge_code: str | None = None,
+        scanned_at_ms: int | None = None,
+    ) -> dict[str, Any]:
+        if (person_id is None) == (not badge_code):
+            raise CampError("scan_target_required", "Provide exactly one of person_id or badge_code")
+        token_hash = hashlib.sha256(kiosk_token.strip().encode("utf-8")).hexdigest()
+        with self._connect() as connection:
+            kiosk = connection.execute(
+                """
+                SELECT k.*, z.session_id AS session_id
+                FROM camp_kiosks k
+                JOIN camp_zones z ON z.id = k.zone_id
+                WHERE k.token_hash = ?
+                """,
+                (token_hash,),
+            ).fetchone()
+            if kiosk is None:
+                raise CampError("kiosk_invalid", "Kiosk token is not valid", status_code=401)
+            if kiosk["revoked_at_ms"] is not None:
+                raise CampError("kiosk_revoked", "Kiosk token has been revoked", status_code=403)
+            scopes = {part.strip() for part in str(kiosk["scopes"] or "").split(",")}
+            if "scan" not in scopes:
+                raise CampError("kiosk_scope", "Kiosk is not allowed to scan", status_code=403)
+            if person_id is not None:
+                person = connection.execute(
+                    "SELECT * FROM camp_people WHERE id = ? AND session_id = ?",
+                    (person_id, int(kiosk["session_id"])),
+                ).fetchone()
+            else:
+                person = connection.execute(
+                    "SELECT * FROM camp_people WHERE badge_code = ? AND session_id = ?",
+                    (badge_code, int(kiosk["session_id"])),
+                ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Badge or person not found", status_code=404)
+            if person["role"] != "child":
+                raise CampError("scan_child_only", "Kiosk scans are for children", status_code=403)
+            at = int(scanned_at_ms or _now_ms())
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_scans(person_id, zone_id, scanned_at_ms, device_id, source, created_at_ms)
+                VALUES (?, ?, ?, ?, 'kiosk', ?)
+                """,
+                (int(person["id"]), int(kiosk["zone_id"]), at, kiosk["device_id"], _now_ms()),
+            )
+            connection.execute(
+                "UPDATE camp_kiosks SET last_seen_ms = ? WHERE id = ?",
+                (_now_ms(), int(kiosk["id"])),
+            )
+            scan_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                None,
+                "kiosk.scan",
+                person_id=int(person["id"]),
+                details={"scan_id": scan_id, "kiosk_id": int(kiosk["id"]), "source": "kiosk"},
+            )
+            return {
+                "scan": dict(connection.execute("SELECT * FROM camp_scans WHERE id = ?", (scan_id,)).fetchone()),
+                "person": dict(person),
+                "zone": dict(connection.execute("SELECT * FROM camp_zones WHERE id = ?", (int(kiosk["zone_id"]),)).fetchone()),
+                "kiosk": self._public_kiosk(kiosk),
+            }
+
+    def sync_offline(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        device_id: str | None,
+        operations: list[Mapping[str, Any]],
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        if not operations:
+            return []
+        if len(operations) > 100:
+            raise CampError("too_many_operations", "At most 100 operations per sync")
+        results: list[dict[str, Any]] = []
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, None)
+            for raw in operations:
+                op = dict(raw or {})
+                op_id = str(op.get("op_id") or "").strip()
+                kind = str(op.get("kind") or "").strip()
+                payload = op.get("payload") if isinstance(op.get("payload"), dict) else {}
+                client_at_ms = op.get("client_at_ms")
+                if not op_id or len(op_id) > 128 or not kind:
+                    results.append(
+                        {"op_id": op_id, "status": "rejected", "error": "op_id and kind are required"}
+                    )
+                    continue
+                existing = connection.execute(
+                    "SELECT status, server_at_ms FROM camp_sync_ops WHERE op_id = ?",
+                    (op_id,),
+                ).fetchone()
+                if existing is not None:
+                    results.append(
+                        {
+                            "op_id": op_id,
+                            "status": str(existing["status"]),
+                            "server_time_ms": int(existing["server_at_ms"]),
+                            "replayed": True,
+                        }
+                    )
+                    continue
+                status = "accepted"
+                error: str | None = None
+                try:
+                    if kind == "scan":
+                        zone_id = int(payload.get("zone_id"))
+                        zone = connection.execute(
+                            "SELECT * FROM camp_zones WHERE id = ? AND session_id = ?",
+                            (zone_id, resolved_session),
+                        ).fetchone()
+                        if zone is None:
+                            raise CampError("zone_not_found", "Zone not found", status_code=404)
+                        person_ref = payload.get("person_id")
+                        badge_ref = payload.get("badge_code")
+                        if (person_ref is None) == (not badge_ref):
+                            raise CampError("scan_target_required", "Provide exactly one scan target")
+                        if person_ref is not None:
+                            person = connection.execute(
+                                "SELECT * FROM camp_people WHERE id = ? AND session_id = ?",
+                                (int(person_ref), resolved_session),
+                            ).fetchone()
+                        else:
+                            person = connection.execute(
+                                "SELECT * FROM camp_people WHERE badge_code = ? AND session_id = ?",
+                                (str(badge_ref), resolved_session),
+                            ).fetchone()
+                        if person is None:
+                            raise CampError("person_not_found", "Person not found", status_code=404)
+                        at = int(payload.get("scanned_at_ms") or client_at_ms or _now_ms())
+                        connection.execute(
+                            """
+                            INSERT INTO camp_scans(person_id, zone_id, scanned_at_ms, device_id, source, created_at_ms)
+                            VALUES (?, ?, ?, ?, 'import', ?)
+                            """,
+                            (int(person["id"]), zone_id, at, (device_id or "")[:128] or None, _now_ms()),
+                        )
+                    elif kind == "attendance_mark":
+                        event_id = int(payload.get("event_id"))
+                        person_id = int(payload.get("person_id"))
+                        mark_status = str(payload.get("status") or "")
+                        if mark_status not in {"present", "absent", "sick", "medic", "parent", "left"}:
+                            raise CampError("invalid_mark", "Invalid attendance mark")
+                        event = connection.execute(
+                            "SELECT * FROM camp_attendance_events WHERE id = ?", (event_id,)
+                        ).fetchone()
+                        if event is None:
+                            raise CampError("attendance_not_found", "Attendance event not found", status_code=404)
+                        self._guard_session(actor, int(event["session_id"]))
+                        if str(event["status"]) != "open":
+                            raise CampError("attendance_closed", "Attendance event is closed", status_code=409)
+                        person = connection.execute(
+                            "SELECT * FROM camp_people WHERE id = ? AND session_id = ?",
+                            (person_id, resolved_session),
+                        ).fetchone()
+                        if person is None or person["unit_id"] != event["unit_id"]:
+                            raise CampError("person_not_in_unit", "Child is not in this unit", status_code=404)
+                        connection.execute(
+                            """
+                            INSERT INTO camp_attendance_marks(event_id, person_id, status, marked_by, marked_at_ms)
+                            VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(event_id, person_id) DO UPDATE SET
+                                status = excluded.status,
+                                marked_by = excluded.marked_by,
+                                marked_at_ms = excluded.marked_at_ms
+                            """,
+                            (event_id, person_id, mark_status, actor.get("user_id"), _now_ms()),
+                        )
+                    else:
+                        raise CampError("unsupported_sync_kind", f"Unsupported sync kind: {kind}")
+                except (CampError, TypeError, ValueError) as exc:
+                    status = "rejected"
+                    error = getattr(exc, "message", str(exc))
+                server_at = _now_ms()
+                connection.execute(
+                    """
+                    INSERT INTO camp_sync_ops(op_id, device_id, kind, payload_json, client_at_ms, status, server_at_ms)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        op_id,
+                        (device_id or "")[:128] or None,
+                        kind[:64],
+                        _json(dict(payload)),
+                        int(client_at_ms) if isinstance(client_at_ms, int) else None,
+                        status,
+                        server_at,
+                    ),
+                )
+                self._audit(
+                    connection,
+                    actor,
+                    "sync.operation",
+                    details={"op_id": op_id, "kind": kind, "status": status},
+                )
+                result: dict[str, Any] = {
+                    "op_id": op_id,
+                    "status": status,
+                    "server_time_ms": server_at,
+                }
+                if error:
+                    result["error"] = error
+                results.append(result)
+        return results
+
+    # -- report and status ----------------------------------------------
+
+    def session_report(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            session = dict(self._session(connection, resolved_session))
+            by_role_rows = connection.execute(
+                "SELECT role, COUNT(*) AS count FROM camp_people WHERE session_id = ? AND status = 'active' GROUP BY role",
+                (resolved_session,),
+            ).fetchall()
+            by_role = {str(row["role"]): int(row["count"]) for row in by_role_rows}
+            units = [
+                dict(row)
+                for row in connection.execute(
+                    """
+                    SELECT u.id, u.name, u.kind, COUNT(p.id) AS child_count
+                    FROM camp_units u
+                    LEFT JOIN camp_people p ON p.unit_id = u.id AND p.role = 'child' AND p.status = 'active'
+                    WHERE u.session_id = ?
+                    GROUP BY u.id
+                    ORDER BY u.name
+                    """,
+                    (resolved_session,),
+                ).fetchall()
+            ]
+            attendance = dict(
+                connection.execute(
+                    """
+                    SELECT COUNT(*) AS events,
+                           SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open,
+                           SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) AS closed
+                    FROM camp_attendance_events WHERE session_id = ?
+                    """,
+                    (resolved_session,),
+                ).fetchone()
+            )
+            marks = {
+                str(row["status"]): int(row["count"])
+                for row in connection.execute(
+                    """
+                    SELECT m.status, COUNT(*) AS count
+                    FROM camp_attendance_marks m
+                    JOIN camp_attendance_events e ON e.id = m.event_id
+                    WHERE e.session_id = ?
+                    GROUP BY m.status
+                    """,
+                    (resolved_session,),
+                ).fetchall()
+            }
+            requests = {
+                str(row["status"]): int(row["count"])
+                for row in connection.execute(
+                    "SELECT status, COUNT(*) AS count FROM camp_requests WHERE session_id = ? GROUP BY status",
+                    (resolved_session,),
+                ).fetchall()
+            }
+            alerts = dict(
+                connection.execute(
+                    """
+                    SELECT COUNT(*) AS total,
+                           SUM(CASE WHEN status != 'closed' THEN 1 ELSE 0 END) AS open,
+                           SUM(CASE WHEN drill = 1 THEN 1 ELSE 0 END) AS drills
+                    FROM camp_alerts WHERE session_id = ?
+                    """,
+                    (resolved_session,),
+                ).fetchone()
+            )
+            scan_row = connection.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM camp_scans s JOIN camp_zones z ON z.id = s.zone_id
+                WHERE z.session_id = ?
+                """,
+                (resolved_session,),
+            ).fetchone()
+            scan_24h = connection.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM camp_scans s JOIN camp_zones z ON z.id = s.zone_id
+                WHERE z.session_id = ? AND s.scanned_at_ms >= ?
+                """,
+                (resolved_session, _now_ms() - 24 * 60 * 60_000),
+            ).fetchone()
+            movement_rows = connection.execute(
+                """
+                SELECT m.direction, COUNT(*) AS count
+                FROM camp_movements m JOIN camp_people p ON p.id = m.person_id
+                WHERE p.session_id = ?
+                GROUP BY m.direction
+                """,
+                (resolved_session,),
+            ).fetchall()
+            movements = {str(row["direction"]): int(row["count"]) for row in movement_rows}
+            currently_out = connection.execute(
+                """
+                SELECT COUNT(*) AS count FROM camp_movements m
+                WHERE m.id = (SELECT MAX(m2.id) FROM camp_movements m2 WHERE m2.person_id = m.person_id)
+                  AND m.direction = 'out'
+                  AND m.person_id IN (SELECT id FROM camp_people WHERE session_id = ?)
+                """,
+                (resolved_session,),
+            ).fetchone()
+            dietary = connection.execute(
+                """
+                SELECT COUNT(*) AS records, COUNT(DISTINCT d.person_id) AS children
+                FROM camp_dietary d JOIN camp_people p ON p.id = d.person_id
+                WHERE p.session_id = ?
+                """,
+                (resolved_session,),
+            ).fetchone()
+            digest = connection.execute(
+                """
+                SELECT COUNT(*) AS total, SUM(CASE WHEN d.sent_at_ms IS NOT NULL THEN 1 ELSE 0 END) AS sent
+                FROM camp_digest d JOIN camp_people p ON p.id = d.person_id
+                WHERE p.session_id = ?
+                """,
+                (resolved_session,),
+            ).fetchone()
+            kiosks = connection.execute(
+                """
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN k.revoked_at_ms IS NULL THEN 1 ELSE 0 END) AS active
+                FROM camp_kiosks k JOIN camp_zones z ON z.id = k.zone_id
+                WHERE z.session_id = ?
+                """,
+                (resolved_session,),
+            ).fetchone()
+            consents = connection.execute(
+                """
+                SELECT COUNT(*) AS records, SUM(CASE WHEN c.granted = 1 THEN 1 ELSE 0 END) AS granted
+                FROM camp_consents c JOIN camp_people p ON p.id = c.person_id
+                WHERE p.session_id = ?
+                """,
+                (resolved_session,),
+            ).fetchone()
+            audit_count = connection.execute(
+                "SELECT COUNT(*) AS count FROM camp_audit WHERE created_at_ms >= ?",
+                (int(session["starts_at_ms"]),),
+            ).fetchone()
+            return {
+                "session": session,
+                "generated_at_ms": _now_ms(),
+                "people": {
+                    "total": sum(by_role.values()),
+                    "children": by_role.get("child", 0),
+                    "staff": sum(count for role, count in by_role.items() if role in STAFF_ROLES),
+                    "by_role": by_role,
+                },
+                "units": units,
+                "attendance": {
+                    "events": int(attendance["events"] or 0),
+                    "open": int(attendance["open"] or 0),
+                    "closed": int(attendance["closed"] or 0),
+                    "marks": marks,
+                },
+                "requests": requests,
+                "alerts": {
+                    "total": int(alerts["total"] or 0),
+                    "open": int(alerts["open"] or 0),
+                    "drills": int(alerts["drills"] or 0),
+                },
+                "scans": {
+                    "total": int(scan_row["total"] or 0),
+                    "last_24h": int(scan_24h["count"] or 0),
+                },
+                "movements": {
+                    "out": movements.get("out", 0),
+                    "in": movements.get("in", 0),
+                    "currently_out": int(currently_out["count"] or 0),
+                },
+                "dietary": {
+                    "records": int(dietary["records"] or 0),
+                    "children": int(dietary["children"] or 0),
+                },
+                "digests": {
+                    "total": int(digest["total"] or 0),
+                    "sent": int(digest["sent"] or 0),
+                },
+                "kiosks": {
+                    "total": int(kiosks["total"] or 0),
+                    "active": int(kiosks["active"] or 0),
+                },
+                "consents": {
+                    "records": int(consents["records"] or 0),
+                    "granted": int(consents["granted"] or 0),
+                },
+                "audit_events": int(audit_count["count"] or 0),
+            }
+
+    def report_csv(self, actor: Mapping[str, Any], *, session_id: int | None = None) -> str:
+        import csv
+        import io
+
+        report = self.session_report(actor, session_id=session_id)
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow(["section", "metric", "value"])
+        for key in (
+            "attendance",
+            "requests",
+            "alerts",
+            "scans",
+            "movements",
+            "dietary",
+            "digests",
+            "kiosks",
+            "consents",
+        ):
+            for name, value in report.get(key, {}).items():
+                writer.writerow([key, name, value])
+        for unit in report.get("units", []):
+            writer.writerow(["unit", unit.get("name"), unit.get("child_count")])
+        writer.writerow(["people", "total", report["people"]["total"]])
+        writer.writerow(["people", "children", report["people"]["children"]])
+        writer.writerow(["people", "staff", report["people"]["staff"]])
+        writer.writerow(["session", "name", report["session"].get("name")])
+        return "\ufeff" + buffer.getvalue()
+
+    def report_html(self, actor: Mapping[str, Any], *, session_id: int | None = None) -> str:
+        import html as html_module
+
+        report = self.session_report(actor, session_id=session_id)
+
+        def esc(value: Any) -> str:
+            return html_module.escape(str(value))
+
+        rows = "".join(
+            "<tr><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+                esc(unit.get("name")),
+                esc(unit.get("kind")),
+                esc(unit.get("child_count")),
+            )
+            for unit in report.get("units", [])
+        )
+        metrics = [
+            ("Children", report["people"]["children"]),
+            ("Staff", report["people"]["staff"]),
+            ("Attendance events", report["attendance"]["events"]),
+            ("Attendance marks", sum(report["attendance"]["marks"].values())),
+            ("Open requests", report["requests"].get("open", 0)),
+            ("Alerts", report["alerts"]["total"]),
+            ("Scans", report["scans"]["total"]),
+            ("Currently out", report["movements"]["currently_out"]),
+            ("Dietary records", report["dietary"]["records"]),
+            ("Digests", report["digests"]["total"]),
+            ("Kiosks active", report["kiosks"]["active"]),
+        ]
+        metric_rows = "".join(
+            f"<tr><td>{esc(name)}</td><td>{esc(value)}</td></tr>" for name, value in metrics
+        )
+        return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Camp report - {esc(report['session'].get('name'))}</title>
+<style>
+body{{font-family:system-ui,sans-serif;margin:24px;color:#111}}
+h1{{font-size:22px}} h2{{font-size:16px;margin-top:24px}}
+table{{width:100%;border-collapse:collapse;margin-top:8px}}
+th,td{{border:1px solid #999;padding:6px;text-align:left}}
+th{{background:#eee}} @media print{{body{{margin:0}}}}
+</style></head><body>
+<h1>Camp report: {esc(report['session'].get('name'))}</h1>
+<p>Generated: {esc(report['generated_at_ms'])}</p>
+<h2>Units</h2>
+<table><thead><tr><th>Unit</th><th>Kind</th><th>Children</th></tr></thead>
+<tbody>{rows or '<tr><td colspan="3">No units</td></tr>'}</tbody></table>
+<h2>Metrics</h2>
+<table><tbody>{metric_rows}</tbody></table>
+</body></html>"""
+
+    def system_status(self) -> dict[str, Any]:
+        now = _now_ms()
+        with self._connect() as connection:
+            db_ok = connection.execute("SELECT 1").fetchone() is not None
+            quick = connection.execute("PRAGMA quick_check").fetchone()
+            quick_check = str(quick[0]) if quick else "unknown"
+            connection.execute("CREATE TEMP TABLE IF NOT EXISTS _camp_status_probe (value INTEGER)")
+            connection.execute("INSERT INTO _camp_status_probe(value) VALUES (1)")
+            write_ok = connection.execute("SELECT COUNT(*) FROM _camp_status_probe").fetchone()[0] > 0
+            db_now = connection.execute("SELECT CAST(strftime('%s','now') AS INTEGER) * 1000").fetchone()[0]
+            sessions = connection.execute(
+                "SELECT COUNT(*) FROM camp_sessions WHERE status IN ('planned','active')"
+            ).fetchone()[0]
+            active = connection.execute(
+                "SELECT COUNT(*) FROM camp_sessions WHERE status = 'active'"
+            ).fetchone()[0]
+            kiosk_rows = connection.execute(
+                "SELECT last_seen_ms FROM camp_kiosks WHERE revoked_at_ms IS NULL"
+            ).fetchall()
+            last_audit = connection.execute("SELECT MAX(created_at_ms) FROM camp_audit").fetchone()[0]
+        try:
+            disk = shutil.disk_usage(self._db_path.parent)
+            disk_free_mb = int(disk.free / (1024 * 1024))
+        except OSError:
+            disk_free_mb = 0
+        stale_kiosks = sum(
+            1
+            for row in kiosk_rows
+            if row["last_seen_ms"] is None or now - int(row["last_seen_ms"]) > 10 * 60_000
+        )
+        return {
+            "status": "ok" if db_ok and write_ok and quick_check == "ok" and disk_free_mb > 100 else "degraded",
+            "checks": {
+                "db_read": bool(db_ok),
+                "db_write": bool(write_ok),
+                "db_quick_check": quick_check,
+                "disk_free_mb": disk_free_mb,
+                "clock_skew_ms": abs(int(db_now or 0) - now),
+            },
+            "sessions": {"open": int(sessions or 0), "active": int(active or 0)},
+            "kiosks": {"active": len(kiosk_rows), "stale": stale_kiosks},
+            "last_audit_ms": int(last_audit) if last_audit else None,
+            "backup_hint": "Create a SQLite snapshot before the session and keep it off-device.",
+            "checked_at_ms": now,
+        }

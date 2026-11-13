@@ -26,15 +26,26 @@ Isolation: this directory only; `LC_RELEASE` and live board untouched.
 - [x] parent digest (own child only)
 - [x] tests + compact + notify room (30 unit pass + extended smoke)
 
-## Cycle 3 — UI, kiosk, resilience and product docs
+## Cycle 3 — UI, kiosk, resilience and product docs — DONE
 
-- [ ] role-based `/camp` SPA (child, counselor, director, security, medic, parent)
-- [ ] kiosk mode, token revoke, offline queue sync endpoint
-- [ ] photo consent matrix and forward restrictions
-- [ ] session report + CSV/HTML print
-- [ ] `/camp/status` checks (DB write, disk, clock, backup hint)
-- [ ] trust/safety, legal templates, runbook, pilot metrics docs
-- [ ] full test pass; final report; compact + notify room
+- [x] role-based `/camp` SPA (child, counselor, director, security, medic, parent)
+- [x] kiosk mode, token revoke, offline queue sync endpoint
+- [x] photo consent matrix and forward restrictions
+- [x] session report + CSV/HTML print
+- [x] `/camp/status` checks (DB read/write, quick_check, disk, clock, kiosk stale)
+- [x] trust/safety, legal templates, runbook, pilot metrics, API docs
+- [x] 35 unit tests pass, compileall, node syntax check, extended disposable smoke
+- [x] final commit; compact + notify room
+
+## Verification
+
+```powershell
+cd D:\opencode\LC_CAMP_EDITION
+.\.venv\Scripts\python.exe -m pytest -q tests\unit
+.\.venv\Scripts\python.exe -m compileall -q server\app
+node --check server/app/static/camp/camp.js
+.\.venv\Scripts\python.exe C:\Windows\Temp\opencode\camp_smoke.py
+```
 
 ## Acceptance ideas from report
 

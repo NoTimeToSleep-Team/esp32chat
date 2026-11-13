@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
+from time import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.models import ClientKind
@@ -201,6 +202,31 @@ class DigestSentRequest(BaseModel):
     date: str = Field(min_length=10, max_length=10)
 
 
+class ConsentSetRequest(BaseModel):
+    person_id: int
+    kind: str = Field(pattern="^(internal_chat|parent_digest|promo|none)$")
+    granted: bool
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class KioskCreateRequest(BaseModel):
+    session_id: int | None = None
+    device_id: str = Field(min_length=1, max_length=128)
+    zone_id: int
+    scopes: str = Field(default="scan", max_length=64)
+
+
+class KioskScanRequest(BaseModel):
+    person_id: int | None = None
+    badge_code: str | None = Field(default=None, max_length=128)
+    scanned_at_ms: int | None = None
+
+
+class SyncRequest(BaseModel):
+    device_id: str | None = Field(default=None, max_length=128)
+    operations: list[dict[str, Any]] = Field(min_length=1, max_length=100)
+
+
 def _service(request: Request) -> CampService:
     return CampService(request.app.state.data_layer.database_path)
 
@@ -242,6 +268,18 @@ def camp_page() -> HTMLResponse:
     if not path.exists():
         return HTMLResponse("<h1>Camp Edition</h1><p>UI is being installed.</p>")
     return HTMLResponse(content=path.read_text(encoding="utf-8"))
+
+
+@router.get("/status")
+def camp_status(request: Request) -> dict[str, Any]:
+    try:
+        payload = _service(request).system_status()
+    except CampError as exc:
+        raise _fail(exc) from exc
+    payload["status"] = payload.get("status", "ok")
+    payload["service"] = "local-chat-server"
+    payload["edition"] = request.app.state.settings.edition
+    return payload
 
 
 @router.get("/api/me")
@@ -1268,3 +1306,178 @@ def mark_digest_sent(
     except CampError as exc:
         raise _fail(exc) from exc
     return {"status": "ok", "item": item}
+
+
+@router.post("/api/kiosks")
+def create_kiosk(
+    request: Request,
+    payload: KioskCreateRequest,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        item = _service(request).create_kiosk(
+            actor,
+            session_id=payload.session_id,
+            device_id=payload.device_id,
+            zone_id=payload.zone_id,
+            scopes=payload.scopes,
+        )
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", **item}
+
+
+@router.get("/api/kiosks")
+def list_kiosks(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        items = _service(request).list_kiosks(actor, session_id=session_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "items": items}
+
+
+@router.post("/api/kiosks/{kiosk_id}/revoke")
+def revoke_kiosk(
+    request: Request,
+    kiosk_id: int,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        item = _service(request).revoke_kiosk(actor, kiosk_id=kiosk_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "item": item}
+
+
+@router.post("/api/kiosk/scan")
+def kiosk_scan(
+    request: Request,
+    payload: KioskScanRequest,
+    kiosk_token: str = Query(..., min_length=8, max_length=256),
+) -> dict[str, Any]:
+    try:
+        item = _service(request).kiosk_scan(
+            kiosk_token=kiosk_token,
+            person_id=payload.person_id,
+            badge_code=payload.badge_code,
+            scanned_at_ms=payload.scanned_at_ms,
+        )
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", **item}
+
+
+@router.post("/api/sync")
+def sync_offline(
+    request: Request,
+    payload: SyncRequest,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        results = _service(request).sync_offline(
+            actor, device_id=payload.device_id, operations=payload.operations
+        )
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "server_time_ms": int(time() * 1000), "results": results}
+
+
+@router.post("/api/consents")
+def set_consent(
+    request: Request,
+    payload: ConsentSetRequest,
+    session_token: str = Query(..., min_length=8, max_length=512),
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        item = _service(request).set_consent(
+            actor,
+            person_id=payload.person_id,
+            kind=payload.kind,
+            granted=payload.granted,
+            note=payload.note,
+        )
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "item": item}
+
+
+@router.get("/api/consents/matrix")
+def consent_matrix(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        items = _service(request).consent_matrix(actor, session_id=session_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "items": items}
+
+
+@router.get("/api/consents")
+def get_consents(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    person_id: int = Query(...),
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        item = _service(request).get_consents(actor, person_id=person_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return {"status": "ok", "item": item}
+
+
+@router.get("/api/report")
+def session_report(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> dict[str, Any]:
+    actor = _auth(request, session_token)
+    try:
+        return {"status": "ok", "item": _service(request).session_report(actor, session_id=session_id)}
+    except CampError as exc:
+        raise _fail(exc) from exc
+
+
+@router.get("/api/report.csv", response_class=PlainTextResponse)
+def session_report_csv(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> PlainTextResponse:
+    actor = _auth(request, session_token)
+    try:
+        body = _service(request).report_csv(actor, session_id=session_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return PlainTextResponse(
+        body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="camp-report.csv"'},
+    )
+
+
+@router.get("/api/report.html", response_class=HTMLResponse)
+def session_report_html(
+    request: Request,
+    session_token: str = Query(..., min_length=8, max_length=512),
+    session_id: int | None = None,
+) -> HTMLResponse:
+    actor = _auth(request, session_token)
+    try:
+        body = _service(request).report_html(actor, session_id=session_id)
+    except CampError as exc:
+        raise _fail(exc) from exc
+    return HTMLResponse(body)

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Camp Edition</title>
+  <link rel="stylesheet" href="/static/camp/camp.css">
+</head>
+<body>
+  <div class="camp-shell">
+    <header class="camp-header">
+      <div>
+        <div class="eyebrow">Local Chat Server</div>
+        <h1>Camp Edition</h1>
+        <p id="sessionLine" class="muted">Смена не выбрана</p>
+      </div>
+      <div class="header-actions">
+        <span id="roleChip" class="chip">offline</span>
+        <button id="logoutBtn" class="button ghost hidden" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <section id="loginPanel" class="card login-card">
+      <h2>Подключение</h2>
+      <p class="muted">Вставьте web-токен сессии Local Chat. Токен хранится только в этом браузере.</p>
+      <form id="loginForm" class="row">
+        <label class="grow">Токен сессии
+          <input id="tokenInput" type="password" autocomplete="off" minlength="8" required placeholder="session token">
+        </label>
+        <button class="button primary" type="submit">Подключиться</button>
+      </form>
+      <p id="loginError" class="error"></p>
+    </section>
+
+    <div id="workspace" class="workspace hidden">
+      <nav id="nav" class="nav" aria-label="Camp sections"></nav>
+      <main id="panel" class="panel" aria-live="polite"></main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="/static/camp/camp.js" defer></script>
+</body>
+</html>
