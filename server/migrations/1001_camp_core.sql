@@ -152,12 +152,15 @@ CREATE TABLE IF NOT EXISTS camp_alerts (
         CHECK (status IN ('open', 'acknowledged', 'closed')),
     zone_id INTEGER,
     note TEXT,
+    after_action TEXT,
     created_by INTEGER NOT NULL,
     created_at_ms INTEGER NOT NULL,
+    closed_by INTEGER,
     closed_at_ms INTEGER,
     FOREIGN KEY (session_id) REFERENCES camp_sessions(id) ON DELETE CASCADE,
     FOREIGN KEY (playbook_id) REFERENCES camp_alert_playbooks(id) ON DELETE RESTRICT,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS camp_alert_acks (

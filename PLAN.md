@@ -15,16 +15,16 @@ Isolation: this directory only; `LC_RELEASE` and live board untouched.
 - [x] local disposable server smoke (`SMOKE_OK`)
 - [x] commit `5a374f5`; compact + notify room
 
-## Cycle 2 — shift operations
+## Cycle 2 — shift operations — DONE
 
-- [ ] attendance events, deadline, marks, all-present guard, overdue alerts
-- [ ] alert playbooks, drill mode, acknowledgements, after-action
-- [ ] zones and append-only scans, last-seen, zone counters
-- [ ] duty roster, handover checklist and acknowledgement
-- [ ] pickup authorisations, gate movements, restrictions
-- [ ] dietary list and print view
-- [ ] parent digest (own child only)
-- [ ] tests + compact + notify room
+- [x] attendance events, deadline, marks, all-present guard, overdue alerts
+- [x] alert playbooks, drill mode, acknowledgements, after-action
+- [x] zones and append-only scans, last-seen, zone counters
+- [x] duty roster, handover checklist and acknowledgement
+- [x] pickup authorisations, gate movements, restrictions
+- [x] dietary list and print view
+- [x] parent digest (own child only)
+- [x] tests + compact + notify room (30 unit pass + extended smoke)
 
 ## Cycle 3 — UI, kiosk, resilience and product docs
 

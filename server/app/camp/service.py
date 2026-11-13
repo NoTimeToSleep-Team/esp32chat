@@ -146,8 +146,19 @@ class CampService:
                 "Create a camp session first",
                 status_code=409,
             )
+        self._guard_session(actor, int(candidate))
         self._session(connection, int(candidate))
         return int(candidate)
+
+    @staticmethod
+    def _guard_session(actor: Mapping[str, Any], session_id: int) -> None:
+        actor_session = actor.get("session_id")
+        if actor_session is not None and int(actor_session) != int(session_id):
+            raise CampError(
+                "session_forbidden",
+                "This record belongs to another camp session",
+                status_code=403,
+            )
 
     def get_actor_for_user(
         self,
@@ -1108,6 +1119,1542 @@ class CampService:
             return dict(
                 connection.execute(
                     "SELECT * FROM camp_requests WHERE id = ?", (request_id,)
+                ).fetchone()
+            )
+
+    # -- attendance -----------------------------------------------------
+
+    def _attendance_event_payload(
+        self,
+        connection: sqlite3.Connection,
+        event_id: int,
+        *,
+        viewer: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        event = connection.execute(
+            """
+            SELECT e.*, u.name AS unit_name
+            FROM camp_attendance_events e
+            JOIN camp_units u ON u.id = e.unit_id
+            WHERE e.id = ?
+            """,
+            (event_id,),
+        ).fetchone()
+        if event is None:
+            raise CampError("attendance_not_found", "Attendance event not found", status_code=404)
+        people = connection.execute(
+            """
+            SELECT p.id, p.display_name, p.badge_code, p.room, p.age_band,
+                   m.status AS mark_status, m.note AS mark_note,
+                   m.marked_at_ms, m.marked_by
+            FROM camp_people p
+            LEFT JOIN camp_attendance_marks m
+              ON m.person_id = p.id AND m.event_id = ?
+            WHERE p.unit_id = ? AND p.role = 'child' AND p.status = 'active'
+            ORDER BY p.display_name COLLATE NOCASE
+            """,
+            (event_id, int(event["unit_id"])),
+        ).fetchall()
+        items = [dict(row) for row in people]
+        if viewer is not None and str(viewer.get("role") or "") == "child":
+            items = [item for item in items if item["id"] == viewer.get("camp_person_id")]
+        statuses = [str(item["mark_status"]) for item in items if item["mark_status"]]
+        counts = {name: statuses.count(name) for name in ("present", "absent", "sick", "medic", "parent", "left")}
+        marked = sum(1 for item in items if item.get("mark_status"))
+        unmarked = sum(1 for item in items if not item.get("mark_status"))
+        missing = [
+            item
+            for item in items
+            if not item.get("mark_status") or item.get("mark_status") in {"absent", "left"}
+        ]
+        payload = dict(event)
+        payload["items"] = items
+        payload["summary"] = {
+            "total": len(items),
+            "marked": marked,
+            "unmarked": unmarked,
+            **counts,
+        }
+        payload["missing"] = missing
+        payload["overdue"] = (
+            str(event["status"]) == "open" and int(event["deadline_at_ms"]) < _now_ms()
+        )
+        return payload
+
+    def create_attendance_event(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        unit_id: int,
+        kind: str = "roll_call",
+        deadline_at_ms: int | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        if kind not in {"roll_call", "lights_out", "custom"}:
+            raise CampError("invalid_kind", "Invalid attendance kind")
+        now = _now_ms()
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            unit = connection.execute(
+                "SELECT * FROM camp_units WHERE id = ? AND session_id = ?",
+                (unit_id, resolved_session),
+            ).fetchone()
+            if unit is None:
+                raise CampError("unit_not_found", "Unit not found in this session", status_code=404)
+            if actor.get("role") == "counselor" and actor.get("unit_id") != unit_id:
+                raise CampError("unit_forbidden", "Counselors mark only their own unit", status_code=403)
+            deadline = int(deadline_at_ms or (now + 15 * 60_000))
+            if deadline <= now:
+                raise CampError("invalid_deadline", "Deadline must be in the future")
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_attendance_events(
+                    session_id, unit_id, kind, deadline_at_ms, status, created_by, created_at_ms
+                ) VALUES (?, ?, ?, ?, 'open', ?, ?)
+                """,
+                (resolved_session, unit_id, kind, deadline, actor.get("user_id"), now),
+            )
+            event_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "attendance.created",
+                details={"event_id": event_id, "unit_id": unit_id, "kind": kind},
+            )
+            return self._attendance_event_payload(connection, event_id, viewer=actor)
+
+    def list_attendance_events(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        unit_id: int | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        role = str(actor.get("role") or "")
+        if role not in STAFF_ROLES and role != "child":
+            raise CampError("role_forbidden", "No access to attendance", status_code=403)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            clauses = ["e.session_id = ?"]
+            params: list[Any] = [resolved_session]
+            if unit_id is not None:
+                clauses.append("e.unit_id = ?")
+                params.append(unit_id)
+            if status:
+                if status not in {"open", "closed"}:
+                    raise CampError("invalid_status", "Invalid attendance status")
+                clauses.append("e.status = ?")
+                params.append(status)
+            if role == "child":
+                clauses.append("e.unit_id = ?")
+                params.append(actor.get("unit_id"))
+            params.append(max(1, min(int(limit), 300)))
+            rows = connection.execute(
+                f"""
+                SELECT e.id FROM camp_attendance_events e
+                WHERE {' AND '.join(clauses)}
+                ORDER BY CASE e.status WHEN 'open' THEN 0 ELSE 1 END,
+                         e.created_at_ms DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._attendance_event_payload(connection, int(row["id"]), viewer=actor) for row in rows]
+
+    def get_attendance_event(self, actor: Mapping[str, Any], *, event_id: int) -> dict[str, Any]:
+        role = str(actor.get("role") or "")
+        if role not in STAFF_ROLES and role != "child":
+            raise CampError("role_forbidden", "No access to attendance", status_code=403)
+        with self._connect() as connection:
+            event = connection.execute(
+                "SELECT * FROM camp_attendance_events WHERE id = ?", (event_id,)
+            ).fetchone()
+            if event is None:
+                raise CampError("attendance_not_found", "Attendance event not found", status_code=404)
+            self._guard_session(actor, int(event["session_id"]))
+            if role == "child" and actor.get("unit_id") != int(event["unit_id"]):
+                raise CampError("unit_forbidden", "No access to another unit's attendance", status_code=403)
+            return self._attendance_event_payload(connection, event_id, viewer=actor)
+
+    def mark_attendance(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        event_id: int,
+        person_id: int,
+        status: str,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security", "medic"})
+        if status not in {"present", "absent", "sick", "medic", "parent", "left"}:
+            raise CampError("invalid_mark", "Invalid attendance mark")
+        with self._connect() as connection:
+            event = connection.execute(
+                "SELECT * FROM camp_attendance_events WHERE id = ?", (event_id,)
+            ).fetchone()
+            if event is None:
+                raise CampError("attendance_not_found", "Attendance event not found", status_code=404)
+            self._guard_session(actor, int(event["session_id"]))
+            if str(event["status"]) != "open":
+                raise CampError("attendance_closed", "Attendance event is closed", status_code=409)
+            if actor.get("role") == "counselor" and actor.get("unit_id") != int(event["unit_id"]):
+                raise CampError("unit_forbidden", "Counselors mark only their own unit", status_code=403)
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ? AND session_id = ?",
+                (person_id, int(event["session_id"])),
+            ).fetchone()
+            if person is None or person["role"] != "child" or person["unit_id"] != event["unit_id"]:
+                raise CampError("person_not_in_unit", "Child is not in this unit", status_code=404)
+            connection.execute(
+                """
+                INSERT INTO camp_attendance_marks(event_id, person_id, status, note, marked_by, marked_at_ms)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(event_id, person_id) DO UPDATE SET
+                    status = excluded.status,
+                    note = excluded.note,
+                    marked_by = excluded.marked_by,
+                    marked_at_ms = excluded.marked_at_ms
+                """,
+                (
+                    event_id,
+                    person_id,
+                    status,
+                    (note or "").strip()[:1000] or None,
+                    actor.get("user_id"),
+                    _now_ms(),
+                ),
+            )
+            self._audit(
+                connection,
+                actor,
+                "attendance.marked",
+                person_id=person_id,
+                details={"event_id": event_id, "status": status},
+            )
+            return self._attendance_event_payload(connection, event_id, viewer=actor)
+
+    def mark_all_present(self, actor: Mapping[str, Any], *, event_id: int) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        with self._connect() as connection:
+            event = connection.execute(
+                "SELECT * FROM camp_attendance_events WHERE id = ?", (event_id,)
+            ).fetchone()
+            if event is None:
+                raise CampError("attendance_not_found", "Attendance event not found", status_code=404)
+            self._guard_session(actor, int(event["session_id"]))
+            if str(event["status"]) != "open":
+                raise CampError("attendance_closed", "Attendance event is closed", status_code=409)
+            if actor.get("role") == "counselor" and actor.get("unit_id") != int(event["unit_id"]):
+                raise CampError("unit_forbidden", "Counselors mark only their own unit", status_code=403)
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO camp_attendance_marks(
+                    event_id, person_id, status, marked_by, marked_at_ms
+                )
+                SELECT ?, p.id, 'present', ?, ?
+                FROM camp_people p
+                WHERE p.unit_id = ? AND p.role = 'child' AND p.status = 'active'
+                """,
+                (event_id, actor.get("user_id"), _now_ms(), int(event["unit_id"])),
+            )
+            self._audit(
+                connection,
+                actor,
+                "attendance.all_present",
+                details={"event_id": event_id, "new_marks": cursor.rowcount},
+            )
+            return self._attendance_event_payload(connection, event_id, viewer=actor)
+
+    def close_attendance(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        event_id: int,
+        force: bool = False,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        with self._connect() as connection:
+            event = connection.execute(
+                "SELECT * FROM camp_attendance_events WHERE id = ?", (event_id,)
+            ).fetchone()
+            if event is None:
+                raise CampError("attendance_not_found", "Attendance event not found", status_code=404)
+            self._guard_session(actor, int(event["session_id"]))
+            if str(event["status"]) == "closed":
+                raise CampError("attendance_closed", "Attendance event is already closed", status_code=409)
+            if actor.get("role") == "counselor" and actor.get("unit_id") != int(event["unit_id"]):
+                raise CampError("unit_forbidden", "Counselors close only their own unit", status_code=403)
+            payload = self._attendance_event_payload(connection, event_id, viewer=actor)
+            unmarked = [
+                item for item in payload["items"] if not item.get("mark_status")
+            ]
+            if unmarked and not force:
+                raise CampError(
+                    "attendance_incomplete",
+                    "Mark every child before closing, or force-close with a reason",
+                    status_code=409,
+                    details={
+                        "unmarked": [
+                            {"id": item["id"], "display_name": item["display_name"]}
+                            for item in unmarked
+                        ]
+                    },
+                )
+            connection.execute(
+                """
+                UPDATE camp_attendance_events
+                SET status = 'closed', closed_at_ms = ?
+                WHERE id = ?
+                """,
+                (_now_ms(), event_id),
+            )
+            self._audit(
+                connection,
+                actor,
+                "attendance.closed",
+                details={"event_id": event_id, "forced": bool(force), "note": (note or "")[:1000]},
+            )
+            return self._attendance_event_payload(connection, event_id, viewer=actor)
+
+    def attendance_overdue(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            rows = connection.execute(
+                """
+                SELECT id FROM camp_attendance_events
+                WHERE session_id = ? AND status = 'open' AND deadline_at_ms < ?
+                ORDER BY deadline_at_ms
+                """,
+                (resolved_session, _now_ms()),
+            ).fetchall()
+            return [self._attendance_event_payload(connection, int(row["id"]), viewer=actor) for row in rows]
+
+    # -- alerts and drills ----------------------------------------------
+
+    def list_alert_playbooks(self, actor: Mapping[str, Any]) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM camp_alert_playbooks WHERE active = 1 ORDER BY title"
+            ).fetchall()
+            return [
+                {
+                    **dict(row),
+                    "steps": _json_load(row["steps_json"], []),
+                    "roles": _json_load(row["roles_json"], []),
+                }
+                for row in rows
+            ]
+
+    def _alert_payload(self, connection: sqlite3.Connection, alert_id: int) -> dict[str, Any]:
+        row = connection.execute(
+            """
+            SELECT a.*, p.title, p.steps_json, p.roles_json,
+                   u.login AS created_by_login, z.name AS zone_name
+            FROM camp_alerts a
+            JOIN camp_alert_playbooks p ON p.id = a.playbook_id
+            LEFT JOIN users u ON u.id = a.created_by
+            LEFT JOIN camp_zones z ON z.id = a.zone_id
+            WHERE a.id = ?
+            """,
+            (alert_id,),
+        ).fetchone()
+        if row is None:
+            raise CampError("alert_not_found", "Alert not found", status_code=404)
+        acks = connection.execute(
+            """
+            SELECT ack.user_id, ack.step_index, ack.acked_at_ms,
+                   u.login, COALESCE(cp.display_name, u.login) AS display_name,
+                   COALESCE(cp.role, 'unknown') AS camp_role
+            FROM camp_alert_acks ack
+            JOIN users u ON u.id = ack.user_id
+            LEFT JOIN camp_people cp ON cp.user_id = u.id AND cp.session_id = ?
+            WHERE ack.alert_id = ?
+            ORDER BY ack.acked_at_ms
+            """,
+            (int(row["session_id"]), alert_id),
+        ).fetchall()
+        payload = dict(row)
+        payload["steps"] = _json_load(row["steps_json"], [])
+        payload["required_roles"] = _json_load(row["roles_json"], [])
+        payload["acks"] = [dict(ack) for ack in acks]
+        payload["ack_count"] = len({int(ack["user_id"]) for ack in acks})
+        return payload
+
+    def start_alert(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        kind: str,
+        drill: bool = False,
+        zone_id: int | None = None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            playbook = connection.execute(
+                "SELECT * FROM camp_alert_playbooks WHERE kind = ? AND active = 1",
+                (kind,),
+            ).fetchone()
+            if playbook is None:
+                raise CampError("playbook_not_found", "Unknown alert playbook", status_code=404)
+            if zone_id is not None:
+                zone = connection.execute(
+                    "SELECT id FROM camp_zones WHERE id = ? AND session_id = ?",
+                    (zone_id, resolved_session),
+                ).fetchone()
+                if zone is None:
+                    raise CampError("zone_not_found", "Zone not found", status_code=404)
+            if not drill:
+                existing = connection.execute(
+                    """
+                    SELECT id FROM camp_alerts
+                    WHERE session_id = ? AND kind = ? AND drill = 0 AND status != 'closed'
+                    LIMIT 1
+                    """,
+                    (resolved_session, kind),
+                ).fetchone()
+                if existing is not None:
+                    raise CampError(
+                        "alert_already_open",
+                        "This alert is already open; acknowledge it instead",
+                        status_code=409,
+                        details={"alert_id": int(existing["id"])},
+                    )
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_alerts(
+                    session_id, playbook_id, kind, drill, status, zone_id, note, created_by, created_at_ms
+                ) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)
+                """,
+                (
+                    resolved_session,
+                    int(playbook["id"]),
+                    kind,
+                    1 if drill else 0,
+                    zone_id,
+                    (note or "").strip()[:2000] or None,
+                    actor.get("user_id"),
+                    _now_ms(),
+                ),
+            )
+            alert_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "alert.started",
+                details={"alert_id": alert_id, "kind": kind, "drill": bool(drill)},
+            )
+            return self._alert_payload(connection, alert_id)
+
+    def list_alerts(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        status: str | None = None,
+        kind: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            clauses = ["session_id = ?"]
+            params: list[Any] = [resolved_session]
+            if status:
+                if status not in {"open", "acknowledged", "closed"}:
+                    raise CampError("invalid_status", "Invalid alert status")
+                clauses.append("status = ?")
+                params.append(status)
+            if kind:
+                clauses.append("kind = ?")
+                params.append(kind)
+            params.append(max(1, min(int(limit), 300)))
+            rows = connection.execute(
+                f"""
+                SELECT id FROM camp_alerts
+                WHERE {' AND '.join(clauses)}
+                ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
+                         created_at_ms DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._alert_payload(connection, int(row["id"])) for row in rows]
+
+    def get_alert(self, actor: Mapping[str, Any], *, alert_id: int) -> dict[str, Any]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            return self._alert_payload(connection, alert_id)
+
+    def acknowledge_alert(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        alert_id: int,
+        step_index: int = 0,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            alert = connection.execute(
+                "SELECT * FROM camp_alerts WHERE id = ?", (alert_id,)
+            ).fetchone()
+            if alert is None:
+                raise CampError("alert_not_found", "Alert not found", status_code=404)
+            self._guard_session(actor, int(alert["session_id"]))
+            if str(alert["status"]) == "closed":
+                raise CampError("alert_closed", "Alert is already closed", status_code=409)
+            playbook = connection.execute(
+                "SELECT steps_json FROM camp_alert_playbooks WHERE id = ?",
+                (int(alert["playbook_id"]),),
+            ).fetchone()
+            steps = _json_load(playbook["steps_json"], []) if playbook else []
+            if step_index < 0 or step_index >= max(1, len(steps)):
+                raise CampError("invalid_step", "Unknown playbook step")
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO camp_alert_acks(alert_id, user_id, step_index, acked_at_ms)
+                VALUES (?, ?, ?, ?)
+                """,
+                (alert_id, actor.get("user_id"), step_index, _now_ms()),
+            )
+            connection.execute(
+                "UPDATE camp_alerts SET status = 'acknowledged' WHERE id = ? AND status = 'open'",
+                (alert_id,),
+            )
+            self._audit(
+                connection,
+                actor,
+                "alert.acknowledged",
+                details={
+                    "alert_id": alert_id,
+                    "step_index": step_index,
+                    "note": (note or "")[:1000],
+                },
+            )
+            return self._alert_payload(connection, alert_id)
+
+    def close_alert(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        alert_id: int,
+        note: str | None = None,
+        after_action: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"director", "security", "medic"})
+        with self._connect() as connection:
+            alert = connection.execute(
+                "SELECT * FROM camp_alerts WHERE id = ?", (alert_id,)
+            ).fetchone()
+            if alert is None:
+                raise CampError("alert_not_found", "Alert not found", status_code=404)
+            self._guard_session(actor, int(alert["session_id"]))
+            if str(alert["status"]) == "closed":
+                raise CampError("alert_closed", "Alert is already closed", status_code=409)
+            if actor.get("role") not in {"director", "security"} and alert["created_by"] != actor.get("user_id"):
+                raise CampError("alert_forbidden", "Only security, director or the creator can close it", status_code=403)
+            connection.execute(
+                """
+                UPDATE camp_alerts
+                SET status = 'closed', closed_by = ?, closed_at_ms = ?,
+                    note = COALESCE(?, note), after_action = COALESCE(?, after_action)
+                WHERE id = ?
+                """,
+                (
+                    actor.get("user_id"),
+                    _now_ms(),
+                    (note or "").strip()[:2000] or None,
+                    (after_action or "").strip()[:4000] or None,
+                    alert_id,
+                ),
+            )
+            self._audit(
+                connection,
+                actor,
+                "alert.closed",
+                details={"alert_id": alert_id, "drill": bool(alert["drill"])},
+            )
+            return self._alert_payload(connection, alert_id)
+
+    # -- zones and scans -------------------------------------------------
+
+    def create_zone(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        name: str,
+        kind: str = "checkpoint",
+        parent_id: int | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"director", "security"})
+        clean = name.strip()
+        if not clean:
+            raise CampError("invalid_name", "Zone name must not be empty")
+        if kind not in {"checkpoint", "building", "gate", "medical", "other"}:
+            raise CampError("invalid_kind", "Invalid zone kind")
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            if parent_id is not None:
+                parent = connection.execute(
+                    "SELECT id FROM camp_zones WHERE id = ? AND session_id = ?",
+                    (parent_id, resolved_session),
+                ).fetchone()
+                if parent is None:
+                    raise CampError("zone_not_found", "Parent zone not found", status_code=404)
+            try:
+                cursor = connection.execute(
+                    "INSERT INTO camp_zones(session_id, name, kind, parent_id) VALUES (?, ?, ?, ?)",
+                    (resolved_session, clean, kind, parent_id),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise CampError("zone_exists", "Zone already exists", status_code=409) from exc
+            zone_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "zone.created",
+                details={"zone_id": zone_id, "name": clean, "kind": kind},
+            )
+            return dict(
+                connection.execute("SELECT * FROM camp_zones WHERE id = ?", (zone_id,)).fetchone()
+            )
+
+    def list_zones(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            rows = connection.execute(
+                "SELECT * FROM camp_zones WHERE session_id = ? ORDER BY kind, name",
+                (resolved_session,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def scan_person(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        zone_id: int,
+        person_id: int | None = None,
+        badge_code: str | None = None,
+        source: str = "staff",
+        device_id: str | None = None,
+        scanned_at_ms: int | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security", "medic"})
+        if (person_id is None) == (not badge_code):
+            raise CampError("scan_target_required", "Provide exactly one of person_id or badge_code")
+        if source not in {"staff", "kiosk", "import"}:
+            raise CampError("invalid_source", "Invalid scan source")
+        with self._connect() as connection:
+            zone = connection.execute("SELECT * FROM camp_zones WHERE id = ?", (zone_id,)).fetchone()
+            if zone is None:
+                raise CampError("zone_not_found", "Zone not found", status_code=404)
+            self._guard_session(actor, int(zone["session_id"]))
+            if person_id is not None:
+                person = connection.execute(
+                    "SELECT * FROM camp_people WHERE id = ? AND session_id = ?",
+                    (person_id, int(zone["session_id"])),
+                ).fetchone()
+            else:
+                person = connection.execute(
+                    "SELECT * FROM camp_people WHERE badge_code = ? AND session_id = ?",
+                    (badge_code, int(zone["session_id"])),
+                ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Badge or person not found in this session", status_code=404)
+            at = int(scanned_at_ms or _now_ms())
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_scans(person_id, zone_id, scanned_at_ms, device_id, source, created_at_ms)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (int(person["id"]), zone_id, at, device_id, source, _now_ms()),
+            )
+            scan_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "scan.recorded",
+                person_id=int(person["id"]),
+                details={"scan_id": scan_id, "zone_id": zone_id, "source": source},
+            )
+            return {
+                "scan": dict(
+                    connection.execute("SELECT * FROM camp_scans WHERE id = ?", (scan_id,)).fetchone()
+                ),
+                "person": dict(person),
+                "zone": dict(zone),
+            }
+
+    def last_seen(self, actor: Mapping[str, Any], *, person_id: int) -> dict[str, Any]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            row = connection.execute(
+                """
+                SELECT s.*, z.name AS zone_name, z.kind AS zone_kind
+                FROM camp_scans s
+                JOIN camp_zones z ON z.id = s.zone_id
+                WHERE s.person_id = ?
+                ORDER BY s.scanned_at_ms DESC, s.id DESC
+                LIMIT 1
+                """,
+                (person_id,),
+            ).fetchone()
+            return {"person": dict(person), "last_seen": dict(row) if row else None}
+
+    def zone_monitor(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        minutes: int = 120,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            since = _now_ms() - max(1, min(int(minutes), 1440)) * 60_000
+            rows = connection.execute(
+                """
+                SELECT z.id, z.name, z.kind,
+                       COUNT(s.id) AS scan_count,
+                       COUNT(DISTINCT s.person_id) AS people_count,
+                       MAX(s.scanned_at_ms) AS last_scan_ms
+                FROM camp_zones z
+                LEFT JOIN camp_scans s ON s.zone_id = z.id AND s.scanned_at_ms >= ?
+                WHERE z.session_id = ?
+                GROUP BY z.id
+                ORDER BY z.kind, z.name
+                """,
+                (since, resolved_session),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_zone_scans(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        zone_id: int,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            zone = connection.execute("SELECT * FROM camp_zones WHERE id = ?", (zone_id,)).fetchone()
+            if zone is None:
+                raise CampError("zone_not_found", "Zone not found", status_code=404)
+            self._guard_session(actor, int(zone["session_id"]))
+            rows = connection.execute(
+                """
+                SELECT s.*, p.display_name, p.badge_code, p.role, p.room
+                FROM camp_scans s
+                JOIN camp_people p ON p.id = s.person_id
+                WHERE s.zone_id = ?
+                ORDER BY s.scanned_at_ms DESC, s.id DESC
+                LIMIT ?
+                """,
+                (zone_id, max(1, min(int(limit), 500))),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    # -- duty and handover ----------------------------------------------
+
+    def _staff_person_for_user(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        user_id: int,
+        session_id: int,
+    ) -> sqlite3.Row:
+        row = connection.execute(
+            """
+            SELECT * FROM camp_people
+            WHERE user_id = ? AND session_id = ? AND role IN
+                ('counselor','director','security','medic','it','kitchen')
+              AND status = 'active'
+            """,
+            (user_id, session_id),
+        ).fetchone()
+        if row is None:
+            raise CampError("staff_not_found", "User is not active staff in this session", status_code=404)
+        return row
+
+    def create_duty_shift(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        user_id: int,
+        role: str = "counselor",
+        starts_at_ms: int,
+        ends_at_ms: int,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, MANAGE_ROLES)
+        if role not in STAFF_ROLES:
+            raise CampError("invalid_role", "Duty role must be a staff role")
+        if int(ends_at_ms) <= int(starts_at_ms):
+            raise CampError("invalid_dates", "Shift end must be after start")
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            person = self._staff_person_for_user(
+                connection, user_id=user_id, session_id=resolved_session
+            )
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_duty_shifts(session_id, user_id, role, starts_at_ms, ends_at_ms, note)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    resolved_session,
+                    user_id,
+                    role,
+                    int(starts_at_ms),
+                    int(ends_at_ms),
+                    (note or "").strip()[:1000] or None,
+                ),
+            )
+            shift_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "duty.created",
+                person_id=int(person["id"]),
+                details={"shift_id": shift_id, "user_id": user_id},
+            )
+            return dict(
+                connection.execute("SELECT * FROM camp_duty_shifts WHERE id = ?", (shift_id,)).fetchone()
+            )
+
+    def list_duty_shifts(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        from_ms: int | None = None,
+        to_ms: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            clauses = ["d.session_id = ?"]
+            params: list[Any] = [resolved_session]
+            if from_ms is not None:
+                clauses.append("d.ends_at_ms >= ?")
+                params.append(int(from_ms))
+            if to_ms is not None:
+                clauses.append("d.starts_at_ms <= ?")
+                params.append(int(to_ms))
+            rows = connection.execute(
+                f"""
+                SELECT d.*, COALESCE(p.display_name, u.login) AS display_name,
+                       (SELECT COUNT(*) FROM camp_handover h WHERE h.session_id = d.session_id) AS handover_count
+                FROM camp_duty_shifts d
+                LEFT JOIN camp_people p ON p.user_id = d.user_id AND p.session_id = d.session_id
+                LEFT JOIN users u ON u.id = d.user_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY d.starts_at_ms
+                """,
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_handover(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        to_user_id: int,
+        notes: str,
+        open_items: list[Any] | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        if not notes.strip():
+            raise CampError("invalid_notes", "Handover notes must not be empty")
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            self._staff_person_for_user(connection, user_id=to_user_id, session_id=resolved_session)
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_handover(
+                    session_id, from_user_id, to_user_id, notes, open_items_json, created_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    resolved_session,
+                    actor.get("user_id"),
+                    to_user_id,
+                    notes.strip()[:4000],
+                    _json(open_items or []),
+                    _now_ms(),
+                ),
+            )
+            handover_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "handover.created",
+                details={"handover_id": handover_id, "to_user_id": to_user_id},
+            )
+            return self._handover_payload(connection, handover_id)
+
+    def _handover_payload(self, connection: sqlite3.Connection, handover_id: int) -> dict[str, Any]:
+        row = connection.execute(
+            """
+            SELECT h.*, fu.login AS from_login, tu.login AS to_login,
+                   COALESCE(fp.display_name, fu.login) AS from_display_name,
+                   COALESCE(tp.display_name, tu.login) AS to_display_name
+            FROM camp_handover h
+            LEFT JOIN users fu ON fu.id = h.from_user_id
+            LEFT JOIN users tu ON tu.id = h.to_user_id
+            LEFT JOIN camp_people fp ON fp.user_id = h.from_user_id AND fp.session_id = h.session_id
+            LEFT JOIN camp_people tp ON tp.user_id = h.to_user_id AND tp.session_id = h.session_id
+            WHERE h.id = ?
+            """,
+            (handover_id,),
+        ).fetchone()
+        if row is None:
+            raise CampError("handover_not_found", "Handover not found", status_code=404)
+        payload = dict(row)
+        payload["open_items"] = _json_load(row["open_items_json"], [])
+        payload["acknowledged"] = row["acknowledged_at_ms"] is not None
+        return payload
+
+    def list_handovers(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            clauses = ["session_id = ?"]
+            params: list[Any] = [resolved_session]
+            if actor.get("role") == "counselor":
+                clauses.append("(from_user_id = ? OR to_user_id = ?)")
+                params.extend([actor.get("user_id"), actor.get("user_id")])
+            params.append(max(1, min(int(limit), 300)))
+            rows = connection.execute(
+                f"""
+                SELECT id FROM camp_handover
+                WHERE {' AND '.join(clauses)}
+                ORDER BY created_at_ms DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._handover_payload(connection, int(row["id"])) for row in rows]
+
+    def acknowledge_handover(self, actor: Mapping[str, Any], *, handover_id: int) -> dict[str, Any]:
+        self._require_role(actor, STAFF_ROLES)
+        with self._connect() as connection:
+            handover = connection.execute(
+                "SELECT * FROM camp_handover WHERE id = ?", (handover_id,)
+            ).fetchone()
+            if handover is None:
+                raise CampError("handover_not_found", "Handover not found", status_code=404)
+            self._guard_session(actor, int(handover["session_id"]))
+            if actor.get("role") != "director" and handover["to_user_id"] != actor.get("user_id"):
+                raise CampError("handover_forbidden", "Only the receiving staff member can acknowledge", status_code=403)
+            if handover["acknowledged_at_ms"] is not None:
+                return self._handover_payload(connection, handover_id)
+            connection.execute(
+                "UPDATE camp_handover SET acknowledged_at_ms = ? WHERE id = ?",
+                (_now_ms(), handover_id),
+            )
+            self._audit(
+                connection,
+                actor,
+                "handover.acknowledged",
+                details={"handover_id": handover_id},
+            )
+            return self._handover_payload(connection, handover_id)
+
+    # -- pickup and gate movements --------------------------------------
+
+    def create_pickup_auth(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        adult_name: str,
+        relationship: str | None = None,
+        adult_document: str | None = None,
+        restrictions: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        clean_name = adult_name.strip()
+        if not clean_name:
+            raise CampError("invalid_name", "Adult name must not be empty")
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            if person["role"] != "child":
+                raise CampError("pickup_child_only", "Pickup authorisations apply to children only")
+            qr_code = "PICKUP-" + secrets.token_urlsafe(18)
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_pickup_auth(
+                    person_id, adult_name, adult_document, relationship, qr_code,
+                    restrictions, active, created_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                (
+                    person_id,
+                    clean_name,
+                    (adult_document or "").strip()[:200] or None,
+                    (relationship or "").strip()[:120] or None,
+                    qr_code,
+                    (restrictions or "").strip()[:1000] or None,
+                    _now_ms(),
+                ),
+            )
+            auth_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "pickup.authorised",
+                person_id=person_id,
+                details={"auth_id": auth_id},
+            )
+            return dict(
+                connection.execute("SELECT * FROM camp_pickup_auth WHERE id = ?", (auth_id,)).fetchone()
+            )
+
+    def list_pickup_auth(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int | None = None,
+        include_inactive: bool = False,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        with self._connect() as connection:
+            clauses = ["1 = 1"]
+            params: list[Any] = []
+            if actor.get("session_id") is not None:
+                clauses.append("p.session_id = ?")
+                params.append(int(actor["session_id"]))
+            if person_id is not None:
+                clauses.append("a.person_id = ?")
+                params.append(person_id)
+            if not include_inactive:
+                clauses.append("a.active = 1")
+            rows = connection.execute(
+                f"""
+                SELECT a.*, p.display_name, p.badge_code, p.unit_id
+                FROM camp_pickup_auth a
+                JOIN camp_people p ON p.id = a.person_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY a.created_at_ms DESC
+                """,
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def verify_pickup(self, actor: Mapping[str, Any], *, qr_code: str) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT a.*, p.display_name, p.badge_code, p.role, p.status AS person_status,
+                       p.session_id, u.name AS unit_name
+                FROM camp_pickup_auth a
+                JOIN camp_people p ON p.id = a.person_id
+                LEFT JOIN camp_units u ON u.id = p.unit_id
+                WHERE a.qr_code = ? AND a.active = 1
+                """,
+                (qr_code.strip(),),
+            ).fetchone()
+            if row is None:
+                raise CampError("pickup_not_found", "Pickup authorisation not found", status_code=404)
+            self._guard_session(actor, int(row["session_id"]))
+            return dict(row)
+
+    def record_movement(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        direction: str,
+        qr_code: str | None = None,
+        zone_id: int | None = None,
+        override_reason: str | None = None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        if direction not in {"out", "in"}:
+            raise CampError("invalid_direction", "Direction must be out or in")
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            if person["role"] != "child":
+                raise CampError("movement_child_only", "Gate movements apply to children only")
+            last = connection.execute(
+                """
+                SELECT direction FROM camp_movements
+                WHERE person_id = ?
+                ORDER BY at_ms DESC, id DESC
+                LIMIT 1
+                """,
+                (person_id,),
+            ).fetchone()
+            current = str(last["direction"]) if last else "in"
+            if current == direction:
+                raise CampError(
+                    "movement_conflict",
+                    f"Child is already marked {direction}",
+                    status_code=409,
+                )
+            auth_id: int | None = None
+            if direction == "out":
+                if qr_code:
+                    auth = connection.execute(
+                        """
+                        SELECT * FROM camp_pickup_auth
+                        WHERE qr_code = ? AND person_id = ? AND active = 1
+                        """,
+                        (qr_code.strip(), person_id),
+                    ).fetchone()
+                    if auth is None:
+                        raise CampError("pickup_not_found", "Pickup authorisation does not match this child", status_code=404)
+                    if auth["restrictions"] and not (override_reason or "").strip():
+                        raise CampError(
+                            "pickup_restricted",
+                            "This pickup has restrictions; record an override reason",
+                            status_code=409,
+                            details={"restrictions": auth["restrictions"]},
+                        )
+                    auth_id = int(auth["id"])
+                elif not (override_reason or "").strip():
+                    raise CampError(
+                        "pickup_auth_required",
+                        "Scan a pickup QR or record an override reason",
+                        status_code=409,
+                    )
+            if zone_id is not None:
+                zone = connection.execute(
+                    "SELECT id FROM camp_zones WHERE id = ? AND session_id = ?",
+                    (zone_id, int(person["session_id"])),
+                ).fetchone()
+                if zone is None:
+                    raise CampError("zone_not_found", "Zone not found", status_code=404)
+            cursor = connection.execute(
+                """
+                INSERT INTO camp_movements(
+                    person_id, direction, zone_id, authorized_by, pickup_auth_id, at_ms, note
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    person_id,
+                    direction,
+                    zone_id,
+                    actor.get("user_id"),
+                    auth_id,
+                    _now_ms(),
+                    (note or "").strip()[:1000] or None,
+                ),
+            )
+            movement_id = int(cursor.lastrowid)
+            self._audit(
+                connection,
+                actor,
+                "movement.recorded",
+                person_id=person_id,
+                details={
+                    "movement_id": movement_id,
+                    "direction": direction,
+                    "override": (override_reason or "")[:1000],
+                },
+            )
+            return dict(
+                connection.execute("SELECT * FROM camp_movements WHERE id = ?", (movement_id,)).fetchone()
+            )
+
+    def gate_log(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, {"counselor", "director", "security"})
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            rows = connection.execute(
+                """
+                SELECT m.*, p.display_name, p.badge_code, u.name AS unit_name,
+                       z.name AS zone_name, a.adult_name, a.restrictions
+                FROM camp_movements m
+                JOIN camp_people p ON p.id = m.person_id
+                LEFT JOIN camp_units u ON u.id = p.unit_id
+                LEFT JOIN camp_zones z ON z.id = m.zone_id
+                LEFT JOIN camp_pickup_auth a ON a.id = m.pickup_auth_id
+                WHERE p.session_id = ?
+                ORDER BY m.at_ms DESC, m.id DESC
+                LIMIT ?
+                """,
+                (resolved_session, max(1, min(int(limit), 500))),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    # -- dietary and digest ---------------------------------------------
+
+    def set_dietary(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        restriction: str,
+        note: str | None = None,
+        valid_to_ms: int | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "medic", "kitchen"})
+        clean = restriction.strip()
+        if not clean:
+            raise CampError("invalid_restriction", "Restriction must not be empty")
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            if person["role"] != "child":
+                raise CampError("dietary_child_only", "Dietary records apply to children only")
+            connection.execute(
+                """
+                INSERT INTO camp_dietary(person_id, restriction, confirmed_by, valid_to_ms, note)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(person_id, restriction) DO UPDATE SET
+                    confirmed_by = excluded.confirmed_by,
+                    valid_to_ms = excluded.valid_to_ms,
+                    note = excluded.note
+                """,
+                (
+                    person_id,
+                    clean[:200],
+                    actor.get("user_id"),
+                    int(valid_to_ms) if valid_to_ms is not None else None,
+                    (note or "").strip()[:1000] or None,
+                ),
+            )
+            self._audit(
+                connection,
+                actor,
+                "dietary.set",
+                person_id=person_id,
+                details={"restriction": clean[:200]},
+            )
+            return dict(
+                connection.execute(
+                    "SELECT * FROM camp_dietary WHERE person_id = ? AND restriction = ?",
+                    (person_id, clean[:200]),
+                ).fetchone()
+            )
+
+    def remove_dietary(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        restriction: str,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director", "medic", "kitchen"})
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT session_id FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            deleted = connection.execute(
+                "DELETE FROM camp_dietary WHERE person_id = ? AND restriction = ?",
+                (person_id, restriction.strip()[:200]),
+            ).rowcount
+            if deleted == 0:
+                raise CampError("dietary_not_found", "Dietary record not found", status_code=404)
+            self._audit(
+                connection,
+                actor,
+                "dietary.removed",
+                person_id=person_id,
+                details={"restriction": restriction[:200]},
+            )
+            return {"status": "ok", "deleted": deleted}
+
+    def list_dietary(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        unit_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self._require_role(actor, {"counselor", "director", "medic", "kitchen", "security"})
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            clauses = ["p.session_id = ?", "p.role = 'child'", "p.status = 'active'"]
+            params: list[Any] = [resolved_session]
+            if unit_id is not None:
+                clauses.append("p.unit_id = ?")
+                params.append(unit_id)
+            rows = connection.execute(
+                f"""
+                SELECT d.*, p.display_name, p.badge_code, p.room, u.name AS unit_name
+                FROM camp_dietary d
+                JOIN camp_people p ON p.id = d.person_id
+                LEFT JOIN camp_units u ON u.id = p.unit_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY u.name, p.display_name, d.restriction
+                """,
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def link_guardian(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        parent_person_id: int,
+        relationship: str | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director"})
+        with self._connect() as connection:
+            child = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            parent = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (parent_person_id,)
+            ).fetchone()
+            if child is None or parent is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(child["session_id"]))
+            if child["role"] != "child" or parent["role"] != "parent":
+                raise CampError("guardian_roles", "Link a child to a parent profile")
+            if int(child["session_id"]) != int(parent["session_id"]):
+                raise CampError("different_sessions", "Child and parent must be in the same session")
+            connection.execute(
+                """
+                INSERT INTO camp_guardians(person_id, parent_person_id, relationship, created_at_ms)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(person_id, parent_person_id) DO UPDATE SET
+                    relationship = excluded.relationship
+                """,
+                (
+                    person_id,
+                    parent_person_id,
+                    (relationship or "").strip()[:120] or None,
+                    _now_ms(),
+                ),
+            )
+            self._audit(
+                connection,
+                actor,
+                "guardian.linked",
+                person_id=person_id,
+                details={"parent_person_id": parent_person_id},
+            )
+            return dict(
+                connection.execute(
+                    "SELECT * FROM camp_guardians WHERE person_id = ? AND parent_person_id = ?",
+                    (person_id, parent_person_id),
+                ).fetchone()
+            )
+
+    def list_guardians(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        role = str(actor.get("role") or "")
+        if role not in STAFF_ROLES and role != "parent":
+            raise CampError("role_forbidden", "No access to guardians", status_code=403)
+        with self._connect() as connection:
+            clauses = ["1 = 1"]
+            params: list[Any] = []
+            if actor.get("session_id") is not None:
+                clauses.append("child.session_id = ?")
+                params.append(int(actor["session_id"]))
+            if person_id is not None:
+                clauses.append("g.person_id = ?")
+                params.append(person_id)
+            if role == "parent":
+                clauses.append("g.parent_person_id = ?")
+                params.append(actor.get("camp_person_id"))
+            rows = connection.execute(
+                f"""
+                SELECT g.*, child.display_name AS child_name, parent.display_name AS parent_name
+                FROM camp_guardians g
+                JOIN camp_people child ON child.id = g.person_id
+                JOIN camp_people parent ON parent.id = g.parent_person_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY child.display_name
+                """,
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def upsert_digest(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        date: str,
+        text: str,
+        photo_id: int | None = None,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director"})
+        try:
+            datetime.strptime(date[:10], "%Y-%m-%d")
+        except ValueError as exc:
+            raise CampError("invalid_date", "Date must be YYYY-MM-DD") from exc
+        clean = text.strip()
+        if not clean:
+            raise CampError("invalid_text", "Digest text must not be empty")
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT * FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            if person["role"] != "child":
+                raise CampError("digest_child_only", "Digests apply to children only")
+            connection.execute(
+                """
+                INSERT INTO camp_digest(person_id, date, text, photo_id, created_by)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(person_id, date) DO UPDATE SET
+                    text = excluded.text,
+                    photo_id = excluded.photo_id,
+                    created_by = excluded.created_by
+                """,
+                (person_id, date[:10], clean[:4000], photo_id, actor.get("user_id")),
+            )
+            self._audit(
+                connection,
+                actor,
+                "digest.upserted",
+                person_id=person_id,
+                details={"date": date[:10]},
+            )
+            return dict(
+                connection.execute(
+                    "SELECT * FROM camp_digest WHERE person_id = ? AND date = ?",
+                    (person_id, date[:10]),
+                ).fetchone()
+            )
+
+    def list_digests(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        session_id: int | None = None,
+        person_id: int | None = None,
+        date: str | None = None,
+    ) -> list[dict[str, Any]]:
+        role = str(actor.get("role") or "")
+        if role not in STAFF_ROLES and role not in {"parent", "child"}:
+            raise CampError("role_forbidden", "No access to digests", status_code=403)
+        with self._connect() as connection:
+            resolved_session = self._resolve_session_id(connection, actor, session_id)
+            clauses = ["p.session_id = ?"]
+            params: list[Any] = [resolved_session]
+            if person_id is not None:
+                clauses.append("d.person_id = ?")
+                params.append(person_id)
+            if date:
+                clauses.append("d.date = ?")
+                params.append(date[:10])
+            if role == "parent":
+                clauses.append(
+                    "d.person_id IN (SELECT person_id FROM camp_guardians WHERE parent_person_id = ?)"
+                )
+                params.append(actor.get("camp_person_id"))
+            elif role == "child":
+                clauses.append("d.person_id = ?")
+                params.append(actor.get("camp_person_id"))
+            rows = connection.execute(
+                f"""
+                SELECT d.*, p.display_name, p.badge_code, u.name AS unit_name
+                FROM camp_digest d
+                JOIN camp_people p ON p.id = d.person_id
+                LEFT JOIN camp_units u ON u.id = p.unit_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY d.date DESC, p.display_name
+                """,
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def mark_digest_sent(
+        self,
+        actor: Mapping[str, Any],
+        *,
+        person_id: int,
+        date: str,
+    ) -> dict[str, Any]:
+        self._require_role(actor, {"counselor", "director"})
+        with self._connect() as connection:
+            person = connection.execute(
+                "SELECT session_id FROM camp_people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if person is None:
+                raise CampError("person_not_found", "Person not found", status_code=404)
+            self._guard_session(actor, int(person["session_id"]))
+            updated = connection.execute(
+                "UPDATE camp_digest SET sent_at_ms = ? WHERE person_id = ? AND date = ?",
+                (_now_ms(), person_id, date[:10]),
+            ).rowcount
+            if updated == 0:
+                raise CampError("digest_not_found", "Digest not found", status_code=404)
+            self._audit(
+                connection,
+                actor,
+                "digest.sent",
+                person_id=person_id,
+                details={"date": date[:10]},
+            )
+            return dict(
+                connection.execute(
+                    "SELECT * FROM camp_digest WHERE person_id = ? AND date = ?",
+                    (person_id, date[:10]),
                 ).fetchone()
             )
 

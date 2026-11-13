@@ -18,11 +18,9 @@ Source report:
 
 ## State after Cycle 1 (commit `5a374f5`)
 
-Implemented:
-- `LCS_EDITION` setting, default `camp`; `/health` exposes `edition`.
-- `server/migrations/1001_camp_core.sql`: all camp tables, indexes,
-  5 default playbooks (`missing_child`, `evacuation`, `medical`, `intruder`,
-  `lockdown`), settings row per session.
+- `LCS_EDITION` setting, default `camp`; `/health` and bootstrap expose `edition`.
+- Migration `server/migrations/1001_camp_core.sql`: all camp tables, indexes,
+  5 playbooks, settings row per session.
 - `server/app/camp/policy.py`: age bands, quiet hours 21:30–07:30,
   no child↔adult DMs, child DM opt-in/same band, media age+consent,
   forward restrictions, group scope, counselor request policy.
@@ -30,48 +28,70 @@ Implemented:
   import preview/commit with duplicate detection, badge generation,
   transfer, merge, 10-minute import undo, counselor request queue claim/close,
   audit, policy check.
-- `server/app/camp/api.py`: `/camp` page placeholder and `/camp/api/*`
-  endpoints for sessions/units/people/import/requests/settings/policy/audit.
-- `main.py` includes camp router when `edition == "camp"`; `/camp/` no-store.
-- Tests: `tests/unit/test_camp_policy.py`, `test_camp_service.py`.
+- `server/app/camp/api.py`: `/camp` placeholder and `/camp/api/*`.
+- Tests: `test_camp_policy.py`, `test_camp_service.py`.
 
-Verification already run:
-- `23 passed, 1 skipped` in `tests/unit`.
-- Disposable FastAPI smoke via TestClient: `SMOKE_OK`; covers health,
-  sessions, units, import, people, child request, counselor queue,
-  claim/close, quiet-hours policy.
+## State after Cycle 2
 
-Commit: `5a374f5 feat(camp): add isolated camp foundation and request queue`.
+Added to `service.py` and `api.py`:
 
-## Cycle 2 — next implementation
+- Attendance: create/list/get, mark, all-present guard, close, overdue.
+- Alerts: playbook list, start alert/drill, acknowledgements, after-action close.
+- Zones/scans: create/list zones, append-only scan by badge/person,
+  last-seen, 120-minute zone monitor, zone scan log.
+- Duty/handover: create/list shifts, create/list handovers, acknowledge.
+- Pickup: create/list/verify authorisations with QR and restrictions,
+  gate movements, override reason, gate log.
+- Dietary: upsert/list/remove, printable HTML view.
+- Parent digest: guardian links, upsert/list/mark-sent; parents are forced
+  to their own linked children.
+- `_resolve_session_id` now enforces the actor's session; additional
+  `_guard_session` checks on record-id endpoints.
+- Migration changed only for `camp_alerts.after_action` and `closed_by`.
 
-Add to `service.py` and `api.py`, migration already has all tables:
-1. Attendance: create/list/close event, mark present/absent/sick/medic/parent,
-   all-present guard, missing list, overdue event detection.
-2. Alerts: list playbooks, start alert/drill, acknowledge steps, close,
-   list active/history.
-3. Zones/scans: create zone, scan by badge/person, last seen, zone counters.
-4. Duty/handover: create/list shifts, create handover with open items,
-   acknowledge.
-5. Pickup: create authorisation with QR, verify/checkout/checkin, restrictions.
-6. Dietary: set/list/print.
-7. Digest: staff create/update, parent sees only linked children.
-8. Tests for all of the above + smoke.
+API groups (all under `/camp/api`, token as `session_token` query/header):
 
-Exact file locations:
-- service: `server/app/camp/service.py`
-- API: `server/app/camp/api.py`
-- schema: `server/migrations/1001_camp_core.sql`
-- tests: `tests/unit/test_camp_service.py`, new `test_camp_ops.py`
-- local venv: `.\.venv\Scripts\python.exe`
-- smoke: `C:\Windows\Temp\opencode\camp_smoke.py` (extend for cycle 2)
+`attendance/events`, `attendance/overdue`, `alert-playbooks`, `alerts`,
+`zones`, `zones/monitor`, `zones/{id}/scans`, `scans`, `people/{id}/last-seen`,
+`duty`, `handovers`, `pickup`, `pickup/verify`, `movements`, `dietary`,
+`dietary/print`, `guardians`, `digests`, `digests/sent`.
 
-## Cycle 3 — after cycle 2
+Verification after Cycle 2:
+- `30 passed, 1 skipped` in `tests/unit` (7 new ops tests).
+- Extended disposable TestClient smoke: `SMOKE_OK`; covers attendance,
+  alarms, zones/scans, duty/handover, pickup/movement, dietary print, parent digest.
 
-Role-based `/camp` UI (`server/app/static/camp/`), kiosk tokens + offline sync,
-photo consent matrix, session report/CSV/HTML, `/camp/status`, docs
-(trust/safety, legal templates, runbook, pilot metrics), full test pass,
-final report.
+## Cycle 3 — next implementation
+
+Cycle 3 is not started. Do it in this order:
+
+1. **Role-based `/camp` UI**
+   - `server/app/static/camp/camp.html` (token gate, nav by actor role)
+   - `server/app/static/camp/camp.css`
+   - `server/app/static/camp/camp.js` (fetch `/camp/api/me`; render panels)
+   - Panels: child (request button, own attendance/digest), counselor
+     (roll call, request queue, scan, handover), director (sessions/import,
+     alerts, duty, report, settings), security (gate/pickup/scans/alerts),
+     medic (alerts/dietary), parent (own children/digests).
+2. **Kiosk / offline**
+   - Add `CampService.create_kiosk`, `list_kiosks`, `revoke_kiosk`,
+     `kiosk_scan` (token hash, scopes, revoke) using `camp_kiosks`.
+   - Add `sync_offline` using `camp_sync_ops` with idempotent `op_id`.
+   - Kiosk token is returned once; store only SHA-256 hash.
+3. **Photo consent**
+   - Add service methods for `camp_consents`: set/get, consent matrix,
+     enforce media policy from policy.py. `internal_chat`, `parent_digest`,
+     `promo`, `none`.
+4. **Report/status**
+   - `session_report` aggregates counts (children, units, attendance,
+     requests, scans, alerts, dietary, digest).
+   - CSV and HTML print endpoints.
+   - `/camp/status`: DB write, disk free, clock drift, backup hint.
+5. **Docs**
+   - `docs/camp/README.md`, `trust-safety.md`, `runbook.md`,
+     `legal-templates.md`, `pilot-metrics.md`, `api.md`.
+6. **Final**: full pytest, compileall, extended smoke, final summary,
+   update `PLAN.md`, commit, compact, notify agent-chat.
 
 ## Commands
 
@@ -88,5 +108,6 @@ After each cycle:
 1. Update `PLAN.md` and this file.
 2. Commit logical changes.
 3. Run `opencode-compact --force`.
-4. Post passive agent-chat note (no wake) telling others to compact after their
-   cycles. Our channel: `programmer@opencode` (session `ses_f448cfde7ffeFMnyiYRTqLDjAI`).
+4. Post passive agent-chat note telling others to compact after their cycles.
+   Our channel: `programmer@opencode`
+   (session `ses_f448cfde7ffeFMnyiYRTqLDjAI`).
