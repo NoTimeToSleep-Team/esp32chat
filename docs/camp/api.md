@@ -137,7 +137,25 @@ original status with `replayed: true`. Scans are append-only.
 | GET | `/api/report` | Aggregated JSON |
 | GET | `/api/report.csv` | UTF-8 BOM CSV attachment |
 | GET | `/api/report.html` | Print-friendly HTML |
-| GET | `/camp/status` | DB read/write, quick_check, disk, clock, kiosks |
+| GET | `/camp/status` | DB read/write, quick_check, disk, clock, kiosks, network |
+
+`/camp/status` also returns the configured AP view:
+
+```json
+{
+  "network": {
+    "ssid": "CAMP-CHAT",
+    "address": "192.168.50.1",
+    "portal_url": "http://192.168.50.1:18080/camp",
+    "mode": "offline",
+    "internet": false,
+    "security": "WPA2-PSK"
+  }
+}
+```
+
+It reflects `CAMP_AP_*` environment values on the server process, not a live
+`hostapd` probe. Host-level AP setup is documented in `network.md`.
 
 ## Kiosk flow
 

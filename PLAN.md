@@ -34,8 +34,17 @@ Isolation: this directory only; `LC_RELEASE` and live board untouched.
 - [x] session report + CSV/HTML print
 - [x] `/camp/status` checks (DB read/write, quick_check, disk, clock, kiosk stale)
 - [x] trust/safety, legal templates, runbook, pilot metrics, API docs
-- [x] 35 unit tests pass, compileall, node syntax check, extended disposable smoke
+- [x] 36 unit tests pass, compileall, node syntax check, extended disposable smoke
 - [x] final commit; compact + notify room
+
+### Addendum: local Wi-Fi AP
+
+- [x] `server/scripts/configure_camp_ap.sh`: `CAMP-CHAT`, WPA2, offline,
+  `192.168.50.1`, DHCP, local DNS, optional NAT
+- [x] `configure_pi_ap_nat.sh`: `AP_NAT_ENABLED`, `AP_DNS_SERVERS`,
+  `AP_DNS_WILDCARD` offline mode
+- [x] `/camp/status` network block + `/camp` “Сеть” panel
+- [x] `docs/camp/network.md` and runbook/API/README updates
 
 ## Verification
 

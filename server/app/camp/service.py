@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import shutil
 import sqlite3
@@ -3495,6 +3496,21 @@ th{{background:#eee}} @media print{{body{{margin:0}}}}
             for row in kiosk_rows
             if row["last_seen_ms"] is None or now - int(row["last_seen_ms"]) > 10 * 60_000
         )
+        network_ssid = os.environ.get("CAMP_AP_SSID", "CAMP-CHAT")
+        network_address = os.environ.get("CAMP_AP_ADDRESS", "192.168.50.1")
+        portal_port = os.environ.get("CAMP_PORTAL_PORT", "18080")
+        if not portal_port.isdigit():
+            portal_port = "18080"
+        network_mode = "nat" if os.environ.get("CAMP_AP_NAT_ENABLED") == "1" else "offline"
+        network = {
+            "ssid": network_ssid,
+            "address": network_address,
+            "portal_url": f"http://{network_address}:{portal_port}/camp",
+            "mode": network_mode,
+            "internet": network_mode == "nat",
+            "security": "WPA2-PSK",
+            "note": "Configured on the host by server/scripts/configure_camp_ap.sh; this block reflects CAMP_AP_* environment values.",
+        }
         return {
             "status": "ok" if db_ok and write_ok and quick_check == "ok" and disk_free_mb > 100 else "degraded",
             "checks": {
@@ -3506,6 +3522,7 @@ th{{background:#eee}} @media print{{body{{margin:0}}}}
             },
             "sessions": {"open": int(sessions or 0), "active": int(active or 0)},
             "kiosks": {"active": len(kiosk_rows), "stale": stale_kiosks},
+            "network": network,
             "last_audit_ms": int(last_audit) if last_audit else None,
             "backup_hint": "Create a SQLite snapshot before the session and keep it off-device.",
             "checked_at_ms": now,

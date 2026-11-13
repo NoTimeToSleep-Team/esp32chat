@@ -99,11 +99,11 @@ function navItems() {
   if (r === "child") return [["day", "Мой день"], ["new-request", "Позвать вожатого"], ["digest", "Мой дневник"]];
   if (r === "parent") return [["children", "Мои дети"], ["digest", "Дневник"], ["consents", "Согласия"]];
   if (r === "counselor") return [["rollcall", "Перекличка"], ["requests", "Заявки"], ["scan", "Сканирование"], ["duty", "Передача смены"], ["digest", "Дневник"]];
-  if (r === "director") return [["overview", "Обзор"], ["rollcall", "Перекличка"], ["alerts", "Тревоги"], ["zones", "Зоны"], ["duty", "Смена"], ["gate", "Ворота"], ["dietary", "Питание"], ["digest", "Дневник"], ["report", "Отчёт"], ["consents", "Согласия"], ["kiosk", "Киоск"], ["status", "Статус"]];
-  if (r === "security") return [["gate", "Ворота"], ["scan", "Сканирование"], ["alerts", "Тревоги"], ["zones", "Зоны"], ["status", "Статус"]];
+  if (r === "director") return [["overview", "Обзор"], ["rollcall", "Перекличка"], ["alerts", "Тревоги"], ["zones", "Зоны"], ["duty", "Смена"], ["gate", "Ворота"], ["dietary", "Питание"], ["digest", "Дневник"], ["report", "Отчёт"], ["consents", "Согласия"], ["kiosk", "Киоск"], ["network", "Сеть"], ["status", "Статус"]];
+  if (r === "security") return [["gate", "Ворота"], ["scan", "Сканирование"], ["alerts", "Тревоги"], ["zones", "Зоны"], ["network", "Сеть"], ["status", "Статус"]];
   if (r === "medic") return [["alerts", "Тревоги"], ["dietary", "Питание"], ["scan", "Сканирование"], ["status", "Статус"]];
   if (r === "kitchen") return [["dietary", "Питание"]];
-  return [["status", "Статус"], ["report", "Отчёт"]];
+  return [["network", "Сеть"], ["status", "Статус"], ["report", "Отчёт"]];
 }
 
 function renderChrome() {
@@ -173,6 +173,7 @@ async function openPanel(id) {
       report: renderReport,
       consents: renderConsents,
       kiosk: renderKiosk,
+      network: renderNetwork,
       status: renderStatus,
       day: renderDay,
       children: renderChildren,
@@ -619,12 +620,55 @@ async function renderKiosk(panel) {
   }));
 }
 
+async function renderNetwork(panel) {
+  const response = await fetch("/camp/status", { headers: { Accept: "application/json" } });
+  const status = await response.json();
+  const net = status.network || {};
+  const portal = net.portal_url || `${window.location.origin}/camp`;
+  const current = `${window.location.origin}/camp`;
+  panel.innerHTML = `${header("Сеть и Wi-Fi", "Точка доступа для чата без интернета.")}
+    ${metrics([
+      ["SSID", net.ssid || "CAMP-CHAT"],
+      ["Режим", net.mode || "offline"],
+      ["Портал", portal],
+      ["Безопасность", net.security || "WPA2-PSK"],
+    ])}
+    <section class="card" style="margin-top:12px">
+      <h3>Подключение</h3>
+      <ol>
+        <li>Подключите телефон или планшет к Wi-Fi <strong>${esc(net.ssid || "CAMP-CHAT")}</strong>.</li>
+        <li>Откройте <code>${esc(portal)}</code> или <code>${esc(current)}</code>.</li>
+        <li>Введите web-токен сессии и работайте внутри лагеря.</li>
+      </ol>
+      <div class="actions">
+        <button id="copyPortal" class="button small" type="button">Скопировать адрес</button>
+      </div>
+      <p class="muted" style="margin-top:10px">${esc(net.note || "")}</p>
+    </section>
+    <section class="card" style="margin-top:12px">
+      <h3>Если точки нет</h3>
+      <p class="muted">AP поднимается на Raspberry Pi скриптом <code>server/scripts/configure_camp_ap.sh</code>. Инструкция: <code>docs/camp/network.md</code>.</p>
+    </section>`;
+  const button = $("#copyPortal");
+  if (button) {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(portal);
+        toast("Адрес скопирован");
+      } catch {
+        window.prompt("Адрес портала", portal);
+      }
+    });
+  }
+}
+
 async function renderStatus(panel) {
   const response = await fetch("/camp/status", { headers: { Accept: "application/json" } });
   const status = await response.json();
   panel.innerHTML = `${header("Статус", "DB read/write, quick_check, диск, часы.")}
     ${metrics([["Состояние", status.status], ["DB", status.checks.db_read ? "read ok" : "fail"], ["Запись", status.checks.db_write ? "ok" : "fail"], ["Диск, MB", status.checks.disk_free_mb], ["Clock skew, ms", status.checks.clock_skew_ms], ["Kiosk stale", status.kiosks.stale]])}
-    <section class="card" style="margin-top:12px"><h3>Backup hint</h3><p class="muted">${esc(status.backup_hint)}</p><p class="muted">Quick check: ${esc(status.checks.db_quick_check)} · Sessions active: ${esc(status.sessions.active)}</p></section>`;
+    <section class="card" style="margin-top:12px"><h3>Backup hint</h3><p class="muted">${esc(status.backup_hint)}</p><p class="muted">Quick check: ${esc(status.checks.db_quick_check)} · Sessions active: ${esc(status.sessions.active)}</p></section>
+    <section class="card" style="margin-top:12px"><h3>Сеть</h3><p class="muted">${esc(status.network?.ssid || "CAMP-CHAT")} · ${esc(status.network?.mode || "offline")} · <code>${esc(status.network?.portal_url || "")}</code></p></section>`;
 }
 
 async function renderChildren(panel) {

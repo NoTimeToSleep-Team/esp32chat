@@ -187,3 +187,20 @@ def test_report_csv_html_and_status(service: CampService) -> None:
     assert status["checks"]["db_read"] is True
     assert status["checks"]["db_write"] is True
     assert status["checks"]["db_quick_check"] == "ok"
+
+
+def test_status_reports_network_settings(service: CampService, monkeypatch) -> None:
+    monkeypatch.setenv("CAMP_AP_SSID", "CAMP-TEST")
+    monkeypatch.setenv("CAMP_AP_ADDRESS", "10.10.0.1")
+    monkeypatch.setenv("CAMP_PORTAL_PORT", "18080")
+    monkeypatch.delenv("CAMP_AP_NAT_ENABLED", raising=False)
+    status = service.system_status()
+    assert status["network"]["ssid"] == "CAMP-TEST"
+    assert status["network"]["portal_url"] == "http://10.10.0.1:18080/camp"
+    assert status["network"]["mode"] == "offline"
+    assert status["network"]["internet"] is False
+
+    monkeypatch.setenv("CAMP_AP_NAT_ENABLED", "1")
+    status = service.system_status()
+    assert status["network"]["mode"] == "nat"
+    assert status["network"]["internet"] is True

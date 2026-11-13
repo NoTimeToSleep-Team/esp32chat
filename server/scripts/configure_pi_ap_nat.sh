@@ -12,6 +12,9 @@ AP_NETMASK="${AP_NETMASK:-255.255.255.0}"
 AP_DHCP_START="${AP_DHCP_START:-10.42.0.50}"
 AP_DHCP_END="${AP_DHCP_END:-10.42.0.150}"
 AP_DHCP_LEASE="${AP_DHCP_LEASE:-24h}"
+AP_NAT_ENABLED="${AP_NAT_ENABLED:-1}"
+AP_DNS_SERVERS="${AP_DNS_SERVERS:-1.1.1.1 8.8.8.8}"
+AP_DNS_WILDCARD="${AP_DNS_WILDCARD:-}"
 DRY_RUN="${DRY_RUN:-0}"
 
 DHCPCD_CONF="/etc/dhcpcd.conf"
@@ -48,6 +51,10 @@ validate_inputs() {
     pass_len="${#AP_PASSPHRASE}"
     if (( pass_len < 8 || pass_len > 63 )); then
         echo "AP_PASSPHRASE must be 8..63 chars."
+        exit 1
+    fi
+    if [[ "${AP_NAT_ENABLED}" != "0" && "${AP_NAT_ENABLED}" != "1" ]]; then
+        echo "AP_NAT_ENABLED must be 0 or 1."
         exit 1
     fi
 }
@@ -151,11 +158,24 @@ configure_dnsmasq() {
 interface=${AP_WLAN_IFACE}
 bind-interfaces
 dhcp-range=${AP_DHCP_START},${AP_DHCP_END},${AP_NETMASK},${AP_DHCP_LEASE}
+dhcp-option=3,${AP_ADDRESS}
+dhcp-option=6,${AP_ADDRESS}
 domain-needed
 bogus-priv
-server=1.1.1.1
-server=8.8.8.8
 EOF
+    if [[ -n "${AP_DNS_WILDCARD}" ]]; then
+        echo "address=/#/${AP_DNS_WILDCARD}" >> "${dnsmasq_tmp}"
+        echo "address=/camp.local/${AP_DNS_WILDCARD}" >> "${dnsmasq_tmp}"
+        echo "address=/chat.local/${AP_DNS_WILDCARD}" >> "${dnsmasq_tmp}"
+    fi
+    if [[ -z "${AP_DNS_SERVERS// /}" ]]; then
+        echo "no-resolv" >> "${dnsmasq_tmp}"
+    else
+        local dns_server
+        for dns_server in ${AP_DNS_SERVERS}; do
+            echo "server=${dns_server}" >> "${dnsmasq_tmp}"
+        done
+    fi
     run install -m 0644 "${dnsmasq_tmp}" "${DNSMASQ_LOCAL_CONF}"
     rm -f "${dnsmasq_tmp}"
 }
@@ -186,6 +206,28 @@ configure_iptables_nat() {
     run sh -c "iptables-save > /etc/iptables/rules.v4"
 }
 
+remove_iptables_nat() {
+    command -v iptables >/dev/null 2>&1 || return 0
+    while iptables -t nat -C POSTROUTING -o "${AP_UPLINK_IFACE}" -j MASQUERADE 2>/dev/null; do
+        run iptables -t nat -D POSTROUTING -o "${AP_UPLINK_IFACE}" -j MASQUERADE
+    done
+    while iptables -C FORWARD -i "${AP_UPLINK_IFACE}" -o "${AP_WLAN_IFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; do
+        run iptables -D FORWARD -i "${AP_UPLINK_IFACE}" -o "${AP_WLAN_IFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT
+    done
+    while iptables -C FORWARD -i "${AP_WLAN_IFACE}" -o "${AP_UPLINK_IFACE}" -j ACCEPT 2>/dev/null; do
+        run iptables -D FORWARD -i "${AP_WLAN_IFACE}" -o "${AP_UPLINK_IFACE}" -j ACCEPT
+    done
+    if command -v iptables-save >/dev/null 2>&1; then
+        run sh -c "iptables-save > /etc/iptables/rules.v4"
+    fi
+}
+
+remove_local_sysctl() {
+    if [[ -f "${SYSCTL_LOCAL_CONF}" ]]; then
+        run rm -f "${SYSCTL_LOCAL_CONF}"
+    fi
+}
+
 restart_services() {
     run systemctl unmask hostapd
     run systemctl enable hostapd
@@ -194,37 +236,58 @@ restart_services() {
     run systemctl enable dnsmasq
     run systemctl restart dnsmasq
 
-    run systemctl enable netfilter-persistent
-    run systemctl restart netfilter-persistent
+    if [[ "${AP_NAT_ENABLED}" == "1" ]]; then
+        run systemctl enable netfilter-persistent
+        run systemctl restart netfilter-persistent
+    fi
 
     run systemctl restart dhcpcd
 }
 
 print_summary() {
-    log "AP+NAT configuration complete"
+    if [[ "${AP_NAT_ENABLED}" == "1" ]]; then
+        log "AP+NAT configuration complete"
+    else
+        log "AP configuration complete (offline mode, NAT disabled)"
+    fi
     echo ""
     echo "Quick checks:"
     echo "  ip addr show ${AP_WLAN_IFACE}"
     echo "  systemctl status hostapd --no-pager"
     echo "  systemctl status dnsmasq --no-pager"
-    echo "  iptables -t nat -S POSTROUTING"
+    if [[ "${AP_NAT_ENABLED}" == "1" ]]; then
+        echo "  iptables -t nat -S POSTROUTING"
+    fi
     echo ""
     echo "Client network: ${AP_ADDRESS}/24"
     echo "DHCP range: ${AP_DHCP_START} - ${AP_DHCP_END}"
+    if [[ -n "${AP_DNS_WILDCARD}" ]]; then
+        echo "Portal DNS: camp.local, chat.local, all names -> ${AP_DNS_WILDCARD}"
+    fi
 }
 
 main() {
     require_root
     validate_inputs
 
-    log "Starting AP+NAT setup wlan=${AP_WLAN_IFACE} uplink=${AP_UPLINK_IFACE} dry_run=${DRY_RUN}"
+    if [[ "${AP_NAT_ENABLED}" == "1" ]]; then
+        log "Starting AP+NAT setup wlan=${AP_WLAN_IFACE} uplink=${AP_UPLINK_IFACE} dry_run=${DRY_RUN}"
+    else
+        log "Starting offline AP setup wlan=${AP_WLAN_IFACE} dry_run=${DRY_RUN}"
+    fi
 
     install_packages
     configure_dhcpcd
     configure_hostapd
     configure_dnsmasq
-    configure_sysctl
-    configure_iptables_nat
+    if [[ "${AP_NAT_ENABLED}" == "1" ]]; then
+        configure_sysctl
+        configure_iptables_nat
+    else
+        remove_iptables_nat
+        remove_local_sysctl
+        run sysctl --system
+    fi
     restart_services
     print_summary
 }

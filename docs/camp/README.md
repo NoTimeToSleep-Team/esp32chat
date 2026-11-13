@@ -29,6 +29,8 @@ pickup, dietary needs and parent digests.
 - Single-use kiosk tokens (only a SHA-256 hash is stored) and revoke.
 - Idempotent offline sync endpoint for scans and attendance marks.
 - Session report (JSON/CSV/HTML), role-based UI and `/camp/status`.
+- Camp Wi-Fi access point helper (`CAMP-CHAT`, offline, no NAT by default);
+  see `network.md`.
 
 ## Run locally
 

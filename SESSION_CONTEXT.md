@@ -65,7 +65,7 @@ All three cycles are complete.
 ```powershell
 cd D:\opencode\LC_CAMP_EDITION
 .\.venv\Scripts\python.exe -m pytest -q tests\unit
-# 35 passed, 1 skipped
+# 36 passed, 1 skipped
 .\.venv\Scripts\python.exe -m compileall -q server\app
 node --check server/app/static/camp/camp.js
 .\.venv\Scripts\python.exe C:\Windows\Temp\opencode\camp_smoke.py
@@ -77,6 +77,24 @@ request queue, policy, attendance, alerts, zones/scans, duty/handover,
 pickup/gate, dietary print, parent digest, consent matrix, kiosk create/scan/
 revoke, offline sync replay, report JSON/CSV/HTML, `/camp/status`, and static
 UI files.
+
+## Addendum: local Wi-Fi AP
+
+The app itself cannot broadcast Wi-Fi; added a host-side AP setup for the Pi:
+
+- `server/scripts/configure_camp_ap.sh` — camp defaults (`CAMP-CHAT`, WPA2,
+  `192.168.50.1`, DHCP `.50–.150`, offline, local DNS/captive portal).
+- `server/scripts/configure_pi_ap_nat.sh` — new `AP_NAT_ENABLED=0`,
+  `AP_DNS_SERVERS`, `AP_DNS_WILDCARD` offline mode; defaults unchanged.
+- `/camp/status` returns `network` (SSID, portal URL, mode, internet,
+  security); `/camp` has a “Сеть” panel for director/security/IT.
+- `docs/camp/network.md` — install, verify, security, rollback, Bookworm
+  NetworkManager caveat.
+
+Verified locally: `bash -n` for both scripts; `DRY_RUN=1` for offline and NAT
+modes completed with expected commands. Actual AP was not hardware-tested here
+(no Raspberry Pi/AP interface on the Windows dev host); deployment verification
+must be done on the target Pi.
 
 ## Commands / env
 
